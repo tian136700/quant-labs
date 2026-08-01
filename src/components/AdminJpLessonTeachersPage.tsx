@@ -111,11 +111,13 @@ export function AdminJpLessonTeachersPageContent() {
   const [newName, setNewName] = useState("");
   const [newHourlyRate, setNewHourlyRate] = useState("");
   const [newLessonMinutes, setNewLessonMinutes] = useState("");
+  const [newTencentMeetingId, setNewTencentMeetingId] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
   const [editHourlyRate, setEditHourlyRate] = useState("");
   const [editLessonMinutes, setEditLessonMinutes] = useState("");
   const [editSortOrder, setEditSortOrder] = useState(0);
+  const [editTencentMeetingId, setEditTencentMeetingId] = useState("");
   const [reviewSummaries, setReviewSummaries] = useState<
     Map<number, JpLessonTeacherReviewSummary>
   >(() => readJpLessonTeacherReviewCache());
@@ -288,6 +290,7 @@ export function AdminJpLessonTeachersPageContent() {
     setEditHourlyRate("");
     setEditLessonMinutes("");
     setEditSortOrder(0);
+    setEditTencentMeetingId("");
     setReviewTeacher(null);
     setCrossSubjectTeachers({});
     setSearchSuggestOpen(false);
@@ -589,6 +592,7 @@ export function AdminJpLessonTeachersPageContent() {
           lessonCount: "上课频次",
           rate: "课时费",
           minutes: "课时时长",
+          tencentMeeting: "腾讯会议号",
           hourlyEquiv: "折合时薪",
           score: "平均评分",
           remark: "备注",
@@ -601,6 +605,7 @@ export function AdminJpLessonTeachersPageContent() {
           lessonCount: "Lessons",
           rate: "Rate (RMB)",
           minutes: "Duration",
+          tencentMeeting: "Meeting ID",
           hourlyEquiv: "Hourly equiv.",
           score: "Avg score",
           remark: "Latest note",
@@ -626,9 +631,11 @@ export function AdminJpLessonTeachersPageContent() {
     editHourlyRate,
     editLessonMinutes,
     editSortOrder,
+    editTencentMeetingId,
     newName,
     newHourlyRate,
     newLessonMinutes,
+    newTencentMeetingId,
     setSaving,
     setStatus,
     setStatusErr,
@@ -636,12 +643,14 @@ export function AdminJpLessonTeachersPageContent() {
     setNewName,
     setNewHourlyRate,
     setNewLessonMinutes,
+    setNewTencentMeetingId,
     setAddModalOpen,
     setEditingId,
     setEditName,
     setEditHourlyRate,
     setEditLessonMinutes,
     setEditSortOrder,
+    setEditTencentMeetingId,
     setCreatingUserTeacherId,
   });
 
@@ -686,6 +695,7 @@ export function AdminJpLessonTeachersPageContent() {
         editName={editName}
         editHourlyRate={editHourlyRate}
         editLessonMinutes={editLessonMinutes}
+        editTencentMeetingId={editTencentMeetingId}
         reviewSummaries={reviewSummaries}
         creatingUserTeacherId={creatingUserTeacherId}
         sortKey={sortKey}
@@ -703,6 +713,7 @@ export function AdminJpLessonTeachersPageContent() {
         setEditName={setEditName}
         setEditHourlyRate={setEditHourlyRate}
         setEditLessonMinutes={setEditLessonMinutes}
+        setEditTencentMeetingId={setEditTencentMeetingId}
         startEdit={startEdit}
         cancelEdit={cancelEdit}
         saveEdit={saveEdit}
@@ -719,11 +730,14 @@ export function AdminJpLessonTeachersPageContent() {
         newName={newName}
         newHourlyRate={newHourlyRate}
         newLessonMinutes={newLessonMinutes}
+        newTencentMeetingId={newTencentMeetingId}
         addNameInputRef={addNameInputRef}
         onClose={closeAddModal}
         onNameChange={setNewName}
         onHourlyRateChange={setNewHourlyRate}
         onLessonMinutesChange={setNewLessonMinutes}
+        onTencentMeetingIdChange={setNewTencentMeetingId}
+        showTencentMeeting={teacherSubject === "en"}
         onSubmit={() => void createTeacher()}
       />
 

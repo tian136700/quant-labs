@@ -25,6 +25,7 @@ import {
   matchLessonTeacherByNoticeName,
   parseLessonClassNoticeText,
 } from "@/lib/lesson-class-notice-parse";
+import { normalizeTencentMeetingId } from "@/lib/en-lesson-tencent-meeting";
 import type {
   EnLessonClassScheduleInput,
   EnLessonRecord,
@@ -33,6 +34,7 @@ import type {
 
 export type EnLessonNextClassSaveMeta = {
   teacherIds?: number[];
+  teacherMeetingPatch?: { teacherId: number; meetingId: string };
 };
 
 type Props = {
@@ -45,7 +47,10 @@ type Props = {
     schedules: EnLessonClassScheduleInput[],
     meta?: EnLessonNextClassSaveMeta
   ) => void | Promise<void>;
-  onAddTeacher?: (name: string) => Promise<EnLessonTeacher | null>;
+  onAddTeacher?: (
+    name: string,
+    opts?: { tencentMeetingId?: string | null }
+  ) => Promise<EnLessonTeacher | null>;
 };
 
 type ScheduleRow = {
@@ -110,6 +115,7 @@ export function EnLessonNextClassEditModal({
   const [resolvedTeacherId, setResolvedTeacherId] = useState<number | null>(
     null
   );
+  const [pendingMeetingId, setPendingMeetingId] = useState<string | null>(null);
   const [localSaving, setLocalSaving] = useState(false);
   const saveBusy = saving || localSaving;
   const saveProgress = useSaveProgressBar(saveBusy);
@@ -143,6 +149,7 @@ export function EnLessonNextClassEditModal({
     setNoticeFeedback(null);
     setPendingTeacherName(null);
     setResolvedTeacherId(null);
+    setPendingMeetingId(null);
     setLocalSaving(false);
   }, [open, lesson]);
 
@@ -166,7 +173,12 @@ export function EnLessonNextClassEditModal({
 
   const applyNoticeText = (raw: string) => {
     const parsed = parseLessonClassNoticeText(raw);
-    if (!parsed.teacherName && !parsed.date && !parsed.time) {
+    if (
+      !parsed.teacherName &&
+      !parsed.date &&
+      !parsed.time &&
+      !parsed.tencentMeetingId
+    ) {
       setNoticeFeedback("未识别到老师或上课时间，请检查粘贴内容");
       return;
     }
@@ -189,10 +201,16 @@ export function EnLessonNextClassEditModal({
       setResolvedTeacherId(match?.teacher?.id ?? null);
     }
 
+    const meetingId = normalizeTencentMeetingId(parsed.tencentMeetingId);
+    if (meetingId) {
+      setPendingMeetingId(meetingId);
+    }
+
     const parts: string[] = [];
     if (parsed.teacherName) parts.push(`老师 ${parsed.teacherName}`);
     if (parsed.date) parts.push(`日期 ${parsed.date}`);
     if (parsed.time) parts.push(`时间 ${parsed.time}`);
+    if (meetingId) parts.push(`会议号 ${meetingId}`);
     setNoticeFeedback(`已填入：${parts.join(" · ")}`);
   };
 
@@ -223,13 +241,26 @@ export function EnLessonNextClassEditModal({
     }
 
     let teacherIds: number[] | undefined;
+    let teacherMeetingPatch: EnLessonNextClassSaveMeta["teacherMeetingPatch"];
     if (pendingTeacherName) {
       if (resolvedTeacherId != null) {
         teacherIds = [resolvedTeacherId];
+        const existing = teachers.find((t) => t.id === resolvedTeacherId);
+        if (
+          pendingMeetingId &&
+          !normalizeTencentMeetingId(existing?.tencent_meeting_id)
+        ) {
+          teacherMeetingPatch = {
+            teacherId: resolvedTeacherId,
+            meetingId: pendingMeetingId,
+          };
+        }
       } else if (onAddTeacher) {
         setLocalSaving(true);
         try {
-          const created = await onAddTeacher(pendingTeacherName);
+          const created = await onAddTeacher(pendingTeacherName, {
+            tencentMeetingId: pendingMeetingId,
+          });
           if (!created) {
             setNoticeFeedback(`新建老师「${pendingTeacherName}」失败，请稍后重试`);
             return;
@@ -242,10 +273,10 @@ export function EnLessonNextClassEditModal({
       }
     }
 
-    await onSave(
-      schedules,
-      teacherIds?.length ? { teacherIds } : undefined
-    );
+    await onSave(schedules, {
+      ...(teacherIds?.length ? { teacherIds } : {}),
+      ...(teacherMeetingPatch ? { teacherMeetingPatch } : {}),
+    });
   };
 
   const handleClear = () => {
@@ -254,6 +285,7 @@ export function EnLessonNextClassEditModal({
     setNoticeFeedback(null);
     setPendingTeacherName(null);
     setResolvedTeacherId(null);
+    setPendingMeetingId(null);
   };
 
   if (!open || !mounted || !lesson) return null;

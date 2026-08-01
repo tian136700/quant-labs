@@ -7,6 +7,7 @@ import {
   listEnLessonTeachersWithLessonCounts,
   updateEnLessonTeacher,
 } from "@/lib/en-lesson-teacher-db";
+import { normalizeTencentMeetingId } from "@/lib/en-lesson-tencent-meeting";
 import { ensureEnLessonTeacherUserAccount, listEnLessonTeacherUserLinkMapByTeacherId } from "@/lib/etr-auth-db";
 import { ensureXianyuEnQuizTeacherBound } from "@/lib/en-xianyu-quiz-teacher";
 import {
@@ -96,6 +97,7 @@ export async function POST(request: Request) {
       hourly_rate?: number | null;
       lesson_price?: number;
       lesson_minutes?: number;
+      tencent_meeting_id?: string | null;
     };
 
     if (viaUploadToken && body.action) {
@@ -154,6 +156,10 @@ export async function POST(request: Request) {
           body.sort_order !== undefined ? Number(body.sort_order) : undefined,
         hourly_rate: hourlyRate,
         lesson_minutes: lessonMinutes,
+        tencent_meeting_id:
+          body.tencent_meeting_id !== undefined
+            ? normalizeTencentMeetingId(body.tencent_meeting_id)
+            : undefined,
       });
 
       if (!result.ok) {
@@ -179,7 +185,10 @@ export async function POST(request: Request) {
       name,
       sortOrder,
       hourlyRate ?? null,
-      lessonMinutes ?? null
+      lessonMinutes ?? null,
+      body.tencent_meeting_id !== undefined
+        ? normalizeTencentMeetingId(body.tencent_meeting_id)
+        : null
     );
     if (!result.ok) {
       const status = result.error === "name_duplicate" ? 409 : 400;

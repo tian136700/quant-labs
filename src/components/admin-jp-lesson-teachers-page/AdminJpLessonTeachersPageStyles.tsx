@@ -144,6 +144,34 @@ export function AdminJpLessonTeachersPageStyles() {
           display: grid;
           gap: 0.85rem;
         }
+
+        :global(.admin-jpl-tencent-meeting) {
+          display: inline-flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 0.35rem 0.5rem;
+        }
+
+        :global(.admin-jpl-tencent-tag) {
+          display: inline-block;
+          padding: 0.1rem 0.4rem;
+          border-radius: 999px;
+          border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border));
+          background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+          color: var(--accent);
+          font-size: 0.6875rem;
+          font-weight: 600;
+          line-height: 1.3;
+        }
+
+        :global(.admin-jpl-tencent-id) {
+          font-size: 0.8125rem;
+          font-variant-numeric: tabular-nums;
+        }
+
+        :global(.col-tencent-meeting) {
+          min-width: 7.5rem;
+        }
       
       `}</style>
   );

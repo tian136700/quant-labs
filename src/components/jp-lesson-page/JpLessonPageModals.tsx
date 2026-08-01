@@ -128,12 +128,29 @@ export function JpLessonPageModals(props: JpLessonPageModalsProps) {
         open={editingNextClassLesson != null}
         lesson={editingNextClassLesson}
         teachers={teachers}
-        saving={savingNextClassId === editingNextClassLesson?.id}
+        saving={
+          savingNextClassId === editingNextClassLesson?.id ||
+          savingTeacherLessonId === editingNextClassLesson?.id
+        }
         onClose={() => setEditingNextClassLesson(null)}
-        onSave={(schedules) => {
-          if (editingNextClassLesson) {
-            void setLessonClassSchedules(editingNextClassLesson.id, schedules);
+        onAddTeacher={async (name) => addLessonTeacher({ name })}
+        onSave={async (schedules, meta) => {
+          if (!editingNextClassLesson) return;
+          const lessonId = editingNextClassLesson.id;
+          if (meta?.teacherIds?.length) {
+            try {
+              await setLessonTeachersForMany(
+                [lessonId],
+                meta.teacherIds,
+                null,
+                [],
+                { keepOpen: true }
+              );
+            } catch {
+              return;
+            }
           }
+          void setLessonClassSchedules(lessonId, schedules);
         }}
         onEditTeachers={() => {
           if (!editingNextClassLesson) return;

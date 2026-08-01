@@ -43,9 +43,11 @@ def main() -> int:
         print("EnLessonNextClassEditModal save not disabled on duplicates")
         return 1
 
-    mobile = (ROOT / "src/app/mobile.css").read_text(encoding="utf-8")
+    mobile = (ROOT / "src/app/mobile/mobile-modals.css").read_text(
+        encoding="utf-8"
+    )
     if ".jp-lesson-next-class-body" not in mobile:
-        print("mobile.css missing .jp-lesson-next-class-body scroll rules")
+        print("mobile-modals.css missing .jp-lesson-next-class-body scroll rules")
         return 1
 
     print("ok")

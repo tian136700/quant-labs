@@ -297,6 +297,11 @@ export interface JpLessonTeacher {
   hourly_rate: number | null;
   /** 单次课时长（分钟：20 / 30 / 45 / 55 / 60）；可为空 */
   lesson_minutes: number | null;
+  /**
+   * 腾讯会议号（固定；目前主要用于英语老师）。
+   * 日语/韩语列表可不返回该字段。
+   */
+  tencent_meeting_id?: string | null;
   sort_order: number;
   created_at: string;
   updated_at: string;

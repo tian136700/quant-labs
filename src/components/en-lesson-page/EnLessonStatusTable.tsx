@@ -28,7 +28,12 @@ import {
 import { SITE_URL } from "@/lib/site";
 import { displayEnVocabCategory, shortEnVocabCategoryLabel } from "@/lib/en-vocab-category";
 import { enVocabRefApiPath } from "@/lib/en-vocab-ref-shared";
-import type { EnLessonRecord, EnVocabRef } from "@/lib/types";
+import type { EnLessonRecord, EnLessonTeacher, EnVocabRef } from "@/lib/types";
+import {
+  normalizeTencentMeetingId,
+  resolveEnLessonMeetingIdForCopy,
+} from "@/lib/en-lesson-tencent-meeting";
+import { copyTextToClipboard } from "@/lib/copy-text";
 
 export type EnLessonStatusTableProps = {
   displayGroups: EnLessonDisplayGroup<EnLessonRecord>[];
@@ -37,6 +42,7 @@ export type EnLessonStatusTableProps = {
   isAdmin: boolean;
   canOperate: boolean;
   refs: Record<string, EnVocabRef>;
+  teachers: EnLessonTeacher[];
   teacherNameById: Map<number, string>;
   savingTeacherId: number | null;
   noteCountByLesson: Map<number, number>;
@@ -60,6 +66,7 @@ export type EnLessonStatusTableProps = {
   onDeleteLesson: (lesson: EnLessonRecord) => void;
   onLessonLinkCopied: (lessonId: number) => void;
   onLessonLinkCopyError: () => void;
+  onCopyFeedback: (message: string) => void;
 };
 
 export function EnLessonStatusTable({
@@ -69,6 +76,7 @@ export function EnLessonStatusTable({
   isAdmin,
   canOperate,
   refs,
+  teachers,
   teacherNameById,
   savingTeacherId,
   noteCountByLesson,
@@ -87,7 +95,23 @@ export function EnLessonStatusTable({
   onDeleteLesson,
   onLessonLinkCopied,
   onLessonLinkCopyError,
+  onCopyFeedback,
 }: EnLessonStatusTableProps) {
+  const teachersForLesson = (lesson: EnLessonRecord): EnLessonTeacher[] =>
+    (lesson.teacher_ids ?? [])
+      .map((id) => teachers.find((teacher) => teacher.id === id))
+      .filter((teacher): teacher is EnLessonTeacher => teacher != null);
+
+  const copyMeetingIdForLesson = (lesson: EnLessonRecord) => {
+    const result = resolveEnLessonMeetingIdForCopy(teachersForLesson(lesson));
+    if (!result.ok) {
+      if (result.message) onCopyFeedback(result.message);
+      return;
+    }
+    void copyTextToClipboard(result.meetingId).then((ok) =>
+      onCopyFeedback(ok ? "复制成功" : "复制失败")
+    );
+  };
   const renderLessonDeleteButton = (lesson: EnLessonRecord) =>
     canOperate ? (
       <button
@@ -108,18 +132,33 @@ export function EnLessonStatusTable({
     const viewUrl = lesson.ref_key ? refViewUrl(lesson.ref_key, ref?.updated_at) : "";
 
     if (!hasRefKey) {
-      return canOperate ? (
+      return canOperate || isAdmin ? (
         <div className="jp-lesson-actions">
-          <button
-            type="button"
-            className="jp-lesson-action-btn"
-            onClick={() => onEditLesson(lesson)}
-          >
-            <span className="jp-lesson-mobile-btn-icon" aria-hidden="true">
-              <EnLessonMobileIcon name="upload" />
-            </span>
-            上传教案
-          </button>
+          {canOperate ? (
+            <button
+              type="button"
+              className="jp-lesson-action-btn"
+              onClick={() => onEditLesson(lesson)}
+            >
+              <span className="jp-lesson-mobile-btn-icon" aria-hidden="true">
+                <EnLessonMobileIcon name="upload" />
+              </span>
+              上传教案
+            </button>
+          ) : null}
+          {isAdmin ? (
+            <button
+              type="button"
+              className="jp-lesson-action-btn"
+              title="复制腾讯会议号"
+              onClick={() => copyMeetingIdForLesson(lesson)}
+            >
+              <span className="jp-lesson-mobile-btn-icon" aria-hidden="true">
+                <EnLessonMobileIcon name="copy" />
+              </span>
+              会议号
+            </button>
+          ) : null}
           {renderLessonDeleteButton(lesson)}
         </div>
       ) : (
@@ -193,6 +232,22 @@ export function EnLessonStatusTable({
         }
       />
     );
+    if (isAdmin) {
+      actionItems.push(
+        <button
+          key="meeting"
+          type="button"
+          className="jp-lesson-action-btn"
+          title="复制腾讯会议号"
+          onClick={() => copyMeetingIdForLesson(lesson)}
+        >
+          <span className="jp-lesson-mobile-btn-icon" aria-hidden="true">
+            <EnLessonMobileIcon name="copy" />
+          </span>
+          会议号
+        </button>
+      );
+    }
     if (canOperate) {
       actionItems.push(
         <EnEditIconButton
@@ -273,10 +328,29 @@ export function EnLessonStatusTable({
 
   const renderSharedTeacherCell = (groupLessons: EnLessonRecord[]) => {
     const lesson = groupLessons[0];
+    const assigned = teachersForLesson(lesson);
+    const withMeeting = assigned.filter((t) =>
+      Boolean(normalizeTencentMeetingId(t.tencent_meeting_id))
+    );
     return (
       <td data-label="上课老师" className="jp-lesson-teacher-col">
         <div className="jp-lesson-teacher-cell">
-          <span>{formatLessonTeacherNames(lesson, teacherNameById)}</span>
+          <div className="jp-lesson-teacher-cell-main">
+            <span>{formatLessonTeacherNames(lesson, teacherNameById)}</span>
+            {withMeeting.length ? (
+              <span className="en-lesson-tencent-tags" aria-label="腾讯会议">
+                {withMeeting.map((teacher) => (
+                  <span
+                    key={teacher.id}
+                    className="en-lesson-tencent-tag"
+                    title={`${teacher.name} · ${normalizeTencentMeetingId(teacher.tencent_meeting_id)}`}
+                  >
+                    腾讯会议
+                  </span>
+                ))}
+              </span>
+            ) : null}
+          </div>
           <div className="jp-lesson-merged-edit-stack">
             {groupLessons.map((item) => (
               <EnEditIconButton

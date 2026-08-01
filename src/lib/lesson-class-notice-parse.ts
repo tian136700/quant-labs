@@ -9,6 +9,8 @@ export type LessonClassNoticeParseResult = {
   date: string | null;
   /** HH:mm */
   time: string | null;
+  /** 腾讯会议号（常来自「联系方式」） */
+  tencentMeetingId: string | null;
 };
 
 const TEACHER_LABEL_RE =
@@ -16,6 +18,9 @@ const TEACHER_LABEL_RE =
 
 const DATETIME_LABEL_RE =
   /(?:上课时间|开课时间|课程时间)\s*[:：]?\s*([^\n\r]+)/u;
+
+const MEETING_LABEL_RE =
+  /(?:联系方式|会议号|腾讯会议号|会议ID|Meeting\s*ID)\s*[:：]?\s*([^\n\r]+)/iu;
 
 const DATE_TIME_INLINE_RE =
   /(\d{4})\s*[-/.年]\s*(\d{1,2})\s*[-/.月]\s*(\d{1,2})\s*日?\s+(\d{1,2})\s*[:：点]\s*(\d{1,2})/;
@@ -81,6 +86,15 @@ function cleanTeacherName(raw: string): string | null {
   return name;
 }
 
+function cleanMeetingId(raw: string): string | null {
+  const s = raw.trim().replace(/\s+/g, "");
+  if (!s) return null;
+  // 至少含数字；去掉常见标签残留
+  const cleaned = s.replace(/^(会议号|腾讯会议)[:：]?/u, "").trim();
+  if (!/\d/.test(cleaned)) return null;
+  return cleaned;
+}
+
 function parseDateTimeChunk(chunk: string): {
   date: string | null;
   time: string | null;
@@ -112,7 +126,12 @@ export function parseLessonClassNoticeText(
 ): LessonClassNoticeParseResult {
   const text = (raw || "").replace(/\u00a0/g, " ").trim();
   if (!text) {
-    return { teacherName: null, date: null, time: null };
+    return {
+      teacherName: null,
+      date: null,
+      time: null,
+      tencentMeetingId: null,
+    };
   }
 
   let teacherName: string | null = null;
@@ -137,7 +156,13 @@ export function parseLessonClassNoticeText(
     time = time ?? fallback.time;
   }
 
-  return { teacherName, date, time };
+  let tencentMeetingId: string | null = null;
+  const meetingMatch = text.match(MEETING_LABEL_RE);
+  if (meetingMatch) {
+    tencentMeetingId = cleanMeetingId(meetingMatch[1]);
+  }
+
+  return { teacherName, date, time, tencentMeetingId };
 }
 
 export type LessonTeacherNameMatch<T extends { id: number; name: string }> = {

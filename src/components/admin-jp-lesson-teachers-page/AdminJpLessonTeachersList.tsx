@@ -42,6 +42,7 @@ export type AdminJpLessonTeachersListProps = {
   editName: string;
   editHourlyRate: string;
   editLessonMinutes: string;
+  editTencentMeetingId: string;
   reviewSummaries: Map<number, JpLessonTeacherReviewSummary>;
   creatingUserTeacherId: number | null;
   sortKey: TeacherSortKey;
@@ -59,6 +60,7 @@ export type AdminJpLessonTeachersListProps = {
   setEditName: (v: string) => void;
   setEditHourlyRate: (v: string) => void;
   setEditLessonMinutes: (v: string) => void;
+  setEditTencentMeetingId: (v: string) => void;
   startEdit: (teacher: JpLessonTeacher) => void;
   cancelEdit: () => void;
   saveEdit: () => void;
@@ -72,12 +74,15 @@ export function AdminJpLessonTeachersList(props: AdminJpLessonTeachersListProps)
     locale, teacherSubject, loading, refreshing, saving, teachers, filteredTeachers,
     searchDraft, appliedSearchQuery, searchSuggestOpen, searchSuggestions,
     searchFieldRef, rowRefs, highlightTeacherId, editingId, editName,
-    editHourlyRate, editLessonMinutes, reviewSummaries, creatingUserTeacherId,
-    sortKey, sortOrder, fieldLabels, selectedSearchTeacherId, onOpenAddModal, switchTeacherSubject,
-    setSearchDraft, setSelectedSearchTeacherId, setSearchSuggestOpen, applySearch,
-    selectSearchTeacher, toggleSort, setEditName, setEditHourlyRate, setEditLessonMinutes,
-    startEdit, cancelEdit, saveEdit, deleteTeacher, createTeacherUser, setReviewTeacher,
+    editHourlyRate, editLessonMinutes, editTencentMeetingId, reviewSummaries,
+    creatingUserTeacherId, sortKey, sortOrder, fieldLabels, selectedSearchTeacherId,
+    onOpenAddModal, switchTeacherSubject, setSearchDraft, setSelectedSearchTeacherId,
+    setSearchSuggestOpen, applySearch, selectSearchTeacher, toggleSort, setEditName,
+    setEditHourlyRate, setEditLessonMinutes, setEditTencentMeetingId, startEdit,
+    cancelEdit, saveEdit, deleteTeacher, createTeacherUser, setReviewTeacher,
   } = props;
+  const showTencentMeeting = teacherSubject === "en";
+
 
   return (
       <section className="section etr-panel admin-rbac-section">
@@ -266,6 +271,11 @@ export function AdminJpLessonTeachersList(props: AdminJpLessonTeachersListProps)
                       </span>
                     </button>
                   </th>
+                  {showTencentMeeting ? (
+                    <th className="col-tencent-meeting">
+                      {locale === "zh" ? "腾讯会议号" : "Meeting ID"}
+                    </th>
+                  ) : null}
                   <th
                     className={`col-hourly-equiv col-hourly-equiv--sortable${
                       sortKey === "hourlyEquiv" && sortOrder === "asc"
@@ -438,6 +448,31 @@ export function AdminJpLessonTeachersList(props: AdminJpLessonTeachersListProps)
                           )
                         )}
                       </td>
+                      {showTencentMeeting ? (
+                        <td
+                          className="col-tencent-meeting"
+                          data-label={fieldLabels.tencentMeeting ?? "腾讯会议号"}
+                        >
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={editTencentMeetingId}
+                              disabled={saving}
+                              placeholder="849-255-3123"
+                              onChange={(e) => setEditTencentMeetingId(e.target.value)}
+                            />
+                          ) : teacher.tencent_meeting_id?.trim() ? (
+                            <span className="admin-jpl-tencent-meeting">
+                              <span className="admin-jpl-tencent-tag">腾讯会议</span>
+                              <span className="admin-jpl-tencent-id">
+                                {teacher.tencent_meeting_id.trim()}
+                              </span>
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                      ) : null}
                       <td className="col-hourly-equiv" data-label={fieldLabels.hourlyEquiv}>
                         {(() => {
                           const equiv = calcEquivalentHourlyRate(teacher);

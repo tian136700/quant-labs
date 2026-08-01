@@ -17,18 +17,24 @@ export type AdminJpLessonTeachersAddModalProps = {
   newName: string;
   newHourlyRate: string;
   newLessonMinutes: string;
+  newTencentMeetingId: string;
   addNameInputRef: RefObject<HTMLInputElement | null>;
   onClose: () => void;
   onNameChange: (v: string) => void;
   onHourlyRateChange: (v: string) => void;
   onLessonMinutesChange: (v: string) => void;
+  onTencentMeetingIdChange: (v: string) => void;
   onSubmit: () => void;
+  /** 仅英语老师展示腾讯会议号 */
+  showTencentMeeting?: boolean;
 };
 
 export function AdminJpLessonTeachersAddModal(props: AdminJpLessonTeachersAddModalProps) {
   const {
     open, mounted, locale, saving, newName, newHourlyRate, newLessonMinutes,
-    addNameInputRef, onClose, onNameChange, onHourlyRateChange, onLessonMinutesChange, onSubmit,
+    newTencentMeetingId, addNameInputRef, onClose, onNameChange, onHourlyRateChange,
+    onLessonMinutesChange, onTencentMeetingIdChange, onSubmit,
+    showTencentMeeting = false,
   } = props;
   if (!mounted || !open) return null;
   return createPortal(
@@ -117,6 +123,22 @@ export function AdminJpLessonTeachersAddModal(props: AdminJpLessonTeachersAddMod
                       ))}
                     </select>
                   </label>
+                  {showTencentMeeting ? (
+                    <label className="admin-user-add-field">
+                      <span>
+                        {locale === "zh" ? "腾讯会议号" : "Tencent Meeting ID"}
+                      </span>
+                      <input
+                        type="text"
+                        value={newTencentMeetingId}
+                        disabled={saving}
+                        placeholder={
+                          locale === "zh" ? "例如：849-255-3123" : "e.g. 849-255-3123"
+                        }
+                        onChange={(e) => onTencentMeetingIdChange(e.target.value)}
+                      />
+                    </label>
+                  ) : null}
                   <p className="hint admin-user-add-hint">
                     {locale === "zh"
                       ? "老师列表支持「一键创建用户」（拼音用户名 + 易记密码）；评价弹窗中也可勾选创建。"

@@ -9,6 +9,7 @@ import {
   EnLessonTeacherEditModal,
   type EnLessonTeacherUpdateInput,
 } from "@/components/EnLessonTeacherEditModal";
+import { CopyToast } from "@/components/CopyToast";
 import { EnVocabRefDownloadMenu } from "@/components/EnVocabRefDownloadMenu";
 import { EnVocabRefEditModal } from "@/components/EnVocabRefEditModal";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
@@ -86,6 +87,7 @@ import {
   formatLessonTeacherNamesForCopy,
   mergeEnLessonTeachers,
 } from "@/components/en-lesson-page/en-lesson-page-helpers";
+import { saveEnLessonNextClassWithMeta } from "@/components/en-lesson-page/save-en-lesson-next-class";
 
 
 /** 含 pdfjs/jspdf：禁止打进 Worker，仅客户端懒加载 */
@@ -128,6 +130,7 @@ export function EnLessonPage() {
   const [savingNextClassId, setSavingNextClassId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [copyToast, setCopyToast] = useState<string | null>(null);
   const [mobileStatusFilter, setMobileStatusFilterState] =
     useState<EnLessonProgressStatus>(() =>
       readStoredLessonMobileStatusFilter(EN_LESSON_MOBILE_STATUS_FILTER_KEY)
@@ -523,7 +526,10 @@ export function EnLessonPage() {
     }
   };
 
-  const addLessonTeacher = async (name: string): Promise<EnLessonTeacher | null> => {
+  const addLessonTeacher = async (
+    name: string,
+    opts?: { tencentMeetingId?: string | null }
+  ): Promise<EnLessonTeacher | null> => {
     if (!isAdmin) return null;
 
     try {
@@ -531,7 +537,12 @@ export function EnLessonPage() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({
+          name,
+          ...(opts?.tencentMeetingId != null
+            ? { tencent_meeting_id: opts.tencentMeetingId }
+            : {}),
+        }),
       });
       const data = (await res.json()) as {
         ok?: boolean;
@@ -823,6 +834,7 @@ export function EnLessonPage() {
                     isAdmin={isAdmin}
                     canOperate={canOperate}
                     refs={refs}
+                    teachers={teachers}
                     teacherNameById={teacherNameById}
                     savingTeacherId={savingTeacherId}
                     noteCountByLesson={noteCountByLesson}
@@ -841,6 +853,7 @@ export function EnLessonPage() {
                     onDeleteLesson={deleteLesson}
                     onLessonLinkCopied={handleLessonCopied}
                     onLessonLinkCopyError={handleLessonCopyError}
+                    onCopyFeedback={setCopyToast}
                   />
                 ) : (
                   <p className="jp-lesson-status-card-empty">{emptyHint}</p>
@@ -882,23 +895,24 @@ export function EnLessonPage() {
         }
         onClose={() => setEditingNextClassLesson(null)}
         onAddTeacher={addLessonTeacher}
-        onSave={async (schedules, meta) => {
+        onSave={(schedules, meta) => {
           if (!editingNextClassLesson) return;
-          const lessonId = editingNextClassLesson.id;
-          if (meta?.teacherIds?.length) {
-            try {
-              await setLessonTeachers(
-                lessonId,
-                meta.teacherIds,
-                null,
-                [],
-                { keepOpen: true }
-              );
-            } catch {
-              return;
-            }
-          }
-          void setLessonClassSchedules(lessonId, schedules);
+          void saveEnLessonNextClassWithMeta({
+            lessonId: editingNextClassLesson.id,
+            schedules,
+            meta,
+            onTeacherUpdated: (teacher) => {
+              setTeachers((prev) => {
+                const next = prev.map((t) =>
+                  t.id === teacher.id ? teacher : t
+                );
+                persistLessonCache(lessons, refs, notes, next);
+                return next;
+              });
+            },
+            setLessonTeachers,
+            setLessonClassSchedules,
+          });
         }}
       />
 
@@ -977,6 +991,7 @@ export function EnLessonPage() {
       )}
 
       <EnLessonPageStyles />
+      <CopyToast message={copyToast} onDismiss={() => setCopyToast(null)} />
     </main>
   );
 }

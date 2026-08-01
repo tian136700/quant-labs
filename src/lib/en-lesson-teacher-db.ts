@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { EnLessonTeacher } from "@/lib/types";
+import { normalizeTencentMeetingId } from "@/lib/en-lesson-tencent-meeting";
 import {
   normalizeHourlyRate,
   normalizeTeacherLessonMinutes,
@@ -21,20 +22,46 @@ export function enableEnLessonTeacherDevStore() {
   devStoreEnabled = true;
 }
 
+function isSqliteDuplicateColumnError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /duplicate column name/i.test(msg);
+}
+
+async function addEnLessonTeacherColumnIfMissing(
+  db: D1Database,
+  cols: Set<string>,
+  name: string,
+  sqlType: string
+): Promise<void> {
+  if (cols.has(name)) return;
+  try {
+    await db
+      .prepare(`ALTER TABLE en_lesson_teacher ADD COLUMN ${name} ${sqlType}`)
+      .run();
+    cols.add(name);
+  } catch (err) {
+    if (isSqliteDuplicateColumnError(err)) {
+      cols.add(name);
+      return;
+    }
+    throw err;
+  }
+}
+
 async function ensureTeacherSchema(db: D1Database): Promise<void> {
   if (teacherSchemaEnsured) return;
   const info = await db.prepare(`PRAGMA table_info(en_lesson_teacher)`).all<{
     name: string;
   }>();
   const cols = new Set((info.results ?? []).map((row) => row.name));
-  if (!cols.has("hourly_rate")) {
-    await db.prepare(`ALTER TABLE en_lesson_teacher ADD COLUMN hourly_rate REAL`).run();
-  }
-  if (!cols.has("lesson_minutes")) {
-    await db
-      .prepare(`ALTER TABLE en_lesson_teacher ADD COLUMN lesson_minutes INTEGER`)
-      .run();
-  }
+  await addEnLessonTeacherColumnIfMissing(db, cols, "hourly_rate", "REAL");
+  await addEnLessonTeacherColumnIfMissing(db, cols, "lesson_minutes", "INTEGER");
+  await addEnLessonTeacherColumnIfMissing(
+    db,
+    cols,
+    "tencent_meeting_id",
+    "TEXT"
+  );
   teacherSchemaEnsured = true;
 }
 
@@ -49,6 +76,7 @@ function readTeacherRowFields(row: Record<string, unknown>): {
   name: string;
   hourly_rate: number | null;
   lesson_minutes: number | null;
+  tencent_meeting_id: string | null;
   sort_order: number;
   created_at: string;
   updated_at: string;
@@ -63,6 +91,7 @@ function readTeacherRowFields(row: Record<string, unknown>): {
     name: String(row.name),
     hourly_rate,
     lesson_minutes: normalizeTeacherLessonMinutes(row.lesson_minutes),
+    tencent_meeting_id: normalizeTencentMeetingId(row.tencent_meeting_id),
     sort_order: Number(row.sort_order) || 0,
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
@@ -75,7 +104,7 @@ function mapRow(row: Record<string, unknown>): EnLessonTeacher {
   return { ...base, ...resolved };
 }
 
-const TEACHER_SELECT = `SELECT id, name, hourly_rate, lesson_minutes, sort_order, created_at, updated_at FROM en_lesson_teacher`;
+const TEACHER_SELECT = `SELECT id, name, hourly_rate, lesson_minutes, tencent_meeting_id, sort_order, created_at, updated_at FROM en_lesson_teacher`;
 
 function countDevEnLessonTeacherAssignments(): Map<number, number> {
   const counts = new Map<number, number>();
@@ -203,13 +232,15 @@ export async function createEnLessonTeacher(
   name: string,
   sortOrder = 0,
   hourlyRate: number | null = null,
-  lessonMinutes: number | null = null
+  lessonMinutes: number | null = null,
+  tencentMeetingId: string | null = null
 ): Promise<MutateEnLessonTeacherResult> {
   const trimmed = name.trim();
   if (!trimmed) return { ok: false, error: "name_empty" };
 
   const hourly_rate = normalizeHourlyRate(hourlyRate);
   const lesson_minutes = normalizeTeacherLessonMinutes(lessonMinutes);
+  const tencent_meeting_id = normalizeTencentMeetingId(tencentMeetingId);
   const ts = nowIso();
 
   if (devStoreEnabled) {
@@ -220,6 +251,7 @@ export async function createEnLessonTeacher(
       name: plan.name,
       hourly_rate,
       lesson_minutes,
+      tencent_meeting_id,
       sort_order: sortOrder,
       created_at: ts,
       updated_at: ts,
@@ -238,10 +270,10 @@ export async function createEnLessonTeacher(
 
   const result = await db
     .prepare(
-      `INSERT INTO en_lesson_teacher (name, hourly_rate, lesson_minutes, sort_order, created_at, updated_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?5)`
+      `INSERT INTO en_lesson_teacher (name, hourly_rate, lesson_minutes, tencent_meeting_id, sort_order, created_at, updated_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)`
     )
-    .bind(plan.name, hourly_rate, lesson_minutes, sortOrder, ts)
+    .bind(plan.name, hourly_rate, lesson_minutes, tencent_meeting_id, sortOrder, ts)
     .run();
 
   const id = Number(result.meta?.last_row_id);
@@ -262,6 +294,7 @@ export async function updateEnLessonTeacher(
     sort_order?: number;
     hourly_rate?: number | null;
     lesson_minutes?: number | null;
+    tencent_meeting_id?: string | null;
   }
 ): Promise<MutateEnLessonTeacherResult> {
   if (!Number.isInteger(teacherId) || teacherId <= 0) {
@@ -284,6 +317,10 @@ export async function updateEnLessonTeacher(
     input.lesson_minutes !== undefined
       ? normalizeTeacherLessonMinutes(input.lesson_minutes)
       : existing.lesson_minutes;
+  const tencent_meeting_id =
+    input.tencent_meeting_id !== undefined
+      ? normalizeTencentMeetingId(input.tencent_meeting_id)
+      : normalizeTencentMeetingId(existing.tencent_meeting_id);
   const ts = nowIso();
 
   if (devStoreEnabled) {
@@ -294,6 +331,7 @@ export async function updateEnLessonTeacher(
       name: plan.name,
       hourly_rate,
       lesson_minutes,
+      tencent_meeting_id,
       sort_order: sortOrder,
       updated_at: ts,
     };
@@ -307,9 +345,17 @@ export async function updateEnLessonTeacher(
 
   const result = await db
     .prepare(
-      `UPDATE en_lesson_teacher SET name = ?1, hourly_rate = ?2, lesson_minutes = ?3, sort_order = ?4, updated_at = ?5 WHERE id = ?6`
+      `UPDATE en_lesson_teacher SET name = ?1, hourly_rate = ?2, lesson_minutes = ?3, tencent_meeting_id = ?4, sort_order = ?5, updated_at = ?6 WHERE id = ?7`
     )
-    .bind(plan.name, hourly_rate, lesson_minutes, sortOrder, ts, teacherId)
+    .bind(
+      plan.name,
+      hourly_rate,
+      lesson_minutes,
+      tencent_meeting_id,
+      sortOrder,
+      ts,
+      teacherId
+    )
     .run();
 
   if (!result.meta?.changes) return { ok: false, error: "not_found" };

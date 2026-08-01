@@ -741,6 +741,33 @@ export function EnLessonPageStyles() {
             right: 0.35rem;
           }
         }
+
+        :global(.jp-lesson-teacher-cell-main) {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 0.3rem;
+          min-width: 0;
+        }
+
+        :global(.en-lesson-tencent-tags) {
+          display: inline-flex;
+          flex-wrap: wrap;
+          gap: 0.25rem;
+        }
+
+        :global(.en-lesson-tencent-tag) {
+          display: inline-block;
+          padding: 0.08rem 0.4rem;
+          border-radius: 999px;
+          border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border));
+          background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+          color: var(--accent);
+          font-size: 0.6875rem;
+          font-weight: 600;
+          line-height: 1.3;
+          white-space: nowrap;
+        }
       `}</style>
   );
 }

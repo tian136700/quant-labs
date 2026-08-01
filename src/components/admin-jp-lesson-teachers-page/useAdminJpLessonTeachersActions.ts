@@ -34,9 +34,11 @@ export type UseAdminJpLessonTeachersActionsOptions = {
   editHourlyRate: string;
   editLessonMinutes: string;
   editSortOrder: number;
+  editTencentMeetingId: string;
   newName: string;
   newHourlyRate: string;
   newLessonMinutes: string;
+  newTencentMeetingId: string;
   setSaving: Dispatch<SetStateAction<boolean>>;
   setStatus: Dispatch<SetStateAction<string>>;
   setStatusErr: Dispatch<SetStateAction<boolean>>;
@@ -44,12 +46,14 @@ export type UseAdminJpLessonTeachersActionsOptions = {
   setNewName: Dispatch<SetStateAction<string>>;
   setNewHourlyRate: Dispatch<SetStateAction<string>>;
   setNewLessonMinutes: Dispatch<SetStateAction<string>>;
+  setNewTencentMeetingId: Dispatch<SetStateAction<string>>;
   setAddModalOpen: Dispatch<SetStateAction<boolean>>;
   setEditingId: Dispatch<SetStateAction<number | null>>;
   setEditName: Dispatch<SetStateAction<string>>;
   setEditHourlyRate: Dispatch<SetStateAction<string>>;
   setEditLessonMinutes: Dispatch<SetStateAction<string>>;
   setEditSortOrder: Dispatch<SetStateAction<number>>;
+  setEditTencentMeetingId: Dispatch<SetStateAction<string>>;
   setCreatingUserTeacherId: Dispatch<SetStateAction<number | null>>;
 };
 
@@ -66,9 +70,11 @@ export function useAdminJpLessonTeachersActions(
     editHourlyRate,
     editLessonMinutes,
     editSortOrder,
+    editTencentMeetingId,
     newName,
     newHourlyRate,
     newLessonMinutes,
+    newTencentMeetingId,
     setSaving,
     setStatus,
     setStatusErr,
@@ -76,12 +82,14 @@ export function useAdminJpLessonTeachersActions(
     setNewName,
     setNewHourlyRate,
     setNewLessonMinutes,
+    setNewTencentMeetingId,
     setAddModalOpen,
     setEditingId,
     setEditName,
     setEditHourlyRate,
     setEditLessonMinutes,
     setEditSortOrder,
+    setEditTencentMeetingId,
     setCreatingUserTeacherId,
   } = options;
 
@@ -102,6 +110,9 @@ export function useAdminJpLessonTeachersActions(
             newLessonMinutes,
             null
           ),
+          ...(teacherSubject === "en"
+            ? { tencent_meeting_id: newTencentMeetingId.trim() || null }
+            : {}),
         }),
       });
       const data = (await res.json()) as {
@@ -138,6 +149,7 @@ export function useAdminJpLessonTeachersActions(
       setNewName("");
       setNewHourlyRate("");
       setNewLessonMinutes("");
+      setNewTencentMeetingId("");
       setAddModalOpen(false);
       if (data.user_account) {
         rememberAdminUserPassword(data.user_account.id, data.user_account.password);
@@ -183,6 +195,7 @@ export function useAdminJpLessonTeachersActions(
           : ""
     );
     setEditSortOrder(teacher.sort_order);
+    setEditTencentMeetingId(teacher.tencent_meeting_id?.trim() ?? "");
   };
 
   const cancelEdit = () => {
@@ -191,6 +204,7 @@ export function useAdminJpLessonTeachersActions(
     setEditHourlyRate("");
     setEditLessonMinutes("");
     setEditSortOrder(0);
+    setEditTencentMeetingId("");
   };
 
   const saveEdit = async () => {
@@ -219,6 +233,9 @@ export function useAdminJpLessonTeachersActions(
             baseline.lesson_minutes
           ),
           sort_order: editSortOrder,
+          ...(teacherSubject === "en"
+            ? { tencent_meeting_id: editTencentMeetingId.trim() || null }
+            : {}),
         }),
       });
       const data = (await res.json()) as {
@@ -361,8 +378,18 @@ export function useAdminJpLessonTeachersActions(
   const closeAddModal = useCallback(() => {
     if (saving) return;
     setAddModalOpen(false);
-  }, [saving]);
-
+    setNewName("");
+    setNewHourlyRate("");
+    setNewLessonMinutes("");
+    setNewTencentMeetingId("");
+  }, [
+    saving,
+    setAddModalOpen,
+    setNewName,
+    setNewHourlyRate,
+    setNewLessonMinutes,
+    setNewTencentMeetingId,
+  ]);
 
   return {
     createTeacher,
