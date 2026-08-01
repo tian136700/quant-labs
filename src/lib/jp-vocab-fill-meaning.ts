@@ -11,6 +11,7 @@ import {
   validateJpVocabMeaningAiOutput,
 } from "@/lib/jp-vocab-meaning-ai";
 import { validateJpVocabPosAiOutput } from "@/lib/jp-vocab-pos-ai";
+import { clampJpVocabFrequency } from "@/lib/jp-vocab-frequency";
 
 /** 缺释义：NULL/空，或误写入的区块标题壳（【释义】） */
 const JP_VOCAB_MEANING_MISSING_SQL = `(meaning IS NULL OR meaning = ''
@@ -25,6 +26,8 @@ export type JpVocabMissingMeaningRow = {
   need_pos: boolean;
   /** 缺例句时一并让 Cloud 出常用用法例句 */
   need_examples: boolean;
+  need_oral_frequency: boolean;
+  need_exam_frequency: boolean;
   /** 可直接喂给本地/远程模型的完整 prompt */
   prompt: string;
 };
@@ -37,6 +40,8 @@ export type JpVocabFillMeaningApplied = {
   example_sentences: string | null;
   meaning_source: string | null;
   pos_source?: string | null;
+  oral_frequency?: number | null;
+  exam_frequency?: number | null;
 };
 
 export type JpVocabFillMeaningResult = {
@@ -93,7 +98,7 @@ export async function listJpVocabWordsMissingMeaning(
   // 硬顶：释义补全热路径禁止一次拉太多；稍放宽供毒丸跳过队首（仍远小于曾炸 1102 的 200）
   const limit = rawLimit == null ? null : Math.min(rawLimit, 20);
 
-  let sql = `SELECT id, word, reading, kind, pos, example_sentences FROM jp_vocab_word
+  let sql = `SELECT id, word, reading, kind, pos, example_sentences, oral_frequency, exam_frequency FROM jp_vocab_word
        WHERE kind != 'grammar'
          AND ${JP_VOCAB_MEANING_MISSING_SQL}
        ORDER BY id`;
@@ -110,6 +115,8 @@ export async function listJpVocabWordsMissingMeaning(
     kind: string;
     pos: string | null;
     example_sentences: string | null;
+    oral_frequency: number | null;
+    exam_frequency: number | null;
   }>();
 
   return (result.results ?? []).map((row) => {
@@ -118,6 +125,8 @@ export async function listJpVocabWordsMissingMeaning(
     const pos = row.pos != null ? String(row.pos).trim() || null : null;
     const need_pos = isBlankField(pos);
     const need_examples = isBlankField(row.example_sentences);
+    const need_oral_frequency = clampJpVocabFrequency(row.oral_frequency) == null;
+    const need_exam_frequency = clampJpVocabFrequency(row.exam_frequency) == null;
     return {
       id: Number(row.id),
       word,
@@ -125,6 +134,8 @@ export async function listJpVocabWordsMissingMeaning(
       kind: String(row.kind),
       need_pos,
       need_examples,
+      need_oral_frequency,
+      need_exam_frequency,
       prompt: buildJpVocabMeaningAiPrompt({
         word,
         reading,
@@ -133,6 +144,8 @@ export async function listJpVocabWordsMissingMeaning(
         need_meaning: true,
         need_pos,
         need_examples,
+        need_oral_frequency,
+        need_exam_frequency,
       }),
     };
   });
@@ -211,6 +224,8 @@ export type JpVocabMeaningUpdateItem = {
   meaning?: string | null;
   pos?: string | null;
   example_sentences?: string | null;
+  oral_frequency?: number | string | null;
+  exam_frequency?: number | string | null;
   source?: string | null;
 };
 
@@ -246,14 +261,19 @@ export async function applyJpVocabMeaningUpdates(
       item.example_sentences != null
         ? String(item.example_sentences).trim()
         : "";
-    if (!meaningRaw && !posRaw && !examplesRaw) continue;
+    const nextOral = clampJpVocabFrequency(item.oral_frequency);
+    const nextExam = clampJpVocabFrequency(item.exam_frequency);
+    if (!meaningRaw && !posRaw && !examplesRaw && nextOral == null && nextExam == null) {
+      continue;
+    }
 
     const source =
       normalizeJpVocabExampleSentencesSource(item.source) ?? defaultSource;
 
     const row = await db
       .prepare(
-        `SELECT id, word, kind, meaning, pos, example_sentences, reading
+        `SELECT id, word, kind, meaning, pos, example_sentences, reading,
+                oral_frequency, exam_frequency
          FROM jp_vocab_word WHERE id = ?1`
       )
       .bind(wordId)
@@ -265,6 +285,8 @@ export async function applyJpVocabMeaningUpdates(
         pos: string | null;
         example_sentences: string | null;
         reading: string | null;
+        oral_frequency: number | null;
+        exam_frequency: number | null;
       }>();
     if (!row) {
       skipped.push({ id: wordId, word: String(wordId), reason: "not_found" });
@@ -367,7 +389,14 @@ export async function applyJpVocabMeaningUpdates(
       examplesRaw = "";
     }
 
-    if (!nextMeaning && !nextPos && !nextExamples) {
+    const oralEmpty = clampJpVocabFrequency(row.oral_frequency) == null;
+    const examEmpty = clampJpVocabFrequency(row.exam_frequency) == null;
+    const writeOral =
+      nextOral != null && (allowOverwrite || oralEmpty) ? nextOral : null;
+    const writeExam =
+      nextExam != null && (allowOverwrite || examEmpty) ? nextExam : null;
+
+    if (!nextMeaning && !nextPos && !nextExamples && writeOral == null && writeExam == null) {
       skipped.push({
         id: wordId,
         word: String(row.word),
@@ -421,7 +450,12 @@ export async function applyJpVocabMeaningUpdates(
               )
               .bind(nextMeaning, source, nextPos, wordId)
               .run();
-        if (!(Number(result.meta?.changes ?? 0) > 0) && !nextExamples) {
+        if (
+          !(Number(result.meta?.changes ?? 0) > 0) &&
+          !nextExamples &&
+          writeOral == null &&
+          writeExam == null
+        ) {
           skipped.push({
             id: wordId,
             word: String(row.word),
@@ -458,9 +492,33 @@ export async function applyJpVocabMeaningUpdates(
           nextExamples = null;
         }
       }
+
+      if (writeOral != null || writeExam != null) {
+        await db
+          .prepare(
+            `UPDATE jp_vocab_word
+             SET oral_frequency = CASE
+                   WHEN ?1 IS NOT NULL AND (oral_frequency IS NULL OR ?3 = 1) THEN ?1
+                   ELSE oral_frequency
+                 END,
+                 exam_frequency = CASE
+                   WHEN ?2 IS NOT NULL AND (exam_frequency IS NULL OR ?3 = 1) THEN ?2
+                   ELSE exam_frequency
+                 END,
+                 updated_at = datetime('now')
+             WHERE id = ?4`
+          )
+          .bind(
+            writeOral,
+            writeExam,
+            allowOverwrite ? 1 : 0,
+            wordId
+          )
+          .run();
+      }
     }
 
-    if (!nextMeaning && !nextPos && !nextExamples) {
+    if (!nextMeaning && !nextPos && !nextExamples && writeOral == null && writeExam == null) {
       skipped.push({
         id: wordId,
         word: String(row.word),
@@ -478,6 +536,8 @@ export async function applyJpVocabMeaningUpdates(
       example_sentences: nextExamples,
       meaning_source: source,
       pos_source: nextPos ? source : null,
+      oral_frequency: writeOral,
+      exam_frequency: writeExam,
     });
   }
 

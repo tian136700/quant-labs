@@ -14,7 +14,7 @@ import {
 } from "@/lib/jp-vocab-connection-ai";
 import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import { JpVocabAnnotationSection } from "@/components/JpVocabAnnotationSection";
-import { JpVocabCourseLabelSection } from "@/components/JpVocabCourseLabelSection";
+import { JpVocabCourseFreqMetaSection } from "@/components/JpVocabCourseFreqMetaSection";
 import { JpVocabTeacherQuizFlashcardStyles } from "@/components/JpVocabTeacherQuizFlashcardStyles";
 import { JpVocabFlashcardWordHero } from "@/components/JpVocabFlashcardWordHero";
 import {
@@ -498,6 +498,11 @@ export function JpVocabAdminReviewFlashcardModal({
           )}
         </section>
         <JpVocabAnnotationSection annotation={w.annotation} />
+        <JpVocabCourseFreqMetaSection
+          courseLabel={w.course_label}
+          oralFrequency={w.oral_frequency}
+          examFrequency={w.exam_frequency}
+        />
         </div>
 
         <div className="jp-vocab-teacher-quiz__stats">
@@ -558,8 +563,6 @@ export function JpVocabAdminReviewFlashcardModal({
             <span className="chg-up">不熟悉 {w.cnt_weak}</span>
           </div>
         </div>
-
-        <JpVocabCourseLabelSection courseLabel={w.course_label} />
 
         <div className="jp-vocab-teacher-quiz__nav">
           <button

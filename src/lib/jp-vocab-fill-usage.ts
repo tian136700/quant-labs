@@ -8,6 +8,7 @@ import {
   validateJpVocabConnectionAiOutput,
 } from "@/lib/jp-vocab-connection-ai";
 import { ensureJpVocabWordSchema } from "@/lib/jp-vocab-db";
+import { clampJpVocabFrequency } from "@/lib/jp-vocab-frequency";
 import { validateJpVocabExampleSentencesAiOutput, normalizeJpVocabExampleSentencesForOnlineApply } from "@/lib/jp-vocab-example-sentences-ai";
 import {
   buildJpVocabUsageAiPrompt,
@@ -536,6 +537,8 @@ export type JpVocabUsageUpdateItem = {
   example_sentences?: string | null;
   /** 接序；与用法/例句同次写回 */
   connection?: string | null;
+  oral_frequency?: number | string | null;
+  exam_frequency?: number | string | null;
   source?: string | null;
 };
 
@@ -773,6 +776,9 @@ export async function applyJpVocabUsageUpdates(
       }
     }
 
+    const writeOral = clampJpVocabFrequency(item.oral_frequency);
+    const writeExam = clampJpVocabFrequency(item.exam_frequency);
+
     const changed = await updateUsageExamplesAndConnection(
       db,
       wordId,
@@ -784,7 +790,29 @@ export async function applyJpVocabUsageUpdates(
       connectionSource,
       dryRun
     );
-    if (changed) {
+
+    let freqChanged = false;
+    if (!dryRun && (writeOral != null || writeExam != null)) {
+      const freqResult = await db
+        .prepare(
+          `UPDATE jp_vocab_word
+           SET oral_frequency = CASE
+                 WHEN ?1 IS NOT NULL AND oral_frequency IS NULL THEN ?1
+                 ELSE oral_frequency
+               END,
+               exam_frequency = CASE
+                 WHEN ?2 IS NOT NULL AND exam_frequency IS NULL THEN ?2
+                 ELSE exam_frequency
+               END,
+               updated_at = datetime('now')
+           WHERE id = ?3`
+        )
+        .bind(writeOral, writeExam, wordId)
+        .run();
+      freqChanged = Number(freqResult.meta?.changes ?? 0) > 0;
+    }
+
+    if (changed || freqChanged || (dryRun && (writeOral != null || writeExam != null))) {
       updated += 1;
       applied.push({
         id: wordId,

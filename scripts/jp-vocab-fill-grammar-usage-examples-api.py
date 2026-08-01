@@ -51,6 +51,7 @@ from worker_api_guard import (  # noqa: E402
     skip_if_worker_unavailable,
 )
 from worker_fill_http import post_worker_fill_api  # noqa: E402
+from jp_vocab_frequency import extract_jp_vocab_frequencies  # noqa: E402
 
 DEFAULT_API_URL = "https://finance.info-quests.com/api/jp-vocab/fill-usage"
 HTTP_USER_AGENT = "jp-vocab-fill-grammar-usage-examples/2.0"
@@ -616,6 +617,9 @@ def run_one_pair(
 
     mark_paid_call()
 
+    oral_freq: int | None = None
+    exam_freq: int | None = None
+
     def retry_pair(reason: str) -> tuple[str, str, str | None] | None:
         print(f"  {reason}，追加 CRITICAL 再试 1 次…", flush=True)
         acquire_paid_rate_gate(allow_burst=allow_burst)
@@ -667,6 +671,12 @@ def run_one_pair(
     def parse_fill_output(
         text: str, *, is_conj: bool, only_connection: bool
     ) -> tuple[str, str, str | None] | None:
+        nonlocal oral_freq, exam_freq
+        text, o, e = extract_jp_vocab_frequencies(text)
+        if o is not None:
+            oral_freq = o
+        if e is not None:
+            exam_freq = e
         body, connection = split_connection_section(text)
         if only_connection:
             if not connection:
@@ -724,6 +734,10 @@ def run_one_pair(
         else:
             update["usage"] = u
             update["example_sentences"] = ex
+        if oral_freq is not None:
+            update["oral_frequency"] = oral_freq
+        if exam_freq is not None:
+            update["exam_frequency"] = exam_freq
         return call_api(
             api_url=api_url,
             token=token,

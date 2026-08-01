@@ -31,7 +31,7 @@ import {
 } from "@/lib/jp-vocab-save-progress";
 import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import { JpVocabAnnotationSection } from "@/components/JpVocabAnnotationSection";
-import { JpVocabCourseLabelSection } from "@/components/JpVocabCourseLabelSection";
+import { JpVocabCourseFreqMetaSection } from "@/components/JpVocabCourseFreqMetaSection";
 import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import { JpVocabTeacherQuizFlashcardStyles } from "@/components/JpVocabTeacherQuizFlashcardStyles";
 import { JpVocabFlashcardWordHero } from "@/components/JpVocabFlashcardWordHero";
@@ -734,6 +734,11 @@ export function JpVocabTeacherQuizFlashcardModal({
           </section>
         ) : null}
         <JpVocabAnnotationSection annotation={w.annotation} />
+        <JpVocabCourseFreqMetaSection
+          courseLabel={w.course_label}
+          oralFrequency={w.oral_frequency}
+          examFrequency={w.exam_frequency}
+        />
         </div>
 
         <div className="jp-vocab-teacher-quiz__level">
@@ -895,9 +900,6 @@ export function JpVocabTeacherQuizFlashcardModal({
             <span className="chg-up">不熟悉 {w.cnt_weak}</span>
           </div>
         </div>
-
-        {/* 教材课次：次要信息，放在熟悉程度/统计之后 */}
-        <JpVocabCourseLabelSection courseLabel={w.course_label} />
 
         <div className="jp-vocab-teacher-quiz__nav">
           {!isStudy ? (

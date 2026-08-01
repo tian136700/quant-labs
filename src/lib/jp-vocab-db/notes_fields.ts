@@ -158,6 +158,8 @@ function mapClassNotesOnlyRow(row: Record<string, unknown>): JpVocabWord {
     mnemonic: null,
     annotation: null,
     course_label: null,
+    oral_frequency: null,
+    exam_frequency: null,
     example_sentences: null,
     example_sentences_source: null,
     meaning_source: null,

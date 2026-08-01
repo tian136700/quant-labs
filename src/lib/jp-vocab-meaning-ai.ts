@@ -1,8 +1,10 @@
 import "server-only";
 
+import { jpVocabFrequencyPromptAppendix } from "@/lib/jp-vocab-frequency";
+
 /** 释义上传契约（list_missing 会原样返回；与本地/线上词典约定一致） */
 export const JP_VOCAB_MEANING_UPLOAD_SPEC = {
-  version: 2,
+  version: 3,
   max_senses: 3,
   max_major_senses: 3,
   /** 同读音/大义项下的近义（按常用程度：第 1 个最常用） */
@@ -18,6 +20,7 @@ export const JP_VOCAB_MEANING_UPLOAD_SPEC = {
   rules: [
     "只补「单词」缺释义（grammar 语法条不走此接口）",
     "缺释义时：若同时缺词性 / 例句，可在同一次写回一并补上（list_missing 的 need_pos / need_examples）",
+    "顺带给词条打「口语频率」「考试频率」各 1～10 分（对齐英语出现频次；旧数据可空）",
     "只写最常用 1～3 个义项，按常用程度排序：第 1 个最常用，其后递减（例：送る → 送人；送东西）",
     "一词多种常用读音（如 前=まえ/ぜん、中=なか/ちゅう）时：不同读音/大义项用半角斜杠 / 分隔，段数与 reading 字段一致",
     "同一大义项下的近义仍用中文分号 ；，不要用英文分号或顿号",
@@ -62,6 +65,10 @@ export type JpVocabMeaningAiInput = {
   need_pos?: boolean;
   /** 同时缺例句时一并要 AI 出常用用法例句 */
   need_examples?: boolean;
+  /** 缺口语频率时顺带打 1～10 */
+  need_oral_frequency?: boolean;
+  /** 缺考试频率时顺带打 1～10 */
+  need_exam_frequency?: boolean;
 };
 
 export function buildJpVocabMeaningAiPrompt(input: JpVocabMeaningAiInput): string {
@@ -70,7 +77,13 @@ export function buildJpVocabMeaningAiPrompt(input: JpVocabMeaningAiInput): strin
   const needMeaning = input.need_meaning !== false;
   const needPos = Boolean(input.need_pos);
   const needExamples = Boolean(input.need_examples);
+  const needOral = Boolean(input.need_oral_frequency);
+  const needExam = Boolean(input.need_exam_frequency);
   const combo = needPos || needExamples;
+  const freqAppendix = jpVocabFrequencyPromptAppendix({
+    needOral,
+    needExam,
+  });
 
   const meta = [
     `词条：${input.word.trim()}`,
@@ -82,10 +95,13 @@ export function buildJpVocabMeaningAiPrompt(input: JpVocabMeaningAiInput): strin
           needMeaning ? "释义" : null,
           needPos ? "词性" : null,
           needExamples ? "例句（常用用法）" : null,
+          needOral || needExam ? "出现频率" : null,
         ]
           .filter(Boolean)
           .join("、")}`
-      : null,
+      : needOral || needExam
+        ? "本次需补：释义、出现频率"
+        : null,
   ]
     .filter(Boolean)
     .join("\n");
@@ -102,7 +118,7 @@ export function buildJpVocabMeaningAiPrompt(input: JpVocabMeaningAiInput): strin
 4. 仅一种读音时：只写 1～3 个近义，用 ； 连接，不要加斜杠，例如：漂亮；干净
 5. 不要冷僻义、不要词典全义堆砌；简短口语化，不要例句、不要编号、不要 markdown、不要解释过程
 6. 不要输出日语假名或英文（专有名词可保留常见中文译名）
-7. 只输出一行中文释义正文（例：很多；大量）。禁止只输出「释义」「【释义】」这类标题壳`;
+7. 先输出一行中文释义正文（例：很多；大量）。禁止只输出「释义」「【释义】」这类标题壳${freqAppendix}`;
   }
 
   // 用「释义：正文」一行式，勿用单独【释义】标题行——模型易只回标题壳写进库
@@ -132,6 +148,7 @@ N5～N4 短句口语；必须用到该词条；句末须有「。」等；从句
 
 请严格按下列格式输出（缺哪项就省略哪行；「释义：」「词性：」后必须跟正文，禁止只输出标签）：
 ${sections.join("\n\n")}
+${freqAppendix}
 
 输出示例（有释义+词性时）：
 释义：很多；大量

@@ -50,6 +50,7 @@ from vocab_fill_circuit_breaker import (  # noqa: E402
     after_attempt,
     assert_not_killed,
 )
+from jp_vocab_frequency import extract_jp_vocab_frequencies  # noqa: E402
 
 DEFAULT_API_URL = "https://finance.info-quests.com/api/jp-vocab/fill-meaning"
 HTTP_USER_AGENT = "jp-vocab-fill-meaning-online/1.0"
@@ -664,8 +665,9 @@ def run_one_fill(
         return {"ok": True, "updated": 0, "error": str(exc)}
 
     mark_paid_call()
+    body, oral_freq, exam_freq = extract_jp_vocab_frequencies(raw)
     meaning, pos, examples = parse_combo_output(
-        raw,
+        body,
         need_meaning=True,
         need_pos=need_pos,
         need_examples=need_examples,
@@ -691,11 +693,17 @@ def run_one_fill(
         update["pos"] = pos
     if examples:
         update["example_sentences"] = examples
+    if oral_freq is not None:
+        update["oral_frequency"] = oral_freq
+    if exam_freq is not None:
+        update["exam_frequency"] = exam_freq
 
     print(
         f"  {word_id} {word!r} -> meaning={meaning!r}"
         + (f" pos={pos!r}" if pos else "")
         + (f" examples_len={len(examples)}" if examples else "")
+        + (f" oral={oral_freq}" if oral_freq is not None else "")
+        + (f" exam={exam_freq}" if exam_freq is not None else "")
         + f" source={source}",
         flush=True,
     )

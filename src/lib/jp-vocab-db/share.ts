@@ -494,6 +494,8 @@ export async function queryJpVocabSharedToday(
               w.usage, w.usage_source, w.connection, w.connection_source,
               w.annotation,
               w.course_label,
+              w.oral_frequency,
+              w.exam_frequency,
               (CASE WHEN w.class_notes IS NOT NULL THEN 1 ELSE 0 END) AS has_class_notes
        FROM jp_vocab_shared s
        INNER JOIN jp_vocab_word w ON w.id = s.word_id
@@ -532,6 +534,8 @@ export async function queryJpVocabSharedToday(
       connection_source: row.connection_source,
       annotation: row.annotation,
       course_label: row.course_label,
+      oral_frequency: row.oral_frequency,
+      exam_frequency: row.exam_frequency,
       has_class_notes: row.has_class_notes,
     });
     return mapSharedRow(row, word);

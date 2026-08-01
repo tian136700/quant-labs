@@ -1419,6 +1419,68 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           line-height: 1.4;
           color: var(--text);
         }
+        .jp-vocab-teacher-quiz__meta-after-notes {
+          display: flex;
+          flex-direction: column;
+          gap: 0.28rem;
+          padding: 0.4rem 0.6rem;
+          border-radius: 10px;
+          border: 1px dashed var(--border);
+          background: transparent;
+        }
+        .jp-vocab-teacher-quiz__meta-row {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          min-height: 1.25rem;
+        }
+        .jp-vocab-teacher-quiz__meta-label {
+          flex: 0 0 auto;
+          min-width: 4.5rem;
+          font-size: 0.75rem;
+          font-weight: 600;
+          color: var(--muted);
+        }
+        .jp-vocab-teacher-quiz__meta-value {
+          flex: 1 1 auto;
+          min-width: 0;
+          font-size: 0.8125rem;
+          line-height: 1.35;
+          color: var(--text);
+          overflow-wrap: anywhere;
+        }
+        .jp-vocab-teacher-quiz__meta-empty {
+          min-height: 1em;
+        }
+        .jp-vocab-teacher-quiz__meta-freq {
+          flex: 1 1 auto;
+          display: inline-flex;
+          align-items: center;
+          gap: 0.35rem;
+          min-width: 0;
+        }
+        .jp-vocab-teacher-quiz__meta-freq-bar {
+          flex: 1 1 auto;
+          min-width: 3.5rem;
+          max-width: 8rem;
+          height: 0.35rem;
+          border-radius: 999px;
+          background: color-mix(in srgb, var(--muted) 18%, transparent);
+          overflow: hidden;
+        }
+        .jp-vocab-teacher-quiz__meta-freq-fill {
+          display: block;
+          height: 100%;
+          border-radius: inherit;
+          background: color-mix(in srgb, var(--accent, #3b82f6) 75%, transparent);
+        }
+        .jp-vocab-teacher-quiz__meta-freq-score {
+          flex: 0 0 auto;
+          font-size: 0.8125rem;
+          font-weight: 600;
+          color: var(--text);
+          font-variant-numeric: tabular-nums;
+        }
         .jp-vocab-teacher-quiz__course-label {
           display: flex;
           justify-content: flex-end;
