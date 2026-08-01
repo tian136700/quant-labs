@@ -37,6 +37,7 @@ import { parseJpVocabExampleSentenceItems } from "@/lib/jp-vocab-example-sentenc
 import { JpVocabUsageExamplesCopyButton } from "@/components/JpVocabUsageExamplesCopyButton";
 import { JpVocabUsageExamplesPairedContent } from "@/components/JpVocabUsageExamplesPairedContent";
 import { JpVocabConnectionSection } from "@/components/JpVocabConnectionSection";
+import { JpVocabRelatedCompoundsSection } from "@/components/JpVocabRelatedCompoundsSection";
 import { buildJpVocabUsageExamplePairs } from "@/lib/jp-vocab-usage-examples-display";
 import { isJpVocabConjugationGrammar } from "@/lib/jp-vocab-usage-ai";
 import {
@@ -675,6 +676,12 @@ export function JpVocabTeacherQuizFlashcardModal({
             </div>
           </section>
         ) : null}
+
+        <JpVocabRelatedCompoundsSection
+          relatedCompounds={w.related_compounds}
+          relatedCompoundsSource={w.related_compounds_source}
+          kind={w.kind}
+        />
 
         {showConnection && !inlineConnection ? (
           <JpVocabConnectionSection

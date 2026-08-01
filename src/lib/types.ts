@@ -227,6 +227,13 @@ export interface JpVocabWord {
   example_sentences?: string | null;
   /** 例句来源（如：手动、DeepSeek、本地模型名；老师可见，便于纠错与质量对比） */
   example_sentences_source?: string | null;
+  /**
+   * 相关构词：含本词汉字/读音的简单词（口→入口），助记用。
+   * 多行「漢字(かな)：中文」；仅单词；连浊算同一读音族。
+   */
+  related_compounds?: string | null;
+  /** 相关构词来源（手动 / Claude / Agent现写…） */
+  related_compounds_source?: string | null;
   /** 释义来源（如：手动、DeepSeek、Qwen本地） */
   meaning_source?: string | null;
   /** 词性来源（如：手动、线上 claude-…） */

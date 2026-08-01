@@ -106,6 +106,7 @@ import {
   normalizeJpVocabExampleSentencesSource,
 } from "@/lib/jp-vocab-example-sentences";
 import { validateJpVocabConnectionAiOutput } from "@/lib/jp-vocab-connection-ai";
+import { validateJpVocabRelatedCompoundsAiOutput } from "@/lib/jp-vocab-related-compounds";
 import {
   isJpVocabConjugationGrammar,
   validateJpVocabUsageAiOutput,
@@ -422,6 +423,8 @@ export type JpVocabWordEntryInput = {
   usage_source?: string | null;
   connection?: string | null;
   connection_source?: string | null;
+  related_compounds?: string | null;
+  related_compounds_source?: string | null;
 };
 
 /** 一次性更新词条可编辑字段，并同步备注到关联新课 */
@@ -608,6 +611,39 @@ export async function updateJpVocabWordEntry(
     }
   }
 
+  let nextRelatedCompounds: string | null =
+    current.related_compounds ?? null;
+  if (input.related_compounds !== undefined) {
+    const rawRc = String(input.related_compounds ?? "").trim();
+    if (!rawRc) {
+      nextRelatedCompounds = null;
+    } else {
+      const rcOk = validateJpVocabRelatedCompoundsAiOutput(rawRc, {
+        word: nextWord,
+        reading: nextReading,
+        kind: nextKind,
+      });
+      if (!rcOk.ok) {
+        return { ok: false, error: rcOk.reason };
+      }
+      nextRelatedCompounds = rcOk.text || null;
+    }
+  }
+  let nextRelatedCompoundsSource =
+    current.related_compounds_source ?? null;
+  if (input.related_compounds_source !== undefined) {
+    nextRelatedCompoundsSource = normalizeJpVocabExampleSentencesSource(
+      input.related_compounds_source
+    );
+  } else if (input.related_compounds !== undefined) {
+    const prevRc = current.related_compounds ?? null;
+    if (nextRelatedCompounds !== prevRc) {
+      nextRelatedCompoundsSource = nextRelatedCompounds
+        ? JP_VOCAB_EXAMPLE_SENTENCES_SOURCE_MANUAL
+        : null;
+    }
+  }
+
   if (!nextWord) return { ok: false, error: "word_required" };
 
   if (nextWord !== current.word) {
@@ -644,6 +680,8 @@ export async function updateJpVocabWordEntry(
       usage_source: nextUsageSource,
       connection: nextConnection,
       connection_source: nextConnectionSource,
+      related_compounds: nextRelatedCompounds,
+      related_compounds_source: nextRelatedCompoundsSource,
       updated_at: ts,
     };
     current = jpVocabDbState.devWords[idx];
@@ -651,8 +689,8 @@ export async function updateJpVocabWordEntry(
     const result = await db
       .prepare(
         `UPDATE jp_vocab_word
-         SET kind = ?1, word = ?2, reading = ?3, meaning = ?4, meaning_source = ?5, pos = ?6, pos_source = ?7, class_notes = ?8, mnemonic = ?9, example_sentences = ?10, example_sentences_source = ?11, usage = ?12, usage_source = ?13, connection = ?14, connection_source = ?15, updated_at = ?16
-         WHERE id = ?17`
+         SET kind = ?1, word = ?2, reading = ?3, meaning = ?4, meaning_source = ?5, pos = ?6, pos_source = ?7, class_notes = ?8, mnemonic = ?9, example_sentences = ?10, example_sentences_source = ?11, usage = ?12, usage_source = ?13, connection = ?14, connection_source = ?15, related_compounds = ?16, related_compounds_source = ?17, updated_at = ?18
+         WHERE id = ?19`
       )
       .bind(
         nextKind,
@@ -670,6 +708,8 @@ export async function updateJpVocabWordEntry(
         nextUsageSource,
         nextConnection,
         nextConnectionSource,
+        nextRelatedCompounds,
+        nextRelatedCompoundsSource,
         ts,
         wordId
       )

@@ -187,6 +187,12 @@ export function mergeJpVocabWordAfterReviewResponse(
     connection: fetched.connection ?? base.connection ?? null,
     connection_source:
       fetched.connection_source ?? base.connection_source ?? null,
+    related_compounds:
+      fetched.related_compounds ?? base.related_compounds ?? null,
+    related_compounds_source:
+      fetched.related_compounds_source ??
+      base.related_compounds_source ??
+      null,
     mnemonic: fetched.mnemonic ?? base.mnemonic ?? null,
   };
 }

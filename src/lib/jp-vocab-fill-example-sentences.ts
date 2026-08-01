@@ -29,6 +29,9 @@ import {
   listJpVocabWordsIncompleteExampleFurigana,
   type JpVocabIncompleteFuriganaRow,
 } from "@/lib/jp-vocab-example-furigana-scan";
+import {
+  validateJpVocabRelatedCompoundsAiOutput,
+} from "@/lib/jp-vocab-related-compounds";
 
 export type JpVocabMissingExampleSentenceRow = {
   id: number;
@@ -63,6 +66,8 @@ export type JpVocabFillExampleSentenceApplied = {
   example_sentences_source: string | null;
   connection?: string | null;
   connection_source?: string | null;
+  related_compounds?: string | null;
+  related_compounds_source?: string | null;
 };
 
 export type JpVocabFillExampleSentencesResult = {
@@ -140,6 +145,49 @@ async function updateExampleSentencesOverwrite(
       connection?.trim() ? connectionSource : null,
       wordId
     )
+    .run();
+  return Number(result.meta?.changes ?? 0) > 0;
+}
+
+async function updateRelatedCompoundsIfEmpty(
+  db: D1Database,
+  wordId: number,
+  relatedCompounds: string,
+  source: string | null,
+  dryRun: boolean
+): Promise<boolean> {
+  if (dryRun) return true;
+  const result = await db
+    .prepare(
+      `UPDATE jp_vocab_word
+       SET related_compounds = ?1,
+           related_compounds_source = ?2,
+           updated_at = datetime('now')
+       WHERE id = ?3
+         AND (related_compounds IS NULL OR TRIM(related_compounds) = '')`
+    )
+    .bind(relatedCompounds.trim(), source, wordId)
+    .run();
+  return Number(result.meta?.changes ?? 0) > 0;
+}
+
+async function updateRelatedCompoundsOverwrite(
+  db: D1Database,
+  wordId: number,
+  relatedCompounds: string,
+  source: string | null,
+  dryRun: boolean
+): Promise<boolean> {
+  if (dryRun) return true;
+  const result = await db
+    .prepare(
+      `UPDATE jp_vocab_word
+       SET related_compounds = ?1,
+           related_compounds_source = ?2,
+           updated_at = datetime('now')
+       WHERE id = ?3`
+    )
+    .bind(relatedCompounds.trim() || null, source, wordId)
     .run();
   return Number(result.meta?.changes ?? 0) > 0;
 }
@@ -448,10 +496,12 @@ export async function normalizeJpVocabExampleSentencesFormatInDb(
 
 export type JpVocabExampleSentenceUpdateItem = {
   word_id: number;
-  /** 可空：仅补接序时可不传例句 */
+  /** 可空：仅补接序 / 相关构词时可不传例句 */
   example_sentences?: string | null;
   /** 接序；与例句同次写回 */
   connection?: string | null;
+  /** 相关构词（仅单词）；与例句同次写回 */
+  related_compounds?: string | null;
   /** 例句来源，如「DeepSeek」「Qwen本地」「手动」 */
   source?: string | null;
 };
@@ -483,9 +533,12 @@ export async function applyJpVocabExampleSentenceUpdates(
     const wordId = Number(item.word_id);
     let exampleSentences = String(item.example_sentences ?? "").trim();
     let connectionRaw = String(item.connection ?? "").trim() || null;
+    let relatedRaw = String(item.related_compounds ?? "").trim() || null;
     if (!Number.isInteger(wordId) || wordId <= 0) continue;
-    const connectionOnly = Boolean(connectionRaw) && !exampleSentences;
-    if (!exampleSentences && !connectionRaw) continue;
+    const connectionOnly = Boolean(connectionRaw) && !exampleSentences && !relatedRaw;
+    const relatedOnly =
+      Boolean(relatedRaw) && !exampleSentences && !connectionRaw;
+    if (!exampleSentences && !connectionRaw && !relatedRaw) continue;
 
     const source =
       normalizeJpVocabExampleSentencesSource(item.source) ?? defaultSource;
@@ -493,7 +546,7 @@ export async function applyJpVocabExampleSentenceUpdates(
 
     const row = await db
       .prepare(
-        `SELECT id, word, kind, reading, meaning, usage, example_sentences FROM jp_vocab_word WHERE id = ?1`
+        `SELECT id, word, kind, reading, meaning, usage, example_sentences, related_compounds FROM jp_vocab_word WHERE id = ?1`
       )
       .bind(wordId)
       .first<{
@@ -504,9 +557,72 @@ export async function applyJpVocabExampleSentenceUpdates(
         meaning: string | null;
         usage: string | null;
         example_sentences: string | null;
+        related_compounds: string | null;
       }>();
     if (!row) {
       skipped.push({ id: wordId, word: String(wordId), reason: "not_found" });
+      continue;
+    }
+
+    let relatedCompounds: string | null = relatedRaw;
+    if (relatedRaw) {
+      const rcOk = validateJpVocabRelatedCompoundsAiOutput(relatedRaw, {
+        word: String(row.word),
+        reading: row.reading,
+        kind: String(row.kind),
+      });
+      if (!rcOk.ok) {
+        skipped.push({
+          id: wordId,
+          word: String(row.word),
+          reason: `invalid_format:${rcOk.reason}`,
+        });
+        continue;
+      }
+      relatedCompounds = rcOk.text || null;
+    }
+
+    if (relatedOnly) {
+      if (!relatedCompounds) {
+        skipped.push({
+          id: wordId,
+          word: String(row.word),
+          reason: "related_compounds_empty",
+        });
+        continue;
+      }
+      const changed = allowOverwrite
+        ? await updateRelatedCompoundsOverwrite(
+            db,
+            wordId,
+            relatedCompounds,
+            source,
+            dryRun
+          )
+        : await updateRelatedCompoundsIfEmpty(
+            db,
+            wordId,
+            relatedCompounds,
+            source,
+            dryRun
+          );
+      if (changed) {
+        updated += 1;
+        applied.push({
+          id: wordId,
+          word: String(row.word),
+          example_sentences: String(row.example_sentences ?? ""),
+          example_sentences_source: source,
+          related_compounds: relatedCompounds,
+          related_compounds_source: source,
+        });
+      } else {
+        skipped.push({
+          id: wordId,
+          word: String(row.word),
+          reason: allowOverwrite ? "unchanged" : "already_filled",
+        });
+      }
       continue;
     }
 
@@ -630,6 +746,25 @@ export async function applyJpVocabExampleSentenceUpdates(
         );
     if (changed) {
       updated += 1;
+      if (relatedCompounds) {
+        if (allowOverwrite) {
+          await updateRelatedCompoundsOverwrite(
+            db,
+            wordId,
+            relatedCompounds,
+            source,
+            dryRun
+          );
+        } else {
+          await updateRelatedCompoundsIfEmpty(
+            db,
+            wordId,
+            relatedCompounds,
+            source,
+            dryRun
+          );
+        }
+      }
       applied.push({
         id: wordId,
         word: String(row.word),
@@ -637,8 +772,40 @@ export async function applyJpVocabExampleSentenceUpdates(
         example_sentences_source: source,
         connection,
         connection_source: connection ? connectionSource : null,
+        related_compounds: relatedCompounds,
+        related_compounds_source: relatedCompounds ? source : null,
       });
     } else {
+      // 例句已有：仍可顺带写空的相关构词
+      if (relatedCompounds) {
+        const rcChanged = allowOverwrite
+          ? await updateRelatedCompoundsOverwrite(
+              db,
+              wordId,
+              relatedCompounds,
+              source,
+              dryRun
+            )
+          : await updateRelatedCompoundsIfEmpty(
+              db,
+              wordId,
+              relatedCompounds,
+              source,
+              dryRun
+            );
+        if (rcChanged) {
+          updated += 1;
+          applied.push({
+            id: wordId,
+            word: String(row.word),
+            example_sentences: String(row.example_sentences ?? exampleSentences),
+            example_sentences_source: source,
+            related_compounds: relatedCompounds,
+            related_compounds_source: source,
+          });
+          continue;
+        }
+      }
       skipped.push({
         id: wordId,
         word: String(row.word),

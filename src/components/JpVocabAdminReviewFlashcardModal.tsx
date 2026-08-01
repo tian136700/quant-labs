@@ -7,6 +7,7 @@ import { JpVocabFlashcardManualFillExamples } from "@/components/jp-vocab-teache
 import { JpVocabUsageExamplesCopyButton } from "@/components/JpVocabUsageExamplesCopyButton";
 import { JpVocabUsageExamplesPairedContent } from "@/components/JpVocabUsageExamplesPairedContent";
 import { JpVocabConnectionSection } from "@/components/JpVocabConnectionSection";
+import { JpVocabRelatedCompoundsSection } from "@/components/JpVocabRelatedCompoundsSection";
 import { buildJpVocabUsageExamplePairs } from "@/lib/jp-vocab-usage-examples-display";
 import {
   hasJpVocabConnection,
@@ -445,6 +446,12 @@ export function JpVocabAdminReviewFlashcardModal({
             </div>
           </section>
         ) : null}
+
+        <JpVocabRelatedCompoundsSection
+          relatedCompounds={w.related_compounds}
+          relatedCompoundsSource={w.related_compounds_source}
+          kind={w.kind}
+        />
 
         {showConnection && !inlineConnection ? (
           <JpVocabConnectionSection

@@ -429,6 +429,7 @@ async function getJpVocabWordByIdLite(
               created_at, updated_at,
               example_sentences, example_sentences_source, meaning_source,
               usage, usage_source, connection, connection_source,
+              related_compounds, related_compounds_source,
               annotation,
               course_label,
               oral_frequency,

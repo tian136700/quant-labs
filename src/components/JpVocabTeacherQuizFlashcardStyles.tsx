@@ -1486,6 +1486,46 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           line-height: 1.4;
           color: var(--text);
         }
+        .jp-vocab-teacher-quiz__related-compounds {
+          padding: 0.4rem 0.6rem;
+          border-radius: 10px;
+          border: 1px dashed var(--border);
+          background: transparent;
+        }
+        .jp-vocab-teacher-quiz__related-compounds-head {
+          display: flex;
+          align-items: baseline;
+          justify-content: space-between;
+          gap: 0.5rem;
+          margin-bottom: 0.25rem;
+        }
+        .jp-vocab-teacher-quiz__related-compounds-title {
+          margin: 0;
+          font-size: 0.75rem;
+          font-weight: 600;
+          color: var(--muted);
+        }
+        .jp-vocab-teacher-quiz__related-compounds-list {
+          margin: 0;
+          padding: 0;
+          list-style: none;
+          display: flex;
+          flex-direction: column;
+          gap: 0.28rem;
+        }
+        .jp-vocab-teacher-quiz__related-compounds-item {
+          margin: 0;
+          font-size: 0.875rem;
+          line-height: 1.55;
+          color: var(--text);
+          display: flex;
+          flex-wrap: wrap;
+          align-items: baseline;
+          gap: 0.1rem 0.15rem;
+        }
+        .jp-vocab-teacher-quiz__related-compounds-zh {
+          color: var(--muted);
+        }
         .jp-vocab-teacher-quiz__meta-after-notes {
           display: flex;
           flex-direction: column;

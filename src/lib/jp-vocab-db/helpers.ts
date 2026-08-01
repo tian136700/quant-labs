@@ -243,6 +243,15 @@ export function mapRow(row: Record<string, unknown>): JpVocabWord {
       row.connection_source != null && String(row.connection_source).trim()
         ? String(row.connection_source).trim()
         : null,
+    related_compounds:
+      row.related_compounds != null && String(row.related_compounds).trim()
+        ? String(row.related_compounds)
+        : null,
+    related_compounds_source:
+      row.related_compounds_source != null &&
+      String(row.related_compounds_source).trim()
+        ? String(row.related_compounds_source).trim()
+        : null,
     last_review_level:
       row.last_review_level === "very" ||
       row.last_review_level === "normal" ||
@@ -365,6 +374,28 @@ export async function ensureVocabWordSchema(db: D1Database): Promise<void> {
       if (!/duplicate column name/i.test(msg)) throw err;
     }
   }
+  if (!cols.has("related_compounds")) {
+    try {
+      await db
+        .prepare(`ALTER TABLE jp_vocab_word ADD COLUMN related_compounds TEXT`)
+        .run();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!/duplicate column name/i.test(msg)) throw err;
+    }
+  }
+  if (!cols.has("related_compounds_source")) {
+    try {
+      await db
+        .prepare(
+          `ALTER TABLE jp_vocab_word ADD COLUMN related_compounds_source TEXT`
+        )
+        .run();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!/duplicate column name/i.test(msg)) throw err;
+    }
+  }
   jpVocabDbState.vocabWordSchemaReady = true;
 }
 
@@ -377,6 +408,7 @@ export const WORD_SELECT = `SELECT id, word, reading, meaning, pos, kind, ref_ke
   cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, mnemonic, annotation, course_label,
   oral_frequency, exam_frequency, example_sentences,
   example_sentences_source, meaning_source, pos_source, usage, usage_source, connection, connection_source,
+  related_compounds, related_compounds_source,
   last_review_level, last_review_at, srs_interval_days, srs_due_date, created_at, updated_at FROM jp_vocab_word`;
 
 /**
@@ -388,6 +420,7 @@ export const WORD_SELECT_LIST = `SELECT id, word, reading, meaning, pos, kind, r
   (CASE WHEN class_notes IS NOT NULL THEN 1 ELSE 0 END) AS has_class_notes,
   mnemonic, annotation, course_label, oral_frequency, exam_frequency, example_sentences,
   example_sentences_source, meaning_source, pos_source, usage, usage_source, connection, connection_source,
+  related_compounds, related_compounds_source,
   last_review_level, last_review_at, srs_interval_days, srs_due_date, created_at, updated_at FROM jp_vocab_word`;
 
 /**

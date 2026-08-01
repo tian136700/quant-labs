@@ -31,6 +31,12 @@ const ERR = {
     need_four_lines: "Example block incomplete",
     grammar_not_used: "Examples must use this grammar",
     invalid_japanese_line: "Invalid Japanese example line",
+    related_compounds_word_only: "Related compounds are for words only",
+    related_compounds_bad_line: "Each related compound line: 漢字(かな)：中文",
+    related_compounds_too_many: "At most 5 related compounds",
+    related_compounds_unrelated: "Related compounds must share this word’s kanji/reading",
+    related_compounds_is_self: "Do not list the word itself as a related compound",
+    related_compounds_gloss_not_chinese: "Related compound gloss must be Chinese",
   },
   zh: {
     word_required: "单词 / 语法不能为空",
@@ -52,6 +58,12 @@ const ERR = {
     need_four_lines: "例句格式不完整",
     grammar_not_used: "例句须用到该语法",
     invalid_japanese_line: "日语例句格式无效",
+    related_compounds_word_only: "相关构词仅用于单词",
+    related_compounds_bad_line: "相关构词每行格式：漢字(かな)：中文",
+    related_compounds_too_many: "相关构词最多 5 条",
+    related_compounds_unrelated: "相关构词须含本词汉字或同一读音族",
+    related_compounds_is_self: "不要把本词自己写成相关构词",
+    related_compounds_gloss_not_chinese: "相关构词释义须为中文",
   },
 };
 
@@ -76,6 +88,7 @@ export async function POST(request: Request) {
       example_sentences?: string | null;
       usage?: string | null;
       connection?: string | null;
+      related_compounds?: string | null;
     };
 
     const wordId = Number(body.word_id);
@@ -101,6 +114,7 @@ export async function POST(request: Request) {
         example_sentences: body.example_sentences,
         usage: body.usage,
         connection: body.connection,
+        related_compounds: body.related_compounds,
         ...(isAdmin && body.mnemonic !== undefined
           ? { mnemonic: body.mnemonic }
           : {}),

@@ -68,8 +68,9 @@ EXAMPLE_JLPT_TAIL_RE = re.compile(
 WORD_SYSTEM = (
     "你为中文母语的日语 N5/N4 初学者补全「单词」闪卡。"
     "只输出一个 JSON 对象，不要 markdown 围栏、不要解释。"
-    "【硬规则】无论库里缺哪一项，每次都必须一次性输出该单词的全部四项，禁止只补缺项："
-    "reading（假名读音）、meaning（中文释义）、pos（中文词性）、example_sentences（例句字符串）。"
+    "【硬规则】无论库里缺哪一项，每次都必须一次性输出该单词的全部五项，禁止只补缺项："
+    "reading（假名读音）、meaning（中文释义）、pos（中文词性）、"
+    "example_sentences（例句字符串）、related_compounds（相关构词多行字符串）。"
     "单词没有接序，禁止输出 connection / usage 字段。"
     "释义：最常用 1～3 个中文义项，用「；」连接，常用在前；"
     "一词多种读音/大义项（与 reading 斜杠对应）用半角 / 分隔，如「前面；以前/前面的；预先的」。"
@@ -92,6 +93,11 @@ WORD_SYSTEM = (
     "❌消防(しょうぼう)車(しょうぼうしゃ)（后字吞掉整词读音）。"
     "连浊：✅入口(いりぐち)／出口(でぐち)／手紙(てがみ)；"
     "❌入口(いりくち)／出口(でくち)／手紙(てかみ)（该浊却标清音，会误导学生）。"
+    "【相关构词·同一次输出】related_compounds：含本词汉字的简单词，帮记本词（口→入口）；"
+    "与 reading/meaning/pos/example_sentences 同一次 JSON，禁止另开请求。"
+    "条数：没有自然相关词 → \"\"（禁止硬凑、禁止无病呻吟）；只有 1～2 个就写 1～2；多则最多 4～5 条。"
+    "每行「漢字(かな)：中文」；优先 N5～N4，禁止商务难词；连浊须标对。"
+    "例：入口(いりぐち)：入口\\n出口(でぐち)：出口。"
 )
 
 GRAMMAR_SYSTEM = (
@@ -245,6 +251,7 @@ def full_refresh_needs(kind: str, word: str) -> dict[str, bool]:
                 "usage": False,
                 "connection": False,
                 "example_sentences": True,
+                "related_compounds": False,
             }
         return {
             "reading": False,
@@ -253,6 +260,7 @@ def full_refresh_needs(kind: str, word: str) -> dict[str, bool]:
             "usage": True,
             "connection": True,
             "example_sentences": True,
+            "related_compounds": False,
         }
     return {
         "reading": True,
@@ -261,6 +269,7 @@ def full_refresh_needs(kind: str, word: str) -> dict[str, bool]:
         "usage": False,
         "connection": False,
         "example_sentences": True,
+        "related_compounds": True,
     }
 
 
@@ -358,9 +367,11 @@ def build_prompt(row: dict[str, Any], *, full_bundle: bool = True) -> str:
 
     if kind == "word":
         bundle_rule = (
-            "必须一次性输出 JSON 的全部四项（即使库里只有例句缺失，也要重写读音/释义/词性/例句）："
-            "reading, meaning, pos, example_sentences。"
+            "必须一次性输出 JSON 的全部五项（即使库里只有例句缺失，也要重写读音/释义/词性/例句/相关构词）："
+            "reading, meaning, pos, example_sentences, related_compounds。"
             "禁止输出 connection、usage（单词没有接序）。"
+            "related_compounds 与其它字段同一次输出；格式：每行 漢字(かな)：中文；"
+            "没有自然相关词填 \"\"（禁止硬凑）；少则 1～2，多则最多 4～5。"
         )
     elif is_conjugation_word(word):
         bundle_rule = (
@@ -385,8 +396,9 @@ def build_prompt(row: dict[str, Any], *, full_bundle: bool = True) -> str:
 已有用法：{row.get("usage") or "（无）"}
 已有接序：{row.get("connection") or "（无）"}
 已有例句：{row.get("example_sentences") or "（无）"}
+已有相关构词：{row.get("related_compounds") or "（无）"}
 
-JSON 必须包含且非空：{", ".join(req_keys)}（变形课 usage/connection 除外，填 ""）。
+JSON 必须包含且非空：{", ".join(req_keys)}（变形课 usage/connection 除外，填 ""；单词 related_compounds 可 ""）。
 只输出 JSON。"""
 
 
@@ -550,8 +562,14 @@ def apply_bundle(
                 fails.append(f"meaning:{reason}")
 
         examples = str(payload.get("example_sentences") or "").strip()
-        if examples:
+        related = str(payload.get("related_compounds") or "").strip()
+        if examples or related:
             # 与 meaning 一致：走 online normalize（剥訳文等）；仍拒漏标假名
+            ex_update: dict[str, Any] = {"word_id": word_id}
+            if examples:
+                ex_update["example_sentences"] = examples
+            if related:
+                ex_update["related_compounds"] = related
             r = _apply(
                 EXAMPLES_URL,
                 {
@@ -559,16 +577,11 @@ def apply_bundle(
                     "allow_overwrite": True,
                     "validate_format": False,
                     "source": source,
-                    "updates": [
-                        {
-                            "word_id": word_id,
-                            "example_sentences": examples,
-                        }
-                    ],
+                    "updates": [ex_update],
                 },
             )
             if int(r.get("updated") or 0) > 0:
-                done.append("example_sentences")
+                done.append("example_sentences" if examples else "related_compounds")
             else:
                 sk = r.get("skipped") or []
                 reason = (
@@ -633,6 +646,9 @@ def extract_bundle(data: dict[str, Any], row: dict[str, Any]) -> dict[str, Any]:
             out["pos"] = pos
         if ex:
             out["example_sentences"] = ex
+        rc = str(data.get("related_compounds") or "").strip()
+        if rc:
+            out["related_compounds"] = rc
         return out
 
     if is_conjugation_word(word):
