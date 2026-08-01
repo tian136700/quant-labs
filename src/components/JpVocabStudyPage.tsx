@@ -900,6 +900,7 @@ export function JpVocabStudyPage() {
         onOpenRef={openRefPreview}
         onViewRemarks={openRemarksWord}
         onEditRemarks={setEditingRemarksWord}
+        onShowPulledRemarks={setViewingRemarksWord}
         onEditWord={canOperate ? setEditingWord : undefined}
         onWordUpdated={handleWordSaved}
         nestedModalOpen={

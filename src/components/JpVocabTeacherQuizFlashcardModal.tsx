@@ -2,9 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { JpVocabClassNoteContent } from "@/components/JpVocabClassNoteContent";
 import { effectiveTodayCheckCount } from "@/lib/jp-vocab-daily-check";
-import { hasJpVocabClassNotes, formatJpVocabClassNotesForDisplay } from "@/lib/jp-vocab-class-notes";
 import { useJpVocabFlashcardClassNotesFetch } from "@/hooks/useJpVocabFlashcardClassNotesFetch";
 import { effectiveJpVocabDisplayLevel } from "@/lib/jp-vocab-review";
 import {
@@ -17,9 +15,9 @@ import {
 } from "@/lib/jp-vocab-quiz-score";
 import {
   jpVocabTeacherQuizModeLabel,
-  jpVocabTeacherQuizNotesInline,
   type JpVocabTeacherQuizSession,
 } from "@/lib/jp-vocab-teacher-quiz";
+import { JpVocabFlashcardNotesSection } from "@/components/jp-vocab-teacher-quiz/JpVocabFlashcardNotesSection";
 import {
   jpVocabDailyQuizProgressDisplayChecked,
   type JpVocabDailyQuizProgress,
@@ -98,6 +96,8 @@ type Props = {
   onOpenRef: (refKey: string, ref?: JpVocabRef) => void;
   onViewRemarks: (word: JpVocabWord) => void;
   onEditRemarks?: (word: JpVocabWord) => void;
+  /** 学生卡「拉取实时备注」成功后打开只读弹窗（勿走 canOperate 编辑入口） */
+  onShowPulledRemarks?: (word: JpVocabWord) => void;
   onEditWord?: (word: JpVocabWord) => void;
   onShare?: (wordId: number) => void | Promise<boolean | void>;
   /** 点「下一个」前：未共享则同步一次；已共享返回 true */
@@ -139,6 +139,7 @@ export function JpVocabTeacherQuizFlashcardModal({
   onOpenRef,
   onViewRemarks,
   onEditRemarks,
+  onShowPulledRemarks,
   onEditWord,
   onShare,
   onEnsureSharedBeforeNext,
@@ -369,9 +370,6 @@ export function JpVocabTeacherQuizFlashcardModal({
   );
   const totalDisplay = formatJpVocabTotalReviewsDisplay(w, locale);
   const showReadingPrimary = Boolean(readingTrim);
-  const hasNotes = hasJpVocabClassNotes(w.class_notes, w.class_notes_present);
-  const notesInline =
-    hasNotes && jpVocabTeacherQuizNotesInline(w.class_notes || "");
   const exampleSentences = parseJpVocabExampleSentenceItems(w.example_sentences);
   const isGrammar = w.kind === "grammar";
   const isConjugationGrammar =
@@ -686,53 +684,20 @@ export function JpVocabTeacherQuizFlashcardModal({
           />
         ) : null}
 
-        {hasNotes || canOperate ? (
-          <section className="jp-vocab-teacher-quiz__notes">
-            <div className="jp-vocab-teacher-quiz__notes-head">
-              <h3 className="jp-vocab-teacher-quiz__notes-title">备注</h3>
-              <div className="jp-vocab-teacher-quiz__notes-actions">
-                {hasNotes && !notesLoading ? (
-                  <button
-                    type="button"
-                    className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-teacher-quiz__action-btn"
-                    onClick={() => onViewRemarks(w)}
-                  >
-                    查看
-                  </button>
-                ) : null}
-                {canOperate ? (
-                  <button
-                    type="button"
-                    className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--success jp-vocab-teacher-quiz__action-btn"
-                    title="编辑备注"
-                    onClick={() => onEditRemarks?.(w)}
-                  >
-                    编辑备注
-                  </button>
-                ) : null}
-              </div>
-            </div>
-            {notesLoading ? (
-              <p className="jp-vocab-teacher-quiz__notes-preview" aria-live="polite">
-                正在拉取备注…
-              </p>
-            ) : hasNotes ? (
-              notesInline ? (
-                <div className="jp-vocab-teacher-quiz__notes-body">
-                  <JpVocabClassNoteContent
-                    content={formatJpVocabClassNotesForDisplay(w.class_notes)}
-                  />
-                </div>
-              ) : (
-                <p className="jp-vocab-teacher-quiz__notes-preview">备注较长，请点「查看」</p>
-              )
-            ) : (
-              <p className="jp-vocab-teacher-quiz__notes-preview jp-vocab-teacher-quiz__meta-empty">
-                暂无备注
-              </p>
-            )}
-          </section>
-        ) : null}
+        <JpVocabFlashcardNotesSection
+          word={w}
+          locale={locale}
+          notesLoading={notesLoading}
+          canOperate={canOperate}
+          showPullLiveRemarks={isStudy && onShowPulledRemarks != null}
+          onViewRemarks={onViewRemarks}
+          onEditRemarks={onEditRemarks}
+          onWordUpdated={(updated) => {
+            setNotesWord(updated);
+            onWordUpdated?.(updated);
+          }}
+          onShowPulledRemarks={onShowPulledRemarks ?? onViewRemarks}
+        />
         <JpVocabAnnotationSection annotation={w.annotation} />
         <JpVocabCourseFreqMetaSection
           courseLabel={w.course_label}

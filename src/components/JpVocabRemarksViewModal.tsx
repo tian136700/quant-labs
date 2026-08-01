@@ -1,13 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useI18n } from "@/i18n/I18nProvider";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import {
   parseJpVocabClassNotes,
   removeJpVocabClassNoteAtIndex,
-  mergeJpVocabWordAfterClassNotesFetch,
 } from "@/lib/jp-vocab-class-notes";
 import {
   buildOptimisticJpVocabWord,
@@ -28,8 +27,6 @@ type Props = {
   onSaveFailed?: (wordId: number, snapshot: JpVocabWord, message: string) => void;
   onNeedAuth?: () => void;
 };
-
-const POLL_MS = 2_000;
 
 export function JpVocabRemarksViewModal({
   open,
@@ -63,44 +60,8 @@ export function JpVocabRemarksViewModal({
     }
   }, [open, word?.id, word?.updated_at, word]);
 
-  const pullRemoteNotes = useCallback(async () => {
-    if (!open || !word || deletingIndex != null) return;
-    try {
-      const res = await fetch(
-        `/api/jp-vocab/class-notes?word_id=${encodeURIComponent(String(word.id))}`,
-        {
-          headers: { [LOCALE_HEADER]: locale },
-          credentials: "include",
-          cache: "no-store",
-        }
-      );
-      const data = (await res.json()) as { ok: boolean; word?: JpVocabWord };
-      if (!data.ok || !data.word) return;
-      const local = displayWordRef.current;
-      // Shared/sync list payloads often omit class_notes (null + class_notes_present).
-      // Must hydrate when notes body differs, not only when updated_at changes.
-      const notesChanged =
-        (data.word.class_notes ?? null) !== (local?.class_notes ?? null);
-      const stampChanged = data.word.updated_at !== local?.updated_at;
-      if (notesChanged || stampChanged) {
-        const merged = mergeJpVocabWordAfterClassNotesFetch(
-          local ?? word,
-          data.word
-        );
-        setDisplayWord(merged);
-        onWordUpdated?.(merged);
-      }
-    } catch {
-      /* ignore */
-    }
-  }, [deletingIndex, locale, onWordUpdated, open, word]);
-
-  useEffect(() => {
-    if (!open || !word) return;
-    void pullRemoteNotes();
-    const timer = setInterval(() => void pullRemoteNotes(), POLL_MS);
-    return () => clearInterval(timer);
-  }, [open, word?.id, pullRemoteNotes, word]);
+  // 禁止打开时/定时轮询拉备注（易 1102）。最新正文仅由卡片「拉取实时备注」按需 GET 后传入。
+  // 本弹窗只展示传入的 word，删除条目时才 POST。
 
   useEffect(() => {
     if (!open) return;
@@ -248,7 +209,9 @@ export function JpVocabRemarksViewModal({
               <p className="jp-remarks-view-empty">暂无备注</p>
             )}
             {error ? <p className="jp-remarks-view-error">{error}</p> : null}
-            <p className="jp-remarks-view-sync-hint">每 2 秒自动同步</p>
+            <p className="jp-remarks-view-sync-hint">
+              不自动同步；要点「拉取实时备注」才会向服务器取最新
+            </p>
           </div>
 
           <div className="jp-remarks-view-footer">
