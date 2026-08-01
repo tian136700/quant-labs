@@ -64,9 +64,7 @@ function stripAdminOnlyFromLessons(lessons: JpLessonRecord[]): JpLessonRecord[] 
     ...lesson,
     teacher_ids: [],
     teacher_other: null,
-    class_schedules: [],
-    next_class_at: null,
-    class_duration_minutes: null,
+    // 保留上课时间：非管理员也要能用「上课中」Tab 找教案（日程关联写入的 schedules）
   }));
 }
 

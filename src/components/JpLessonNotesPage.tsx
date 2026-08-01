@@ -94,9 +94,12 @@ export function JpLessonNotesPage() {
   const imageUploadingRef = useRef(false);
   const imageInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const itemFieldsRef = useRef<ItemFields>({});
-  const saveNotesRef = useRef<() => Promise<void>>(async () => {});
+  const dirtyItemsRef = useRef<Set<string>>(new Set());
+  const loadGenRef = useRef(0);
+  const saveNotesRef = useRef<(onlyItem?: string) => Promise<void>>(async () => {});
 
   itemFieldsRef.current = itemFields;
+  dirtyItemsRef.current = dirtyItems;
 
   const items = useMemo(
     () => (lesson ? parseLessonContent(lesson.content) : []),
@@ -114,6 +117,8 @@ export function JpLessonNotesPage() {
   );
 
   const initFields = useCallback(() => {
+    // 有未保存改动（含刚贴的图）时禁止用服务端/缓存笔记覆盖本地草稿
+    if (dirtyItemsRef.current.size > 0) return;
     const next = buildItemFields(items, lessonNotes);
     initialFieldsRef.current = next;
     setItemFields(next);
@@ -130,6 +135,7 @@ export function JpLessonNotesPage() {
       return;
     }
 
+    const loadGen = ++loadGenRef.current;
     const cachedEntry = pickLessonFromCache(lessonId);
     if (cachedEntry) {
       setLesson(cachedEntry.lesson);
@@ -147,6 +153,7 @@ export function JpLessonNotesPage() {
           parseJpLessonApi,
           {
             onCached: (data) => {
+              if (loadGen !== loadGenRef.current) return;
               const found = data.lessons.find((l) => l.id === lessonId);
               if (found) setLesson(found);
             },
@@ -167,20 +174,27 @@ export function JpLessonNotesPage() {
           return Array.isArray(data.notes) ? data.notes : [];
         }),
       ]);
+      if (loadGen !== loadGenRef.current) return;
       const found = payload.lessons.find((l) => l.id === lessonId);
       if (!found) {
         throw new Error("未找到该课程");
       }
       setLesson(found);
-      setNotes(notesJson);
+      // 本地有未保存图片/文字时，不要用可能更旧的 GET 结果冲掉
+      if (dirtyItemsRef.current.size === 0) {
+        setNotes(notesJson);
+      }
     } catch (err) {
+      if (loadGen !== loadGenRef.current) return;
       if (!cachedEntry) {
         setError(err instanceof Error ? err.message : String(err));
         setLesson(null);
       }
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (loadGen === loadGenRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, [lessonId, locale]);
 
@@ -226,6 +240,8 @@ export function JpLessonNotesPage() {
       setError("");
 
       const itemsToSave = onlyItem ? [onlyItem] : items;
+      // 以 ref 为准：图片上传后立刻自动保存时，闭包里的 itemFields 可能还是旧的
+      const fieldsByItem = itemFieldsRef.current;
 
       try {
         const otherLessonNotes = notes.filter(
@@ -234,7 +250,7 @@ export function JpLessonNotesPage() {
         const lessonResult: JpLessonNote[] = [...otherLessonNotes];
 
         for (const item of itemsToSave) {
-          const fields = itemFields[item] ?? [];
+          const fields = fieldsByItem[item] ?? [];
           const initial = initialFieldsRef.current[item] ?? [];
           const initialById = new Map(
             initial.filter((f) => f.noteId).map((f) => [f.noteId!, f])
@@ -409,7 +425,7 @@ export function JpLessonNotesPage() {
         }
       }
     },
-    [canEdit, itemFields, items, lesson, lessonNotes, locale, notes, user, openJpAuth]
+    [canEdit, items, lesson, lessonNotes, locale, notes, user, openJpAuth]
   );
 
   saveNotesRef.current = saveNotes;
@@ -496,6 +512,14 @@ export function JpLessonNotesPage() {
             f.key === fieldKey ? { ...f, body: nextBody } : f
           ),
         }));
+        // 同步写入 ref，立刻自动保存时 saveNotes 能读到含图正文（勿等下一轮 render）
+        itemFieldsRef.current = {
+          ...itemFieldsRef.current,
+          [item]: (itemFieldsRef.current[item] ?? []).map((f) =>
+            f.key === fieldKey ? { ...f, body: nextBody } : f
+          ),
+        };
+        dirtyItemsRef.current = new Set(dirtyItemsRef.current).add(item);
         setDirtyItems((prev) => new Set(prev).add(item));
         setItemSaveStatus((prev) => ({ ...prev, [item]: "pending" }));
         setSaveStatus("pending");
@@ -505,6 +529,8 @@ export function JpLessonNotesPage() {
           loaded: file.size,
           total: file.size,
         });
+        // 上传成功后立刻落库，避免「等一会图片消失」（后台刷新冲掉未保存草稿）
+        void saveNotesRef.current(item);
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
         setImageUploadProgress(null);

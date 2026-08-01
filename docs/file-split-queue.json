@@ -17,14 +17,7 @@
       "note": ""
     }
   ],
-  "completed_since_last_refresh": [
-    {
-      "path": "src/lib/jp-lesson-shared.ts",
-      "lines": 960,
-      "status": 1,
-      "note": ""
-    }
-  ],
+  "completed_since_last_refresh": [],
   "excluded_over_threshold": [
     {
       "path": "src/components/JpVocabTeacherQuizFlashcardStyles.tsx",

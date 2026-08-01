@@ -15,11 +15,11 @@ import {
   type JpLessonApiPayload,
 } from "@/lib/jp-api-cache";
 import type { JpLessonExamplesViewTarget } from "@/components/JpLessonExamplesViewModal";
+import { isJpLessonCurrentlyInClass } from "@/lib/jp-lesson-in-class";
 import {
   buildJpLessonDisplayGroupsById,
   buildLearningClassDayToneMap,
   getJpLessonProgressStatus,
-  isJpLessonCurrentlyInClass,
   type JpLessonDisplayGroup,
   type JpLessonProgressStatus,
 } from "@/lib/jp-lesson-shared";
@@ -96,10 +96,6 @@ export function JpLessonPage() {
   const [copyToast, setCopyToast] = useState<string | null>(null);
   const [mobileStatusFilter, setMobileStatusFilterState] =
     useState<JpLessonListFilter>(() => readStoredJpLessonListFilter());
-  const setMobileStatusFilter = useCallback((status: JpLessonListFilter) => {
-    setMobileStatusFilterState(status);
-    writeStoredJpLessonListFilter(status);
-  }, []);
   /** 北京时间墙钟：用于「上课中」窗口；与日程页同频 60s 刷新 */
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
@@ -230,6 +226,18 @@ export function JpLessonPage() {
       setRefreshing(false);
     }
   }, [applyLessonPayload]);
+
+  /** 点「上课中」强制拉最新上课时间（日程关联刚写入时 TTL 缓存可能还是旧的） */
+  const setMobileStatusFilter = useCallback(
+    (status: JpLessonListFilter) => {
+      setMobileStatusFilterState(status);
+      writeStoredJpLessonListFilter(status);
+      if (status === "in_class") {
+        void loadLessons({ force: true });
+      }
+    },
+    [loadLessons]
+  );
 
   useEffect(() => {
     if (user && !checking && !canViewJpLesson) return;

@@ -156,12 +156,13 @@ export function useJpLessonSchedulePageActions(options: UseJpLessonSchedulePageA
           item.id === lesson.id ? (lesson as JpLessonRecord) : item
         );
         const cache = readLessonCache();
-        if (cache) {
-          writeClientCache(JP_LESSON_CACHE_KEY, {
-            ...cache,
-            lessons: next,
-          });
-        }
+        writeClientCache(JP_LESSON_CACHE_KEY, {
+          lessons: next,
+          refs: cache?.refs ?? {},
+          notes: [],
+          note_counts: cache?.note_counts ?? {},
+          teachers: cache?.teachers,
+        });
         return next;
       });
       return;
@@ -171,12 +172,12 @@ export function useJpLessonSchedulePageActions(options: UseJpLessonSchedulePageA
         item.id === lesson.id ? (lesson as EnLessonRecord) : item
       );
       const cache = readEnLessonCache();
-      if (cache) {
-        writeClientCache(EN_LESSON_CACHE_KEY, {
-          ...cache,
-          lessons: next,
-        });
-      }
+      writeClientCache(EN_LESSON_CACHE_KEY, {
+        lessons: next,
+        refs: cache?.refs ?? {},
+        notes: cache?.notes ?? [],
+        teachers: cache?.teachers,
+      });
       return next;
     });
   };
