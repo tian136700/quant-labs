@@ -140,7 +140,7 @@ export async function POST(request: Request) {
     }
 
     if (body.action === "set_next_class_at" || body.action === "set_class_schedules") {
-      const { isAdmin } = await requireAdmin(request);
+      const { isAdmin, user } = await requireAdmin(request);
       if (!isAdmin) {
         return jsonResponse({ ok: false, error: "forbidden" }, 403);
       }
@@ -174,7 +174,21 @@ export async function POST(request: Request) {
           return jsonResponse({ ok: false, error: result.error }, status);
         }
 
-        return jsonResponse({ ok: true, lesson: result.lesson });
+        // 填好上课时间后默认「上课中」(learning)，便于进日程与列表筛选
+        let lesson = result.lesson;
+        if (body.class_schedules.length > 0 && user?.username) {
+          const progress = await updateEnLessonProgress(
+            env.DB,
+            lessonId,
+            "learning",
+            user.username
+          );
+          if (progress.ok) {
+            lesson = progress.lesson;
+          }
+        }
+
+        return jsonResponse({ ok: true, lesson });
       }
 
       const nextClassAt =

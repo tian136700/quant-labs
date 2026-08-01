@@ -463,7 +463,7 @@ export function EnLessonStatusTable({
                 </button>
               </th>
             ) : null}
-            <th className="jp-lesson-complete-col">学习状态</th>
+            <th className="jp-lesson-complete-col">上课状态</th>
             <th className="jp-lesson-notes-col">课堂笔记</th>
             <th className="jp-lesson-actions-col">教案操作</th>
           </tr>
@@ -655,7 +655,7 @@ export function EnLessonStatusTable({
                 </td>
                 {isAdmin ? renderSharedTeacherCell(group.lessons) : null}
                 {isAdmin ? renderSharedClassTimeCell(group.lessons) : null}
-                <td data-label="学习状态" className="jp-lesson-complete-col jp-lesson-mobile-labeled-col">
+                <td data-label="上课状态" className="jp-lesson-complete-col jp-lesson-mobile-labeled-col">
                   <div className={stackClass.trim() || undefined}>
                     {group.lessons.map((lesson) => {
                       const progressStatus = getEnLessonProgressStatus(lesson);
@@ -675,7 +675,7 @@ export function EnLessonStatusTable({
                               className="jp-lesson-complete-select"
                               value={progressStatus}
                               disabled={!canOperate || savingId === lesson.id}
-                              aria-label={`${lesson.content} 学习状态`}
+                              aria-label={`${lesson.content} 上课状态`}
                               onChange={(e) =>
                                 void onSetLessonProgress(
                                   lesson.id,
@@ -684,8 +684,8 @@ export function EnLessonStatusTable({
                               }
                             >
                               <option value="pending">未完成</option>
-                              <option value="learning">学习中</option>
-                              <option value="completed">已完成</option>
+                              <option value="learning">上课中</option>
+                              <option value="completed">上课完</option>
                             </select>
                           </div>
                         </div>

@@ -633,8 +633,11 @@ export function EnLessonPage() {
       });
       blurActiveElementForLessonModalClose();
       setEditingNextClassLesson(null);
+      if (normalized.length > 0) setMobileStatusFilter("learning");
+      setStatus(
+        normalized.length > 0 ? "上课时间已更新，已设为上课中" : "上课时间已更新"
+      );
       scrollLessonListItemIntoView(lessonId);
-      setStatus("上课时间已更新");
       window.setTimeout(() => setStatus(""), 2500);
     } catch (err) {
       if (snapshot) {
@@ -730,7 +733,7 @@ export function EnLessonPage() {
       <h1 style={{ fontSize: "1.5rem", margin: "0 0 0.35rem" }}>英语新课</h1>
 
       <p style={{ color: "var(--muted)", marginBottom: "0.75rem" }}>
-        新课学习清单与教案管理。访客可浏览；登录用户可设置学习状态（未完成 / 学习中 / 已完成）。仅「已完成」会同步进入
+        新课学习清单与教案管理。访客可浏览；登录用户可设置状态（未完成 / 上课中 / 上课完）。仅「上课完」会同步进入
         <a href="/en-vocab" style={{ color: "var(--accent)" }}>
           英语单词抽问
         </a>
@@ -788,7 +791,7 @@ export function EnLessonPage() {
               同步中…
             </p>
           ) : null}
-          <div className="jp-lesson-mobile-status-filter" role="tablist" aria-label="学习状态筛选">
+          <div className="jp-lesson-mobile-status-filter" role="tablist" aria-label="上课状态筛选">
             {LESSON_STATUS_SECTIONS.map(({ status, title }) => {
               const sectionCount = lessonsByStatus[status].length;
               const active = mobileStatusFilter === status;
@@ -983,7 +986,7 @@ export function EnLessonPage() {
           <code>content</code> 中多个单词/语法用英文或中文逗号分隔。
           相同学习类型与内容已存在时将返回 <code>content_duplicate</code>（HTTP 409）。
           上传带 <code>file</code> 时，系统会自动生成教案标识（如 <code>lesson-4</code>）并绑定到该条新课，无需传 <code>ref_key</code>。
-          上传后默认「未完成」；在列表中改为「已完成」后，会同步写入
+          上传后默认「未完成」；改为「上课完」后会同步写入
           英语单词抽问并带上教案链接。
         </p>
       </details>

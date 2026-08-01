@@ -61,9 +61,9 @@ export const LESSON_STATUS_SECTIONS: {
   title: string;
   emptyHint: string;
 }[] = [
-  { status: "learning", title: "学习中", emptyHint: "暂无学习中的新课" },
+  { status: "learning", title: "上课中", emptyHint: "暂无上课中的新课" },
   { status: "pending", title: "未完成", emptyHint: "暂无未完成的新课" },
-  { status: "completed", title: "已完成", emptyHint: "暂无已完成的新课" },
+  { status: "completed", title: "上课完", emptyHint: "暂无上课完的新课" },
 ];
 
 export function groupLessonsForDisplay(
