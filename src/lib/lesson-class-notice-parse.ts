@@ -1,6 +1,6 @@
 /**
  * 从「课程签到成功通知」等粘贴文本里拆出任课教师、上课日期与时间。
- * 供 /en-lesson、/jp-lesson「设置上课时间」文字拆解框使用。
+ * 供 /en-lesson「设置上课时间」文字拆解框使用（日语新课已去掉该框）。
  */
 
 export type LessonClassNoticeParseResult = {

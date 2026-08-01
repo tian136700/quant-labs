@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression: 设置上课时间「文字拆解」解析签到通知 → 老师/日期/时间."""
+"""Regression: 英语「文字拆解」保留；日语 JpLessonNextClassEditModal 禁止再挂签到拆解框."""
 
 from __future__ import annotations
 
@@ -93,15 +93,6 @@ def main() -> int:
                 "teacherIds",
             ),
         ),
-        (
-            JP_MODAL,
-            (
-                "LessonClassNoticePasteBox",
-                "parseLessonClassNoticeText",
-                "onAddTeacher",
-                "teacherIds",
-            ),
-        ),
     ):
         if not path.is_file():
             errors.append(f"missing {path.relative_to(ROOT)}")
@@ -110,6 +101,22 @@ def main() -> int:
         for needle in needles:
             if needle not in text:
                 errors.append(f"{path.relative_to(ROOT)}: missing {needle!r}")
+
+    # 日语新课已去掉文字拆解，禁止再挂回
+    if JP_MODAL.is_file():
+        jp_text = JP_MODAL.read_text(encoding="utf-8")
+        for banned in (
+            "LessonClassNoticePasteBox",
+            "parseLessonClassNoticeText",
+            "文字拆解",
+        ):
+            if banned in jp_text:
+                errors.append(
+                    f"{JP_MODAL.relative_to(ROOT)}: must not contain {banned!r} "
+                    "(日语新课已去掉签到文字拆解)"
+                )
+    else:
+        errors.append(f"missing {JP_MODAL.relative_to(ROOT)}")
 
     got = parse_notice(SAMPLE)
     expect = {
