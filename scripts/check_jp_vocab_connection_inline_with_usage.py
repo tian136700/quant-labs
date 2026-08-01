@@ -251,6 +251,44 @@ def main() -> None:
     if not all(ln.startswith("用法") for ln in rewritten_lines):
         fail(f"四行均须用法N: 得到 {rewritten_lines!r}")
 
+    # ～ようと思う 式：括号嵌套词类散文 → 分行上表；写回拒 nested_class_colon_prose
+    for needle in (
+        "rewriteJpVocabConnectionNestedClassColonProse",
+        "expandJpVocabConnectionNestedClassColonLine",
+        "connectionHasNestedClassColonProse",
+        "nested_class_colon_prose",
+    ):
+        if needle not in src:
+            fail(f"connection-ai missing nested-class-colon guard {needle!r}")
+    if "禁止括号嵌套散文" not in src and "括号嵌套" not in src:
+        fail("接序 prompt 须禁止括号嵌套词类散文")
+
+    you_prose = (
+        "动词意志形（一类动词：く→こう／む→もう等；二类动词：る→よう；"
+        "三类动词：する→しよう；三类动词：くる→こよう）＋と思う。"
+    )
+    # 与 TS expand 同规则的本地对照
+    you_m = re.match(
+        r"^(.+?)[（(](.+)[）)]\s*([＋+].+)$",
+        you_prose.strip().rstrip("。．"),
+    )
+    if not you_m:
+        fail("～ようと思う 散文样例应能拆出 prefix/inner/suffix")
+    you_segs = split_semicolon_outside_parens(you_m.group(2))
+    if len(you_segs) < 3:
+        fail(f"～ようと思う 括号内应拆出 ≥3 词类段，得到 {you_segs!r}")
+    you_table = (
+        "一类动词：意志形（く→こう／む→もう等）＋と思う\n"
+        "二类动词：意志形（る→よう）＋と思う\n"
+        "三类动词：「する」→「しよう」；「くる」→「こよう」＋と思う\n"
+        "注意：「～ようと思っている」表示持续意图，比「～ようと思います」更强调当前状态"
+    )
+    you_rows = parse_table_rows(you_table)
+    if you_rows is None or len(you_rows) < 3:
+        fail(f"～ようと思う 分行接续应拆出 ≥3 表行，得到 {you_rows!r}")
+    if you_rows[0][0] != "一类动词" or "意志形" not in you_rows[0][1]:
+        fail(f"～ようと思う 首行应为一类动词/意志形，得到 {you_rows[0]!r}")
+
     fill_usage = (ROOT / "src/lib/jp-vocab-fill-usage.ts").read_text(encoding="utf-8")
     if "requireJlptLevel: !isManual" in fill_usage:
         fail("语法用法等级不可再对「手动」放行；须 requireJlptLevel: true")

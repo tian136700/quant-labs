@@ -22,11 +22,12 @@ export const JP_VOCAB_CONNECTION_UPLOAD_SPEC = {
     "卡片会把复杂接续自动排成表：多种词类时必须用「词类＋接续」并用全角分号「；」串在同一用法下（例：动词原形＋と；一类形容词词尾い＋と；名词＋だと）；或分行「词类：说明」（例：一类动词：…）",
     "❌ 禁止写成散文「接在动词、一类形容词、名词后面」——无法上表，学生难扫读",
     "涉及多种动词接续时优先分行：一类动词: …／二类动词: …／三类动词: …（「来る」「する」）",
+    "❌ 禁止把一类／二类／三类塞进同一行括号散文（如「动词意志形（一类动词：く→こう；二类动词：る→よう）＋と思う」）——卡片无法上表；须分行「一类动词：…」",
     "な形容词／名词有特殊接法时，用短句说清（如「不加だ」「加だ」「＋な」「＋の」）",
     "若仍写「动词辞书形」必须写成「动词辞书形（动词原形）」；不要只写「动词辞书形」",
     "语法若有多条编号用法：接序必须按「用法1:」「用法2:」分行写（与上面 1. 2. 用法一一对应）；同一行禁止串写多个「用法N」",
     "各用法接续相同时，可只写共用形态（不必硬凑用法1/2）；有差异则必须分行对应",
-    "否定形/注意等共用说明另起一行（如「否定形: …」）",
+    "否定形/注意等共用说明另起一行（如「否定形: …」「注意: …」）",
     "单词：写词类与常用活用（原形/ます形/て形或一类·二类形容词等）",
     "2～6 行即可；不要 markdown、不要行首 1. 2.（用「用法N:」标签）",
     "❌ 禁止用「1. 2. 3.」给接序编号——会整段挂到用法1下，把句末 (N4)/(N5) 与对应例句隔开，看起来像「没标级别」",
@@ -37,6 +38,7 @@ export const JP_VOCAB_CONNECTION_UPLOAD_SPEC = {
     "looks_like_examples",
     "bare_numbered_lines",
     "academic_verb_class_terms",
+    "nested_class_colon_prose",
   ],
 } as const;
 
@@ -211,6 +213,107 @@ export function splitJpVocabConnectionSemicolonOutsideParens(
   return parts;
 }
 
+/** 括号内「一类动词：…；二类动词：…」可上表的词类标签 */
+const CONNECTION_NESTED_CLASS_LABEL_RE =
+  /^(一类动词|二类动词|三类动词|一类形容词|二类形容词|名词)\b/;
+
+/**
+ * 单行「…（一类动词：…；二类动词：…）＋接续」→ 分行表行；否则 null。
+ * 例：动词意志形（一类动词：く→こう；二类动词：る→よう）＋と思う
+ */
+export function expandJpVocabConnectionNestedClassColonLine(
+  line: string
+): string[] | null {
+  const t = String(line ?? "").trim().replace(/[。．]+$/u, "");
+  if (!t) return null;
+  const m = /^(.+?)[（(](.+)[）)]\s*([＋+].+)$/.exec(t);
+  if (!m) return null;
+  const prefix = String(m[1] ?? "").trim();
+  const inner = String(m[2] ?? "").trim();
+  const suffix = String(m[3] ?? "")
+    .trim()
+    .replace(/^[+]/, "＋");
+  if (!prefix || !inner || !suffix) return null;
+  // 括号内须能拆出 ≥2 个「词类：说明」
+  const segments = splitJpVocabConnectionSemicolonOutsideParens(inner);
+  if (segments.length < 2) return null;
+  const parsed: JpVocabConnectionTableRow[] = [];
+  for (const seg of segments) {
+    const cm = CONNECTION_TABLE_ROW_RE.exec(seg.trim());
+    if (!cm) return null;
+    const label = String(cm[1] ?? "").trim();
+    const body = String(cm[2] ?? "").trim();
+    if (!label || !body) return null;
+    if (!CONNECTION_NESTED_CLASS_LABEL_RE.test(label)) return null;
+    if (label.length > CONNECTION_TABLE_LABEL_MAX) return null;
+    const lastRow = parsed[parsed.length - 1];
+    if (lastRow && lastRow.label === label) {
+      lastRow.body = `${lastRow.body}；${body}`;
+    } else {
+      parsed.push({ label, body });
+    }
+  }
+  if (parsed.length < 2) return null;
+
+  // 「动词意志形」→ 形态提示「意志形」，写入各行说明括号
+  const formHint = prefix.replace(/^动词/, "").trim();
+  const useFormHint =
+    formHint.length > 0 &&
+    formHint.length <= 12 &&
+    /形$|形（|意志|假定|可能|命令|使役|被动|受身|て|た|ば/.test(formHint);
+
+  return parsed.map(({ label, body }) => {
+    let right = body;
+    if (useFormHint && !right.includes(formHint)) {
+      right = `${formHint}（${body}）`;
+    }
+    if (!/[＋+]/.test(right)) {
+      right = `${right}${suffix}`;
+    }
+    return `${label}：${right}`;
+  });
+}
+
+export function connectionHasNestedClassColonProse(
+  raw: string | null | undefined
+): boolean {
+  for (const line of String(raw ?? "").split("\n")) {
+    const t = line.trim();
+    if (!t) continue;
+    if (expandJpVocabConnectionNestedClassColonLine(t)) return true;
+  }
+  return false;
+}
+
+/**
+ * 嵌套词类散文 → 分行「词类：说明」；引用说明句升为「注意：…」便于上表。
+ */
+export function rewriteJpVocabConnectionNestedClassColonProse(
+  raw: string
+): string {
+  const out: string[] = [];
+  for (const line of String(raw ?? "").replace(/\r\n/g, "\n").split("\n")) {
+    const t = line.trim();
+    if (!t) continue;
+    const expanded = expandJpVocabConnectionNestedClassColonLine(t);
+    if (expanded) {
+      out.push(...expanded);
+      continue;
+    }
+    // 「～ようと思っている」表示… → 注意：…
+    if (
+      /^[「『]/.test(t) &&
+      /表示|比|强调|语气|意为/.test(t) &&
+      !CONNECTION_TABLE_ROW_RE.test(t)
+    ) {
+      out.push(`注意：${t.replace(/[。．]+$/u, "")}`);
+      continue;
+    }
+    out.push(t);
+  }
+  return out.join("\n");
+}
+
 function tryParseColonConnectionTableRows(
   text: string
 ): JpVocabConnectionTableRow[] | null {
@@ -303,7 +406,9 @@ export function normalizeJpVocabConnectionText(
 ): string | null {
   const expanded = expandJpVocabConnectionUsageInlineBreaks(
     rewriteJpVocabConnectionBareNumberedToUsageTags(
-      rewriteJpVocabConnectionSchoolVerbClassTerms(String(raw ?? ""))
+      rewriteJpVocabConnectionNestedClassColonProse(
+        rewriteJpVocabConnectionSchoolVerbClassTerms(String(raw ?? ""))
+      )
     )
   );
   const lines = expanded
@@ -392,6 +497,7 @@ export function jpVocabConnectionPromptAppendix(
 - ✅ 对学生友好：写清词类：一类动词／二类动词／三类动词／一类形容词原形／二类形容词原形／名词＋本语法；❌禁止只写笼统「原形＋…」；少用「普通形」「现在肯定为词干」；な形容词／名词特殊时用短句（如「不加だ」「加だ」）。
 - ✅ 动词只用「一类动词／二类动词／三类动词」（国内教材）；❌禁止「五段／一段／カ变／サ变」。多种动词接续时分行写（一类动词: …／二类动词: …／三类动词: …）。
 - ✅ 卡片会自动排表：同一用法下多种词类时，写成「词类＋接续；词类＋接续」（全角「；」），或分行「词类：说明」。❌禁止散文「接在动词、形容词、名词后面」。
+- ❌ 禁止「动词意志形（一类动词：…；二类动词：…）＋と思う」这类括号嵌套散文——须分行「一类动词：意志形（…）＋と思う」。
 - ✅ 若仍写「动词辞书形」，必须写成「动词辞书形（动词原形）」；日语形态用「」短引，不要假名括注。
 - 2～6 行；不要 markdown、不要给接序再编行首 1. 2.。
 
@@ -406,7 +512,14 @@ ${JP_VOCAB_CONNECTION_SECTION_MARKER}
 一类动词：词尾う段改え段＋ば（「書く」→「書けば」）
 二类动词：去る＋れば（「食べる」→「食べれば」）
 三类动词：「来る」→「来れば」；「する」→「すれば」
-一类形容词：去い＋ければ`;
+一类形容词：去い＋ければ
+
+示例接序段（意志形分行上表，如 ～ようと思う）：
+${JP_VOCAB_CONNECTION_SECTION_MARKER}
+一类动词：意志形（く→こう／む→もう等）＋と思う
+二类动词：意志形（る→よう）＋と思う
+三类动词：「する」→「しよう」；「くる」→「こよう」＋と思う
+注意：「～ようと思っている」表示持续意图，比「～ようと思います」更强调当前状态`;
   }
   return `
 接序（必须同一次输出，单独成段）：
@@ -453,6 +566,7 @@ export function buildJpVocabConnectionOnlyAiPrompt(
 - ✅ 对学生友好：写清词类：一类动词／二类动词／三类动词／一类形容词原形／二类形容词原形／名词＋本语法；❌禁止只写笼统「原形＋…」；少用「普通形」「现在肯定为词干」；な／名词特殊时短句说清（不加だ／加だ）。
 - ✅ 动词只用「一类动词／二类动词／三类动词」；❌禁止「五段／一段／カ变／サ变」。多种动词接续时分行写。
 - ✅ 卡片自动排表：同一用法多种词类 →「词类＋接续；词类＋接续」；或分行「词类：说明」。❌禁止散文罗列词类。
+- ❌ 禁止括号嵌套散文「…（一类动词：…；二类动词：…）＋…」，须分行上表。
 - 若仍写「动词辞书形」必须写成「动词辞书形（动词原形）」；日语形态用「」短引；不要假名括注。
 - 不要写用法长文、不要写例句、不要 markdown。
 
@@ -465,7 +579,13 @@ ${JP_VOCAB_CONNECTION_SECTION_MARKER}
 ${JP_VOCAB_CONNECTION_SECTION_MARKER}
 一类动词：词尾う段改え段＋ば（「書く」→「書けば」）
 二类动词：去る＋れば（「食べる」→「食べれば」）
-三类动词：「来る」→「来れば」；「する」→「すれば」`;
+三类动词：「来る」→「来れば」；「する」→「すれば」
+
+输出示例（意志形分行上表）：
+${JP_VOCAB_CONNECTION_SECTION_MARKER}
+一类动词：意志形（く→こう／む→もう等）＋と思う
+二类动词：意志形（る→よう）＋と思う
+三类动词：「する」→「しよう」；「くる」→「こよう」＋と思う`;
   }
 
   return `${meta}
@@ -510,6 +630,10 @@ export function validateJpVocabConnectionAiOutput(
   // 写回拒专业术语：学生教材用一类/二类/三类，听不懂五段/カ变
   if (connectionHasAcademicVerbClassTerms(preCheckBody)) {
     return { ok: false, reason: "academic_verb_class_terms" };
+  }
+  // 写回拒括号嵌套词类散文（须分行才能上表）；normalize 仍会改写存量展示
+  if (connectionHasNestedClassColonProse(preCheckBody)) {
+    return { ok: false, reason: "nested_class_colon_prose" };
   }
   if (text.includes(JP_VOCAB_CONNECTION_SECTION_MARKER)) {
     text =
