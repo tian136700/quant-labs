@@ -35,7 +35,20 @@ GET http://127.0.0.1:3002/api/jp-vocab/shared?lite=1
 
 请求参数（Query）
 -----------------
-lite   选填。传 `1` 时不查 quiz_progress（更轻；进度条可隔 N 次再全量拉）。
+lite   选填。传 `1` 时：
+       - 不查 quiz_progress（更轻；进度条可隔 N 次再全量拉）
+       - **不**跑「已抽未共享」补发（见下方副作用）
+
+
+服务端副作用（非 lite）
+----------------------
+非 lite GET 在返回列表前会调用 `backfillJpVocabCheckedUnsharedShares`：
+
+- 把「今日已抽查（today_check>0）但尚未写入 jp_vocab_shared」的词补进今日共享
+- **排除**老师当前 live 词（`teacher_live_word_id`），避免学生在答完前看到
+- 典型场景：老师勾了熟悉程度但关卡未点「下一个」→ 进度条/列表条数对不上
+
+lite=1 轮询**不会**触发该补发。学生页首屏 / 隔 N 次全量拉（非 lite）会自愈。
 
 
 成功响应（节选）
@@ -47,8 +60,8 @@ lite   选填。传 `1` 时不查 quiz_progress（更轻；进度条可隔 N 次
       "id": 1,
       "word_id": 123,
       "shared_by": "teacher1",
-      "shared_at": "2026-07-31T05:30:00.000Z",
-      "share_date": "2026-07-31",
+      "shared_at": "2026-08-01 12:20:00",
+      "share_date": "2026-08-01",
       "word": {
         "id": 123,
         "word": "東",
@@ -65,12 +78,12 @@ lite   选填。传 `1` 时不查 quiz_progress（更轻；进度条可隔 N 次
     }
   ],
   "refs": { "ref_key…": { "ref_key": "…", "…" } },
-  "share_date": "2026-07-31",
+  "share_date": "2026-08-01",
   "teacher_live_word_id": 456,
   "quiz_progress": {
-    "total": 10,
+    "total": 35,
     "checked": 0,
-    "remaining": 10,
+    "remaining": 35,
     "complete": false
   }
 }
@@ -80,10 +93,10 @@ lite   选填。传 `1` 时不查 quiz_progress（更轻；进度条可隔 N 次
 - `teacher_live_word_id`：老师当前抽查词；学生 peek 按钮灰态用（勿另开
   teacher-quiz-live 定时轮询）。
 - `quiz_progress`（非 lite）：`total` = 管理员今日抽查数量；
-  `complete=true` 表示老师侧已抽满。学生页进度**分子**用 `items.length`，
-  不要用 API 的 `checked`。
+  `complete=true` 表示老师侧 today_check 已抽满。学生页进度**分子**用
+  `items.length`，不要用 API 的 `checked`（恒为 0，仅作占位）。
 - 非管理员账号会对 mnemonic 做脱敏。
-- Cache-Control: no-store；服务端对今日列表有短缓存。
+- Cache-Control: no-store；服务端对今日列表有短缓存（补发成功会 invalidate）。
 
 
 失败响应
@@ -96,14 +109,22 @@ lite   选填。传 `1` 时不查 quiz_progress（更轻；进度条可隔 N 次
 --------
 可见约 5s、后台约 45s，走 resolveVocabPollIntervalMs（凌晨 / test 账号降频）。
 禁止 <5s；禁止另开 teacher-quiz-live 定时轮询。
+进度 / 自愈：首屏与每隔 N 次用非 lite；中间轮询用 lite=1。
 
 
 curl 示例
 ---------
+# 轻量轮询（无 quiz_progress、不补发）
 curl -sS \
   -H 'Cookie: 你的登录 Cookie' \
   -H 'x-locale: zh' \
   'https://japanese.info-quests.com/api/jp-vocab/shared?lite=1'
+
+# 全量（含 quiz_progress；会补「已抽未共享」）
+curl -sS \
+  -H 'Cookie: 你的登录 Cookie' \
+  -H 'x-locale: zh' \
+  'https://japanese.info-quests.com/api/jp-vocab/shared'
 
 
 Python 最小例
@@ -113,6 +134,7 @@ import requests
 BASE = "https://japanese.info-quests.com"
 COOKIE = "你的登录 Cookie"
 
+# 轻量
 r = requests.get(
     f"{BASE}/api/jp-vocab/shared",
     params={"lite": "1"},
@@ -123,9 +145,25 @@ data = r.json()
 print(r.status_code, data.get("ok"), "items=", len(data.get("items") or []))
 print("live=", data.get("teacher_live_word_id"))
 
+# 全量（进度 + 漏发自愈）
+r2 = requests.get(
+    f"{BASE}/api/jp-vocab/shared",
+    headers={"Cookie": COOKIE, "x-locale": "zh"},
+    timeout=60,
+)
+full = r2.json()
+qp = full.get("quiz_progress") or {}
+print(
+    "items=", len(full.get("items") or []),
+    "target=", qp.get("total"),
+    "teacher_complete=", qp.get("complete"),
+)
+
 
 相关
 ----
 - 备注正文：docs/jp-vocab-class-notes-api.txt
 - 老师发给学生：docs/jp-vocab-api.txt（POST /api/jp-vocab/share）
+- 漏发补发实现：src/lib/jp-vocab-db/share.ts → backfillJpVocabCheckedUnsharedShares
+- 约定：.cursor/rules/jp-vocab-share-on-next.mdc、jp-vocab-study-quiz-progress.mdc
 - 1102：响应走 jsonResponseObserving1102（诊断看板 /admin/worker-1102）
