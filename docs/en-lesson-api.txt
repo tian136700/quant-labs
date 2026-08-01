@@ -1,0 +1,317 @@
+英语新课 · 列表与操作 API（含上课时间 → 默认上课中）
+==================================================
+
+用途
+----
+给网页「英语新课」`/en-lesson`、以及其它项目（脚本 / 运维）读写课次：
+
+- GET  拉新课列表 + 教案 refs + 课堂笔记 +（管理员）老师列表
+- POST 按 action 改上课状态 / 老师 / 上课时间 / 记复制次数 / 删除课次
+
+上传新课（带教案文件）请用专用接口，勿走本路由：
+  POST /api/en-lesson/upload
+
+老师会议号 / 人员管理另见：
+  docs/en-lesson-teacher-lookup-api.txt
+  GET/POST /api/admin/en-lesson-teachers
+
+
+线上地址
+--------
+GET  https://english.info-quests.com/api/en-lesson
+POST https://english.info-quests.com/api/en-lesson
+
+说明：也可用 finance.info-quests.com 同路径（同一 Worker / 同一 D1）。
+
+
+本机开发（可选）
+---------------
+GET  http://127.0.0.1:3002/api/en-lesson
+POST http://127.0.0.1:3002/api/en-lesson
+
+
+鉴权
+----
+须登录 Cookie 会话（与站点英语老师端同权）。
+
+| 操作 | 权限 |
+|------|------|
+| GET 列表 | 访客可读；非管理员会清空老师/上课时间字段 |
+| POST record_link_copy | 访客也可记（与列表浏览一致） |
+| POST delete / 改上课状态（progress） | 英语新课 · 编辑/操作 |
+| POST set_teacher / set_class_schedules / set_next_class_at | **管理员** |
+
+Header（可选，影响错误文案语言）：
+  x-locale: zh | en
+
+
+上课状态字段（页面文案）
+----------------------
+存库 / API 仍用英文枚举；页面显示：
+
+| progress_status | 页面 |
+|-----------------|------|
+| pending         | 未完成 |
+| learning        | 上课中 |
+| completed       | 上课完（同步进英语抽问） |
+
+
+────────────────────────────────
+GET · 列表
+────────────────────────────────
+
+成功响应（节选）
+----------------
+{
+  "ok": true,
+  "lessons": [
+    {
+      "id": 24,
+      "kind": "word",
+      "content": "attempt, warrant, …",
+      "category": "雅思托福",
+      "completed": false,
+      "learning": true,
+      "ref_key": "lesson-24",
+      "class_schedules": [
+        { "id": 1, "class_at": "2026-08-01 09:00:00", "duration_minutes": 25 }
+      ],
+      "teacher_ids": [3],
+      "link_copy_count": 0
+    }
+  ],
+  "refs": { "lesson-24": { "ref_key", "media_type", "updated_at", … } },
+  "notes": [ … ],
+  "teachers": [ … ]   // 仅管理员；含 tencent_meeting_id（腾讯会议号）
+}
+
+非管理员响应里老师 / 上课时间等字段会被清空（防泄露）。
+
+
+curl 示例
+---------
+curl -sS 'https://english.info-quests.com/api/en-lesson' \
+  -H 'Cookie: 你的登录 Cookie' \
+  -H 'x-locale: zh'
+
+
+Python 最小例（列表）
+--------------------
+import requests
+
+BASE = "https://english.info-quests.com"
+COOKIE = "你的登录 Cookie"
+
+r = requests.get(
+    f"{BASE}/api/en-lesson",
+    headers={"Cookie": COOKIE, "x-locale": "zh"},
+    timeout=60,
+)
+data = r.json()
+assert data.get("ok")
+print(len(data.get("lessons") or []))
+
+
+────────────────────────────────
+POST · 通用约定
+────────────────────────────────
+
+Content-Type: application/json
+
+公共字段：
+  action      见下表（改上课状态时可省略，见「改上课状态」）
+  lesson_id   正整数课次 id（必填）
+
+
+action 一览
+-----------
+| action | 谁可调 | 作用 |
+|--------|--------|------|
+| （省略或只传 progress） | 有编辑权 | 改上课状态 pending/learning/completed |
+| delete | 有编辑权 | 删除该课次（不可恢复） |
+| record_link_copy | 访客也可 | 教案链接复制次数 +1 |
+| set_teacher | 管理员 | 设置上课老师 |
+| set_class_schedules | 管理员 | 设置多段上课时间；**非空预约会默认设为上课中** |
+| set_next_class_at | 管理员 | 兼容：设单段下次上课时间 |
+
+
+────────────────────────────────
+POST · 改上课状态
+────────────────────────────────
+
+请求体（二选一写法）
+------------------
+{
+  "lesson_id": 24,
+  "progress_status": "learning"   // pending | learning | completed
+}
+
+或兼容旧字段：
+{
+  "lesson_id": 24,
+  "completed": true
+}
+
+成功：{ "ok": true, "lesson": { … } }
+
+
+────────────────────────────────
+POST · set_class_schedules（管理员）★ 重要
+────────────────────────────────
+
+用途
+----
+设置某课多段上课预约（北京时间）。英语默认单段时长多为 **25** 分钟。
+
+**副作用（产品约定）**：
+- 当 `class_schedules` **非空** 且保存成功 → 自动把该课设为
+  `progress_status = "learning"`（页面「上课中」），便于进统一日程与列表筛选。
+- 当传入 **空数组** `[]`（清除全部预约）→ **不会**改上课状态。
+
+
+请求体
+------
+{
+  "action": "set_class_schedules",
+  "lesson_id": 24,
+  "class_schedules": [
+    {
+      "class_at": "2026-08-01 09:00:00",
+      "duration_minutes": 25
+    }
+  ]
+}
+
+字段：
+  class_at           北京时间 `YYYY-MM-DD HH:mm:ss`（或可解析的同类时间）
+  duration_minutes   正整数分钟；可 null（服务端/前端再按默认 25 展示）
+
+
+成功响应
+--------
+{
+  "ok": true,
+  "lesson": {
+    "id": 24,
+    "learning": true,
+    "completed": false,
+    "class_schedules": [ … ],
+    "next_class_at": "2026-08-01 09:00:00",
+    …
+  }
+}
+
+
+失败响应（常见）
+----------------
+403  { "ok": false, "error": "forbidden" }          // 非管理员
+400  { "ok": false, "error": "lesson_id_invalid" }
+400  { "ok": false, "error": "class_at_invalid" }
+400  { "ok": false, "error": "schedule_duplicate" } // 同课重复预约
+404  { "ok": false, "error": "not_found" }
+
+
+curl 示例
+---------
+curl -sS -X POST 'https://english.info-quests.com/api/en-lesson' \
+  -H 'Cookie: 你的登录 Cookie' \
+  -H 'Content-Type: application/json' \
+  -H 'x-locale: zh' \
+  -d '{
+    "action": "set_class_schedules",
+    "lesson_id": 24,
+    "class_schedules": [
+      { "class_at": "2026-08-01 09:00:00", "duration_minutes": 25 }
+    ]
+  }'
+
+
+Python 最小例
+-------------
+import requests
+
+BASE = "https://english.info-quests.com"
+COOKIE = "你的登录 Cookie"  # 管理员会话
+
+r = requests.post(
+    f"{BASE}/api/en-lesson",
+    headers={
+        "Cookie": COOKIE,
+        "Content-Type": "application/json",
+        "x-locale": "zh",
+    },
+    json={
+        "action": "set_class_schedules",
+        "lesson_id": 24,
+        "class_schedules": [
+            {"class_at": "2026-08-01 09:00:00", "duration_minutes": 25},
+        ],
+    },
+    timeout=60,
+)
+data = r.json()
+print(r.status_code, data)
+# 非空预约保存成功后：lesson.learning 应为 True（上课中）
+
+
+────────────────────────────────
+POST · set_next_class_at（管理员，兼容）
+────────────────────────────────
+
+单段上课时间（旧写法）。新代码请优先用 set_class_schedules。
+
+{
+  "action": "set_next_class_at",
+  "lesson_id": 24,
+  "next_class_at": "2026-08-01 09:00:00",
+  "class_duration_minutes": 25
+}
+
+
+────────────────────────────────
+POST · set_teacher（管理员）
+────────────────────────────────
+
+{
+  "action": "set_teacher",
+  "lesson_id": 24,
+  "teacher_ids": [3],
+  "teacher_other": null
+}
+
+
+────────────────────────────────
+POST · record_link_copy
+────────────────────────────────
+
+{
+  "action": "record_link_copy",
+  "lesson_id": 24
+}
+
+成功：{ "ok": true, "link_copy_count": 3 }
+
+
+────────────────────────────────
+POST · delete
+────────────────────────────────
+
+{
+  "action": "delete",
+  "lesson_id": 24
+}
+
+成功：{ "ok": true }
+
+
+联系 / 改接口时
+--------------
+线上模块：英语新课（english.info-quests.com/en-lesson 或 finance 同路径）
+本说明：GET/POST /api/en-lesson
+实现：src/app/api/en-lesson/route.ts
+      src/lib/en-lesson-db.ts
+功能索引：docs/feature-index.md → 英语新课
+规则：.cursor/rules/en-lesson-schedule-sets-learning.mdc
+      （填上课时间非空 → 默认 learning / 上课中）
+上传：POST /api/en-lesson/upload（页面「API 上传说明」）
+老师 lookup：docs/en-lesson-teacher-lookup-api.txt
