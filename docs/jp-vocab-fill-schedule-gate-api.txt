@@ -1,0 +1,195 @@
+日语/英语词表补全 · 抽查门禁 API（给 Mac 定时 / STT 调用）
+=======================================================
+
+用途
+----
+给本机词表补全定时任务（日语 unified / online-batch / grammar / reading、
+英语 en-vocab-fill，以及 STT 例句补全等）判断「现在能不能跑」。
+
+规则（线上 D1 判定）：
+1) 老师点「开始抽查」写入 teacher-quiz-live（有 word_id）→ 立刻 quiet
+2) 抽查中（live 开着且当日未 completed_at）→ 持续 quiet
+3) 今日最后一次勾选熟悉程度后再等冷却时间（默认 30 分钟）才允许跑
+   例：最后一词 17:00 抽完 → 17:30 之后才补全
+4) 日语或英语任一抽查 → 两侧词表 fill 都应跳过（本接口一次返回总门禁）
+5) 今日无人抽查且无 live → quiet=false，允许跑
+
+调用方：quiet=true 时本轮 exit 0 跳过，不要打 fill-* / 付费模型。
+
+
+线上地址
+--------
+POST https://finance.info-quests.com/api/jp-vocab/fill-schedule-gate
+
+说明：
+- 也可用 japanese.info-quests.com 同路径（同一 Worker / 同一 D1）。
+- 路径名带 jp-vocab，但门禁已覆盖日语 + 英语抽查状态。
+
+
+本机开发（可选）
+---------------
+POST http://127.0.0.1:3002/api/jp-vocab/fill-schedule-gate
+
+
+鉴权
+----
+Header（与日语教案上传 / fill-* 共用）：
+  Authorization: Bearer <JP_REVIEW_UPLOAD_TOKEN>
+
+Token 常见来源：
+  ~/.config/info-quests/jp-review-sync.env
+  里的 JP_REVIEW_UPLOAD_TOKEN=
+
+
+请求体（JSON，可空）
+--------------------
+{
+  "cooldown_minutes": 30
+}
+
+字段：
+  cooldown_minutes  选填。正整数分钟。
+                    不传则默认 30（最后一词勾选后再等半小时）。
+                    仅影响「抽完后的冷却」；抽查进行中（live）仍会 quiet。
+
+
+成功响应示例
+------------
+1) 允许跑（今日无抽查）
+{
+  "ok": true,
+  "quiet": false,
+  "reason": "no_quiz_today",
+  "detail": "北京日期 2026-08-01 尚无老师抽查记录，允许补全",
+  "quiz_date": "2026-08-01",
+  "last_quiz_at": null,
+  "run_after": null,
+  "cooldown_minutes": 30,
+  "live_open": false,
+  "subjects": []
+}
+
+2) 抽查进行中（须跳过）
+{
+  "ok": true,
+  "quiet": true,
+  "reason": "quiz_in_progress",
+  "detail": "老师抽查进行中（live 开着且今日未抽完），日/英语词表补全全部跳过（last=…）",
+  "quiz_date": "2026-08-01",
+  "last_quiz_at": "2026-08-01T10:05:00.000Z",
+  "run_after": "2026-08-01T10:35:00.000Z",
+  "cooldown_minutes": 30,
+  "live_open": true,
+  "subjects": ["jp"]
+}
+
+3) 抽完后冷却中（须跳过）
+{
+  "ok": true,
+  "quiet": true,
+  "reason": "quiz_cooldown",
+  "detail": "今日最后抽查 …，需再等 30 分钟后才跑（约 N 分钟后 / run_after=…）",
+  "quiz_date": "2026-08-01",
+  "last_quiz_at": "2026-08-01T10:00:00.000Z",
+  "run_after": "2026-08-01T10:30:00.000Z",
+  "cooldown_minutes": 30,
+  "live_open": false,
+  "subjects": ["jp", "en"]
+}
+
+4) 冷却已过，允许跑
+{
+  "ok": true,
+  "quiet": false,
+  "reason": "ok_to_run",
+  "detail": "今日最后抽查 …，已超过 30 分钟冷却，允许补全",
+  "quiz_date": "2026-08-01",
+  "last_quiz_at": "2026-08-01T10:00:00.000Z",
+  "run_after": "2026-08-01T10:30:00.000Z",
+  "cooldown_minutes": 30,
+  "live_open": false,
+  "subjects": ["jp"]
+}
+
+字段说明：
+  quiet               true=本轮应跳过补全；false=可以跑
+  reason              no_quiz_today | quiz_in_progress | quiz_cooldown | ok_to_run
+  detail              人读说明（可打日志）
+  quiz_date           北京日期 YYYY-MM-DD
+  last_quiz_at        最近一次抽查相关时间（ISO）；可能为 null
+  run_after           冷却结束后最早可跑时间（ISO）；可能为 null
+  cooldown_minutes    实际采用的冷却分钟数
+  live_open           日语或英语抽查卡当前是否有 live 词
+  subjects            今日有活动的科目：["jp"] / ["en"] / ["jp","en"] / []
+
+
+失败响应
+--------
+401
+  { "ok": false, "error": "Unauthorized" }
+  → Token 缺失或错误
+
+500
+  { "ok": false, "error": "…" }
+  → 服务端异常；调用方应当 quiet 处理（宁可跳过）
+
+
+curl 示例
+---------
+TOKEN="$(grep '^JP_REVIEW_UPLOAD_TOKEN=' ~/.config/info-quests/jp-review-sync.env | cut -d= -f2- | tr -d '\"')"
+
+curl -sS -X POST \
+  'https://finance.info-quests.com/api/jp-vocab/fill-schedule-gate' \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H 'Content-Type: application/json' \
+  -d '{"cooldown_minutes":30}'
+
+
+Python 最小例
+-------------
+import json, urllib.request
+from pathlib import Path
+
+def load_token() -> str:
+    for line in Path.home().joinpath(
+        ".config/info-quests/jp-review-sync.env"
+    ).read_text(encoding="utf-8").splitlines():
+        if line.startswith("JP_REVIEW_UPLOAD_TOKEN="):
+            return line.split("=", 1)[1].strip().strip('"').strip("'")
+    raise SystemExit("missing JP_REVIEW_UPLOAD_TOKEN")
+
+url = "https://finance.info-quests.com/api/jp-vocab/fill-schedule-gate"
+body = json.dumps({"cooldown_minutes": 30}).encode("utf-8")
+req = urllib.request.Request(
+    url,
+    data=body,
+    method="POST",
+    headers={
+        "Authorization": f"Bearer {load_token()}",
+        "Content-Type": "application/json; charset=utf-8",
+        "Accept": "application/json",
+    },
+)
+with urllib.request.urlopen(req, timeout=20) as resp:
+    gate = json.loads(resp.read().decode("utf-8"))
+
+if gate.get("quiet"):
+    print("skip:", gate.get("reason"), gate.get("detail"))
+    raise SystemExit(0)
+print("run ok:", gate.get("reason"))
+
+
+本仓库已接线入口（勿再各自造门禁）
+----------------------------------
+Mac helper: scripts/lib/vocab_fill_quiz_gate.py
+  → skip_if_quiz_gate_quiet() / CLI quiet 时 exit 75
+shell:      vocab_fill_assert_quiz_gate_ok（scripts/lib/vocab_fill_circuit_breaker.sh）
+STT:        japanese_word_learning/remote_fill_schedule.py → in_quiet_hours()
+规则:       .cursor/rules/vocab-fill-quiz-gate.mdc
+回归:       python3 scripts/check_vocab_fill_quiz_gate.py
+
+
+实现文件
+--------
+src/app/api/jp-vocab/fill-schedule-gate/route.ts
+src/lib/jp-vocab-fill-schedule-gate.ts
