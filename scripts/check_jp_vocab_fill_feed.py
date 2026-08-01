@@ -141,6 +141,14 @@ def main() -> int:
         raise SystemExit("FAIL: jp-fill word copy click handler missing")
     if "已复制：${word}" not in app_js:
         raise SystemExit("FAIL: jp-fill word copy toast must show which word was copied")
+    if "jp-fill-fail-copy" not in app_js or "formatVocabFillFailLog" not in app_js:
+        raise SystemExit("FAIL: failed-row copy-log button missing in vocab fill feed")
+    if 'button.jp-fill-fail-copy[data-fill-row-idx]' not in app_js:
+        raise SystemExit("FAIL: jp-fill fail-log copy click handler missing")
+    if "已复制失败日志" not in app_js:
+        raise SystemExit("FAIL: fail-log copy toast must confirm copy")
+    if "【词条补全失败】" not in app_js or "错误：" not in app_js:
+        raise SystemExit("FAIL: fail-log text must include title + error line")
     if 'id="jp-fill-interval"' not in index_html:
         raise SystemExit("FAIL: missing jp-fill-interval select")
     if "补全内容" not in index_html:
