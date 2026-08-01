@@ -42,9 +42,16 @@ def main() -> None:
         "toggleStatSort",
         "restoreDailyRowOrder",
         "useDailyRowOrder",
+        "persistReady",
     ]:
         if needle not in hook:
             fail(f"useJpVocabPageStatSort missing {needle}")
+
+    # SSR 默认值若立刻 write，会冲掉用户 localStorage；须先 mount 读再写
+    if "if (!persistReady) return;" not in hook:
+        fail("writeStored must wait for persistReady (hydration-safe)")
+    if "useState(() => readStoredJpVocabStatSort())" in hook:
+        fail("must not read localStorage in useState (SSR wipe risk)")
 
     if "useJpVocabPageStatSort(" not in page:
         fail("JpVocabPage must use useJpVocabPageStatSort")

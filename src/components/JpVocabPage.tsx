@@ -161,7 +161,14 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
   );
   const [page, setPage] = useState(() => readStoredJpVocabPage());
   const [pageSize, setPageSize] = useState(() => readStoredJpVocabPageSize());
-  const { statSort, useDailyRowOrder, toggleStatSort, restoreDailyRowOrder } =
+  const {
+    statSort,
+    setStatSort,
+    useDailyRowOrder,
+    setUseDailyRowOrder,
+    toggleStatSort,
+    restoreDailyRowOrder,
+  } =
     useJpVocabPageStatSort({ onSortChange: () => setPage(1) });
   const [showExportChoice, setShowExportChoice] = useState(false);
   const [showRiskChart, setShowRiskChart] = useState(false);
