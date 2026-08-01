@@ -16,10 +16,6 @@ import {
   jpVocabTomorrowBoostSeq,
   type JpVocabQuizPriorityBoost,
 } from "@/lib/jp-vocab-quiz-priority-boost";
-import {
-  JP_VOCAB_DEFAULT_STAT_SORT,
-  type JpVocabStatSortKey,
-} from "@/lib/jp-vocab-shared";
 import { readJpVocabPageCache } from "@/lib/jp-vocab-page-cache";
 import { normalizeJpVocabTeacherVisibleLimit } from "@/lib/jp-vocab-teacher-visible";
 import type { JpVocabTeacherVisibleLimit } from "@/lib/jp-vocab-teacher-visible";
@@ -54,10 +50,8 @@ export function useJpVocabAdminActions(options: {
   >;
   setSessionReviewAt: Dispatch<SetStateAction<Record<number, number>>>;
   setHighlightId: Dispatch<SetStateAction<number | null>>;
-  setUseDailyRowOrder: Dispatch<SetStateAction<boolean>>;
-  setStatSort: Dispatch<
-    SetStateAction<{ key: JpVocabStatSortKey; dir: "asc" | "desc" }>
-  >;
+  /** 重置后回到当日序号排序 */
+  restoreDailyRowOrder: () => void;
   setPage: Dispatch<SetStateAction<number>>;
   persistCache: (
     words: JpVocabWord[],
@@ -91,8 +85,7 @@ export function useJpVocabAdminActions(options: {
     setSessionLevel,
     setSessionReviewAt,
     setHighlightId,
-    setUseDailyRowOrder,
-    setStatSort,
+    restoreDailyRowOrder,
     setPage,
     persistCache,
   } = options;
@@ -286,8 +279,7 @@ export function useJpVocabAdminActions(options: {
       }
       setSessionLevel({});
       setSessionReviewAt({});
-      setUseDailyRowOrder(true);
-      setStatSort(JP_VOCAB_DEFAULT_STAT_SORT);
+      restoreDailyRowOrder();
       setHighlightId(null);
       setPage(1);
       setShowResetChoice(false);

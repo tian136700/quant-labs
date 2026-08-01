@@ -163,9 +163,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
   const [pageSize, setPageSize] = useState(() => readStoredJpVocabPageSize());
   const {
     statSort,
-    setStatSort,
     useDailyRowOrder,
-    setUseDailyRowOrder,
     toggleStatSort,
     restoreDailyRowOrder,
   } =
@@ -571,8 +569,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     setSessionLevel,
     setSessionReviewAt,
     setHighlightId,
-    setUseDailyRowOrder,
-    setStatSort,
+    restoreDailyRowOrder,
     setPage,
     persistCache,
   });
