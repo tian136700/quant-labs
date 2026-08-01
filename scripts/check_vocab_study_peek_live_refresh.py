@@ -41,8 +41,18 @@ def main() -> None:
 
     must_contain(JP_SHARED, "teacher_live_word_id", "JP shared returns live word id")
     must_contain(JP_SHARED, "getJpVocabTeacherQuizLive", "JP shared reads live state")
+    must_contain(
+        JP_SHARED,
+        "bypassCache: true",
+        "JP shared must bypass live read cache (stale id keeps peek gray)",
+    )
     must_contain(EN_SHARED, "teacher_live_word_id", "EN shared returns live word id")
     must_contain(EN_SHARED, "getEnVocabTeacherQuizLive", "EN shared reads live state")
+    must_contain(
+        EN_SHARED,
+        "bypassCache: true",
+        "EN shared must bypass live read cache (stale id keeps peek gray)",
+    )
 
     for page, lang in ((JP_STUDY, "JP"), (EN_STUDY, "EN")):
         must_contain(page, "applyTeacherLiveWordId", f"{lang} study applies live id from shared")
