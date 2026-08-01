@@ -222,11 +222,13 @@ export function EnVocabFieldEditModal({
         .jp-field-edit-overlay {
           position: fixed;
           inset: 0;
-          z-index: 1000;
+          /* 须高于抽问卡 overlay(1002)；与其它英语弹层对齐 1100 */
+          z-index: 1100;
           display: flex;
           align-items: center;
           justify-content: center;
           padding: 1rem;
+          padding-bottom: max(1rem, env(safe-area-inset-bottom));
           background: rgba(0, 0, 0, 0.55);
           backdrop-filter: blur(3px);
           -webkit-backdrop-filter: blur(3px);

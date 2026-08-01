@@ -458,11 +458,13 @@ export function EnVocabEditModal({
         .jp-vocab-edit-overlay {
           position: fixed;
           inset: 0;
-          z-index: 1000;
+          /* 须高于抽问卡 overlay(1002)；对齐日语 JpVocabEditModal(1100) */
+          z-index: 1100;
           display: flex;
           align-items: center;
           justify-content: center;
           padding: 1rem;
+          padding-bottom: max(1rem, env(safe-area-inset-bottom));
           background: rgba(0, 0, 0, 0.55);
           backdrop-filter: blur(3px);
           -webkit-backdrop-filter: blur(3px);
