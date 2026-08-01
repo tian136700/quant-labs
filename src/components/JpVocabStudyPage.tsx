@@ -58,6 +58,7 @@ import {
   abortSignalAfter,
   VOCAB_STUDENT_PEEK_TIMEOUT_MS,
 } from "@/lib/vocab-teacher-quiz-live-sync";
+import { fetchVocabStudySharedWithRetry } from "@/lib/vocab-study-shared-fetch";
 import type { JpVocabLevel, JpVocabRef, JpVocabSharedItem, JpVocabWord } from "@/lib/types";
 import { JpVocabStudyPageTable } from "@/components/jp-vocab-study-page/JpVocabStudyPageTable";
 import { JpVocabStudyPageStyles } from "@/components/jp-vocab-study-page/JpVocabStudyPageStyles";
@@ -321,20 +322,15 @@ export function JpVocabStudyPage() {
         ? "/api/jp-vocab/shared"
         : "/api/jp-vocab/shared?lite=1";
 
-      const fetchShared = () =>
-        fetch(sharedUrl, {
+      // 手机冷 isolate / Worker 忙时易 1102：20s 超时 + 最多再试 2 次（防挂死数分钟）
+      const { res, fetchStarted } = await fetchVocabStudySharedWithRetry(
+        sharedUrl,
+        {
           headers: { [LOCALE_HEADER]: locale },
           credentials: "include",
           cache: "no-store",
-        });
-
-      const fetchStarted = Date.now();
-      let res = await fetchShared();
-      // 手机冷启动易 1102：忙时自动再试一次（isolate 变热后通常即可）
-      if (res.status === 500 || res.status === 503) {
-        await new Promise((r) => setTimeout(r, 700));
-        res = await fetchShared();
-      }
+        }
+      );
       if (res.status === 500 || res.status === 503) {
         reportWorker1102SharedFail({
           failedUrl: sharedUrl,

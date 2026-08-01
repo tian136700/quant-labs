@@ -9,6 +9,15 @@ import { clientIp } from "@/lib/locale-pref";
 /** 所有词表补全接口统一：同一 IP × 同一路径 ≥5s 一次 */
 export const VOCAB_FILL_API_MIN_INTERVAL_MS = 5_000;
 
+/**
+ * 跨 fill-* 路径全局限流：同一 IP 任意 fill 路由之间 ≥3s。
+ * 防 Mac 多阶段（reading/meaning/usage/examples）并行打满免费 Worker → 学生 shared 1102。
+ */
+export const VOCAB_FILL_API_GLOBAL_MIN_INTERVAL_MS = 3_000;
+
+/** 全局限流桶（不暴露真实 path，避免与单路径桶撞名） */
+export const VOCAB_FILL_API_GLOBAL_ROUTE_KEY = "vocab-fill:*";
+
 /** @deprecated 用 VOCAB_FILL_API_MIN_INTERVAL_MS */
 export const JP_VOCAB_FILL_MEANING_MIN_INTERVAL_MS = VOCAB_FILL_API_MIN_INTERVAL_MS;
 
@@ -148,31 +157,55 @@ export async function enforceWorkerApiMinInterval(
   return { ok: true };
 }
 
+function rateLimitedResponse(
+  retryAfterSec: number,
+  minIntervalMs: number
+): Response {
+  return new Response(
+    JSON.stringify({
+      ok: false,
+      error: "rate_limited",
+      retry_after_sec: retryAfterSec,
+      min_interval_ms: minIntervalMs,
+    }),
+    {
+      status: 429,
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        "Retry-After": String(retryAfterSec),
+      },
+    }
+  );
+}
+
 /** 词表补全路由入口：超限返回 429 Response，通过返回 null */
 export async function enforceVocabFillRouteRateLimit(
   db: D1Database,
   request: Request,
   routeKey: string
 ): Promise<Response | null> {
+  const clientKey = clientIp(request) || "unknown";
+
+  // 先跨路径全局，再单路径（多阶段并行时全局先挡住）
+  const globalRate = await enforceWorkerApiMinInterval(db, {
+    routeKey: VOCAB_FILL_API_GLOBAL_ROUTE_KEY,
+    clientKey,
+    minIntervalMs: VOCAB_FILL_API_GLOBAL_MIN_INTERVAL_MS,
+  });
+  if (!globalRate.ok) {
+    return rateLimitedResponse(
+      globalRate.retryAfterSec,
+      VOCAB_FILL_API_GLOBAL_MIN_INTERVAL_MS
+    );
+  }
+
   const rate = await enforceWorkerApiMinInterval(db, {
     routeKey,
-    clientKey: clientIp(request) || "unknown",
+    clientKey,
     minIntervalMs: VOCAB_FILL_API_MIN_INTERVAL_MS,
   });
-  if (rate.ok) return null;
-  return new Response(
-    JSON.stringify({
-      ok: false,
-      error: "rate_limited",
-      retry_after_sec: rate.retryAfterSec,
-      min_interval_ms: VOCAB_FILL_API_MIN_INTERVAL_MS,
-    }),
-    {
-      status: 429,
-      headers: {
-        "Content-Type": "application/json; charset=utf-8",
-        "Retry-After": String(rate.retryAfterSec),
-      },
-    }
-  );
+  if (!rate.ok) {
+    return rateLimitedResponse(rate.retryAfterSec, VOCAB_FILL_API_MIN_INTERVAL_MS);
+  }
+  return null;
 }

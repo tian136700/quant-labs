@@ -56,10 +56,19 @@ def main() -> int:
     if 'dynamic = "force-static"' not in page and "force-static" not in page:
         errors.append("jp-vocab/study page must remain force-static")
 
-    if "fetchShared" not in study or "setTimeout" not in study:
+    if "fetchVocabStudySharedWithRetry" not in study:
         errors.append(
-            "JpVocabStudyPage loadShared should retry once on 500/503 (mobile cold 1102)"
+            "JpVocabStudyPage must use fetchVocabStudySharedWithRetry "
+            "(timeout + retry on 500/503 / network; mobile cold 1102)"
         )
+
+    fetch_helper = (
+        ROOT / "src/lib/vocab-study-shared-fetch.ts"
+    ).read_text(encoding="utf-8")
+    if "VOCAB_STUDY_SHARED_FETCH_TIMEOUT_MS" not in fetch_helper:
+        errors.append("vocab-study-shared-fetch must define shared fetch timeout")
+    if "abortSignalAfter" not in fetch_helper:
+        errors.append("vocab-study-shared-fetch must abort after timeout")
 
     if '"/jp-vocab/study"' not in traffic or "PAGE_HTML_TRAFFIC_SKIP" not in traffic:
         errors.append(

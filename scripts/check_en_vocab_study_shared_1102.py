@@ -71,9 +71,10 @@ def main() -> int:
     if 'dynamic = "force-static"' not in page and "force-static" not in page:
         errors.append("en-vocab/study page must remain force-static")
 
-    if "setTimeout" not in study or "fetchShared" not in study:
+    if "fetchVocabStudySharedWithRetry" not in study:
         errors.append(
-            "EnVocabStudyPage loadShared should retry once on 500/503 (mobile cold 1102)"
+            "EnVocabStudyPage must use fetchVocabStudySharedWithRetry "
+            "(timeout + retry on 500/503 / network; mobile cold 1102)"
         )
 
     if errors:
