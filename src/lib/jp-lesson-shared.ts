@@ -850,16 +850,6 @@ export function formatClassDurationLabelCompact(
 /** 日程视图未填写时长时的默认分钟数 */
 export const DEFAULT_JP_LESSON_CLASS_DURATION_MINUTES = 55;
 
-export type JpLessonScheduleEvent = {
-  key: string;
-  lessonId: number;
-  scheduleId: number;
-  classAt: string;
-  start: Date;
-  end: Date;
-  durationMinutes: number;
-};
-
 export function resolveClassDurationMinutes(
   minutes: number | null | undefined
 ): number {
@@ -881,85 +871,6 @@ export function formatLessonScheduleDaySummary(
   if (!events.length) return emptyLabel;
   const totalMinutes = events.reduce((sum, event) => sum + event.durationMinutes, 0);
   return `${events.length}${classUnit}（${formatLessonScheduleDurationLabel(totalMinutes)}）`;
-}
-
-/** 日程 / ICS：学习中 + 已完成进日程；未上课不同步（上完课仍应留在当天列） */
-export function jpLessonProgressAppearsOnSchedule(lesson: {
-  completed?: boolean;
-  learning?: boolean;
-}): boolean {
-  const status = getJpLessonProgressStatus({
-    completed: Boolean(lesson.completed),
-    learning: Boolean(lesson.learning),
-  });
-  return status === "learning" || status === "completed";
-}
-
-export function buildJpLessonScheduleEvents(lesson: {
-  id: number;
-  /** 学习中 + 已完成进入日程 / ICS；未上课不同步 */
-  completed?: boolean;
-  learning?: boolean;
-  class_schedules?: Array<{
-    id: number;
-    class_at: string;
-    duration_minutes: number | null;
-  }>;
-  next_class_at?: string | null;
-  class_duration_minutes?: number | null;
-}): JpLessonScheduleEvent[] {
-  if (!jpLessonProgressAppearsOnSchedule(lesson)) {
-    return [];
-  }
-  const events: JpLessonScheduleEvent[] = [];
-  for (const schedule of getLessonClassSchedules(lesson)) {
-    const start = parseBeijingDateTime(schedule.class_at);
-    if (!start) continue;
-    const durationMinutes = resolveClassDurationMinutes(schedule.duration_minutes);
-    events.push({
-      key: `${lesson.id}-${schedule.id}-${schedule.class_at}`,
-      lessonId: lesson.id,
-      scheduleId: schedule.id,
-      classAt: schedule.class_at,
-      start,
-      end: new Date(start.getTime() + durationMinutes * 60_000),
-      durationMinutes,
-    });
-  }
-  return events;
-}
-
-/**
- * 「上课中」提前进入窗口：开课前这么多分钟即可进 Tab（方便找教案）。
- * 例：10:00 开课、时长 55 → 09:50～10:55 都算上课中。
- */
-export const JP_LESSON_IN_CLASS_MARK_WINDOW_MINUTES = 10;
-
-/**
- * 「上课中」：北京时间 now 落在
- * [开课前 N 分钟, 本节课结束)（N=`JP_LESSON_IN_CLASS_MARK_WINDOW_MINUTES`）即算。
- * 整节课进行中都要能看到教案；勿再缩成开课后仅 N 分钟。
- * 不限定老师；未上课（pending）不同步日程，自然不会命中。
- */
-export function isJpLessonCurrentlyInClass(
-  lesson: Parameters<typeof buildJpLessonScheduleEvents>[0],
-  now: Date = new Date()
-): boolean {
-  const t = now.getTime();
-  const earlyMs = JP_LESSON_IN_CLASS_MARK_WINDOW_MINUTES * 60_000;
-  return buildJpLessonScheduleEvents(lesson).some((event) => {
-    const startMs = event.start.getTime();
-    const endMs = event.end.getTime();
-    return startMs - earlyMs <= t && t < endMs;
-  });
-}
-
-export function flattenJpLessonScheduleEvents(
-  lessons: Array<Parameters<typeof buildJpLessonScheduleEvents>[0]>
-): JpLessonScheduleEvent[] {
-  return lessons
-    .flatMap((lesson) => buildJpLessonScheduleEvents(lesson))
-    .sort((a, b) => a.start.getTime() - b.start.getTime());
 }
 
 export function beijingMinutesFromMidnight(date: Date): number {
@@ -1032,14 +943,18 @@ export function beijingRelativeWeekdayLabel(dateStr: string, now = new Date()): 
   return `周${weekdayShort}`;
 }
 
-export type JpLessonScheduleEventStatus = "past" | "ongoing" | "upcoming";
+/** 日程事件构建（学习中/已完成才进日程） */
+export {
+  buildJpLessonScheduleEvents,
+  flattenJpLessonScheduleEvents,
+  getJpLessonScheduleEventStatus,
+  jpLessonProgressAppearsOnSchedule,
+  type JpLessonScheduleEvent,
+  type JpLessonScheduleEventStatus,
+} from "@/lib/jp-lesson-schedule-events";
 
-export function getJpLessonScheduleEventStatus(
-  event: { start: Date; end: Date },
-  now = new Date()
-): JpLessonScheduleEventStatus {
-  const ts = now.getTime();
-  if (ts >= event.end.getTime()) return "past";
-  if (ts >= event.start.getTime()) return "ongoing";
-  return "upcoming";
-}
+/** 「上课中」Tab：按上课时间窗口，不依赖学习中门禁 */
+export {
+  isJpLessonCurrentlyInClass,
+  JP_LESSON_IN_CLASS_MARK_WINDOW_MINUTES,
+} from "@/lib/jp-lesson-in-class";
