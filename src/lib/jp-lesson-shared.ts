@@ -930,14 +930,15 @@ export function buildJpLessonScheduleEvents(lesson: {
 }
 
 /**
- * 「上课中」可标记 / 展示窗口：相对开课时刻前后各这么多分钟。
- * 例：10:00 开课 → 09:50～10:10 都算上课中。
+ * 「上课中」提前进入窗口：开课前这么多分钟即可进 Tab（方便找教案）。
+ * 例：10:00 开课、时长 55 → 09:50～10:55 都算上课中。
  */
 export const JP_LESSON_IN_CLASS_MARK_WINDOW_MINUTES = 10;
 
 /**
- * 「上课中」：用日程的开课时刻（`class_at`）；北京时间 now 落在
- * [开课前 N 分钟, 开课后 N 分钟]（N=`JP_LESSON_IN_CLASS_MARK_WINDOW_MINUTES`）即算。
+ * 「上课中」：北京时间 now 落在
+ * [开课前 N 分钟, 本节课结束)（N=`JP_LESSON_IN_CLASS_MARK_WINDOW_MINUTES`）即算。
+ * 整节课进行中都要能看到教案；勿再缩成开课后仅 N 分钟。
  * 不限定老师；未上课（pending）不同步日程，自然不会命中。
  */
 export function isJpLessonCurrentlyInClass(
@@ -945,10 +946,11 @@ export function isJpLessonCurrentlyInClass(
   now: Date = new Date()
 ): boolean {
   const t = now.getTime();
-  const windowMs = JP_LESSON_IN_CLASS_MARK_WINDOW_MINUTES * 60_000;
+  const earlyMs = JP_LESSON_IN_CLASS_MARK_WINDOW_MINUTES * 60_000;
   return buildJpLessonScheduleEvents(lesson).some((event) => {
     const startMs = event.start.getTime();
-    return startMs - windowMs <= t && t <= startMs + windowMs;
+    const endMs = event.end.getTime();
+    return startMs - earlyMs <= t && t < endMs;
   });
 }
 

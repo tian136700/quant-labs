@@ -5,7 +5,7 @@
 # 刷新/对账: python3 scripts/refresh_file_split_queue.py
 # 检查是否清零: python3 scripts/refresh_file_split_queue.py --check
 
-01. [status=0]  1043  src/lib/jp-lesson-shared.ts
+01. [status=0]  1045  src/lib/jp-lesson-shared.ts
 02. [status=0]  1031  src/components/JpVocabPage.tsx
 03. [status=0]  1024  src/components/EnVocabPage.tsx
 

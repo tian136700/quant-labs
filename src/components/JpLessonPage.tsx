@@ -267,7 +267,7 @@ export function JpLessonPage() {
     return groups;
   }, [lessonsByStatus, sectionSort]);
 
-  /** 「上课中」= 开课前/后各 10 分钟窗口含当前北京时间（不限定老师） */
+  /** 「上课中」= 开课前 10 分钟起至本节课结束（不限定老师；含日程关联的课） */
   const inClassLessons = useMemo(
     () => filteredLessons.filter((lesson) => isJpLessonCurrentlyInClass(lesson, now)),
     [filteredLessons, now]
