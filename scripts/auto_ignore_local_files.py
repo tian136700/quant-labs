@@ -25,6 +25,26 @@ PROTECTED_TRACKED_RULES = {
     "scripts/auto_ignore_local_files.py",
 }
 
+# 已被顶层 .gitignore 覆盖的目录：禁止再往 auto-ignore 块里塞单文件路径
+COVERED_BY_ROOT_IGNORE = (
+    "node_modules/",
+    ".next/",
+    ".open-next/",
+    ".wrangler/",
+    ".turbo/",
+    "dist/",
+    "out/",
+    ".vercel/",
+    "coverage/",
+    "tmp/",
+    ".cursor/",
+    ".history/",
+    ".idea/",
+    ".vscode/",
+    "__pycache__/",
+    "scripts/deploy_center/",
+)
+
 PATH_HINTS = (
     "/tmp/",
     "/logs/",
@@ -106,6 +126,9 @@ def should_ignore(path: str) -> bool:
     low = path.lower()
     if low.startswith("scripts/deploy_center/"):
         return True
+    # 已有目录级忽略时，不要再写入单文件规则（否则 .gitignore 会膨胀）
+    if covered_by_root_ignore(path):
+        return False
     if any(low.endswith(s) for s in CODE_SUFFIXES):
         return False
     if any(h in f"/{low}" for h in PATH_HINTS):
@@ -116,6 +139,30 @@ def should_ignore(path: str) -> bool:
     if any(low.endswith(s) for s in SUFFIX_HINTS):
         return True
     return False
+
+
+def covered_by_root_ignore(path: str) -> bool:
+    norm = path.replace("\\", "/")
+    while norm.startswith("./"):
+        norm = norm[2:]
+    if "/__pycache__/" in f"/{norm}/" or norm.endswith("/__pycache__"):
+        return True
+    return any(
+        norm == p.rstrip("/") or norm.startswith(p) for p in COVERED_BY_ROOT_IGNORE
+    )
+
+
+def prune_redundant_managed(managed: set[str]) -> set[str]:
+    """丢掉已被顶层目录规则覆盖的单文件/子路径规则。"""
+    out: set[str] = set()
+    for rule in managed:
+        r = rule.strip()
+        if not r or r in PROTECTED_TRACKED_RULES:
+            continue
+        if covered_by_root_ignore(r.rstrip("/")):
+            continue
+        out.add(r)
+    return out
 
 
 def normalize_rule(path: str) -> str:
@@ -239,6 +286,7 @@ def repair_oversized_gitignore() -> bool:
     raw_lines = load_gitignore_lines()
     base_lines, managed = collect_managed_rules(raw_lines)
     managed = {r for r in managed if r not in PROTECTED_TRACKED_RULES}
+    managed = prune_redundant_managed(managed)
     managed.update(FIXED_LOCAL_PATTERNS)
     base_lines = dedupe_base_lines(base_lines, managed)
     write_gitignore(base_lines, managed)
@@ -256,7 +304,9 @@ def main() -> int:
     raw_lines = load_gitignore_lines()
     base_lines, old_managed = split_managed_block(raw_lines)
     old_managed = {r for r in old_managed if r not in PROTECTED_TRACKED_RULES}
-    merged = old_managed | auto_rules
+    old_managed = prune_redundant_managed(old_managed)
+    auto_rules = prune_redundant_managed(auto_rules)
+    merged = prune_redundant_managed(old_managed | auto_rules)
     base_lines = dedupe_base_lines(base_lines, merged)
 
     changed = write_gitignore(base_lines, merged)
