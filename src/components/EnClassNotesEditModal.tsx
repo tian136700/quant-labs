@@ -20,7 +20,15 @@ import { enVocabSaveQueue } from "@/lib/request-queue";
 import type { EnVocabWord } from "@/lib/types";
 import { EnVocabClassNoteContent } from "@/components/EnVocabClassNoteContent";
 import { EnVocabImageNotesField } from "@/components/EnVocabImageNotesField";
+import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
+import {
+  animateJpVocabSaveProgressTo100,
+  jpVocabSaveProgressDisplayPercent,
+  jpVocabSaveProgressLabel,
+  jpVocabSaveProgressPercent,
+  JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT,
+} from "@/lib/jp-vocab-save-progress";
 
 type Props = {
   open: boolean;
@@ -35,10 +43,7 @@ type Props = {
   onSharedToStudy?: (wordId: number) => void;
 };
 
-type SaveStatus = "idle" | "pending" | "saving" | "saved" | "error";
-
-const AUTO_SAVE_MS = 1_000;
-const POLL_MS = 2_000;
+type SaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
 
 function historyEntriesFromWord(word: EnVocabWord | null): EnVocabClassNoteEntry[] {
   if (!word) return [];
@@ -63,13 +68,14 @@ export function EnClassNotesEditModal({
   const [error, setError] = useState("");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [sharing, setSharing] = useState(false);
+  const [savePercent, setSavePercent] = useState<number | null>(null);
   const dirtyRef = useRef(false);
   const lastSavedDraftRef = useRef("");
   const sessionTsRef = useRef<string | null>(null);
   const [sessionTs, setSessionTs] = useState<string | null>(null);
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wordRef = useRef(word);
-  const pollInFlightRef = useRef(false);
+  const hydrateInFlightRef = useRef(false);
+  const saveProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     wordRef.current = word;
@@ -89,18 +95,15 @@ export function EnClassNotesEditModal({
       dirtyRef.current = false;
       setError("");
       setSaveStatus("idle");
+      setSavePercent(null);
     }
   }, [open, word?.id]);
 
-  useEffect(() => {
-    if (!open || !word || dirtyRef.current) return;
-    setHistoryEntries(historyEntriesFromWord(word));
-  }, [open, word?.id, word?.class_notes, word?.updated_at, word]);
-
-  const pullRemoteNotes = useCallback(async () => {
+  /** 打开时拉一次正文（lite 列表可能无备注）；禁止定时轮询自动同步 */
+  const hydrateOnce = useCallback(async () => {
     const current = wordRef.current;
-    if (!open || !current || pollInFlightRef.current) return;
-    pollInFlightRef.current = true;
+    if (!open || !current || hydrateInFlightRef.current) return;
+    hydrateInFlightRef.current = true;
     try {
       const res = await fetch(
         `/api/en-vocab/class-notes?word_id=${encodeURIComponent(String(current.id))}`,
@@ -113,7 +116,6 @@ export function EnClassNotesEditModal({
       const data = (await res.json()) as {
         ok: boolean;
         word?: EnVocabWord;
-        error?: string;
       };
       if (!data.ok || !data.word) return;
       if (dirtyRef.current) {
@@ -133,28 +135,35 @@ export function EnClassNotesEditModal({
         setHistoryEntries(parseEnVocabClassNotes(merged.class_notes));
       }
     } catch {
-      /* ignore poll errors */
+      /* ignore hydrate errors */
     } finally {
-      pollInFlightRef.current = false;
+      hydrateInFlightRef.current = false;
     }
   }, [locale, onSaved, open]);
 
   useEffect(() => {
     if (!open || !word) return;
-    void pullRemoteNotes();
-    const timer = setInterval(() => void pullRemoteNotes(), POLL_MS);
-    return () => clearInterval(timer);
-  }, [open, word?.id, pullRemoteNotes, word]);
+    void hydrateOnce();
+  }, [open, word?.id, hydrateOnce, word]);
+
+  const requestClose = useCallback(() => {
+    const unsaved =
+      dirtyRef.current &&
+      draft.trim().length > 0 &&
+      draft.trim() !== lastSavedDraftRef.current.trim();
+    if (unsaved && !window.confirm("有未保存的备注，确定关闭？")) return;
+    onClose();
+  }, [draft, onClose]);
 
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      onClose();
+      requestClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  }, [open, requestClose]);
 
   useEffect(() => {
     if (!open) return;
@@ -163,111 +172,117 @@ export function EnClassNotesEditModal({
 
   useEffect(() => {
     return () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      if (saveProgressTimerRef.current) {
+        clearInterval(saveProgressTimerRef.current);
+        saveProgressTimerRef.current = null;
+      }
     };
   }, []);
 
-  const flushSave = useCallback(
-    async (draftRaw: string) => {
-      const current = wordRef.current;
-      if (!current || !canEdit) return;
+  const clearSaveProgress = () => {
+    if (saveProgressTimerRef.current) {
+      clearInterval(saveProgressTimerRef.current);
+      saveProgressTimerRef.current = null;
+    }
+    setSavePercent(null);
+  };
 
-      const trimmed = draftRaw.trim();
-      if (!trimmed) {
-        setSaveStatus("saved");
-        return;
-      }
-      if (trimmed === lastSavedDraftRef.current.trim()) {
-        setSaveStatus("saved");
-        return;
-      }
+  const flushSave = useCallback(async () => {
+    const current = wordRef.current;
+    if (!current || !canEdit) return;
 
-      if (!sessionTsRef.current) {
-        sessionTsRef.current = formatBeijingClassNoteTimestamp();
-        setSessionTs(sessionTsRef.current);
-      }
-
-      const nextNotes = upsertEnVocabClassNoteSession(
-        current.class_notes,
-        sessionTsRef.current,
-        trimmed
-      );
-
-      setSaveStatus("saving");
-      const snapshot = current;
-      const optimistic = buildOptimisticEnVocabWord(snapshot, {
-        class_notes: nextNotes,
-      });
-      onSaved(optimistic);
-      setHistoryEntries(parseEnVocabClassNotes(nextNotes));
-      lastSavedDraftRef.current = trimmed;
-      dirtyRef.current = false;
-
-      try {
-        await enVocabSaveQueue.enqueue(async () => {
-          const res = await fetch("/api/en-vocab/class-notes", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              [LOCALE_HEADER]: locale,
-            },
-            credentials: "include",
-            body: JSON.stringify({
-              word_id: snapshot.id,
-              class_notes: nextNotes,
-            }),
-          });
-          const data = (await res.json()) as {
-            ok: boolean;
-            word?: EnVocabWord;
-            error?: string;
-          };
-          await syncEnVocabEditResponse(res, data, locale, {
-            onSaved,
-            onSaveFailed,
-            onNeedAuth,
-          });
-        });
-        setSaveStatus("saved");
-        setError("");
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : locale === "zh" ? "保存失败" : "Save failed";
-        setSaveStatus("error");
-        setError(message);
-        onSaveFailed(snapshot.id, snapshot, message);
-      }
-    },
-    [canEdit, locale, onNeedAuth, onSaveFailed, onSaved]
-  );
-
-  useEffect(() => {
-    if (!open || !canEdit || !word) return;
-
-    if (!draft.trim()) {
-      setSaveStatus((s) => (s === "pending" ? "saved" : s));
+    const trimmed = draft.trim();
+    if (!trimmed) {
+      setError("请先输入备注内容");
+      setSaveStatus("error");
       return;
     }
-
-    if (draft.trim() === lastSavedDraftRef.current.trim()) {
+    if (trimmed === lastSavedDraftRef.current.trim()) {
       setSaveStatus("saved");
       return;
     }
 
-    setSaveStatus("pending");
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
-      void flushSave(draft);
-    }, AUTO_SAVE_MS);
+    if (!sessionTsRef.current) {
+      sessionTsRef.current = formatBeijingClassNoteTimestamp();
+      setSessionTs(sessionTsRef.current);
+    }
 
-    return () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    };
-  }, [draft, open, canEdit, word, flushSave]);
+    const nextNotes = upsertEnVocabClassNoteSession(
+      current.class_notes,
+      sessionTsRef.current,
+      trimmed
+    );
+
+    setSaveStatus("saving");
+    setError("");
+    setSavePercent(JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT);
+    const startedAt = Date.now();
+    if (saveProgressTimerRef.current) clearInterval(saveProgressTimerRef.current);
+    saveProgressTimerRef.current = setInterval(() => {
+      setSavePercent(jpVocabSaveProgressPercent(Date.now() - startedAt));
+    }, 100);
+
+    const snapshot = current;
+    const optimistic = buildOptimisticEnVocabWord(snapshot, {
+      class_notes: nextNotes,
+    });
+    onSaved(optimistic);
+    setHistoryEntries(parseEnVocabClassNotes(nextNotes));
+
+    try {
+      await enVocabSaveQueue.enqueue(async () => {
+        const res = await fetch("/api/en-vocab/class-notes", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            [LOCALE_HEADER]: locale,
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            word_id: snapshot.id,
+            class_notes: nextNotes,
+          }),
+        });
+        const data = (await res.json()) as {
+          ok: boolean;
+          word?: EnVocabWord;
+          error?: string;
+        };
+        await syncEnVocabEditResponse(res, data, locale, {
+          onSaved,
+          onSaveFailed,
+          onNeedAuth,
+        });
+      });
+      lastSavedDraftRef.current = trimmed;
+      dirtyRef.current = false;
+      await animateJpVocabSaveProgressTo100(startedAt, setSavePercent);
+      setSaveStatus("saved");
+      setError("");
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : locale === "zh" ? "保存失败" : "Save failed";
+      setSaveStatus("error");
+      setError(message);
+      onSaveFailed(snapshot.id, snapshot, message);
+    } finally {
+      clearSaveProgress();
+    }
+  }, [canEdit, draft, locale, onNeedAuth, onSaveFailed, onSaved]);
 
   const handleShare = async () => {
     const current = wordRef.current;
     if (!current || !canEdit || sharing) return;
+
+    const unsaved =
+      dirtyRef.current &&
+      draft.trim().length > 0 &&
+      draft.trim() !== lastSavedDraftRef.current.trim();
+    if (unsaved) {
+      setError("请先点「保存」再共享给学生");
+      setSaveStatus("error");
+      return;
+    }
 
     setSharing(true);
     setError("");
@@ -306,18 +321,24 @@ export function EnClassNotesEditModal({
     return historyEntries.filter((e) => e.timestamp !== sessionTs);
   }, [historyEntries, sessionTs]);
 
+  const canSave =
+    canEdit &&
+    draft.trim().length > 0 &&
+    draft.trim() !== lastSavedDraftRef.current.trim() &&
+    saveStatus !== "saving";
+
   const statusLabel =
-    saveStatus === "pending"
-      ? "待保存…"
-      : saveStatus === "saving"
-        ? "保存中…"
-        : saveStatus === "saved"
-          ? "已同步"
-          : saveStatus === "error"
-            ? "保存失败"
+    saveStatus === "saving"
+      ? "正在保存…"
+      : saveStatus === "saved"
+        ? "已保存（对方刷新页面后可见）"
+        : saveStatus === "error"
+          ? "保存失败"
+          : saveStatus === "dirty"
+            ? "有未保存修改，请点「保存」"
             : canEdit
-              ? "输入后约 1 秒自动保存 · 每 2 秒同步"
-              : "每 2 秒自动同步";
+              ? "点「保存」写入；对方刷新页面后可见（不会自动同步）"
+              : "只读 · 刷新页面后可见最新备注";
 
   if (!open || !mounted || !word) return null;
 
@@ -326,7 +347,7 @@ export function EnClassNotesEditModal({
       <div
         className="jp-notes-edit-overlay"
         role="presentation"
-        onMouseDown={(e) => closeModalOnBackdropMouseDown(e, onClose)}
+        onMouseDown={(e) => closeModalOnBackdropMouseDown(e, requestClose)}
       >
         <div
           className="jp-notes-edit-modal"
@@ -346,7 +367,7 @@ export function EnClassNotesEditModal({
               <button
                 type="button"
                 className="jp-notes-edit-close"
-                onClick={onClose}
+                onClick={requestClose}
                 aria-label="关闭"
               >
                 ×
@@ -378,14 +399,26 @@ export function EnClassNotesEditModal({
                 onChange={(next) => {
                   dirtyRef.current = true;
                   setDraft(next);
+                  const trimmed = next.trim();
+                  if (
+                    trimmed &&
+                    trimmed !== lastSavedDraftRef.current.trim()
+                  ) {
+                    setSaveStatus("dirty");
+                  } else if (!trimmed) {
+                    setSaveStatus("idle");
+                  } else {
+                    setSaveStatus("saved");
+                  }
                 }}
                 locale={locale}
                 rows={8}
                 mode="plain"
                 textareaClassName="jp-notes-edit-textarea"
-                placeholder="在此输入新备注，保存后自动带上当前时间…可粘贴或上传图片"
+                placeholder="在此输入新备注，点「保存」后带上当前时间…可粘贴或上传图片"
                 onNeedAuth={onNeedAuth}
                 onError={setError}
+                disabled={saveStatus === "saving"}
               />
             ) : pastEntries.length === 0 ? (
               <p className="jp-notes-edit-empty">暂无备注</p>
@@ -404,13 +437,31 @@ export function EnClassNotesEditModal({
               {statusLabel}
             </p>
             {error ? <p className="jp-notes-edit-error">{error}</p> : null}
+            {saveStatus === "saving" ? (
+              <JpVocabSaveProgressBar
+                label={jpVocabSaveProgressLabel("save")}
+                percent={jpVocabSaveProgressDisplayPercent(savePercent)}
+                fullWidth
+              />
+            ) : null}
           </div>
 
           <div className="jp-notes-edit-footer">
+            {canEdit ? (
+              <button
+                type="button"
+                className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary"
+                disabled={!canSave}
+                onClick={() => void flushSave()}
+              >
+                {saveStatus === "saving" ? "保存中…" : "保存"}
+              </button>
+            ) : null}
             <button
               type="button"
-              className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary"
-              onClick={onClose}
+              className="btn-rsi-filter btn-rsi-filter--compact"
+              disabled={saveStatus === "saving"}
+              onClick={requestClose}
             >
               完成
             </button>
@@ -418,7 +469,7 @@ export function EnClassNotesEditModal({
               <button
                 type="button"
                 className="btn-rsi-filter btn-rsi-filter--compact jp-notes-edit-share-btn"
-                disabled={sharing}
+                disabled={sharing || saveStatus === "saving"}
                 title={
                   sharedToday
                     ? "将该词备注共享到学生「今日背英语单词」"
@@ -433,7 +484,7 @@ export function EnClassNotesEditModal({
         </div>
       </div>
 
-      <style jsx>{`
+      <style jsx global>{`
         .jp-notes-edit-overlay {
           position: fixed;
           inset: 0;
@@ -491,8 +542,8 @@ export function EnClassNotesEditModal({
 
         .jp-notes-edit-close {
           flex-shrink: 0;
-          width: 2rem;
-          height: 2rem;
+          width: 2.75rem;
+          height: 2.75rem;
           border: 1px solid var(--border);
           border-radius: 8px;
           background: color-mix(in srgb, var(--bg) 55%, transparent);
@@ -500,6 +551,7 @@ export function EnClassNotesEditModal({
           font-size: 1.25rem;
           line-height: 1;
           cursor: pointer;
+          touch-action: manipulation;
         }
 
         .jp-notes-edit-body {
@@ -530,16 +582,6 @@ export function EnClassNotesEditModal({
           font-variant-numeric: tabular-nums;
           color: var(--muted);
           margin-bottom: 0.35rem;
-        }
-
-        .jp-notes-edit-entry-body {
-          margin: 0;
-          white-space: pre-wrap;
-          word-break: break-word;
-          font: inherit;
-          font-size: 0.9375rem;
-          line-height: 1.55;
-          color: var(--text);
         }
 
         .jp-notes-edit-textarea {
@@ -605,11 +647,30 @@ export function EnClassNotesEditModal({
 
         .jp-notes-edit-footer {
           display: flex;
+          flex-wrap: wrap;
           justify-content: flex-end;
           gap: 0.5rem;
           padding: 0.85rem 1.25rem 1rem;
           border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
           flex-shrink: 0;
+        }
+
+        .jp-notes-edit-footer .btn-rsi-filter {
+          min-height: 2.75rem;
+          touch-action: manipulation;
+        }
+
+        @media (max-width: 767px) {
+          .jp-notes-edit-overlay {
+            padding: 0.5rem;
+            padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+            align-items: flex-end;
+          }
+          .jp-notes-edit-modal {
+            width: 100%;
+            max-height: min(92dvh, 92svh);
+            border-radius: 12px 12px 0 0;
+          }
         }
       `}</style>
     </>,

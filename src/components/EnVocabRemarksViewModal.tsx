@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useI18n } from "@/i18n/I18nProvider";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
@@ -17,8 +17,6 @@ type Props = {
   onClose: () => void;
   onWordUpdated?: (word: EnVocabWord) => void;
 };
-
-const POLL_MS = 2_000;
 
 export function EnVocabRemarksViewModal({
   open,
@@ -38,40 +36,33 @@ export function EnVocabRemarksViewModal({
     if (open && word) setDisplayWord(word);
   }, [open, word?.id, word?.updated_at, word]);
 
-  const pullRemoteNotes = useCallback(async () => {
-    if (!open || !word) return;
-    try {
-      const res = await fetch(
-        `/api/en-vocab/class-notes?word_id=${encodeURIComponent(String(word.id))}`,
-        {
-          headers: { [LOCALE_HEADER]: locale },
-          credentials: "include",
-          cache: "no-store",
-        }
-      );
-      const data = (await res.json()) as { ok: boolean; word?: EnVocabWord };
-      if (!data.ok || !data.word) return;
-      // Shared/sync list payloads may omit class_notes; hydrate when body differs.
-      const base = displayWord ?? word;
-      const notesChanged =
-        (data.word.class_notes ?? null) !== (base?.class_notes ?? null);
-      const stampChanged = data.word.updated_at !== base?.updated_at;
-      if (notesChanged || stampChanged) {
-        const merged = mergeEnVocabWordAfterClassNotesFetch(base, data.word);
-        setDisplayWord(merged);
-        onWordUpdated?.(merged);
-      }
-    } catch {
-      /* ignore */
-    }
-  }, [displayWord?.class_notes, displayWord?.updated_at, locale, onWordUpdated, open, word]);
-
+  /** 打开时拉一次；禁止定时轮询（对方刷新后才见新备注） */
   useEffect(() => {
     if (!open || !word) return;
-    void pullRemoteNotes();
-    const timer = setInterval(() => void pullRemoteNotes(), POLL_MS);
-    return () => clearInterval(timer);
-  }, [open, word?.id, pullRemoteNotes, word]);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/en-vocab/class-notes?word_id=${encodeURIComponent(String(word.id))}`,
+          {
+            headers: { [LOCALE_HEADER]: locale },
+            credentials: "include",
+            cache: "no-store",
+          }
+        );
+        const data = (await res.json()) as { ok: boolean; word?: EnVocabWord };
+        if (cancelled || !data.ok || !data.word) return;
+        const merged = mergeEnVocabWordAfterClassNotesFetch(word, data.word);
+        setDisplayWord(merged);
+        onWordUpdated?.(merged);
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, word?.id, locale, onWordUpdated, word]);
 
   useEffect(() => {
     if (!open) return;
@@ -141,7 +132,9 @@ export function EnVocabRemarksViewModal({
             ) : (
               <p className="jp-remarks-view-empty">暂无备注</p>
             )}
-            <p className="jp-remarks-view-sync-hint">每 2 秒自动同步</p>
+            <p className="jp-remarks-view-sync-hint">
+              不会自动同步 · 刷新页面后可见最新备注
+            </p>
           </div>
 
           <div className="jp-remarks-view-footer">
@@ -156,7 +149,7 @@ export function EnVocabRemarksViewModal({
         </div>
       </div>
 
-      <style jsx>{`
+      <style jsx global>{`
         .jp-remarks-view-overlay {
           position: fixed;
           inset: 0;
@@ -207,8 +200,8 @@ export function EnVocabRemarksViewModal({
 
         .jp-remarks-view-close {
           flex-shrink: 0;
-          width: 2rem;
-          height: 2rem;
+          width: 2.75rem;
+          height: 2.75rem;
           border: 1px solid var(--border);
           border-radius: 8px;
           background: color-mix(in srgb, var(--bg) 55%, transparent);
@@ -216,6 +209,7 @@ export function EnVocabRemarksViewModal({
           font-size: 1.25rem;
           line-height: 1;
           cursor: pointer;
+          touch-action: manipulation;
         }
 
         .jp-remarks-view-body {
@@ -245,16 +239,6 @@ export function EnVocabRemarksViewModal({
           margin-bottom: 0.35rem;
         }
 
-        .jp-remarks-view-entry-body {
-          margin: 0;
-          white-space: pre-wrap;
-          word-break: break-word;
-          font: inherit;
-          font-size: 0.9375rem;
-          line-height: 1.6;
-          color: var(--text);
-        }
-
         .jp-remarks-view-empty {
           margin: 0;
           font-size: 0.875rem;
@@ -273,6 +257,24 @@ export function EnVocabRemarksViewModal({
           padding: 0.85rem 1.1rem 1rem;
           border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
           flex-shrink: 0;
+        }
+
+        .jp-remarks-view-footer .btn-rsi-filter {
+          min-height: 2.75rem;
+          touch-action: manipulation;
+        }
+
+        @media (max-width: 767px) {
+          .jp-remarks-view-overlay {
+            padding: 0.5rem;
+            padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+            align-items: flex-end;
+          }
+          .jp-remarks-view-modal {
+            width: 100%;
+            max-height: min(92dvh, 92svh);
+            border-radius: 12px 12px 0 0;
+          }
         }
       `}</style>
     </>,

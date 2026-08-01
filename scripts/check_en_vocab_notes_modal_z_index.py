@@ -94,6 +94,10 @@ def main() -> None:
         if not path.is_file():
             fail(f"missing {path.relative_to(ROOT)}")
         text = path.read_text(encoding="utf-8")
+        if "style jsx global" not in text:
+            fail(
+                f"{path.name} must use <style jsx global> so portal z-index applies"
+            )
         block = first_rule_block(text, selector)
         z = z_index_in_block(block)
         if z <= flash_z:

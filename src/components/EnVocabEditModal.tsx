@@ -454,7 +454,7 @@ export function EnVocabEditModal({
         </div>
       </div>
 
-      <style jsx>{`
+      <style jsx global>{`
         .jp-vocab-edit-overlay {
           position: fixed;
           inset: 0;

@@ -218,7 +218,7 @@ export function EnVocabFieldEditModal({
         </div>
       </div>
 
-      <style jsx>{`
+      <style jsx global>{`
         .jp-field-edit-overlay {
           position: fixed;
           inset: 0;
