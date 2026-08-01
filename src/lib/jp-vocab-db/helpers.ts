@@ -208,12 +208,8 @@ export function mapRow(row: Record<string, unknown>): JpVocabWord {
       row.course_label != null && String(row.course_label).trim()
         ? String(row.course_label).trim().slice(0, 120)
         : null,
-    oral_frequency: clampJpVocabFrequency(
-      row.oral_frequency != null ? row.oral_frequency : null
-    ),
-    exam_frequency: clampJpVocabFrequency(
-      row.exam_frequency != null ? row.exam_frequency : null
-    ),
+    oral_frequency: clampJpVocabFrequency(row.oral_frequency),
+    exam_frequency: clampJpVocabFrequency(row.exam_frequency),
     example_sentences:
       row.example_sentences != null && String(row.example_sentences).trim()
         ? String(row.example_sentences)

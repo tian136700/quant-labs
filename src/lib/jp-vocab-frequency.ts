@@ -19,9 +19,10 @@ const EXAM_LINE_RE =
   /^(?:考试频率|考试出现频率|exam(?:[_\s-]?freq(?:uency)?)?)\s*[:：]\s*(\d{1,2})\s*$/i;
 
 export function clampJpVocabFrequency(
-  raw: number | string | null | undefined
+  raw: number | string | null | undefined | unknown
 ): number | null {
   if (raw == null || raw === "") return null;
+  if (typeof raw === "object") return null;
   const n = typeof raw === "number" ? raw : Number(String(raw).trim());
   if (!Number.isFinite(n)) return null;
   const score = Math.round(n);
