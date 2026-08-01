@@ -35,7 +35,6 @@ export function EnVocabFlashcardWordHero({
     <div className="jp-vocab-teacher-quiz__hero" id={titleId}>
       <div className="jp-vocab-teacher-quiz__reading-row en-vocab-flashcard-reading-row">
         <div className="en-vocab-flashcard-lemma-group">
-          {wordTrim ? <EnVocabSpeakButton text={wordTrim} /> : null}
           {kindLabel ? (
             <span
               className={`jp-vocab-teacher-quiz__kind-prefix en-vocab-flashcard-kind${
@@ -69,6 +68,11 @@ export function EnVocabFlashcardWordHero({
           </span>
         ) : null}
       </div>
+      {wordTrim ? (
+        <div className="en-vocab-flashcard-speak-row">
+          <EnVocabSpeakButton text={wordTrim} variant="label" />
+        </div>
+      ) : null}
       {showReading ? (
         <div className="en-vocab-flashcard-ipa-source">
           <JpVocabSourceLabel source={readingSource} />

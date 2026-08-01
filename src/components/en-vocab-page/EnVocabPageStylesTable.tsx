@@ -107,6 +107,17 @@ export function EnVocabPageStylesTable() {
           color: var(--accent);
           cursor: pointer;
         }
+        :global(.en-vocab-speak-btn--label) {
+          width: auto;
+          height: auto;
+          min-height: 2rem;
+          padding: 0.35rem 0.7rem;
+          border-radius: 8px;
+          font-size: 0.8125rem;
+          font-weight: 600;
+          line-height: 1.2;
+          white-space: nowrap;
+        }
         :global(.en-vocab-speak-btn:hover:not(:disabled)) {
           background: color-mix(in srgb, var(--accent) 10%, var(--panel));
         }

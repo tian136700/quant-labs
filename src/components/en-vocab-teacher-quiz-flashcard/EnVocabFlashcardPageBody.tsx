@@ -72,7 +72,6 @@ export function EnVocabFlashcardPageBody(props: EnVocabFlashcardPageBodyProps) {
               >
                 <div className="jp-vocab-teacher-quiz__reading-row en-vocab-flashcard-reading-row">
                   <div className="en-vocab-flashcard-lemma-group">
-                    {wordTrim ? <EnVocabSpeakButton text={wordTrim} /> : null}
                     <span
                       className={`jp-vocab-teacher-quiz__kind-prefix en-vocab-flashcard-kind${
                         w.kind === "grammar"
@@ -106,6 +105,11 @@ export function EnVocabFlashcardPageBody(props: EnVocabFlashcardPageBodyProps) {
                     </span>
                   ) : null}
                 </div>
+                {wordTrim ? (
+                  <div className="en-vocab-flashcard-speak-row">
+                    <EnVocabSpeakButton text={wordTrim} variant="label" />
+                  </div>
+                ) : null}
                 {readingTrim ? (
                   <div className="en-vocab-flashcard-ipa-source">
                     <JpVocabSourceLabel source={w.reading_source} />

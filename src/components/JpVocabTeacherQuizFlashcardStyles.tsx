@@ -463,6 +463,51 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           display: flex;
           justify-content: flex-end;
         }
+        /* 抽问卡：文字「播放本单词」小按钮（勿用纯喇叭图标） */
+        .en-vocab-flashcard-speak-row {
+          display: flex;
+          justify-content: flex-start;
+          margin-top: 0.4rem;
+        }
+        .en-vocab-flashcard-page .en-vocab-speak-btn,
+        .en-vocab-flashcard-speak-row .en-vocab-speak-btn {
+          flex: 0 0 auto;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          margin: 0;
+          border: 1px solid var(--border);
+          background: var(--panel);
+          color: var(--accent);
+          cursor: pointer;
+        }
+        .en-vocab-flashcard-page .en-vocab-speak-btn--label,
+        .en-vocab-flashcard-speak-row .en-vocab-speak-btn--label {
+          width: auto;
+          height: auto;
+          min-height: 2rem;
+          padding: 0.35rem 0.7rem;
+          border-radius: 8px;
+          font-size: 0.8125rem;
+          font-weight: 600;
+          line-height: 1.2;
+          white-space: nowrap;
+        }
+        .en-vocab-flashcard-page .en-vocab-speak-btn:hover:not(:disabled),
+        .en-vocab-flashcard-speak-row .en-vocab-speak-btn:hover:not(:disabled) {
+          background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+        }
+        .en-vocab-flashcard-page .en-vocab-speak-btn:disabled,
+        .en-vocab-flashcard-speak-row .en-vocab-speak-btn:disabled {
+          opacity: 0.55;
+          cursor: not-allowed;
+        }
+        .en-vocab-flashcard-page .en-vocab-speak-btn.is-playing,
+        .en-vocab-flashcard-speak-row .en-vocab-speak-btn.is-playing {
+          color: var(--rise);
+          border-color: color-mix(in srgb, var(--rise) 45%, var(--border));
+          background: color-mix(in srgb, var(--rise) 10%, var(--panel));
+        }
         /*
          * 英语抽问：近全屏网页式弹层（仅 .en-vocab-flashcard-page*）
          * 窄卡片备份：EnVocabTeacherQuizFlashcardModal.card-compact.tsx
@@ -678,7 +723,7 @@ export function JpVocabTeacherQuizFlashcardStyles() {
             .jp-vocab-teacher-quiz__word-link.en-vocab-flashcard-lemma {
             font-size: clamp(1.65rem, 7vw, 2.1rem);
           }
-          /* 触控：关闭 / 发音 ≥ 44px */
+          /* 触控：关闭 / 播放按钮 ≥ 44px；文字按钮勿锁死方块宽高 */
           .en-vocab-flashcard-page .jp-vocab-teacher-quiz__close-x {
             width: 2.75rem;
             height: 2.75rem;
@@ -686,9 +731,16 @@ export function JpVocabTeacherQuizFlashcardStyles() {
             border-radius: 8px;
             touch-action: manipulation;
           }
-          .en-vocab-flashcard-page .en-vocab-speak-btn {
+          .en-vocab-flashcard-page
+            .en-vocab-speak-btn:not(.en-vocab-speak-btn--label) {
             width: 2.75rem;
             height: 2.75rem;
+            touch-action: manipulation;
+          }
+          .en-vocab-flashcard-page .en-vocab-speak-btn--label {
+            min-height: 2.75rem;
+            padding: 0.45rem 0.85rem;
+            font-size: 0.875rem;
             touch-action: manipulation;
           }
           .en-vocab-flashcard-page .jp-vocab-teacher-quiz__actions-left {
