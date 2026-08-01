@@ -20,6 +20,15 @@ export const PAGE_HTML_TRAFFIC_SKIP_PATHS = [
   "/ko-pron/study",
   "/jp-lesson",
   "/en-lesson",
+  // 导航默认 prefetch 会同秒打多路 _rsc；这些页也跳过进页流量表，避免与冷启动抢 CPU
+  "/jp-vocab",
+  "/jp-vocab/admin",
+  "/jp-vocab/review",
+  "/jp-vocab/coach",
+  "/en-vocab",
+  "/en-vocab/admin",
+  "/en-vocab/review",
+  "/en-vocab/coach",
 ] as const;
 
 const PAGE_HTML_TRAFFIC_SKIP = new Set<string>(PAGE_HTML_TRAFFIC_SKIP_PATHS);

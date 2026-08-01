@@ -86,6 +86,7 @@ function SiteNavGroup({
             <Link
               href={child.href}
               role="menuitem"
+              prefetch={false}
               className={`admin-nav-submenu-link${
                 child.active ? " is-active" : ""
               }`}
@@ -119,6 +120,7 @@ function SiteNavPrimaryEntry({
     <li>
       <Link
         href={entry.item.href}
+        prefetch={false}
         className={`admin-nav-link${entry.active ? " is-active" : ""}`}
         aria-current={entry.active ? "page" : undefined}
       >

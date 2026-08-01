@@ -69,6 +69,15 @@ def main() -> int:
         errors.append(
             "worker-traffic-path 须 PAGE_HTML_TRAFFIC_SKIP 含 /jp-lesson 与 /en-lesson（防整页 1102）"
         )
+    for sibling in (
+        '"/jp-vocab/admin"',
+        '"/jp-vocab/review"',
+        '"/jp-vocab/coach"',
+    ):
+        if sibling not in path_lib:
+            errors.append(
+                f"worker-traffic-path 须 PAGE_HTML_TRAFFIC_SKIP 含 {sibling}（导航 prefetch _rsc）"
+            )
 
     locale = read("src/lib/locale-path.ts")
     if "adminWorkerTrafficPath" not in locale or "isAdminWorkerTrafficPath" not in locale:

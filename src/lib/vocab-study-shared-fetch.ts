@@ -11,6 +11,12 @@ export const VOCAB_STUDY_SHARED_FETCH_TIMEOUT_MS = 20_000;
 /** 遇 500/503 / 超时 / 网络失败时的退避（共最多 1+N 次） */
 export const VOCAB_STUDY_SHARED_RETRY_DELAYS_MS = [700, 1_500] as const;
 
+/**
+ * 连续 503/网络失败后，轮询拉长间隔，避免手机冷 isolate 上叠打 shared。
+ * （正常课堂仍用 5s；失败后约 45s 再试。）
+ */
+export const VOCAB_STUDY_SHARED_ERROR_BACKOFF_MS = 45_000;
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }

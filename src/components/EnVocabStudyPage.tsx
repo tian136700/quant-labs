@@ -217,6 +217,7 @@ export function EnVocabStudyPage() {
         sharedPollCountRef.current % EN_VOCAB_STUDY_QUIZ_EVERY_N === 0);
 
     pollInFlightRef.current = true;
+    let errorBackoff = false;
     try {
       sharedPollCountRef.current += 1;
 
@@ -234,6 +235,7 @@ export function EnVocabStudyPage() {
         }
       );
       if (res.status === 500 || res.status === 503) {
+        errorBackoff = true;
         reportWorker1102SharedFail({
           failedUrl: sharedUrl,
           status: res.status,
@@ -251,6 +253,7 @@ export function EnVocabStudyPage() {
         error?: string;
       }>(res);
       if (!parsed.ok) {
+        errorBackoff = true;
         reportWorker1102SharedFail({
           failedUrl: sharedUrl,
           status: res.status,
@@ -260,7 +263,7 @@ export function EnVocabStudyPage() {
         if (!hasLoadedOnceRef.current) {
           setError(parsed.error || "加载失败");
         }
-        return;
+        return { errorBackoff };
       }
       const { data, status: httpStatus } = parsed;
       if (httpStatus === 401) {
@@ -273,7 +276,7 @@ export function EnVocabStudyPage() {
         setTeacherQuizComplete(false);
         setTeacherLiveWordId(null);
         setError("请登录后查看今日英语单词。");
-        return;
+        return { errorBackoff: false };
       }
       if (!data.ok || !data.items) {
         throw new Error(data.error || "加载失败");
@@ -299,14 +302,19 @@ export function EnVocabStudyPage() {
       });
       applyTeacherLiveWordId(data.teacher_live_word_id);
       setError("");
+      return { errorBackoff: false };
     } catch (err) {
+      errorBackoff = true;
       setError(err instanceof Error ? err.message : String(err));
+      return { errorBackoff: true };
     } finally {
       setLoading(false);
       pollInFlightRef.current = false;
-      if (pendingRefreshRef.current) {
+      if (pendingRefreshRef.current && !errorBackoff) {
         pendingRefreshRef.current = false;
         void loadShared({ force: true });
+      } else if (pendingRefreshRef.current && errorBackoff) {
+        pendingRefreshRef.current = false;
       }
     }
   }, [locale, canViewStudy, applyStudyPayload, applyTeacherLiveWordId]);

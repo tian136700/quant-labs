@@ -31,10 +31,9 @@ export async function GET(request: Request) {
 
     const listPromise = listEnVocabSharedToday(env.DB);
     const quizPromise = lite ? null : getEnVocabStudyQuizProgressTarget(env.DB);
-    // bypassCache：老师切词写在别的 isolate，学生 shared 不能吃本 isolate 5s 短缓存
-    // （否则 teacher_live_word_id 仍是旧词 → 按钮一直「老师已发送」）
+    // lite 用 isolate 短缓存减轻每 5s 强制 D1；全量/非 lite 仍 bypass
     const livePromise = getEnVocabTeacherQuizLive(env.DB, new Date(), {
-      bypassCache: true,
+      bypassCache: !lite,
     });
     const [{ items, refs }, quiz_progress, live] = await Promise.all([
       listPromise,

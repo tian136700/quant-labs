@@ -305,6 +305,7 @@ export function JpVocabStudyPage() {
 
     pollInFlightRef.current = true;
     if (!cached) setLoading(true);
+    let errorBackoff = false;
     try {
       sharedPollCountRef.current += 1;
 
@@ -332,6 +333,7 @@ export function JpVocabStudyPage() {
         }
       );
       if (res.status === 500 || res.status === 503) {
+        errorBackoff = true;
         reportWorker1102SharedFail({
           failedUrl: sharedUrl,
           status: res.status,
@@ -342,6 +344,7 @@ export function JpVocabStudyPage() {
       const parsed = await readApiJson<SharedPayload>(res);
 
       if (!parsed.ok) {
+        errorBackoff = true;
         reportWorker1102SharedFail({
           failedUrl: sharedUrl,
           status: res.status,
@@ -351,7 +354,7 @@ export function JpVocabStudyPage() {
         if (!hasLoadedOnceRef.current) {
           setError(parsed.error);
         }
-        return;
+        return { errorBackoff };
       }
       const { data, status } = parsed;
       if (status === 401) {
@@ -366,13 +369,13 @@ export function JpVocabStudyPage() {
         setTeacherLiveWordId(null);
         hasLoadedOnceRef.current = false;
         setError("仅管理员或已授权学生可访问今日日语单词。");
-        return;
+        return { errorBackoff: false };
       }
       if (!data.ok || !data.items) {
         if (!hasLoadedOnceRef.current) {
           throw new Error(data.error || "加载失败");
         }
-        return;
+        return { errorBackoff };
       }
       const targetTotal =
         data.quiz_progress && data.quiz_progress.total > 0
@@ -397,17 +400,23 @@ export function JpVocabStudyPage() {
       applyTeacherLiveWordId(data.teacher_live_word_id);
       persistJpVocabStudyCache(next);
       setError("");
+      return { errorBackoff: false };
     } catch (err) {
+      errorBackoff = true;
       if (!hasLoadedOnceRef.current) {
         const message = err instanceof Error ? err.message : String(err);
         setError(sanitizeApiClientError(message));
       }
+      return { errorBackoff: true };
     } finally {
       setLoading(false);
       pollInFlightRef.current = false;
-      if (pendingRefreshRef.current) {
+      if (pendingRefreshRef.current && !errorBackoff) {
         pendingRefreshRef.current = false;
         void loadShared({ force: true });
+      } else if (pendingRefreshRef.current && errorBackoff) {
+        // Worker 忙时不要立刻连环 force，交给轮询退避
+        pendingRefreshRef.current = false;
       }
     }
   }, [locale, canViewStudy, applyStudyPayload, applyTeacherLiveWordId]);

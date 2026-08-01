@@ -75,6 +75,34 @@ def main() -> int:
             "worker-traffic-path must skip /jp-vocab/study HTML traffic "
             "(avoid waitUntil D1 during page cold render → 1102)"
         )
+    for sibling in ('"/jp-vocab/admin"', '"/jp-vocab/review"', '"/jp-vocab/coach"'):
+        if sibling not in traffic:
+            errors.append(
+                f"worker-traffic-path must skip {sibling} HTML "
+                "(nav Link prefetch storms → 1102)"
+            )
+
+    site_nav = (ROOT / "src/components/SiteNav.tsx").read_text(encoding="utf-8")
+    nav_drawer = (ROOT / "src/components/NavDrawer.tsx").read_text(encoding="utf-8")
+    if "prefetch={false}" not in site_nav:
+        errors.append("SiteNav Links must set prefetch={false} (kill RSC prefetch storm)")
+    if "prefetch={false}" not in nav_drawer:
+        errors.append("NavDrawer Links must set prefetch={false}")
+
+    poll = (ROOT / "src/hooks/useVocabStudySharedPoll.ts").read_text(encoding="utf-8")
+    if "VOCAB_STUDY_SHARED_ERROR_BACKOFF_MS" not in poll:
+        errors.append("useVocabStudySharedPoll must backoff after shared 503/network")
+    if "errorBackoff" not in study:
+        errors.append("JpVocabStudyPage loadShared must return errorBackoff on 503")
+
+    shared_route = (
+        ROOT / "src/app/api/jp-vocab/shared/route.ts"
+    ).read_text(encoding="utf-8")
+    if "bypassCache: !lite" not in shared_route:
+        errors.append(
+            "jp-vocab/shared lite must use bypassCache: !lite "
+            "(lite 短缓存减负；全量仍 bypass 保切词刷新)"
+        )
 
     if errors:
         print("check_jp_vocab_study_shared_1102 FAILED:")

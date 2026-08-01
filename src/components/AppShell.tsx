@@ -136,6 +136,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="mobile-header-bar">
           <Link
             href={headerHref}
+            prefetch={false}
             className="mobile-header-title"
             aria-current="page"
             title={headerTitle}

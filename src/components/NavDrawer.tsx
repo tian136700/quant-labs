@@ -62,6 +62,7 @@ function NavDrawerLink({
     <li className="nav-drawer-item">
       <Link
         href={item.href}
+        prefetch={false}
         className={`nav-drawer-link${item.active ? " is-active" : ""}`}
         aria-current={item.active ? "page" : undefined}
         onClick={item.active ? onCloseIfActive : undefined}

@@ -34,10 +34,9 @@ export async function GET(request: Request) {
 
     const isAdmin = isAdminSuperuser(user?.role);
     // 非 lite：先补「已抽未共享」再列表，避免学生端进度 14/35、老师已抽 15 对不上
-    // bypassCache：老师切词写在别的 isolate，学生 shared 不能吃本 isolate 5s 短缓存
-    // （否则 teacher_live_word_id 仍是旧词 → 按钮一直「老师已发送」）
+    // lite 用 isolate 短缓存减轻每 5s 强制 D1；全量/非 lite 仍 bypass，保证切词后按钮能刷新
     const live = await getJpVocabTeacherQuizLive(env.DB, new Date(), {
-      bypassCache: true,
+      bypassCache: !lite,
     });
     if (!lite) {
       await backfillJpVocabCheckedUnsharedShares(env.DB, {
