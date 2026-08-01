@@ -13,8 +13,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 HOOKS_JSON = ROOT / ".cursor" / "hooks.json"
 HOOK = ROOT / ".cursor" / "hooks" / "agent-error-resume-stop.py"
+CANCEL_HOOK = ROOT / ".cursor" / "hooks" / "agent-error-resume-cancel-prompt.py"
 RULE = ROOT / ".cursor" / "rules" / "agent-error-resume.mdc"
-PENDING = ROOT / ".cursor" / "hooks" / ".state" / "pending_deploy_followup.json"
+STATE_DIR = ROOT / ".cursor" / "hooks" / ".state"
+PENDING = STATE_DIR / "pending_deploy_followup.json"
+CANCEL_RESUME = STATE_DIR / "cancel_agent_error_resume.json"
+PENDING_RESUME = STATE_DIR / "pending_agent_error_resume.json"
 
 
 def fail(msg: str) -> int:
@@ -22,7 +26,12 @@ def fail(msg: str) -> int:
     return 1
 
 
-def _run_hook(payload: dict, *, env_extra: dict[str, str] | None = None) -> dict:
+def _run_hook(
+    payload: dict,
+    *,
+    env_extra: dict[str, str] | None = None,
+    timeout: int = 15,
+) -> dict:
     env = os.environ.copy()
     if env_extra:
         env.update(env_extra)
@@ -33,7 +42,7 @@ def _run_hook(payload: dict, *, env_extra: dict[str, str] | None = None) -> dict
         text=True,
         cwd=str(ROOT),
         env=env,
-        timeout=10,
+        timeout=timeout,
         check=False,
     )
     out = (proc.stdout or "").strip()
@@ -47,13 +56,15 @@ def _run_hook(payload: dict, *, env_extra: dict[str, str] | None = None) -> dict
 
 
 def main() -> int:
-    for path in (HOOK, RULE, HOOKS_JSON):
+    for path in (HOOK, CANCEL_HOOK, RULE, HOOKS_JSON):
         if not path.is_file():
             return fail(f"missing {path.relative_to(ROOT)}")
 
     hooks = HOOKS_JSON.read_text(encoding="utf-8")
     if "agent-error-resume-stop.py" not in hooks:
         return fail("hooks.json stop must include agent-error-resume-stop.py")
+    if "beforeSubmitPrompt" not in hooks or "agent-error-resume-cancel-prompt.py" not in hooks:
+        return fail("hooks.json must wire beforeSubmitPrompt cancel hook")
 
     stop_block = re.search(r'"stop"\s*:\s*\[(.*?)\]', hooks, re.S)
     if not stop_block:
@@ -82,9 +93,15 @@ def main() -> int:
         "AGENT_ERROR_RESUME_DISABLED",
         "pending_deploy_followup",
         "换账号",
+        "pending_agent_error_resume",
+        "cancel_agent_error_resume",
+        "_sleep_until_resume_or_cancel",
     ):
         if needle not in src:
             return fail(f"hook missing required logic: {needle}")
+
+    if "cancel_agent_error_resume" not in CANCEL_HOOK.read_text(encoding="utf-8"):
+        return fail("cancel hook must write cancel_agent_error_resume")
 
     rule = RULE.read_text(encoding="utf-8")
     if "Don't revert" not in rule and "不撤回" not in src:
@@ -93,6 +110,8 @@ def main() -> int:
         return fail("rule must document aborted vs error")
     if "额度" not in rule and "换账号" not in rule:
         return fail("rule must document 额度/换账号 use case")
+    if "手动" not in rule or "取消" not in rule:
+        return fail("rule must document cancel when user manually continues")
 
     pending_bak = PENDING.with_suffix(".json.checkbak")
     moved_pending = False
@@ -139,6 +158,44 @@ def main() -> int:
         )
         if capped.get("followup_message"):
             return fail("loop_count >= MAX_LOOP must NOT emit followup")
+
+        # sleep 中途写 cancel → 不 followup（用户手动续跑）
+        import threading
+        import time as _time
+
+        CANCEL_RESUME.unlink(missing_ok=True)
+        PENDING_RESUME.unlink(missing_ok=True)
+
+        def _write_cancel_soon() -> None:
+            _time.sleep(0.4)
+            try:
+                STATE_DIR.mkdir(parents=True, exist_ok=True)
+                CANCEL_RESUME.write_text(
+                    json.dumps({"reason": "test_mid_sleep"}, ensure_ascii=False)
+                    + "\n",
+                    encoding="utf-8",
+                )
+            except OSError:
+                pass
+
+        thr = threading.Thread(target=_write_cancel_soon, daemon=True)
+        thr.start()
+        mid = _run_hook(
+            {
+                "status": "error",
+                "loop_count": 0,
+                "generation_id": "gen-mid-1",
+                "conversation_id": "conv-mid",
+                "hook_event_name": "stop",
+            },
+            env_extra={"AGENT_ERROR_RESUME_DELAY_SEC": "2"},
+            timeout=15,
+        )
+        thr.join(timeout=3)
+        if mid.get("followup_message"):
+            return fail("cancel during delay must NOT emit followup_message")
+        CANCEL_RESUME.unlink(missing_ok=True)
+        PENDING_RESUME.unlink(missing_ok=True)
     finally:
         if moved_pending and pending_bak.is_file():
             pending_bak.replace(PENDING)
