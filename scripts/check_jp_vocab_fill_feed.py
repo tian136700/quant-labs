@@ -119,6 +119,33 @@ def main() -> int:
         raise SystemExit("FAIL: jp/en feed must expose last_wake_from_log")
     if '"last_wake"' not in jp_feed or '"last_wake"' not in en_feed:
         raise SystemExit("FAIL: feed snapshot must include last_wake")
+    if "quiz_gate" not in jp_feed or "quiz_gate" not in en_feed:
+        raise SystemExit("FAIL: last_wake_from_log must detect quiz_gate skips")
+    if "quiz_gate" not in app_js or "抽查门禁跳过" not in app_js:
+        raise SystemExit(
+            "FAIL: vocabFillScheduleLine must surface quiz_gate (not stale 无待补)"
+        )
+    if "抽查冷却中" not in jp_feed or "抽查进行中" not in jp_feed:
+        raise SystemExit("FAIL: jp feed quiz_gate labels must mention 抽查冷却/进行中")
+    from maintenance_center.jp_vocab_fill_feed import (  # noqa: E402
+        last_wake_from_log as jp_last_wake,
+    )
+
+    quiz_wake = jp_last_wake(
+        "\n".join(
+            [
+                "2026-08-02 06:00:34 jp-vocab-fill-unified: start backend=1 stage=unified",
+                "[jp-vocab-fill-online] 无待补词条",
+                "2026-08-02 06:00:57 jp-vocab-fill-unified: done",
+                "[jp-vocab-fill-unified] quiz gate quiet → skip reason=quiz_cooldown detail=x",
+                "2026-08-02 06:34:18 jp-vocab-fill-unified: quiz gate skip (helper exit 75)",
+            ]
+        )
+    )
+    if quiz_wake.get("result") != "quiz_gate":
+        raise SystemExit(f"FAIL: quiz skip must beat stale empty wake, got {quiz_wake!r}")
+    if "抽查冷却" not in str(quiz_wake.get("label") or ""):
+        raise SystemExit(f"FAIL: quiz_cooldown label missing, got {quiz_wake!r}")
     if '"（等待 list_missing' in jp_feed or '"（等待 list_missing' in en_feed:
         raise SystemExit("FAIL: feed 不得把 list_missing 塞进 word 字段")
     if "waiting_list" not in jp_feed or "waiting_list" not in en_feed:
