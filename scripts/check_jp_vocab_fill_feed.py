@@ -149,6 +149,47 @@ def main() -> int:
         raise SystemExit("FAIL: fail-log copy toast must confirm copy")
     if "【词条补全失败】" not in app_js or "错误：" not in app_js:
         raise SystemExit("FAIL: fail-log text must include title + error line")
+    if "resolved_later" not in app_js or "jp-fill-badge--resolved" not in app_js:
+        raise SystemExit("FAIL: failed-row must show green 已补全 when resolved_later")
+    if "已补全" not in app_js:
+        raise SystemExit("FAIL: resolved badge label 已补全 missing")
+    if "jp-fill-badge--resolved" not in (
+        ROOT / "scripts/maintenance_center/static/app.css"
+    ).read_text(encoding="utf-8"):
+        raise SystemExit("FAIL: resolved badge CSS missing")
+    resolved_mod = (
+        ROOT / "scripts/maintenance_center/vocab_fill_resolved_later.py"
+    ).read_text(encoding="utf-8")
+    if "annotate_rows_resolved_later" not in resolved_mod:
+        raise SystemExit("FAIL: missing annotate_rows_resolved_later helper")
+    if "annotate_rows_resolved_later" not in jp_feed or "annotate_rows_resolved_later" not in en_feed:
+        raise SystemExit("FAIL: jp/en feed must annotate resolved_later")
+    from maintenance_center.vocab_fill_resolved_later import (  # noqa: E402
+        annotate_rows_resolved_later,
+    )
+
+    resolved_sample = annotate_rows_resolved_later(
+        [
+            {
+                "word_id": 513,
+                "status": "success",
+                "finished_at": "2026-08-01 13:52:05",
+            },
+            {
+                "word_id": 513,
+                "status": "failed",
+                "finished_at": "2026-08-01 13:45:44",
+            },
+            {
+                "word_id": 999,
+                "status": "failed",
+                "finished_at": "2026-08-01 12:00:00",
+            },
+        ]
+    )
+    assert resolved_sample[1].get("resolved_later") is True, resolved_sample[1]
+    assert resolved_sample[1].get("resolved_label") == "已补全", resolved_sample[1]
+    assert not resolved_sample[2].get("resolved_later"), resolved_sample[2]
     if 'id="jp-fill-interval"' not in index_html:
         raise SystemExit("FAIL: missing jp-fill-interval select")
     if "补全内容" not in index_html:
