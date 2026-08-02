@@ -9,6 +9,12 @@ import {
   splitJpVocabUsageDistinctionLead,
 } from "@/lib/jp-vocab-contrast-usage-ai";
 import { jpVocabFrequencyPromptAppendix } from "@/lib/jp-vocab-frequency";
+import {
+  extractJpVocabUsageLineFrequency,
+  formatJpVocabUsageLineWithFrequency,
+  jpVocabUsagePerUsageFrequencyPromptAppendix,
+  jpVocabUsagePointHasCompleteFrequency,
+} from "@/lib/jp-vocab-usage-frequency";
 
 export {
   isJpVocabContrastGrammar,
@@ -21,11 +27,11 @@ export {
 /** 日语语法用法上传契约：编号「中文」说明 + 1:1 例句（同一次调用） */
 
 export const JP_VOCAB_USAGE_UPLOAD_SPEC = {
-  version: 8,
+  version: 9,
   count_rule:
-    "组数=该语法真实常用用法数（N5～N2）；只有 1 种就 1 组，有几种写几组；禁止硬凑 2 组。每组=中文用法 + 恰好 1 条例句（严格 1:1，禁止多造）；同一次输出末尾必须有【接序】；再附【出现频率】口语/考试各 1～10。例外：读音/形态对比课（何（なん／なに）等）→ 先【区别】再两侧各 1 组，禁止拆成多条场景用法清单",
+    "组数=该语法真实常用用法数（N5～N2）；只有 1 种就 1 组，有几种写几组；禁止硬凑 2 组。每组=中文用法 + 恰好 1 条例句（严格 1:1，禁止多造）；同一次输出末尾必须有【接序】；每条用法编号后须带 [口语n|考试m]。例外：读音/形态对比课→先【区别】再两侧各 1 组；变形课不要用法与分值",
   format_example:
-    "1. 表示原因、理由：前句说明原因，后句说明结果。(N5)\n今日(きょう)は雨(あめ)だから、家(いえ)にいます。\n译文：今天下雨，所以我待在家里。\n【接序】\n动词原形／一类形容词原形＋「から」\n二类形容词原形／名词＋だから\n【出现频率】\n口语频率：9\n考试频率：8",
+    "1. [口语9|考试7] 表示原因、理由：前句说明原因，后句说明结果。(N5)\n今日(きょう)は雨(あめ)だから、家(いえ)にいます。\n译文：今天下雨，所以我待在家里。\n【接序】\n动词原形／一类形容词原形＋「から」\n二类形容词原形／名词＋だから",
   level: "N5～N2（含 N1 以下；不要超纲冷僻用法）",
   rules: [
     "只补「语法」（单词不走此接口）",
@@ -33,16 +39,16 @@ export const JP_VOCAB_USAGE_UPLOAD_SPEC = {
     "可在中文里用「」短引日语形态（如「～てから」「て形」）；「」内也不要假名括注",
     "❌ 用法行禁止写接序/接续（接在…、构成「…＋…」、动词辞书形＋…）；接序只写在文末【接序】段",
     "每条用法句末句号后必须标该用法大概 JLPT 等级：半角括号 (N5)/(N4)/(N3)/(N2)/(N1)，紧贴句末",
+    "普通语法：每条用法编号后必须带 [口语n|考试m]（口语/JLPT 考试出现分各 1～10）；对比课与变形课不要写分值标记",
     "用法与例句必须同一次输出、严格 1:1：编号中文用法下一行立刻跟日语例句，再下一行「译文：」；禁止给同一用法多造几句",
-    "第 N 条用法与第 N 条例句语义必须对齐：否定推断→否定句；肯定推断→肯定句；用法「」/（）里点名的形态（如はずがない、はずなのに）必须出现在该条例句——禁止只凑条数却张冠李戴",
-    "例句接续必须对应该条用法：用法写「た形」则例句须た形；写「辞书形／辞書形／る形」则须原形；写「て形」则须て形——禁止把「有时候＋辞书形」的例句挂到「曾经＋た形」用法下",
-    "同一次输出末尾必须有【接序】段；接序须写清词类（动词原形／一类形容词原形／二类形容词原形／名词），禁止只写笼统「原形＋」；多用法且接续不同时用「用法1:」「用法2:」分行对应（禁止挤同一行）",
-    "接序之后另起【出现频率】：口语频率与考试频率各打 1～10 分（词级；对齐英语出现频次）",
-    "禁止拆成「先用法、后例句」两次模型调用；禁止另开定时任务只补接序",
+    "第 N 条用法与第 N 条例句语义必须对齐：否定推断→否定句；肯定推断→肯定句；用法「」/（）里点名的形态须出现在该条例句",
+    "例句接续必须对应该条用法：た形／辞书形／て形勿张冠李戴",
+    "同一次输出末尾必须有【接序】段；多用法且接续不同时用「用法1:」「用法2:」分行",
+    "禁止拆成「先用法、后例句」两次模型调用；禁止另开定时任务只补接序（存量接序回填除外）",
     "组数按真实常用义项：1 种→1 组，2 种→2 组，3 种→3 组；不要为了凑数硬写两组",
-    "读音/形态对比课（标题含（なに／なん）或「区别」）：先【区别】概括差异，再恰好 2 组对照（禁止 5～7 条场景用法清单）",
+    "读音/形态对比课（标题含（なに／なん）或「区别」）：先【区别】概括差异，再恰好 2 组对照",
     "水平限定 N5～N2：最常用排第一；例句只用简单词、不叠更难语法",
-    "不要 markdown、不要给例句再编行首号；等级只写在用法句末括号，不要写「JLPT」「能力考」等字样",
+    "不要 markdown、不要给例句再编行首号；等级只写在用法句末括号",
     "写回时请传 source，建议「线上 claude-…」；人手为「手动」；接序可同传 connection",
   ],
   source_examples: ["线上 claude-sonnet-4-6", "本地 gemma4:26b", "手动"],
@@ -55,6 +61,8 @@ export const JP_VOCAB_USAGE_UPLOAD_SPEC = {
     "usage_missing_level",
     "usage_off_lemma",
     "usage_has_connection",
+    "missing_frequency",
+    "invalid_frequency",
     "contrast_missing_distinction",
     "contrast_need_two_points",
     "examples_required",
@@ -66,6 +74,18 @@ export const JP_VOCAB_USAGE_UPLOAD_SPEC = {
   ],
 } as const;
 
+/** 普通语法（非对比、非变形）才按用法打口语/考试分 */
+export function jpVocabGrammarNeedsPerUsageFrequency(
+  word: string,
+  reading?: string | null
+): boolean {
+  const w = String(word || "").trim();
+  if (!w) return false;
+  if (isJpVocabConjugationGrammar(w)) return false;
+  if (isJpVocabContrastGrammar(w, reading)) return false;
+  return true;
+}
+
 export type JpVocabUsageAiInput = {
   word: string;
   kind: string;
@@ -73,6 +93,15 @@ export type JpVocabUsageAiInput = {
   meaning?: string | null;
   /** 付费/自动/手动写回均须句末 (N5)；缺级一律拒 */
   requireJlptLevel?: boolean;
+  /** 普通语法写回须每条带 [口语n|考试m]；对比/变形默认 false */
+  requireUsageFrequency?: boolean;
+};
+
+export type JpVocabUsagePoint = {
+  n: number;
+  text: string;
+  oralFrequency: number | null;
+  examFrequency: number | null;
 };
 
 const NUMBERED_LINE_RE = /^\s*(\d+)\s*[.、．)\]]\s*(.+)$/;

@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { CopyToast } from "@/components/CopyToast";
 import { JpVocabConnectionBody } from "@/components/JpVocabConnectionBody";
+import { JpVocabContrastDistinctionTable } from "@/components/JpVocabContrastDistinctionTable";
 import { JpVocabFuriganaText } from "@/components/JpVocabFuriganaText";
 import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import { copyTextToClipboard } from "@/lib/copy-text";
@@ -10,6 +11,7 @@ import {
   formatJpVocabExampleGlossLine,
 } from "@/lib/jp-vocab-example-sentences";
 import {
+  buildJpVocabContrastComparisonRows,
   buildJpVocabUsageExamplePairs,
   formatJpVocabUsageExamplesCopyText,
   jpVocabCircledExampleIndex,
@@ -105,6 +107,12 @@ export function JpVocabUsageExamplesPairedContent({
     return null;
   };
 
+  const contrastRows = buildJpVocabContrastComparisonRows(
+    model,
+    connectionTextFor
+  );
+  const showContrastTable = Boolean(contrastRows?.length);
+
   return (
     <div className="jp-usage-ex-paired">
       {showCopyAll && copyText ? (
@@ -124,19 +132,22 @@ export function JpVocabUsageExamplesPairedContent({
         </div>
       ) : null}
 
-      {model.fallbackUsage ? (
+      {showContrastTable && contrastRows ? (
+        <JpVocabContrastDistinctionTable rows={contrastRows} />
+      ) : model.fallbackUsage ? (
         <p className="jp-usage-ex-paired-fallback">{model.fallbackUsage}</p>
       ) : null}
 
       {model.pairs.length > 0 ? (
         <ol className="jp-usage-ex-paired-list">
           {model.pairs.map((pair) => {
-            const connText = pair.usageText
-              ? connectionTextFor(pair.index)
-              : null;
+            const connText =
+              showContrastTable || !pair.usageText
+                ? null
+                : connectionTextFor(pair.index);
             return (
             <li key={pair.index} className="jp-usage-ex-paired-item">
-              {pair.usageText ? (
+              {pair.usageText && !showContrastTable ? (
                 <p className="jp-usage-ex-paired-usage">
                   <span className="jp-usage-ex-paired-usage-label">
                     {pair.usageLabel}：
@@ -144,6 +155,13 @@ export function JpVocabUsageExamplesPairedContent({
                   <span className="jp-usage-ex-paired-usage-body">
                     {pair.usageText}
                   </span>
+                </p>
+              ) : pair.usageText && showContrastTable ? (
+                <p className="jp-usage-ex-paired-usage jp-usage-ex-paired-usage--contrast-ex">
+                  <span className="jp-usage-ex-paired-usage-label">
+                    {pair.usageLabel}
+                  </span>
+                  <span className="jp-usage-ex-paired-usage-body">例句</span>
                 </p>
               ) : null}
               {connText ? (
@@ -271,6 +289,18 @@ export function JpVocabUsageExamplesPairedContent({
         }
         .jp-usage-ex-paired-usage-label {
           font-weight: 600;
+        }
+        .jp-usage-ex-paired-usage--contrast-ex {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: baseline;
+          gap: 0.35rem;
+          margin-bottom: 0.25rem;
+          font-size: 1rem;
+        }
+        .jp-usage-ex-paired-usage--contrast-ex .jp-usage-ex-paired-usage-body {
+          font-weight: 500;
+          color: var(--muted);
         }
         .jp-usage-ex-paired-jp {
           margin: 0;

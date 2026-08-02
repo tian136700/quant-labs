@@ -39,6 +39,8 @@ export type JpVocabUsageExamplesPairedModel = {
   useCircledExampleIndex: boolean;
   /** 单词：单用法下嵌套多条例句 */
   nestExamplesUnderSingleUsage: boolean;
+  /** 读音对比课：卡片用表格展示区别 */
+  isContrast?: boolean;
 };
 
 /** 二级序号：①～⑳，超出用 (21) */
@@ -109,6 +111,7 @@ export function buildJpVocabUsageExamplePairs(
       pairCount: Math.max(pairs.length, fallbackUsage ? 1 : 0),
       hasContent: Boolean(fallbackUsage || pairs.length),
       useCircledExampleIndex: false,
+      isContrast: contrast,
       nestExamplesUnderSingleUsage: false,
     };
   }
@@ -133,6 +136,7 @@ export function buildJpVocabUsageExamplePairs(
       pairCount: 1,
       hasContent: true,
       useCircledExampleIndex: true,
+      isContrast: contrast,
       nestExamplesUnderSingleUsage: true,
     };
   }
@@ -159,6 +163,7 @@ export function buildJpVocabUsageExamplePairs(
       pairCount: pairs.length,
       hasContent: pairs.length > 0,
       useCircledExampleIndex: true,
+      isContrast: contrast,
       nestExamplesUnderSingleUsage: false,
     };
   }
@@ -189,6 +194,7 @@ export function buildJpVocabUsageExamplePairs(
       pairCount: pairs.length,
       hasContent: pairs.length > 0,
       useCircledExampleIndex: true,
+      isContrast: contrast,
       nestExamplesUnderSingleUsage: false,
     };
   }
@@ -209,6 +215,7 @@ export function buildJpVocabUsageExamplePairs(
     pairCount: pairs.length,
     hasContent: pairs.length > 0 || Boolean(distinctionLead),
     useCircledExampleIndex: true,
+    isContrast: contrast,
     nestExamplesUnderSingleUsage: false,
   };
 }
@@ -229,8 +236,6 @@ export function formatJpVocabUsageExamplesCopyText(
   if (word) blocks.push(word);
 
   const fallback = String(model.fallbackUsage ?? "").trim();
-  if (fallback) blocks.push(fallback);
-
   const byUsage = connectionOpts?.connectionByUsageIndex ?? {};
   const leftover = connectionOpts?.connectionLeftover ?? [];
   const tagged = Boolean(connectionOpts?.connectionHasUsageTagged);
@@ -240,22 +245,46 @@ export function formatJpVocabUsageExamplesCopyText(
   const firstUsage = usageIndexes[0] ?? null;
   const lastUsage = usageIndexes[usageIndexes.length - 1] ?? null;
 
+  const connFor = (usageIndex: number): string | null => {
+    const taggedBody = byUsage[usageIndex]?.trim() || "";
+    if (tagged) {
+      const bits: string[] = [];
+      if (taggedBody) bits.push(taggedBody);
+      if (usageIndex === lastUsage && leftover.length) bits.push(...leftover);
+      return bits.length ? bits.join("\n") : null;
+    }
+    if (usageIndex === firstUsage && leftover.length) {
+      return leftover.join("\n");
+    }
+    return null;
+  };
+
+  if (model.isContrast) {
+    const rows = buildJpVocabContrastComparisonRows(model, connFor);
+    if (rows?.length) {
+      blocks.push("【区别】");
+      blocks.push(
+        ["读法", "何时用", "接续"].join("\t"),
+        ...rows.map((r) =>
+          [r.form, r.when, r.connection?.trim() || "—"].join("\t")
+        )
+      );
+    } else if (fallback) {
+      blocks.push(fallback);
+    }
+  } else if (fallback) {
+    blocks.push(fallback);
+  }
+
   const circled = model.useCircledExampleIndex;
   for (const pair of model.pairs) {
     const lines: string[] = [];
-    if (pair.usageText) {
+    if (pair.usageText && !model.isContrast) {
       lines.push(`${pair.usageLabel}：${pair.usageText}`);
-      const taggedBody = byUsage[pair.index]?.trim() || "";
-      const bits: string[] = [];
-      if (tagged) {
-        if (taggedBody) bits.push(taggedBody);
-        if (pair.index === lastUsage && leftover.length) bits.push(...leftover);
-      } else if (pair.index === firstUsage && leftover.length) {
-        bits.push(...leftover);
-      }
-      if (bits.length) {
-        lines.push(`接续：${bits.join("\n")}`);
-      }
+      const bits = connFor(pair.index);
+      if (bits) lines.push(`接续：${bits}`);
+    } else if (pair.usageText && model.isContrast) {
+      lines.push(`${pair.usageLabel} 例句`);
     }
     const nested = pair.nestedExamples;
     if (nested && nested.length) {
@@ -291,3 +320,40 @@ export function formatJpVocabUsageExamplesCopyText(
 
   return blocks.join("\n\n").trim();
 }
+
+/** 从对比课 label / 正文抽出读法（なに / なん） */
+export function jpVocabContrastFormFromPair(
+  usageLabel: string,
+  usageText?: string | null
+): string {
+  const fromLabel = /\d+\.「([^」]+)」/.exec(String(usageLabel || ""));
+  if (fromLabel) return fromLabel[1];
+  const fromText = /^「([^」]+)」/.exec(String(usageText || "").trim());
+  if (fromText) return fromText[1];
+  return String(usageLabel || "")
+    .replace(/^\d+\.?/, "")
+    .replace(/用法|对照/g, "")
+    .trim() || "—";
+}
+
+export type JpVocabContrastComparisonRow = {
+  form: string;
+  when: string;
+  connection: string | null;
+};
+
+/** 对比课卡片表格行：读法 / 何时用 / 接续 */
+export function buildJpVocabContrastComparisonRows(
+  model: JpVocabUsageExamplesPairedModel,
+  connectionTextFor: (usageIndex: number) => string | null
+): JpVocabContrastComparisonRow[] | null {
+  if (!model.isContrast) return null;
+  const withUsage = model.pairs.filter((p) => Boolean(p.usageText));
+  if (withUsage.length < 2) return null;
+  return withUsage.map((p) => ({
+    form: jpVocabContrastFormFromPair(p.usageLabel, p.usageText),
+    when: String(p.usageText || "").trim(),
+    connection: connectionTextFor(p.index),
+  }));
+}
+

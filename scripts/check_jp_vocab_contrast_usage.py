@@ -74,6 +74,22 @@ def main() -> int:
     if "区别 / 例句" not in teacher:
         errors.append("抽问卡对比课标题须为「区别 / 例句」")
 
+    table = (
+        ROOT / "src/components/JpVocabContrastDistinctionTable.tsx"
+    ).read_text(encoding="utf-8")
+    if "读法" not in table or "何时用" not in table or "接续" not in table:
+        errors.append("对比区别表须含列：读法 / 何时用 / 接续")
+    if "overflow-y: clip" not in table:
+        errors.append("对比表须 overflow-y: clip（防触控板竖滑被拦）")
+
+    paired = (
+        ROOT / "src/components/JpVocabUsageExamplesPairedContent.tsx"
+    ).read_text(encoding="utf-8")
+    if "JpVocabContrastDistinctionTable" not in paired:
+        errors.append("配对组件须渲染 JpVocabContrastDistinctionTable")
+    if "buildJpVocabContrastComparisonRows" not in display:
+        errors.append("display 须有 buildJpVocabContrastComparisonRows")
+
     if errors:
         for e in errors:
             print(f"FAIL: {e}", file=sys.stderr)
