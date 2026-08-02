@@ -125,6 +125,16 @@ export function buildJpVocabUsageExamplePairs(
     pairLabelFor(i, text, contrast);
   const usageBody = (text: string | null | undefined) =>
     displayUsageBody(text, contrast);
+  const freqFields = (pt: {
+    oralFrequency?: number | null;
+    examFrequency?: number | null;
+  }) =>
+    contrast
+      ? { oralFrequency: null as number | null, examFrequency: null as number | null }
+      : {
+          oralFrequency: pt.oralFrequency ?? null,
+          examFrequency: pt.examFrequency ?? null,
+        };
 
   if (points.length === 1 && examples.length > 1) {
     return {
@@ -133,6 +143,7 @@ export function buildJpVocabUsageExamplePairs(
           index: 1,
           usageLabel: label(1, points[0]?.text),
           usageText: usageBody(points[0]?.text),
+          ...freqFields(points[0] ?? {}),
           example: null,
           nestedExamples: examples,
         },
@@ -158,6 +169,7 @@ export function buildJpVocabUsageExamplePairs(
         index: i + 1,
         usageLabel: label(i + 1, p.text),
         usageText: usageBody(p.text),
+        ...freqFields(p),
         example: null,
         nestedExamples: slice.length ? slice : undefined,
       };
@@ -182,6 +194,7 @@ export function buildJpVocabUsageExamplePairs(
         index: i + 1,
         usageLabel: label(i + 1, points[i]?.text),
         usageText: usageBody(points[i]?.text),
+        ...freqFields(points[i] ?? {}),
         example: examples[i] ?? null,
       });
     }
@@ -190,6 +203,7 @@ export function buildJpVocabUsageExamplePairs(
       index: points.length,
       usageLabel: label(points.length, points[last]?.text),
       usageText: usageBody(points[last]?.text),
+      ...freqFields(points[last] ?? {}),
       example: null,
       nestedExamples: nested.length ? nested : undefined,
     });
@@ -210,6 +224,7 @@ export function buildJpVocabUsageExamplePairs(
       index: i + 1,
       usageLabel: label(i + 1, points[i]?.text),
       usageText: usageBody(points[i]?.text),
+      ...freqFields(points[i] ?? {}),
       example: examples[i] ?? null,
     });
   }

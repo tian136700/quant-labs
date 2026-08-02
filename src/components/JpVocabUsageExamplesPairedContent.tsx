@@ -21,6 +21,7 @@ import {
   parseJpVocabConnectionDisplayParts,
 } from "@/lib/jp-vocab-connection-ai";
 import { uniqueJpVocabSourcesForDisplay } from "@/lib/jp-vocab-source-display";
+import { formatJpVocabUsageFrequencyDisplay } from "@/lib/jp-vocab-usage-frequency";
 
 type Props = {
   usage: string | null | undefined;
@@ -164,6 +165,17 @@ export function JpVocabUsageExamplesPairedContent({
                   <span className="jp-usage-ex-paired-usage-body">例句</span>
                 </p>
               ) : null}
+              {(() => {
+                const freqLine = formatJpVocabUsageFrequencyDisplay(
+                  pair.oralFrequency,
+                  pair.examFrequency
+                );
+                return freqLine && !showContrastTable ? (
+                  <p className="jp-usage-ex-paired-freq" aria-label={freqLine}>
+                    {freqLine}
+                  </p>
+                ) : null;
+              })()}
               {connText ? (
                 <JpVocabConnectionBody text={connText} showLabel />
               ) : null}
@@ -280,6 +292,13 @@ export function JpVocabUsageExamplesPairedContent({
           margin: 0;
           padding: 0;
           min-width: 0;
+        }
+        .jp-usage-ex-paired-freq {
+          margin: 0.15rem 0 0.35rem;
+          font-size: 0.82rem;
+          font-weight: 500;
+          color: rgba(148, 163, 184, 0.95);
+          letter-spacing: 0.01em;
         }
         .jp-usage-ex-paired-usage {
           margin: 0 0 0.35rem;

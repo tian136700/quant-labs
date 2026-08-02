@@ -554,11 +554,11 @@ export async function updateJpVocabWordEntry(
     input.usage !== undefined
       ? (input.usage || "").trim() || null
       : current.usage ?? null;
+  const prevUsage = current.usage ?? null;
   let nextUsageSource = current.usage_source ?? null;
   if (input.usage_source !== undefined) {
     nextUsageSource = normalizeJpVocabExampleSentencesSource(input.usage_source);
-  } else   if (input.usage !== undefined) {
-    const prevUsage = current.usage ?? null;
+  } else if (input.usage !== undefined) {
     if (nextUsage !== prevUsage) {
       nextUsageSource = nextUsage
         ? JP_VOCAB_EXAMPLE_SENTENCES_SOURCE_MANUAL
