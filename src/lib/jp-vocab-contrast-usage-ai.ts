@@ -53,6 +53,9 @@ export function parseJpVocabContrastForms(
   if (fromReading) return fromReading;
 
   const w = String(word || "").trim();
+  const wCore = w
+    .replace(/(?:の)?(?:区别|區別|对比|對比|辨析|違い|用法)\s*$/u, "")
+    .trim();
   const mParen = new RegExp(
     `[（(][^）)]*?(${KANA_FORM}(?:${CONTRAST_FORM_SEP}${KANA_FORM})+)[^）)]*[）)]`,
     "u"
@@ -66,7 +69,7 @@ export function parseJpVocabContrastForms(
   const mEmbed = new RegExp(
     `(${KANA_FORM}(?:${CONTRAST_FORM_SEP}${KANA_FORM})+)`,
     "u"
-  ).exec(w);
+  ).exec(wCore || w);
   if (mEmbed) {
     const fromEmbed = splitJpVocabContrastFormChain(mEmbed[1]);
     if (fromEmbed) return fromEmbed;
