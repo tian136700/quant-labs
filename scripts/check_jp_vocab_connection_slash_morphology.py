@@ -54,6 +54,9 @@ def main() -> None:
     if "说明" not in body or "showNoteCol" not in body:
         fail("JpVocabConnectionBody must support optional 说明 column")
 
+    if "词类／形态" not in body or "＋接什么" not in body:
+        fail("JpVocabConnectionBody headers must be 词类／形态 + ＋接什么 (+ 说明)")
+
     if "｜" not in src or "CONNECTION_TABLE_NOTE_SEP_RE" not in src:
         fail("connection table note separator ｜ missing")
 
@@ -65,7 +68,16 @@ def main() -> None:
     if "动词辞书形（动词原形）＋X；动词た形＋X；动词ている形＋X" not in src:
         fail("prompt must prefer per-form ＋ formulas over A／B／C＋X")
 
-    print("ok: connection slash-morphology + 说明 column guards")
+    # 标准标本：jp_vocab_word id=521「～かもしれない」（词类／形态＋接什么｜说明）
+    if "＋かもしれない｜推测将要发生" not in src:
+        fail("prompt/upload_spec must use id=521 ～かもしれない as connection format exemplar")
+    if "id=521" not in src:
+        fail("connection-ai must cite specimen word id=521")
+
+    if "protectNoteSlash" not in src:
+        fail("slash split must protect ／ inside ｜说明 notes")
+
+    print("ok: connection slash-morphology + id=521 かもしれない specimen guards")
 
 
 if __name__ == "__main__":

@@ -14,8 +14,8 @@ type Props = {
 };
 
 /**
- * 接续正文：多行「词类：说明」或「词类＋接续；…」→ 表格；
- * 公式后可接「｜说明」显示第三列（该接续代表什么）。
+ * 接续正文：标准标本同 id=521「～かもしれない」——「词类／形态＋接什么｜说明」；
+ * 多段用「；」或分行「词类：…」→ 表格三列。
  */
 export function JpVocabConnectionBody({
   text,
@@ -40,8 +40,8 @@ export function JpVocabConnectionBody({
           <table className="jp-vocab-conn-table">
             <thead>
               <tr>
-                <th scope="col">词类</th>
-                <th scope="col">接续</th>
+                <th scope="col">词类／形态</th>
+                <th scope="col">＋接什么</th>
                 {showNoteCol ? <th scope="col">说明</th> : null}
               </tr>
             </thead>
