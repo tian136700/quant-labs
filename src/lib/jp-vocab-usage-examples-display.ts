@@ -78,8 +78,10 @@ export function buildJpVocabUsageExamplePairs(
 ): JpVocabUsageExamplesPairedModel {
   // 有接序字段时用法里常仍夹「接在…／构成＋」；展示前剥掉，避免与接序块重复
   const usageClean = stripJpVocabUsageConnectionNoise(String(usage ?? ""));
-  const { lead, body } = splitJpVocabUsageDistinctionLead(usageClean);
-  const points = parseJpVocabUsagePoints(body) ?? [];
+  const { lead, body: numberedBody } = splitJpVocabUsageDistinctionLead(
+    usageClean
+  );
+  const points = parseJpVocabUsagePoints(numberedBody) ?? [];
   const examples = parseJpVocabExampleSentenceItems(
     String(exampleSentences ?? "")
   );
@@ -113,7 +115,7 @@ export function buildJpVocabUsageExamplePairs(
 
   const label = (i: number, text: string | null | undefined) =>
     pairLabelFor(i, text, contrast);
-  const body = (text: string | null | undefined) =>
+  const usageBody = (text: string | null | undefined) =>
     displayUsageBody(text, contrast);
 
   if (points.length === 1 && examples.length > 1) {
@@ -122,7 +124,7 @@ export function buildJpVocabUsageExamplePairs(
         {
           index: 1,
           usageLabel: label(1, points[0]?.text),
-          usageText: body(points[0]?.text),
+          usageText: usageBody(points[0]?.text),
           example: null,
           nestedExamples: examples,
         },
@@ -146,7 +148,7 @@ export function buildJpVocabUsageExamplePairs(
       return {
         index: i + 1,
         usageLabel: label(i + 1, p.text),
-        usageText: body(p.text),
+        usageText: usageBody(p.text),
         example: null,
         nestedExamples: slice.length ? slice : undefined,
       };
@@ -169,7 +171,7 @@ export function buildJpVocabUsageExamplePairs(
       pairs.push({
         index: i + 1,
         usageLabel: label(i + 1, points[i]?.text),
-        usageText: body(points[i]?.text),
+        usageText: usageBody(points[i]?.text),
         example: examples[i] ?? null,
       });
     }
@@ -177,7 +179,7 @@ export function buildJpVocabUsageExamplePairs(
     pairs.push({
       index: points.length,
       usageLabel: label(points.length, points[last]?.text),
-      usageText: body(points[last]?.text),
+      usageText: usageBody(points[last]?.text),
       example: null,
       nestedExamples: nested.length ? nested : undefined,
     });
@@ -196,7 +198,7 @@ export function buildJpVocabUsageExamplePairs(
     pairs.push({
       index: i + 1,
       usageLabel: label(i + 1, points[i]?.text),
-      usageText: body(points[i]?.text),
+      usageText: usageBody(points[i]?.text),
       example: examples[i] ?? null,
     });
   }
