@@ -217,6 +217,29 @@ def main() -> int:
     assert resolved_sample[1].get("resolved_later") is True, resolved_sample[1]
     assert resolved_sample[1].get("resolved_label") == "已处理", resolved_sample[1]
     assert not resolved_sample[2].get("resolved_later"), resolved_sample[2]
+    if 'RESOLVED_LATER_LABEL = "已处理"' not in resolved_mod:
+        raise SystemExit("FAIL: RESOLVED_LATER_LABEL must be 已处理")
+    mark_helper = ROOT / "scripts/lib/vocab_fill_mark_resolved.py"
+    if not mark_helper.is_file():
+        raise SystemExit("FAIL: missing scripts/lib/vocab_fill_mark_resolved.py")
+    mark_txt = mark_helper.read_text(encoding="utf-8")
+    if "mark_resolved" not in mark_txt or "word-runs" not in mark_txt:
+        raise SystemExit("FAIL: mark_resolved helper must POST word-runs")
+    for hook_rel in (
+        ".cursor/hooks/vocab-fill-resolved-session.py",
+        ".cursor/hooks/remind-vocab-fill-resolved.py",
+        ".cursor/hooks/remind-vocab-fill-resolved-after-shell.py",
+    ):
+        if not (ROOT / hook_rel).is_file():
+            raise SystemExit(f"FAIL: missing {hook_rel}")
+    hooks_json = (ROOT / ".cursor/hooks.json").read_text(encoding="utf-8")
+    for needle in (
+        "vocab-fill-resolved-session.py",
+        "remind-vocab-fill-resolved.py",
+        "remind-vocab-fill-resolved-after-shell.py",
+    ):
+        if needle not in hooks_json:
+            raise SystemExit(f"FAIL: hooks.json must wire {needle}")
     if 'id="jp-fill-interval"' not in index_html:
         raise SystemExit("FAIL: missing jp-fill-interval select")
     if "补全内容" not in index_html:
