@@ -141,11 +141,19 @@ export function useEnVocabPageSync(options: {
   }, []);
 
   const applyTeacherVisibleSync = useCallback(
-    (raw: Partial<EnVocabTeacherVisibleLimit> | undefined) => {
+    (
+      raw: Partial<EnVocabTeacherVisibleLimit> | undefined,
+      opts?: { trustRemote?: boolean }
+    ) => {
       if (!raw) return;
       const next = normalizeEnVocabTeacherVisibleLimit(raw);
       setTeacherVisibleLimit((prev) => {
-        if (shouldRejectStaleEnVocabTeacherVisibleLimit(prev, next)) {
+        // 轻量 teacher-visible（bypassCache）是跨端真相源：须覆盖本地 SWR 旧目标（如手机仍 32）
+        // 全量 /sync 仍走 stale 拒绝，避免刚保存后被 isolate 旧快照打回
+        if (
+          !opts?.trustRemote &&
+          shouldRejectStaleEnVocabTeacherVisibleLimit(prev, next)
+        ) {
           return prev;
         }
         if (
@@ -182,7 +190,9 @@ export function useEnVocabPageSync(options: {
         teacher_visible_limit?: Partial<EnVocabTeacherVisibleLimit>;
       };
       if (data.ok) {
-        applyTeacherVisibleSync(data.teacher_visible_limit);
+        applyTeacherVisibleSync(data.teacher_visible_limit, {
+          trustRemote: true,
+        });
       }
     } catch {
       /* ignore */
@@ -208,7 +218,8 @@ export function useEnVocabPageSync(options: {
     }
 
     onLoadError("");
-    void syncTeacherVisibleLimitFromServer();
+    // 即使词表 SWR 仍新鲜，也必须拉今日抽查数量（跨手机/电脑不靠 BroadcastChannel）
+    const visibleSync = syncTeacherVisibleLimitFromServer();
     try {
       const payload = await fetchWithClientCache(
         JP_VOCAB_CACHE_KEY,
@@ -226,6 +237,7 @@ export function useEnVocabPageSync(options: {
         onLoadError(err instanceof Error ? err.message : String(err));
       }
     } finally {
+      await visibleSync;
       setLoading(false);
       setRefreshing(false);
     }

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   SHOW_RANDOM_HIGHLIGHT,
   SHOW_RISK_CHART,
@@ -56,8 +57,12 @@ export function EnVocabPageToolbar({
   onBatchDelete,
   onOpenResetChoice,
 }: EnVocabPageToolbarProps) {
+  // 折叠态放在工具栏内，避免再撑大已超标的 EnVocabPage
+  const [mobileToolbarExpanded, setMobileToolbarExpanded] = useState(false);
+
   return (
     <div
+      className="jp-vocab-section-head"
       style={{
         display: "flex",
         flexWrap: "wrap",
@@ -68,15 +73,11 @@ export function EnVocabPageToolbar({
       }}
     >
       <h2 style={{ fontSize: "1.1rem", margin: 0 }}>单词表</h2>
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: "0.5rem",
-          alignItems: "center",
-        }}
-      >
-        <span style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
+      <div className="jp-vocab-toolbar">
+        <span
+          className="jp-vocab-toolbar-summary"
+          style={{ color: "var(--muted)", fontSize: "0.875rem" }}
+        >
           {isAdminMode ? (
             <>
               共 {wordsCount} 条
@@ -112,102 +113,118 @@ export function EnVocabPageToolbar({
         </span>
         <button
           type="button"
-          className="btn-rsi-filter"
-          onClick={onRefresh}
-          disabled={loading || refreshing}
-          title="从服务器重新加载词表"
+          className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-toolbar-toggle jp-vocab-mobile-only"
+          onClick={() => setMobileToolbarExpanded((v) => !v)}
+          aria-expanded={mobileToolbarExpanded}
+          aria-controls="en-vocab-toolbar-actions"
         >
-          {refreshing ? "刷新中…" : "刷新"}
+          {mobileToolbarExpanded ? "收起操作 ▲" : "展开操作 ▼"}
         </button>
-        {canOperate && quizTarget > 0 && quizTargetWordsLength > 0 ? (
-          <button
-            type="button"
-            className="btn-rsi-filter btn-rsi-filter--primary"
-            onClick={onResumeOrStartQuiz}
-            disabled={loading}
-            title={
-              teacherQuizInProgress
-                ? "继续抽查卡片"
-                : "开始抽查（本轮随机打乱顺序）"
-            }
-          >
-            {teacherQuizInProgress ? "继续抽查" : "开始抽查"}
-          </button>
-        ) : null}
-        {SHOW_RANDOM_HIGHLIGHT ? (
+        <div
+          id="en-vocab-toolbar-actions"
+          className={`jp-vocab-toolbar-actions${
+            mobileToolbarExpanded ? " jp-vocab-toolbar-actions--expanded" : ""
+          }`}
+        >
           <button
             type="button"
             className="btn-rsi-filter"
-            onClick={onPickNext}
-            disabled={loading || wordsCount < 2}
+            onClick={onRefresh}
+            disabled={loading || refreshing}
+            title="从服务器重新加载词表与今日抽查数量"
           >
-            随机高亮
+            {refreshing ? "刷新中…" : "刷新"}
           </button>
-        ) : null}
-        {isAdminMode ? (
-          <button
-            type="button"
-            className="btn-rsi-filter"
-            onClick={onExportExcel}
-            disabled={loading || exporting || !wordsCount}
-            title="导出当前单词表为 Excel 文件"
-          >
-            {exporting ? "导出中…" : "导出 Excel"}
-          </button>
-        ) : null}
-        {SHOW_RISK_CHART ? (
-          <button
-            type="button"
-            className="btn-rsi-filter"
-            onClick={onShowRiskChart}
-            disabled={loading || !wordsCount}
-            title="按抽查优先级查看知识点排行，辅助下节课抽查"
-          >
-            抽查排行
-          </button>
-        ) : null}
-        {canManualAdd ? (
-          <button
-            type="button"
-            className="btn-rsi-filter btn-rsi-filter--primary"
-            onClick={onManualAdd}
-            disabled={loading}
-          >
-            手动添加
-          </button>
-        ) : null}
-        {isAdminMode ? (
-          <button
-            type="button"
-            className="btn-rsi-filter btn-rsi-filter--danger"
-            onClick={onBatchDelete}
-            disabled={
-              loading || deletingBatch || !selectedDeleteCount || !canOperate
-            }
-            title={
-              selectedDeleteCount
-                ? `删除已选 ${selectedDeleteCount} 条`
-                : "先在表格中勾选要删除的词条"
-            }
-          >
-            {deletingBatch
-              ? "删除中…"
-              : selectedDeleteCount
-                ? `批量删除 (${selectedDeleteCount})`
-                : "批量删除"}
-          </button>
-        ) : null}
-        {isAdminMode ? (
-          <button
-            type="button"
-            className="btn-rsi-filter btn-rsi-filter--danger"
-            onClick={onOpenResetChoice}
-            disabled={loading || resetting || !wordsCount || !canOperate}
-            title={canOperate ? undefined : "登录后可重置"}
-          >
-            {resetting ? "重置中…" : "重置"}
-          </button>
-        ) : null}
+          {canOperate && quizTarget > 0 && quizTargetWordsLength > 0 ? (
+            <button
+              type="button"
+              className="btn-rsi-filter btn-rsi-filter--primary"
+              onClick={onResumeOrStartQuiz}
+              disabled={loading}
+              title={
+                teacherQuizInProgress
+                  ? "继续抽查卡片"
+                  : "开始抽查（本轮随机打乱顺序）"
+              }
+            >
+              {teacherQuizInProgress ? "继续抽查" : "开始抽查"}
+            </button>
+          ) : null}
+          {SHOW_RANDOM_HIGHLIGHT ? (
+            <button
+              type="button"
+              className="btn-rsi-filter"
+              onClick={onPickNext}
+              disabled={loading || wordsCount < 2}
+            >
+              随机高亮
+            </button>
+          ) : null}
+          {isAdminMode ? (
+            <button
+              type="button"
+              className="btn-rsi-filter"
+              onClick={onExportExcel}
+              disabled={loading || exporting || !wordsCount}
+              title="导出当前单词表为 Excel 文件"
+            >
+              {exporting ? "导出中…" : "导出 Excel"}
+            </button>
+          ) : null}
+          {SHOW_RISK_CHART ? (
+            <button
+              type="button"
+              className="btn-rsi-filter"
+              onClick={onShowRiskChart}
+              disabled={loading || !wordsCount}
+              title="按抽查优先级查看知识点排行，辅助下节课抽查"
+            >
+              抽查排行
+            </button>
+          ) : null}
+          {canManualAdd ? (
+            <button
+              type="button"
+              className="btn-rsi-filter btn-rsi-filter--primary"
+              onClick={onManualAdd}
+              disabled={loading}
+            >
+              手动添加
+            </button>
+          ) : null}
+          {isAdminMode ? (
+            <button
+              type="button"
+              className="btn-rsi-filter btn-rsi-filter--danger"
+              onClick={onBatchDelete}
+              disabled={
+                loading || deletingBatch || !selectedDeleteCount || !canOperate
+              }
+              title={
+                selectedDeleteCount
+                  ? `删除已选 ${selectedDeleteCount} 条`
+                  : "先在表格中勾选要删除的词条"
+              }
+            >
+              {deletingBatch
+                ? "删除中…"
+                : selectedDeleteCount
+                  ? `批量删除 (${selectedDeleteCount})`
+                  : "批量删除"}
+            </button>
+          ) : null}
+          {isAdminMode ? (
+            <button
+              type="button"
+              className="btn-rsi-filter btn-rsi-filter--danger"
+              onClick={onOpenResetChoice}
+              disabled={loading || resetting || !wordsCount || !canOperate}
+              title={canOperate ? undefined : "登录后可重置"}
+            >
+              {resetting ? "重置中…" : "重置"}
+            </button>
+          ) : null}
+        </div>
       </div>
     </div>
   );

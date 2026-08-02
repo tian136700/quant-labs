@@ -243,15 +243,15 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
   // 搜索时强制拉最新词表，避免匹配到 localStorage SWR 过期数据
   useJpVocabSearchFreshLoad(searchQuery, loadWords);
 
-  // 账号正常：约 30 分钟软刷新今日抽查数量/词表；禁用账号不刷新
+  // 账号正常：约 30 分钟软刷新今日抽查数量/词表（老师+管理员；禁用账号不刷新）
   useEffect(() => {
-    if (!isTeacherMode) return;
+    if (!isTeacherMode && !isAdminMode) return;
     if (!isVocabTeacherAccountActiveForRefresh(user)) return;
     const timer = window.setInterval(() => {
       handleRefreshWords();
     }, VOCAB_TEACHER_SOFT_REFRESH_MS);
     return () => window.clearInterval(timer);
-  }, [isTeacherMode, user, handleRefreshWords]);
+  }, [isTeacherMode, isAdminMode, user, handleRefreshWords]);
 
   const { shareRequests, showShareRequestModal, dismissShareRequests } =
     useJpVocabShareRequests({

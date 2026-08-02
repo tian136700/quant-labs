@@ -151,11 +151,18 @@ export function useJpVocabPageSync(options: {
   }, []);
 
   const applyTeacherVisibleSync = useCallback(
-    (raw: Partial<JpVocabTeacherVisibleLimit> | undefined) => {
+    (
+      raw: Partial<JpVocabTeacherVisibleLimit> | undefined,
+      opts?: { trustRemote?: boolean }
+    ) => {
       if (!raw) return;
       const next = normalizeJpVocabTeacherVisibleLimit(raw);
       setTeacherVisibleLimit((prev) => {
-        if (shouldRejectStaleJpVocabTeacherVisibleLimit(prev, next)) {
+        // 轻量 teacher-visible（bypassCache）是跨端真相源；全量 sync 仍拒过期快照
+        if (
+          !opts?.trustRemote &&
+          shouldRejectStaleJpVocabTeacherVisibleLimit(prev, next)
+        ) {
           return prev;
         }
         if (!teacherVisibleLimitNeedsPersist(prev, next)) {
@@ -185,7 +192,9 @@ export function useJpVocabPageSync(options: {
         teacher_visible_limit?: Partial<JpVocabTeacherVisibleLimit>;
       };
       if (data.ok) {
-        applyTeacherVisibleSync(data.teacher_visible_limit);
+        applyTeacherVisibleSync(data.teacher_visible_limit, {
+          trustRemote: true,
+        });
       }
     } catch {
       /* ignore */
@@ -211,7 +220,7 @@ export function useJpVocabPageSync(options: {
         setLoading(true);
       }
       onLoadError("");
-      void syncTeacherVisibleLimitFromServer();
+      const visibleSync = syncTeacherVisibleLimitFromServer();
       try {
         const payload = await fetchWithClientCache(
           JP_VOCAB_CACHE_KEY,
@@ -229,6 +238,7 @@ export function useJpVocabPageSync(options: {
           onLoadError(err instanceof Error ? err.message : String(err));
         }
       } finally {
+        await visibleSync;
         setLoading(false);
         setRefreshing(false);
       }

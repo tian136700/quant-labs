@@ -24,6 +24,18 @@ def main() -> int:
     if "bypassCache: true" not in jp_sync:
         errors.append("jp-vocab/sync must call getJpVocabTeacherVisibleLimit(..., { bypassCache: true })")
 
+    en_tv = read(ROOT / "src/app/api/en-vocab/teacher-visible/route.ts")
+    if "bypassCache: true" not in en_tv:
+        errors.append(
+            "en-vocab/teacher-visible must call getEnVocabTeacherVisibleLimit(..., { bypassCache: true })"
+        )
+
+    jp_tv = read(ROOT / "src/app/api/jp-vocab/teacher-visible/route.ts")
+    if "bypassCache: true" not in jp_tv:
+        errors.append(
+            "jp-vocab/teacher-visible must call getJpVocabTeacherVisibleLimit(..., { bypassCache: true })"
+        )
+
     en_daily = read(ROOT / "src/lib/en-vocab-db/daily_settings.ts")
     if "opts?.bypassCache" not in en_daily and "!opts?.bypassCache" not in en_daily:
         errors.append("getEnVocabTeacherVisibleLimit must honor bypassCache")
@@ -43,10 +55,18 @@ def main() -> int:
     en_page_sync = read(ROOT / "src/hooks/useEnVocabPageSync.ts")
     if "shouldRejectStaleEnVocabTeacherVisibleLimit" not in en_page_sync:
         errors.append("useEnVocabPageSync must reject stale teacher_visible_limit")
+    if "trustRemote: true" not in en_page_sync:
+        errors.append(
+            "useEnVocabPageSync teacher-visible sync must trustRemote (override local SWR stale target)"
+        )
 
     jp_page_sync = read(ROOT / "src/hooks/useJpVocabPageSync.ts")
     if "shouldRejectStaleJpVocabTeacherVisibleLimit" not in jp_page_sync:
         errors.append("useJpVocabPageSync must reject stale teacher_visible_limit")
+    if "trustRemote: true" not in jp_page_sync:
+        errors.append(
+            "useJpVocabPageSync teacher-visible sync must trustRemote (override local SWR stale target)"
+        )
 
     en_admin = read(ROOT / "src/hooks/useEnVocabAdminActions.ts")
     if "if (settingQuizTarget) return;" not in en_admin:

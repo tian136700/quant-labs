@@ -260,15 +260,15 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     void loadWords({ force: true });
   }, [loadWords]);
 
-  // 账号正常：约 30 分钟软刷新今日抽查数量/词表；禁用账号不刷新
+  // 账号正常：约 30 分钟软刷新今日抽查数量/词表（老师+管理员；禁用账号不刷新）
   useEffect(() => {
-    if (!isTeacherMode) return;
+    if (!isTeacherMode && !isAdminMode) return;
     if (!isVocabTeacherAccountActiveForRefresh(user)) return;
     const timer = window.setInterval(() => {
       handleRefreshWords();
     }, VOCAB_TEACHER_SOFT_REFRESH_MS);
     return () => window.clearInterval(timer);
-  }, [isTeacherMode, user, handleRefreshWords]);
+  }, [isTeacherMode, isAdminMode, user, handleRefreshWords]);
 
   useEffect(() => {
     editingRemarksIdRef.current = editingRemarksWord?.id ?? null;

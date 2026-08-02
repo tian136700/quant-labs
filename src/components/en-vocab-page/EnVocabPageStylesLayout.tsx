@@ -539,6 +539,27 @@ export function EnVocabPageStylesLayout() {
         :global(.jp-vocab-table .jp-vocab-stats-col) {
           text-align: center;
         }
+        /* 对齐日语：桌面隐藏「展开操作」；工具栏横排 */
+        .jp-vocab-mobile-only {
+          display: none;
+        }
+        .jp-vocab-toolbar {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.5rem;
+          align-items: center;
+          justify-content: flex-end;
+        }
+        .jp-vocab-toolbar-summary {
+          flex: 1 1 auto;
+          min-width: 0;
+        }
+        .jp-vocab-toolbar-actions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.5rem;
+          align-items: center;
+        }
     `}</style>
   );
 }

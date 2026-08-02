@@ -17,7 +17,10 @@ export async function GET(request: Request) {
       return jsonResponse({ ok: false, error: AUTH_MSG[locale] }, 401);
     }
 
-    const teacher_visible_limit = await getEnVocabTeacherVisibleLimit(env.DB);
+    // 必须 bypass：否则 isolate 5s 读缓存会把别的端已改的「今日抽查数量」打回旧值（手机仍显示 32）
+    const teacher_visible_limit = await getEnVocabTeacherVisibleLimit(env.DB, {
+      bypassCache: true,
+    });
     return jsonResponse(
       { ok: true, teacher_visible_limit },
       200,

@@ -166,7 +166,7 @@ export function useEnVocabAdminActions(options: {
       });
       setStatus(
         `今日抽查数量已设为 ${next.quiz_target} 个（老师端按当日序号 1…N 抽查）。` +
-          ` 同浏览器已打开的老师页会立即同步；老师在别的手机/电脑上请点「刷新」，或开着抽查卡时会自动跟上。`
+          ` 同浏览器已打开的老师页会立即同步；其它手机/电脑请重新打开页面或点「刷新」（进页会强制拉最新数量，不沿用本地旧缓存）。`
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

@@ -564,24 +564,45 @@
   }
 
   .jp-vocab-quiz-progress {
-    padding: 0.45rem 0.65rem 0.5rem !important;
+    padding: 0.55rem 0.75rem 0.6rem !important;
+  }
+
+  .jp-vocab-quiz-progress-head {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.45rem !important;
+  }
+
+  .jp-vocab-quiz-progress-stats {
+    margin-left: 0 !important;
+    align-self: flex-end;
   }
 
   .jp-vocab-quiz-target-admin {
     flex: 1 1 100%;
+    display: flex !important;
     flex-wrap: wrap;
-    gap: 0.35rem 0.4rem !important;
+    align-items: center;
+    gap: 0.4rem 0.45rem !important;
+  }
+
+  .jp-vocab-quiz-target-admin__label {
+    flex: 0 0 auto;
+    font-size: 0.8125rem !important;
   }
 
   .jp-vocab-quiz-target-admin__input {
-    min-height: 2.25rem;
-    flex: 0 0 4rem;
+    min-height: 2.5rem;
+    flex: 0 0 4.25rem;
+    font-size: 1rem !important;
+    text-align: center;
   }
 
   .jp-vocab-quiz-target-admin .btn-rsi-filter {
-    min-height: 2.25rem;
-    padding-left: 0.75rem;
-    padding-right: 0.75rem;
+    min-height: 2.5rem;
+    flex: 1 1 auto;
+    padding-left: 0.85rem;
+    padding-right: 0.85rem;
   }
 
   .jp-vocab-flashcard-overlay {
