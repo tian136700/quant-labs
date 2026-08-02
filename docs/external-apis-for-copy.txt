@@ -83,15 +83,19 @@
    文件：docs/jp-vocab-fill-example-sentences-api.txt
    调用：POST https://japanese.info-quests.com/api/jp-vocab/fill-example-sentences
 
-20. 日语/英语词表补全 · 抽查门禁 API（给 Mac 定时 / STT 调用）
+20. 日语词条 · 口语/考试出现频率补全 API
+   文件：docs/jp-vocab-fill-frequency-api.txt
+   调用：POST https://finance.info-quests.com/api/jp-vocab/fill-frequency
+
+21. 日语/英语词表补全 · 抽查门禁 API（给 Mac 定时 / STT 调用）
    文件：docs/jp-vocab-fill-schedule-gate-api.txt
    调用：POST https://finance.info-quests.com/api/jp-vocab/fill-schedule-gate
 
-21. 日语抽问 · 今日共享列表 API（学生端 /jp-vocab/study）
+22. 日语抽问 · 今日共享列表 API（学生端 /jp-vocab/study）
    文件：docs/jp-vocab-shared-api.txt
    调用：GET https://japanese.info-quests.com/api/jp-vocab/shared
 
-22. 日语抽问 · 今日抽查数量 / 老师可见池 API
+23. 日语抽问 · 今日抽查数量 / 老师可见池 API
    文件：docs/jp-vocab-teacher-visible-api.txt
    调用：GET https://japanese.info-quests.com/api/jp-vocab/teacher-visible
 

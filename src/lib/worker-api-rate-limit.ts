@@ -29,11 +29,14 @@ export const VOCAB_FILL_RATE_LIMITED_ROUTES = [
   "/api/jp-vocab/fill-usage",
   "/api/jp-vocab/fill-pos",
   "/api/jp-vocab/fill-example-sentences",
+  "/api/jp-vocab/fill-frequency",
   "/api/en-vocab/fill-meaning",
   "/api/en-vocab/fill-reading",
   "/api/en-vocab/fill-usage",
   "/api/en-vocab/fill-example-sentences",
 ] as const;
+
+export const JP_VOCAB_FILL_FREQUENCY_ROUTE = "/api/jp-vocab/fill-frequency";
 
 type RateRow = { last_at_ms: number };
 

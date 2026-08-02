@@ -40,7 +40,9 @@ function FreqBar({
               style={{ width: `${Math.round((score / 10) * 100)}%` }}
             />
           </span>
-          <span className="jp-vocab-teacher-quiz__meta-freq-score">{score}</span>
+          <span className="jp-vocab-teacher-quiz__meta-freq-score">
+            {score}/10
+          </span>
         </span>
       )}
     </div>

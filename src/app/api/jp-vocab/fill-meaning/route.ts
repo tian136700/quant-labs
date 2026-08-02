@@ -27,6 +27,8 @@ type FillMeaningBody = {
     meaning?: string;
     pos?: string;
     example_sentences?: string;
+    oral_frequency?: number | string | null;
+    exam_frequency?: number | string | null;
     source?: string;
     meaning_source?: string;
   }>;
@@ -73,6 +75,8 @@ export async function POST(request: Request) {
             item.example_sentences != null
               ? String(item.example_sentences).trim() || null
               : null,
+          oral_frequency: item.oral_frequency,
+          exam_frequency: item.exam_frequency,
           source: per || null,
         };
       })
@@ -80,7 +84,13 @@ export async function POST(request: Request) {
         (item) =>
           Number.isInteger(item.word_id) &&
           item.word_id > 0 &&
-          Boolean(item.meaning || item.pos || item.example_sentences)
+          Boolean(
+            item.meaning ||
+              item.pos ||
+              item.example_sentences ||
+              item.oral_frequency != null ||
+              item.exam_frequency != null
+          )
       );
 
     const limit =

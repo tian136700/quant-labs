@@ -455,6 +455,13 @@ export function JpVocabAdminReviewFlashcardModal({
           </section>
         ) : null}
 
+        <JpVocabCourseFreqMetaSection
+          courseLabel={w.course_label}
+          oralFrequency={w.oral_frequency}
+          examFrequency={w.exam_frequency}
+          kind={w.kind}
+        />
+
         <JpVocabRelatedCompoundsSection
           relatedCompounds={w.related_compounds}
           relatedCompoundsSource={w.related_compounds_source}
@@ -515,12 +522,6 @@ export function JpVocabAdminReviewFlashcardModal({
           )}
         </section>
         <JpVocabAnnotationSection annotation={w.annotation} />
-        <JpVocabCourseFreqMetaSection
-          courseLabel={w.course_label}
-          oralFrequency={w.oral_frequency}
-          examFrequency={w.exam_frequency}
-          kind={w.kind}
-        />
         </div>
 
         <div className="jp-vocab-teacher-quiz__stats">

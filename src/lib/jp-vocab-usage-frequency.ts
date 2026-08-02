@@ -139,6 +139,92 @@ export function jpVocabUsagePerUsageFrequencyPromptAppendix(): string {
 - ❌ 不要把频率写到文末【出现频率】词级块；❌ 对比课/变形课不要写这些标记。`;
 }
 
+/**
+ * 把 AI 回的带 `[口语n|考试m]` 编号行合并进已有 usage（保留原文说明与 (Nn)）。
+ */
+export function mergeJpVocabUsageFrequenciesFromAiText(
+  existingUsage: string,
+  aiText: string
+): { ok: true; usage: string } | { ok: false; reason: string } {
+  const existing = String(existingUsage ?? "").replace(/\r\n/g, "\n");
+  if (!existing.trim()) {
+    return { ok: false, reason: "empty_usage" };
+  }
+
+  const aiByN = new Map<number, { oral: number; exam: number }>();
+  for (const line of String(aiText || "")
+    .replace(/\r\n/g, "\n")
+    .split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const numbered = /^\s*(\d+)\s*[.、．)\]]\s*(.+)$/.exec(trimmed);
+    if (!numbered) continue;
+    const n = Number(numbered[1]);
+    const extracted = extractJpVocabUsageLineFrequency(numbered[2]);
+    if (
+      !jpVocabUsagePointHasCompleteFrequency(
+        extracted.oralFrequency,
+        extracted.examFrequency
+      )
+    ) {
+      continue;
+    }
+    aiByN.set(n, {
+      oral: extracted.oralFrequency as number,
+      exam: extracted.examFrequency as number,
+    });
+  }
+
+  if (aiByN.size === 0) {
+    return { ok: false, reason: "no_frequency_in_ai" };
+  }
+
+  const out: string[] = [];
+  let sawPoint = false;
+  let missing = 0;
+  for (const line of existing.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      out.push(line);
+      continue;
+    }
+    const numbered = /^\s*(\d+)\s*[.、．)\]]\s*(.+)$/.exec(trimmed);
+    if (!numbered) {
+      out.push(line);
+      continue;
+    }
+    sawPoint = true;
+    const n = Number(numbered[1]);
+    const extracted = extractJpVocabUsageLineFrequency(numbered[2]);
+    const fromAi = aiByN.get(n);
+    const oral = fromAi?.oral ?? extracted.oralFrequency;
+    const exam = fromAi?.exam ?? extracted.examFrequency;
+    if (!jpVocabUsagePointHasCompleteFrequency(oral, exam)) {
+      missing += 1;
+      out.push(line);
+      continue;
+    }
+    const body = formatJpVocabUsageLineWithFrequency(
+      extracted.text || numbered[2].trim(),
+      oral,
+      exam
+    );
+    out.push(`${n}. ${body}`);
+  }
+
+  if (!sawPoint) {
+    return { ok: false, reason: "no_numbered_usage" };
+  }
+  if (missing > 0) {
+    return { ok: false, reason: `missing_frequency:${missing}` };
+  }
+  const usage = out.join("\n").trim();
+  if (!jpVocabUsageHasCompletePerUsageFrequency(usage)) {
+    return { ok: false, reason: "incomplete_after_merge" };
+  }
+  return { ok: true, usage };
+}
+
 /** 存量只补分：给定已有编号用法，只回带标记的编号行 */
 export function buildJpVocabUsageFrequencyOnlyAiPrompt(input: {
   word: string;

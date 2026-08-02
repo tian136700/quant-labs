@@ -52,6 +52,11 @@ FILL_TASKS: tuple[dict[str, str], ...] = (
         "title": "临时相关构词补全（线上）",
     },
     {
+        "label": "com.infoquests.jp-vocab-fill-frequency-online",
+        "id": "jp-vocab-fill-frequency-online",
+        "title": "临时口语/考试频率补全（线上）",
+    },
+    {
         "label": "com.infoquests.jp-vocab-fill-grammar",
         "id": "jp-vocab-fill-grammar",
         "title": "日语语法用法+例句补全",

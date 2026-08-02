@@ -686,6 +686,14 @@ export function JpVocabTeacherQuizFlashcardModal({
           </section>
         ) : null}
 
+        {/* 课数 + 口语/考试频率：紧跟例句，靠前可见（语法词级频率隐藏，看用法旁 n/10） */}
+        <JpVocabCourseFreqMetaSection
+          courseLabel={w.course_label}
+          oralFrequency={w.oral_frequency}
+          examFrequency={w.exam_frequency}
+          kind={w.kind}
+        />
+
         <JpVocabRelatedCompoundsSection
           relatedCompounds={w.related_compounds}
           relatedCompoundsSource={w.related_compounds_source}
@@ -717,12 +725,6 @@ export function JpVocabTeacherQuizFlashcardModal({
           onShowPulledRemarks={onShowPulledRemarks ?? onViewRemarks}
         />
         <JpVocabAnnotationSection annotation={w.annotation} />
-        <JpVocabCourseFreqMetaSection
-          courseLabel={w.course_label}
-          oralFrequency={w.oral_frequency}
-          examFrequency={w.exam_frequency}
-          kind={w.kind}
-        />
         </div>
 
         <div className="jp-vocab-teacher-quiz__level">

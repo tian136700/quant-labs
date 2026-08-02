@@ -128,6 +128,9 @@ def main() -> int:
             errors.append(f"{name}: CourseLabel moved into CourseFreqMeta; remove old section")
         if "kind={w.kind}" not in text:
             errors.append(f"{name}: CourseFreqMeta must receive kind={{w.kind}}")
+        examples_i = text.find('className="jp-vocab-teacher-quiz__examples"')
+        if examples_i < 0:
+            examples_i = text.find("<JpVocabUsageExamplesPairedContent")
         notes_i = text.find("<JpVocabFlashcardNotesSection")
         if notes_i < 0:
             notes_i = text.find('className="jp-vocab-teacher-quiz__notes"')
@@ -137,8 +140,43 @@ def main() -> int:
         after = level_i if level_i >= 0 else stats_i
         if meta_i < 0 or notes_i < 0 or after < 0:
             errors.append(f"{name}: could not locate notes/meta/level-or-stats markers")
-        elif not (notes_i < meta_i < after):
-            errors.append(f"{name}: CourseFreqMeta must be after notes and before level/stats")
+        elif not (examples_i < meta_i < notes_i < after):
+            errors.append(
+                f"{name}: CourseFreqMeta must be after examples and before notes "
+                "(more forward than notes)"
+            )
+
+    if "buildJpVocabWordFrequencyOnlyAiPrompt" not in (
+        ROOT / "src/lib/jp-vocab-frequency.ts"
+    ).read_text(encoding="utf-8"):
+        errors.append("jp-vocab-frequency.ts: missing buildJpVocabWordFrequencyOnlyAiPrompt")
+
+    fill_freq = ROOT / "src/lib/jp-vocab-fill-frequency.ts"
+    if not fill_freq.is_file():
+        errors.append("missing src/lib/jp-vocab-fill-frequency.ts")
+    else:
+        ff = fill_freq.read_text(encoding="utf-8")
+        for needle in (
+            "listJpVocabMissingFrequency",
+            "applyJpVocabFrequencyUpdates",
+            "need_usage_frequency",
+        ):
+            if needle not in ff:
+                errors.append(f"jp-vocab-fill-frequency.ts: missing {needle}")
+
+    route = ROOT / "src/app/api/jp-vocab/fill-frequency/route.ts"
+    if not route.is_file():
+        errors.append("missing fill-frequency/route.ts")
+
+    if "fill-frequency" not in (
+        ROOT / "src/lib/worker-api-rate-limit.ts"
+    ).read_text(encoding="utf-8"):
+        errors.append("worker-api-rate-limit.ts must list /api/jp-vocab/fill-frequency")
+
+    if "/10" not in (
+        ROOT / "src/components/JpVocabCourseFreqMetaSection.tsx"
+    ).read_text(encoding="utf-8"):
+        errors.append("CourseFreqMetaSection must display score as n/10")
 
     py_lib = ROOT / "scripts/lib/jp_vocab_frequency.py"
     if not py_lib.is_file():
@@ -148,7 +186,6 @@ def main() -> int:
     if "extract_jp_vocab_frequencies" not in meaning_py:
         errors.append("meaning-api.py must extract frequencies from AI text")
 
-    # 语法主 fill 可仍剥词级频率；按用法分由 usage-frequency + prompt appendix 覆盖
     grammar_py = (
         ROOT / "scripts/jp-vocab-fill-grammar-usage-examples-api.py"
     ).read_text(encoding="utf-8")
@@ -166,6 +203,40 @@ def main() -> int:
     if not rule.is_file():
         errors.append("missing .cursor/rules/jp-vocab-course-freq-meta.mdc")
 
+    py_api = ROOT / "scripts/jp-vocab-fill-frequency-online-api.py"
+    if not py_api.is_file():
+        errors.append("missing scripts/jp-vocab-fill-frequency-online-api.py")
+
+    stage = ROOT / "scripts/jp-vocab-fill-frequency-online-stage.sh"
+    if not stage.is_file():
+        errors.append("missing scripts/jp-vocab-fill-frequency-online-stage.sh")
+
+    setup = ROOT / "scripts/setup-jp-vocab-fill-frequency-online-mac.sh"
+    if not setup.is_file():
+        errors.append("missing setup-jp-vocab-fill-frequency-online-mac.sh")
+
+    registry = (
+        ROOT / "scripts/maintenance_center/cron_tasks/registry.py"
+    ).read_text(encoding="utf-8")
+    if "jp-vocab-fill-frequency-online" not in registry:
+        errors.append("registry.py must register jp-vocab-fill-frequency-online")
+    if '"口语频率"' not in registry and "口语频率" not in registry:
+        # fill_content may use Chinese labels
+        if "_fill(" not in registry or "考试频率" not in registry:
+            errors.append(
+                "registry frequency task must fill_content include 口语频率/考试频率"
+            )
+
+    breaker = (ROOT / "scripts/lib/vocab_fill_circuit_breaker.py").read_text(
+        encoding="utf-8"
+    )
+    if "jp-vocab-fill-frequency-online" not in breaker:
+        errors.append("circuit breaker FILL_TASKS must include frequency temp cron")
+
+    docs = ROOT / "docs/jp-vocab-fill-frequency-api.txt"
+    if not docs.is_file():
+        errors.append("missing docs/jp-vocab-fill-frequency-api.txt")
+
     if errors:
         print("FAIL: jp-vocab course/freq meta")
         for e in errors:
@@ -174,7 +245,7 @@ def main() -> int:
 
     print(
         "ok: jp-vocab course_label + oral/exam frequency "
-        "(word-level for words; per-usage for grammar)"
+        "(word-level for words; per-usage for grammar; temp fill-frequency cron)"
     )
     return 0
 

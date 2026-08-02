@@ -42,7 +42,41 @@ export function formatJpVocabFrequencyLabel(
     kind === "oral"
       ? JP_VOCAB_ORAL_FREQUENCY_LABEL
       : JP_VOCAB_EXAM_FREQUENCY_LABEL;
-  return `${title} ${score}`;
+  return `${title} ${score}/10`;
+}
+
+/** 存量只补词级口语/考试分（单词） */
+export function buildJpVocabWordFrequencyOnlyAiPrompt(input: {
+  word: string;
+  reading?: string | null;
+  meaning?: string | null;
+  pos?: string | null;
+}): string {
+  const reading = input.reading?.trim();
+  const meaning = input.meaning?.trim();
+  const pos = input.pos?.trim();
+  const meta = [
+    `词条：${input.word.trim()}`,
+    reading ? `读音：${reading}` : null,
+    meaning ? `释义：${meaning}` : null,
+    pos ? `词性：${pos}` : null,
+    "类型：单词",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  return `${meta}
+
+请只评估该词在真实场景中的相对出现频率（1＝很少见，10＝极常见）。
+口语=日常会话；考试=JLPT 等考试。口语与考试可打不同分。
+
+硬规则：
+- 只输出下面频率块，不要释义、例句、解释。
+- 分必须是 1～10 整数。
+
+${JP_VOCAB_FREQUENCY_BLOCK_MARKER}
+${JP_VOCAB_ORAL_FREQUENCY_LABEL}：8
+${JP_VOCAB_EXAM_FREQUENCY_LABEL}：6`;
 }
 
 export type JpVocabFrequencyPair = {

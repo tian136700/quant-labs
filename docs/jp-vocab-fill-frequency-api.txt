@@ -1,0 +1,103 @@
+日语词条 · 口语/考试出现频率补全 API
+====================================
+
+用途
+----
+给缺「出现频率」的日语词条补分（临时定时 / Mac 脚本）：
+- 单词：词级 oral_frequency / exam_frequency（各 1～10）
+- 语法：每种编号用法旁 [口语n|考试m]（卡片展示「口语 n/10 · 考试 m/10」）
+
+线上 URL
+--------
+POST https://finance.info-quests.com/api/jp-vocab/fill-frequency
+（japanese / english 子域同一 Worker 亦可）
+
+鉴权
+----
+Authorization: Bearer $JP_REVIEW_UPLOAD_TOKEN
+（与 jp-vocab fill-* 同 token；本机常见 ~/.config/info-quests/jp-review-sync.env）
+
+modes
+-----
+1) list_missing（默认）
+   body 例：
+   { "mode": "list_missing", "limit": 1, "kind": "any" }
+
+   kind: "word" | "grammar" | "any"（默认 any）
+   limit: 1～20（定时建议 1；脚本可拉 20 跳毒丸）
+
+   成功：
+   {
+     "ok": true,
+     "mode": "list_missing",
+     "missing": [
+       {
+         "id": 12,
+         "word": "電車",
+         "kind": "word",
+         "need_oral_frequency": true,
+         "need_exam_frequency": true,
+         "need_usage_frequency": false,
+         "prompt": "…"
+       },
+       {
+         "id": 88,
+         "word": "～なら",
+         "kind": "grammar",
+         "need_usage_frequency": true,
+         "usage": "1. …",
+         "prompt": "…"
+       }
+     ],
+     "total_missing": 400
+   }
+
+2) apply
+   单词：
+   {
+     "mode": "apply",
+     "source": "Claude",
+     "updates": [
+       { "word_id": 12, "oral_frequency": 8, "exam_frequency": 6 }
+     ]
+   }
+
+   语法（usage 可为 AI 原文；Worker 会 merge 进已有用法）：
+   {
+     "mode": "apply",
+     "source": "Claude",
+     "updates": [
+       {
+         "word_id": 88,
+         "usage": "1. [口语9|考试7] 表示假设…。(N4)\n2. [口语6|考试8] …。(N4)"
+       }
+     ]
+   }
+
+失败
+----
+401 Unauthorized
+429 限流（与其它 fill-* 共用 ≥5s/路径、跨路径 ≥3s）
+500 + error 字符串
+
+curl 例
+-------
+curl -sS -X POST "https://finance.info-quests.com/api/jp-vocab/fill-frequency" \
+  -H "Authorization: Bearer $JP_REVIEW_UPLOAD_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"list_missing","limit":2,"kind":"any"}'
+
+Mac 临时定时
+------------
+安装（每分钟 1 条，队列空自动卸）：
+  bash scripts/setup-jp-vocab-fill-frequency-online-mac.sh
+
+试跑 2 条：
+  MAX_ROUNDS=2 bash scripts/jp-vocab-fill-frequency-online-stage.sh
+
+日志：
+  ~/Library/Logs/com.infoquests.jp-vocab-fill-frequency-online.log
+
+Python 最小例
+-------------
+见 scripts/jp-vocab-fill-frequency-online-api.py
