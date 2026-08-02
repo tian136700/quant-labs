@@ -91,7 +91,6 @@ export function JpVocabRelatedCompoundsSection({
             </button>
           ) : null}
         </div>
-        <JpVocabSourceLabel source={relatedCompoundsSource} />
       </div>
 
       {checkedEmpty ? (
@@ -118,6 +117,13 @@ export function JpVocabRelatedCompoundsSection({
           ))}
         </p>
       )}
+
+      {/* 来源固定在块底右下（文档流 text-align:right，勿 absolute） */}
+      {sourceTrim ? (
+        <div className="jp-vocab-teacher-quiz__related-compounds-source">
+          <JpVocabSourceLabel source={relatedCompoundsSource} />
+        </div>
+      ) : null}
 
       <CopyToast
         message={copyToast}

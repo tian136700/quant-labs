@@ -18,12 +18,26 @@ export const JP_VOCAB_RELATED_COMPOUNDS_PROMPT_HINT = `相关构词（仅单词�
 - 条数：没有自然同读相关词 → 填 ""（禁止硬凑）；只有 1～2 个就写 1～2；多则最多 4～5 条。
 - 须含本词汉字；优先 N5～N4 日常词，禁止商务/难词。
 - 每行格式：漢字(かな)：简短中文释义；假名须正确（入口≠いりくち）。
+- 一词多义：同一构词的多个中文义用中文逗号「，」连接（例：目上(めうえ)：上级，长辈）。禁止在释义里用分号「；」（分号只用于区分不同日语词）。
 - 例：
 入口(いりぐち)：入口
-出口(でぐち)：出口`;
+出口(でぐち)：出口
+目上(めうえ)：上级，长辈`;
 
 const LINE_RE =
   /^([\u4E00-\u9FFF々〆ヶぁ-んァ-ンー]+)[（(]([ぁ-んァ-ンヴヵヶー]+)[）)]\s*[:：]\s*(.+)$/;
+
+/** 一词多义：把释义里的分号/斜杠等规范成中文逗号「，」 */
+export function normalizeJpVocabRelatedCompoundGloss(gloss: string): string {
+  return String(gloss || "")
+    .trim()
+    .replace(/[；;]+/g, "，")
+    .replace(/[／/|｜]+/g, "，")
+    .replace(/[、]+/g, "，")
+    .replace(/\s*，\s*/g, "，")
+    .replace(/^，+|，+$/g, "")
+    .trim();
+}
 
 const VOICE_PAIRS: Array<[string, string]> = [
   ["か", "が"],
@@ -99,7 +113,7 @@ export function parseJpVocabRelatedCompounds(
     if (!m) continue;
     const surface = m[1]!;
     const reading = toHiragana(m[2]!);
-    const gloss = m[3]!.trim();
+    const gloss = normalizeJpVocabRelatedCompoundGloss(m[3]!);
     if (!surface || !reading || !gloss) continue;
     out.push({
       surface,
@@ -202,7 +216,7 @@ export function validateJpVocabRelatedCompoundsAiOutput(
     }
     const surface = m[1]!;
     const reading = toHiragana(m[2]!);
-    const gloss = m[3]!.trim();
+    const gloss = normalizeJpVocabRelatedCompoundGloss(m[3]!);
     if (!surface || !reading || !gloss) {
       sawBadLine = true;
       continue;

@@ -80,8 +80,45 @@ def main() -> int:
     ].split("}", 1)[0]
     if "margin-left" not in zh_chunk:
         raise SystemExit("FAIL: related-compounds-zh 须 margin-left 与日语空开")
-    if "1.05rem" not in styles_text.split("related-compounds-flow", 1)[-1][:400]:
-        raise SystemExit("FAIL: related-compounds-flow 字体应略放大（约 1.05rem）")
+    flow_chunk = styles_text.split("related-compounds-flow", 1)[-1][:500]
+    if "1.18rem" not in flow_chunk:
+        raise SystemExit("FAIL: related-compounds-flow 字体应再放大（约 1.18rem）")
+    if "#7eb8ff" not in styles_text:
+        raise SystemExit("FAIL: 相关构词假名须用显眼颜色（如 #7eb8ff）")
+    must_contain(lib, "normalizeJpVocabRelatedCompoundGloss", "gloss normalize")
+    must_contain(lib, "上级，长辈", "multi sense comma example")
+    must_contain(lib, "禁止在释义里用分号", "no semicolon in gloss prompt")
+
+    # 一词多义：分号 → 中文逗号
+    import importlib.util
+
+    # 纯 Python 复刻 normalize（与 TS 同规则）
+    def norm_gloss(g: str) -> str:
+        import re as _re
+
+        s = g.strip()
+        s = _re.sub(r"[；;]+", "，", s)
+        s = _re.sub(r"[／/|｜]+", "，", s)
+        s = _re.sub(r"[、]+", "，", s)
+        s = _re.sub(r"\s*，\s*", "，", s)
+        s = _re.sub(r"^，+|，+$", "", s)
+        return s.strip()
+
+    if norm_gloss("上级；长辈") != "上级，长辈":
+        raise SystemExit("FAIL: gloss semicolon → comma")
+    if norm_gloss("上级/长辈") != "上级，长辈":
+        raise SystemExit("FAIL: gloss slash → comma")
+
+    must_contain(section, "related-compounds-source", "source footer")
+    must_contain(styles, "related-compounds-source", "source footer css")
+    section_text = section.read_text(encoding="utf-8")
+    flow_pos = section_text.find("related-compounds-flow")
+    label_pos = section_text.find("<JpVocabSourceLabel")
+    if label_pos < 0 or (flow_pos >= 0 and label_pos < flow_pos):
+        raise SystemExit(
+            "FAIL: 相关构词来源须在正文下方（块底右下），勿放标题行"
+        )
+
     must_contain(teacher, "JpVocabRelatedCompoundsSection", "teacher card")
     must_contain(teacher, "word={w.word}", "pass word")
     must_contain(review, "JpVocabRelatedCompoundsSection", "review card")

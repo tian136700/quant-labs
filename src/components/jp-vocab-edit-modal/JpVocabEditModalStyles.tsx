@@ -201,6 +201,12 @@ export function JpVocabEditModalStyles() {
           color: var(--muted);
         }
 
+        .jp-vocab-edit-source-footer {
+          display: block;
+          width: 100%;
+          margin-top: 0.15rem;
+        }
+
         .jp-vocab-edit-notes-field {
           gap: 0.45rem;
         }

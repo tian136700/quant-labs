@@ -1495,7 +1495,7 @@ export function JpVocabTeacherQuizFlashcardStyles() {
         .jp-vocab-teacher-quiz__related-compounds-head {
           display: flex;
           align-items: center;
-          justify-content: space-between;
+          justify-content: flex-start;
           gap: 0.5rem;
           margin-bottom: 0.3rem;
           flex-wrap: wrap;
@@ -1513,14 +1513,18 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           font-weight: 600;
           color: var(--muted);
         }
+        .jp-vocab-teacher-quiz__related-compounds-source {
+          margin-top: 0.35rem;
+          width: 100%;
+        }
         .jp-vocab-teacher-quiz__related-compounds-flow {
           margin: 0;
           display: flex;
           flex-wrap: wrap;
           align-items: baseline;
-          gap: 0.2rem 0.35rem;
-          font-size: 1.05rem;
-          line-height: 1.7;
+          gap: 0.25rem 0.45rem;
+          font-size: 1.18rem;
+          line-height: 1.75;
           color: var(--text);
         }
         .jp-vocab-teacher-quiz__related-compounds-unit {
@@ -1534,6 +1538,13 @@ export function JpVocabTeacherQuizFlashcardStyles() {
         .jp-vocab-teacher-quiz__related-compounds-jp {
           flex-shrink: 0;
         }
+        /* 假名要显眼：略大 + 亮色，一眼能看见读音 */
+        .jp-vocab-teacher-quiz__related-compounds-jp :global(.jp-vocab-furigana-reading) {
+          font-size: 0.62em;
+          font-weight: 650;
+          color: #7eb8ff;
+          opacity: 1;
+        }
         .jp-vocab-teacher-quiz__related-compounds-zh {
           color: var(--muted);
           /* flex 会吃掉文本空格；用 margin 空出约一字宽 */
@@ -1546,7 +1557,7 @@ export function JpVocabTeacherQuizFlashcardStyles() {
         }
         .jp-vocab-teacher-quiz__related-compounds-empty {
           margin: 0;
-          font-size: 0.9375rem;
+          font-size: 1rem;
           line-height: 1.5;
           color: var(--muted);
         }
