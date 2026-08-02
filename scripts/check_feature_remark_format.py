@@ -65,12 +65,50 @@ def main() -> int:
         return fail("summarize must read agent_feature_remark.txt")
     if "_ai_feature_remark" not in src:
         return fail("summarize must try AI before module-only fallback")
+    if "_ai_chat_for_git" not in src or "OLLAMA_BASE_URL" not in src:
+        return fail("AI remark must support local Ollama when OPENAI_API_KEY missing")
+    if "_is_weak_feature_remark" not in src:
+        return fail("must skip weak agent remarks like 改动了模块 so AI can run")
     if "_modules_list_remark" not in src:
         return fail("summarize must fall back to 改动了模块")
     if re.search(r'r"fix\|修复\|bug".{0,40}问题修复', src, re.S):
         return fail("must not map bare fix|修复|bug to 问题修复")
     if "FEATURE_REMARK_MAX_CHARS = 20" in src:
         return fail("must not hard-cap remarks at 20 chars")
+
+    # 弱 Agent 备注（改动了模块）不得挡住 AI
+    from git_commit_message import _is_weak_feature_remark  # type: ignore
+
+    if not _is_weak_feature_remark("改动了日语抽问-老师端"):
+        return fail("改动了模块 must be weak")
+    if _is_weak_feature_remark("日语抽问-老师端：用法旁显示口语考试分"):
+        return fail("concrete agent remark must not be weak")
+
+    AGENT_FEATURE_REMARK_FILE.parent.mkdir(parents=True, exist_ok=True)
+    AGENT_FEATURE_REMARK_FILE.write_text("改动了日语抽问-老师端\n", encoding="utf-8")
+    try:
+        with mock.patch(
+            "git_commit_message.worktree_changes",
+            return_value=[
+                FileChange(
+                    path="src/components/JpVocabTeacherQuizFlashcardModal.tsx",
+                    status="M",
+                ),
+            ],
+        ), mock.patch(
+            "git_commit_message.worktree_diff_excerpt",
+            return_value="+口语 7/10 · 考试 8/10\n",
+        ), mock.patch(
+            "git_commit_message._ai_feature_remark",
+            return_value="日语抽问-老师端：用法旁显示口语考试分",
+        ):
+            remark = summarize_feature_remark()
+        if "口语" not in remark and "用法" not in remark:
+            return fail(f"weak agent 改动了… must fall through to AI, got {remark!r}")
+        if remark.startswith("改动了"):
+            return fail(f"AI should win over weak agent file, got {remark!r}")
+    finally:
+        clear_agent_feature_remark()
 
     # 兜底：改动了模块
     counts = {"英语抽背-老师端": 10, "功能索引": 2}
@@ -82,7 +120,7 @@ def main() -> int:
     if "功能索引" in only:
         return fail(f"fallback must skip meta areas, got {only!r}")
 
-    # Agent 文件优先于 AI / 兜底
+    # Agent 文件优先于 AI / 兜底（具体内容）
     AGENT_FEATURE_REMARK_FILE.parent.mkdir(parents=True, exist_ok=True)
     AGENT_FEATURE_REMARK_FILE.write_text(
         "英语抽背-老师端：备注移到释义下方并钉住导航\n",
