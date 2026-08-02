@@ -109,7 +109,6 @@ export function JpVocabRelatedCompoundsSection({
                 <JpVocabFuriganaText text={`${item.surface}(${item.reading})`} />
               </span>
               <span className="jp-vocab-teacher-quiz__related-compounds-zh">
-                {" "}
                 {item.gloss}
               </span>
               <span className="jp-vocab-teacher-quiz__related-compounds-semi">

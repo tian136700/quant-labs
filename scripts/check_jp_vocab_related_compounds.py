@@ -72,6 +72,16 @@ def main() -> int:
     must_contain(section, "filterJpVocabRelatedCompoundsSameReading", "filter dirty")
     must_contain(styles, "related-compounds-flow", "flow css")
     must_contain(styles, "related-compounds-empty", "empty css")
+    must_contain(styles, "related-compounds-zh", "zh css")
+    styles_text = styles.read_text(encoding="utf-8")
+    # 日语与中文须空开（flex 会吃文本空格，应用 margin）
+    zh_chunk = styles_text.split(".jp-vocab-teacher-quiz__related-compounds-zh", 1)[
+        -1
+    ].split("}", 1)[0]
+    if "margin-left" not in zh_chunk:
+        raise SystemExit("FAIL: related-compounds-zh 须 margin-left 与日语空开")
+    if "1.05rem" not in styles_text.split("related-compounds-flow", 1)[-1][:400]:
+        raise SystemExit("FAIL: related-compounds-flow 字体应略放大（约 1.05rem）")
     must_contain(teacher, "JpVocabRelatedCompoundsSection", "teacher card")
     must_contain(teacher, "word={w.word}", "pass word")
     must_contain(review, "JpVocabRelatedCompoundsSection", "review card")

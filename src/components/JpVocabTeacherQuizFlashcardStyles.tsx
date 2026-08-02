@@ -1518,29 +1518,36 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           display: flex;
           flex-wrap: wrap;
           align-items: baseline;
-          gap: 0.05rem 0.05rem;
-          font-size: 0.875rem;
-          line-height: 1.65;
+          gap: 0.2rem 0.35rem;
+          font-size: 1.05rem;
+          line-height: 1.7;
           color: var(--text);
         }
         .jp-vocab-teacher-quiz__related-compounds-unit {
           display: inline-flex;
           flex-wrap: nowrap;
           align-items: baseline;
+          gap: 0;
           white-space: nowrap;
           max-width: 100%;
         }
+        .jp-vocab-teacher-quiz__related-compounds-jp {
+          flex-shrink: 0;
+        }
         .jp-vocab-teacher-quiz__related-compounds-zh {
           color: var(--muted);
+          /* flex 会吃掉文本空格；用 margin 空出约一字宽 */
+          margin-left: 0.55em;
+          font-size: 1em;
         }
         .jp-vocab-teacher-quiz__related-compounds-semi {
           color: color-mix(in srgb, var(--muted) 70%, var(--text));
-          margin-right: 0.15rem;
+          margin-left: 0.05em;
         }
         .jp-vocab-teacher-quiz__related-compounds-empty {
           margin: 0;
-          font-size: 0.8125rem;
-          line-height: 1.45;
+          font-size: 0.9375rem;
+          line-height: 1.5;
           color: var(--muted);
         }
         @media (max-width: 767px) {
