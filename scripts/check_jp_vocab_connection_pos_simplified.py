@@ -53,12 +53,43 @@ def rewrite_pos_simplified(raw: str) -> str:
     return t
 
 
+def rewrite_bare_morphology(raw: str) -> str:
+    """Mirror rewriteJpVocabConnectionBareMorphologyLabels."""
+    forms = (
+        "ている形",
+        "た形",
+        "て形",
+        "ない形",
+        "ます形",
+        "辞书形",
+        "普通形",
+        "原形",
+    )
+    text = str(raw or "")
+    for form in forms:
+        text = text.replace(f"／{form}", f"／动词{form}")
+        text = text.replace(f"/{form}", f"/动词{form}")
+        text = text.replace(f"（{form}", f"（动词{form}")
+        text = text.replace(f"({form}", f"(动词{form}")
+        text = re.sub(
+            rf"(^|[；;\n：:、，])(\s*)({re.escape(form)})(?=\s*[＋+])",
+            rf"\1\2动词{form}",
+            text,
+            flags=re.M,
+        )
+    text = text.replace("动词动词", "动词")
+    text = re.sub(r"形容词动词(?=原形|辞书形|普通形)", "形容词", text)
+    return text
+
+
 def main() -> None:
     src = CONN.read_text(encoding="utf-8")
     for needle in (
         "rewriteJpVocabConnectionPosToSimplifiedChinese",
+        "rewriteJpVocabConnectionBareMorphologyLabels",
         "禁止日语繁体词类字",
         "禁止词类旁假名读音括注",
+        "形态必须带词类",
         "动词普通形＋ようだ；一类形容词普通形＋ようだ",
     ):
         if needle not in src:
@@ -66,6 +97,8 @@ def main() -> None:
 
     if "rewriteJpVocabConnectionPosToSimplifiedChinese(" not in src:
         fail("normalize 须调用 rewriteJpVocabConnectionPosToSimplifiedChinese")
+    if "rewriteJpVocabConnectionBareMorphologyLabels(" not in src:
+        fail("normalize 须调用 rewriteJpVocabConnectionBareMorphologyLabels")
 
     dirty = (
         "動詞(どうし)普通形(ふつうけい)＋ようだ；"
@@ -93,11 +126,25 @@ def main() -> None:
     if "动词辞书形" not in jisho:
         fail(f"expected 动词辞书形 in {jisho!r}")
 
+    bare = "动词原形／た形＋かもしれない；一类形容词原形＋かもしれない"
+    bare_got = rewrite_bare_morphology(bare)
+    bare_expect = "动词原形／动词た形＋かもしれない；一类形容词原形＋かもしれない"
+    if bare_got != bare_expect:
+        fail(f"bare morph rewrite failed:\n  got={bare_got!r}\n  expect={bare_expect!r}")
+
+    tari = rewrite_bare_morphology("た形＋たり、た形＋たりする")
+    if tari != "动词た形＋たり、动词た形＋たりする":
+        # second た形 after 、 may need comma rule — check
+        if "动词た形＋たり" not in tari or re.search(r"(?<!动词)た形＋", tari):
+            fail(f"たり bare た形 failed: {tari!r}")
+
     fill = FILL.read_text(encoding="utf-8")
     if "禁止词类旁假名读音括注" not in fill and "禁止「動詞(どうし)」" not in fill:
         fail("Mac fill prompt 须禁止词类假名读音 / 繁体词类")
+    if "形态必须带词类" not in fill:
+        fail("Mac fill prompt 须要求形态带词类")
 
-    print("OK: connection POS labels → simplified Chinese, no furigana")
+    print("OK: connection POS simplified + bare morphology → 动词た形")
     return 0
 
 
