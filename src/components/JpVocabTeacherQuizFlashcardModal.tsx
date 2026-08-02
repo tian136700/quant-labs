@@ -496,6 +496,7 @@ export function JpVocabTeacherQuizFlashcardModal({
           session={session}
           locale={locale}
           dailySeq={dailySeq}
+          wordId={w.id}
           progressLabel={progressLabel}
           remainingLabel={remainingLabel}
           sessionComplete={sessionComplete}

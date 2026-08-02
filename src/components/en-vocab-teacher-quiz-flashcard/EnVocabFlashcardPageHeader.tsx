@@ -9,6 +9,8 @@ type Props = {
   session: any;
   locale: any;
   dailySeq: any;
+  /** 词库主键；管理员预览卡展示 */
+  wordId?: number | null;
   progressLabel: any;
   remainingLabel: any;
   sessionComplete: any;
@@ -33,6 +35,7 @@ export function EnVocabFlashcardPageHeader({
   session,
   locale,
   dailySeq,
+  wordId,
   progressLabel,
   remainingLabel,
   sessionComplete,
@@ -55,6 +58,8 @@ export function EnVocabFlashcardPageHeader({
       : !isStudy && wordSynced
         ? "该单词已同步给学生查看"
         : null;
+  const showAdminWordId =
+    previewMode && !isStudy && wordId != null && Number.isFinite(wordId);
 
   return (
         <header className="jp-vocab-teacher-quiz__header">
@@ -87,6 +92,14 @@ export function EnVocabFlashcardPageHeader({
               {!isStudy && dailySeq != null ? (
                 <span className="jp-vocab-teacher-quiz__seq" title="今日固定序号">
                   序号 {dailySeq}
+                </span>
+              ) : null}
+              {showAdminWordId ? (
+                <span
+                  className="jp-vocab-teacher-quiz__seq"
+                  title={locale === "zh" ? "词库 ID（en_vocab_word.id）" : "Word ID"}
+                >
+                  ID {wordId}
                 </span>
               ) : null}
               {!isStudy ? (

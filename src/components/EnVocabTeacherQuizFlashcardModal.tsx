@@ -593,6 +593,7 @@ export function EnVocabTeacherQuizFlashcardModal({
           session={session}
           locale={locale}
           dailySeq={dailySeq}
+          wordId={w.id}
           progressLabel={progressLabel}
           remainingLabel={remainingLabel}
           sessionComplete={sessionComplete}

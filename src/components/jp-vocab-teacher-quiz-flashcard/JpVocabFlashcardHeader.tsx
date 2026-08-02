@@ -12,6 +12,8 @@ type Props = {
   session: JpVocabTeacherQuizSession | null;
   locale: "zh" | "en";
   dailySeq: number | null | undefined;
+  /** 词库主键；管理员预览卡展示，方便对照补全 / 修数据 */
+  wordId?: number | null;
   progressLabel: string;
   remainingLabel: string;
   sessionComplete: boolean;
@@ -29,10 +31,12 @@ type Props = {
 
 export function JpVocabFlashcardHeader(props: Props) {
   const {
-    isStudy, isCoach, previewMode, session, locale, dailySeq, progressLabel, remainingLabel,
+    isStudy, isCoach, previewMode, session, locale, dailySeq, wordId, progressLabel, remainingLabel,
     sessionComplete, showAnswerTimer, answerTimerArmed, selected, answerElapsedSec, onClose,
     sessionChecked, sessionTotal, uncheckedCount, sessionPct, studentPeeked,
   } = props;
+  const showAdminWordId =
+    previewMode && !isCoach && !isStudy && wordId != null && Number.isFinite(wordId);
   return (
         <header className="jp-vocab-teacher-quiz__header">
           <div className="jp-vocab-teacher-quiz__header-top">
@@ -68,6 +72,14 @@ export function JpVocabFlashcardHeader(props: Props) {
               {!isStudy && dailySeq != null ? (
                 <span className="jp-vocab-teacher-quiz__seq" title="今日固定序号">
                   序号 {dailySeq}
+                </span>
+              ) : null}
+              {showAdminWordId ? (
+                <span
+                  className="jp-vocab-teacher-quiz__seq"
+                  title={locale === "zh" ? "词库 ID（jp_vocab_word.id）" : "Word ID"}
+                >
+                  ID {wordId}
                 </span>
               ) : null}
               {!isStudy ? (
