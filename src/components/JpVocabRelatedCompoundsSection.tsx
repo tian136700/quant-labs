@@ -2,7 +2,6 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { CopyToast } from "@/components/CopyToast";
-import { JpVocabFuriganaText } from "@/components/JpVocabFuriganaText";
 import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import { copyTextToClipboard } from "@/lib/copy-text";
 import {
@@ -104,8 +103,18 @@ export function JpVocabRelatedCompoundsSection({
               key={item.line}
               className="jp-vocab-teacher-quiz__related-compounds-unit"
             >
-              <span className="jp-vocab-teacher-quiz__related-compounds-jp">
-                <JpVocabFuriganaText text={`${item.surface}(${item.reading})`} />
+              {/* 整词一块：假名居中在词面正下方（勿再拼括号走解析，避免焚き火拆坏） */}
+              <span
+                className="jp-vocab-teacher-quiz__related-compounds-jp jp-vocab-furigana-unit"
+                title={item.reading}
+              >
+                <span className="jp-vocab-furigana-base">{item.surface}</span>
+                <span
+                  className="jp-vocab-furigana-reading"
+                  aria-hidden="true"
+                >
+                  {item.reading}
+                </span>
               </span>
               <span className="jp-vocab-teacher-quiz__related-compounds-zh">
                 {item.gloss}

@@ -17,11 +17,17 @@ ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src" / "lib" / "jp-vocab-example-sentences.ts"
 
 # Mirror of JP_VOCAB_PAREN_FURIGANA_RE / VALID_KANJI_FURIGANA_CHUNK (keep in sync with TS)
+# 须认「焚き火」整词；中间假名不得跨过助词「は」等（今日は気分）。
+_PAREN_BASE = (
+    r"[\u4E00-\u9FFF々]+"
+    r"(?:(?![はがをにでとへもやの])[ぁ-んァ-ンヴヵヶー]+[\u4E00-\u9FFF々]+)*"
+    r"[ぁ-んァ-ンヴヵヶー]*"
+)
 PAREN_FURIGANA_RE = re.compile(
-    r"([\u4E00-\u9FFF々]+[ぁ-んァ-ンヴヵヶー]*)[（(]([ぁ-んァ-ンヴヵヶー]+)[）)]"
+    rf"({_PAREN_BASE})[（(]([ぁ-んァ-ンヴヵヶー]+)[）)]"
 )
 VALID_KANJI_FURIGANA_CHUNK = re.compile(
-    r"[\u4E00-\u9FFF々]+[ぁ-んァ-ンヴヵヶー]*[（(][ぁ-んァ-ンヴヵヶー]+[）)]"
+    rf"{_PAREN_BASE}[（(][ぁ-んァ-ンヴヵヶー]+[）)]"
 )
 
 INCOMPLETE_KANJI_CASES = [
@@ -29,6 +35,8 @@ INCOMPLETE_KANJI_CASES = [
     ("今日(きょう)は気分(きぶん)がいいです。", False),
     ("電車(でんしゃ)に間(ま)に合(あ)いました。", False),
     ("いい方法があります。", True),
+    ("焚き火(たきび)を見(み)ます。", False),
+    ("焚き火を見(み)ます。", True),
 ]
 
 CASES = [
@@ -37,6 +45,7 @@ CASES = [
     "この本(ほん)はあの本(ほん)より安(やす)いです。",
     "電車(でんしゃ)に間(ま)に合(あ)いました。",
     "友達（ゆうだつ）より静か（しずか）です。",
+    "焚き火(たきび)と花火(はなび)です。",
 ]
 
 # (raw, expected_after_sanitize) — nested teaching notes must vanish
@@ -121,11 +130,29 @@ def main() -> int:
     if "JP_VOCAB_PAREN_FURIGANA_RE" not in src:
         print("[check_jp_vocab_furigana_parse] FAIL: regex export missing", file=sys.stderr)
         return 1
-    # Must allow optional kana after kanji (な/い adjectives)
-    if "+[ぁ-んァ-ンヴヵヶー]*" not in src or "JP_VOCAB_PAREN_FURIGANA_RE" not in src:
+    # Must allow okurigana between kanji (焚き火) without eating particles (は)
+    mixed_okurigana = "(?![はがをにでとへもやの])"
+    if mixed_okurigana not in src or "JP_VOCAB_PAREN_FURIGANA_RE" not in src:
         print(
             "[check_jp_vocab_furigana_parse] FAIL: PAREN_FURIGANA_RE must allow "
-            "trailing kana after kanji (静か(しずか))",
+            "okurigana between kanji (焚き火) and refuse particles (今日は気分)",
+            file=sys.stderr,
+        )
+        return 1
+    # Whole-word parse for okurigana compounds
+    m = PAREN_FURIGANA_RE.search("焚き火(たきび)")
+    if not m or m.group(1) != "焚き火" or m.group(2) != "たきび":
+        print(
+            "[check_jp_vocab_furigana_parse] FAIL: 焚き火(たきび) must parse as "
+            f"one ruby unit, got {m.groups() if m else None}",
+            file=sys.stderr,
+        )
+        return 1
+    m2 = PAREN_FURIGANA_RE.search("今日は気分(きぶん)がいいです。")
+    if not m2 or m2.group(1) != "気分":
+        print(
+            "[check_jp_vocab_furigana_parse] FAIL: must not eat particle は; "
+            f"expected base 気分, got {m2.groups() if m2 else None}",
             file=sys.stderr,
         )
         return 1

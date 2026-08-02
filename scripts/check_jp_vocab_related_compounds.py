@@ -64,7 +64,24 @@ def main() -> int:
         "jp-vocab-fill-related-compounds-online",
         "setup mac",
     )
-    must_contain(section, "JpVocabFuriganaText", "furigana display")
+    # 整词假名：直接 surface+reading，勿拼括号再走 JpVocabFuriganaText（焚き火会拆坏）
+    must_contain(section, "jp-vocab-furigana-reading", "whole-word furigana")
+    must_contain(section, "item.surface", "surface under reading")
+    must_contain(section, "item.reading", "reading under surface")
+    section_src = section.read_text(encoding="utf-8")
+    if "JpVocabFuriganaText" in section_src:
+        raise SystemExit(
+            "FAIL furigana display: related compounds must render surface+reading "
+            "directly (not JpVocabFuriganaText / paren parse)"
+        )
+    if "`${item.surface}(${item.reading})`" in section_src or (
+        "item.surface}(${item.reading}" in section_src
+    ):
+        raise SystemExit(
+            "FAIL furigana display: do not rebuild paren string for related compounds"
+        )
+    must_contain(styles, "align-items: center", "reading centered under word")
+    must_contain(styles, "align-items: flex-start", "zh aligns with surface row")
     must_contain(section, "复制全部", "copy all")
     must_contain(section, "copy-toast--above-modal", "toast z")
     must_contain(section, "related-compounds-flow", "inline flow")

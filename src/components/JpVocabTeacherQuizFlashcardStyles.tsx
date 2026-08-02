@@ -1530,30 +1530,50 @@ export function JpVocabTeacherQuizFlashcardStyles() {
         .jp-vocab-teacher-quiz__related-compounds-unit {
           display: inline-flex;
           flex-wrap: nowrap;
-          align-items: baseline;
+          /* 中文对齐词面一行；假名单独在词面正下方居中 */
+          align-items: flex-start;
           gap: 0;
           white-space: nowrap;
           max-width: 100%;
         }
-        .jp-vocab-teacher-quiz__related-compounds-jp {
+        .jp-vocab-teacher-quiz__related-compounds-jp.jp-vocab-furigana-unit {
+          display: inline-flex;
+          flex-direction: column;
+          align-items: center;
           flex-shrink: 0;
+          line-height: 1.05;
+          margin: 0;
         }
-        /* 假名要显眼：略大 + 亮色，一眼能看见读音 */
-        .jp-vocab-teacher-quiz__related-compounds-jp :global(.jp-vocab-furigana-reading) {
-          font-size: 0.62em;
+        .jp-vocab-teacher-quiz__related-compounds-jp .jp-vocab-furigana-base {
+          line-height: 1.2;
+          color: var(--text);
+        }
+        /* 假名在对应日语词正下方居中；显眼亮蓝 */
+        .jp-vocab-teacher-quiz__related-compounds-jp .jp-vocab-furigana-reading {
+          display: block;
+          font-size: 0.58em;
           font-weight: 650;
+          line-height: 1.2;
+          letter-spacing: 0;
+          white-space: nowrap;
           color: #7eb8ff;
           opacity: 1;
+          user-select: none;
+          margin-top: 0.08em;
         }
         .jp-vocab-teacher-quiz__related-compounds-zh {
           color: var(--muted);
-          /* flex 会吃掉文本空格；用 margin 空出约一字宽 */
+          /* 与词面同一行：空约一字宽；略下移对齐汉字视觉中线 */
           margin-left: 0.55em;
+          margin-top: 0.05em;
           font-size: 1em;
+          line-height: 1.2;
         }
         .jp-vocab-teacher-quiz__related-compounds-semi {
           color: color-mix(in srgb, var(--muted) 70%, var(--text));
           margin-left: 0.05em;
+          margin-top: 0.05em;
+          line-height: 1.2;
         }
         .jp-vocab-teacher-quiz__related-compounds-empty {
           margin: 0;
