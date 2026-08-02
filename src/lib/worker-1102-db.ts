@@ -17,6 +17,13 @@ import {
   type Worker1102ClientAggRow,
   type Worker1102ClientEventSample,
 } from "@/lib/worker-1102-client-events";
+import {
+  classifyWorker1102FailureLane,
+  isWorker1102FillRoute,
+  isWorker1102RelatedTrafficRoute,
+  prioritizeWorker1102ClientSamples,
+  type Worker1102FailureLane,
+} from "@/lib/worker-1102-triage";
 
 let schemaReady = false;
 let devStoreEnabled = false;
@@ -60,6 +67,11 @@ export type Worker1102HeavyWord = {
 
 export type Worker1102RiskLevel = "ok" | "warn" | "critical";
 
+export type Worker1102BoardSample = Worker1102ClientEventSample & {
+  /** 诊断车道：整页 HTML / shared / fill / 词表 API */
+  failure_lane: Worker1102FailureLane;
+};
+
 export type Worker1102DiagnosticSummary = {
   ok: true;
   generated_at: string;
@@ -72,17 +84,19 @@ export type Worker1102DiagnosticSummary = {
   subjects: Worker1102SubjectRisk[];
   heaviest_notes: Worker1102HeavyWord[];
   heavy_signals: WorkerHeavySignalRow[];
-  /** 与 1102 相关的热路径今日命中（来自流量表） */
+  /** 与 1102 相关的热路径今日命中（含 fill-* 争用；来自流量表） */
   related_traffic_routes: Array<{
     route_key: string;
     kind: string;
     hit_count: number;
   }>;
+  /** fill-* 今日合计命中（与进页/HTML 抢 isolate 的主信号之一） */
+  fill_contention_hits: number;
   traffic_total_hits: number;
   traffic_quota_limit: number;
   guardrails: Array<{ id: string; ok: boolean; detail: string }>;
   client_event_agg: Worker1102ClientAggRow[];
-  client_event_samples: Worker1102ClientEventSample[];
+  client_event_samples: Worker1102BoardSample[];
 };
 
 export function enableWorker1102DevStore(): void {
@@ -323,24 +337,18 @@ async function heaviestNotes(
   }));
 }
 
-const RELATED_ROUTE_NEEDLES = [
-  "/api/jp-vocab/shared",
-  "/api/en-vocab/shared",
-  "/api/jp-vocab/class-notes",
-  "/api/en-vocab/class-notes",
-  "/api/jp-vocab/sync",
-  "/api/en-vocab/sync",
-  "/jp-vocab/study",
-  "/en-vocab/study",
-  "/api/jp-vocab",
-  "/api/en-vocab",
-];
+/** 备注 Top 仅在体积够大时展示，避免 500B 级噪声误导 */
+const HEAVIEST_NOTES_MIN_BYTES = 40_000;
 
-function buildRiskNotes(
-  subjects: Worker1102SubjectRisk[],
-  heavy: WorkerHeavySignalRow[],
-  clientAgg: Worker1102ClientAggRow[]
-): { level: Worker1102RiskLevel; notes: string[] } {
+function buildRiskNotes(input: {
+  subjects: Worker1102SubjectRisk[];
+  heavy: WorkerHeavySignalRow[];
+  clientAgg: Worker1102ClientAggRow[];
+  clientSamples: Worker1102BoardSample[];
+  fillContentionHits: number;
+}): { level: Worker1102RiskLevel; notes: string[] } {
+  const { subjects, heavy, clientAgg, clientSamples, fillContentionHits } =
+    input;
   const notes: string[] = [];
   let level: Worker1102RiskLevel = "ok";
 
@@ -350,9 +358,8 @@ function buildRiskNotes(
     else if (next === "warn" && level === "ok") level = "warn";
   };
 
-  // 英语也可几乎无备注仍 1102：不要把「备注贴图」当成主因。
   notes.push(
-    "提示：英语也可无备注仍 1102 → 优先看整页 Worker 冷启动、shared/列表载荷、客户端现场与慢/5xx，备注只是次要对照"
+    "定位顺序：①失败车道（整页HTML / shared / fill）②有无 cf_1102_html（硬刷新整页常没有）③fill-* 争用流量④shared 列表载荷；备注仅次要"
   );
 
   const client1102 = clientAgg
@@ -365,6 +372,47 @@ function buildRiskNotes(
     );
   } else if (client1102 >= 1) {
     bump("warn", `客户端已捕获 Cloudflare 1102 HTML ${client1102} 次`);
+  }
+
+  const studyOrSharedFails = clientSamples.filter((s) => {
+    if (s.event_kind === "page_ok" || s.event_kind === "cf_1102_html") {
+      return false;
+    }
+    return (
+      s.failure_lane === "shared_api" ||
+      s.failure_lane === "html_document" ||
+      /\/study/.test(s.page_path)
+    );
+  });
+  if (studyOrSharedFails.length > 0 && client1102 === 0) {
+    bump(
+      "warn",
+      `有 study/shared 失败但无 cf_1102_html → 常见是硬刷新「rendering the page」整页 1102（本页 JS 记不到）；对照同分钟 fill 流量与 shared 失败`
+    );
+  }
+
+  const longFetch = clientSamples.find(
+    (s) =>
+      (s.event_kind === "fetch_network" || s.event_kind === "shared_fail") &&
+      (s.duration_ms ?? 0) >= 8_000
+  );
+  if (longFetch) {
+    bump(
+      "warn",
+      `客户端长耗时失败 ${longFetch.duration_ms}ms → ${longFetch.failed_url || longFetch.page_path}（isolate 忙或连接被掐）`
+    );
+  }
+
+  if (fillContentionHits >= 1_500) {
+    bump(
+      "critical",
+      `词表补全 fill-* 今日合计 ${fillContentionHits} 次，易与进页 HTML/shared 抢同一 isolate`
+    );
+  } else if (fillContentionHits >= 500) {
+    bump(
+      "warn",
+      `词表补全 fill-* 今日合计 ${fillContentionHits} 次（争用信号；见相关流量里的 fill-*）`
+    );
   }
 
   const slow = heavy.filter((h) => h.signal === "slow");
@@ -401,7 +449,6 @@ function buildRiskNotes(
         `${label}今日共享列表字段合计 ${s.today_shared_sum_list_bytes} 字节`
       );
     }
-    // 备注：仅次要；阈值抬高，避免英语无备注时仍被误导成「备注问题」
     if (s.max_notes_bytes >= 200_000) {
       bump(
         "warn",
@@ -434,21 +481,28 @@ function guardrails(): Worker1102DiagnosticSummary["guardrails"] {
         "今日单词 HTML 不写 worker 流量表（避免与冷启动抢 CPU）",
     },
     {
+      id: "open_next_static_shell_cache",
+      ok: true,
+      detail:
+        "open-next.config 须 staticAssetsIncrementalCache + enableCacheInterception（禁止 dummy：否则 study 永远 MISS）",
+    },
+    {
       id: "cf_1102_not_self_counted",
       ok: true,
       detail:
-        "硬导航整页 1102 时 Worker 已被杀；靠客户端 fetch/软导航捕获 CF HTML + page_ok 对照",
+        "硬导航整页 1102 时 Worker 已被杀、无 cf_1102_html；看同分钟 shared/fetch_network + fill 争用 + page_ok 对照",
     },
     {
       id: "client_1102_guard",
       ok: true,
-      detail: "Providers 挂 Worker1102ClientGuard；上报 /api/analytics/worker-1102/client-report",
+      detail:
+        "Providers 挂 Worker1102ClientGuard；上报 /api/analytics/worker-1102/client-report",
     },
     {
       id: "notes_not_primary_cause",
       ok: true,
       detail:
-        "英语常无备注仍可 1102 → 勿把备注当主因；优先冷启动 / shared 列表 / 客户端现场；日语备注仍按词异步拉",
+        "英语常无备注仍可 1102 → 勿把备注当主因；优先冷启动 / fill 争用 / shared / 客户端现场",
     },
   ];
 }
@@ -474,22 +528,41 @@ export async function getWorker1102DiagnosticSummary(
 
   const subjects = [jp, en];
   const heaviest_notes = [...jpHeavy, ...enHeavy]
+    .filter((row) => row.notes_bytes >= HEAVIEST_NOTES_MIN_BYTES)
     .sort((a, b) => b.notes_bytes - a.notes_bytes)
     .slice(0, 10);
 
   const related_traffic_routes = (traffic?.top_routes ?? [])
-    .filter((row) =>
-      RELATED_ROUTE_NEEDLES.some(
-        (n) => row.route_key === n || row.route_key.startsWith(`${n}/`)
-      )
-    )
-    .slice(0, 20);
+    .filter((row) => isWorker1102RelatedTrafficRoute(row.route_key))
+    .sort((a, b) => {
+      const af = isWorker1102FillRoute(a.route_key) ? 0 : 1;
+      const bf = isWorker1102FillRoute(b.route_key) ? 0 : 1;
+      if (af !== bf) return af - bf;
+      return b.hit_count - a.hit_count;
+    })
+    .slice(0, 25);
 
-  const { level, notes } = buildRiskNotes(
+  const fill_contention_hits = related_traffic_routes
+    .filter((row) => isWorker1102FillRoute(row.route_key))
+    .reduce((sum, row) => sum + row.hit_count, 0);
+
+  const boardSamples: Worker1102BoardSample[] =
+    prioritizeWorker1102ClientSamples(client_event_samples).map((row) => ({
+      ...row,
+      failure_lane: classifyWorker1102FailureLane({
+        eventKind: row.event_kind,
+        pagePath: row.page_path,
+        failedUrl: row.failed_url,
+      }),
+    }));
+
+  const { level, notes } = buildRiskNotes({
     subjects,
-    heavy_signals,
-    client_event_agg
-  );
+    heavy: heavy_signals,
+    clientAgg: client_event_agg,
+    clientSamples: boardSamples,
+    fillContentionHits: fill_contention_hits,
+  });
 
   return {
     ok: true,
@@ -502,11 +575,12 @@ export async function getWorker1102DiagnosticSummary(
     heaviest_notes,
     heavy_signals,
     related_traffic_routes,
+    fill_contention_hits,
     traffic_total_hits: traffic?.total_hits ?? 0,
     traffic_quota_limit: traffic?.quota_limit ?? 100_000,
     guardrails: guardrails(),
     client_event_agg,
-    client_event_samples,
+    client_event_samples: boardSamples,
   };
 }
 

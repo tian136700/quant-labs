@@ -90,6 +90,13 @@ export function AdminWorker1102Panel() {
       heaviestHeading: labels.heaviestHeading,
       heavySignalsHeading: labels.heavySignalsHeading,
       relatedTrafficHeading: labels.relatedTrafficHeading,
+      fillContention: labels.fillContention,
+      failureLane: labels.failureLane,
+      laneHtml: labels.laneHtml,
+      laneShared: labels.laneShared,
+      laneFill: labels.laneFill,
+      laneVocab: labels.laneVocab,
+      laneOther: labels.laneOther,
       guardrailsHeading: labels.guardrailsHeading,
       clientAggHeading: labels.clientAggHeading,
       clientSamplesHeading: labels.clientSamplesHeading,
@@ -115,6 +122,7 @@ export function AdminWorker1102Panel() {
   const guideRows = [
     { item: labels.guideWhat, detail: labels.guideWhatDetail },
     { item: labels.guidePriority, detail: labels.guidePriorityDetail },
+    { item: labels.guideTriage, detail: labels.guideTriageDetail },
     { item: labels.guideNotes, detail: labels.guideNotesDetail },
     { item: labels.guideHardReload, detail: labels.guideHardReloadDetail },
   ];
@@ -245,6 +253,9 @@ export function AdminWorker1102Panel() {
           </div>
 
           <h3 className="admin-traffic-subhead">{labels.clientSamplesHeading}</h3>
+          <p className="hint admin-traffic-diagnose-hint">
+            {labels.clientSamplesHint}
+          </p>
           {(summary.client_event_samples ?? []).length === 0 ? (
             <EmptyTableRow message={labels.emptyClient} />
           ) : (
@@ -254,6 +265,7 @@ export function AdminWorker1102Panel() {
                   <tr>
                     <th>{labels.time}</th>
                     <th>{labels.eventKind}</th>
+                    <th>{labels.failureLane}</th>
                     <th>{labels.pagePath}</th>
                     <th>{labels.failedUrl}</th>
                     <th>{labels.httpStatus}</th>
@@ -267,6 +279,17 @@ export function AdminWorker1102Panel() {
                     <tr key={row.id}>
                       <td>{row.created_at.replace("T", " ").slice(0, 19)}</td>
                       <td>{row.event_kind}</td>
+                      <td>
+                        {row.failure_lane === "html_document"
+                          ? labels.laneHtml
+                          : row.failure_lane === "shared_api"
+                            ? labels.laneShared
+                            : row.failure_lane === "fill_api"
+                              ? labels.laneFill
+                              : row.failure_lane === "vocab_api"
+                                ? labels.laneVocab
+                                : labels.laneOther}
+                      </td>
                       <td>{row.page_path}</td>
                       <td className="admin-1102-url-cell">
                         {row.failed_url || "—"}
@@ -439,6 +462,10 @@ export function AdminWorker1102Panel() {
                         formatNumber(summary.traffic_quota_limit)
                       )}
                   </td>
+                </tr>
+                <tr>
+                  <td>{labels.fillContention}</td>
+                  <td>{formatNumber(summary.fill_contention_hits ?? 0)}</td>
                 </tr>
               </tbody>
             </table>

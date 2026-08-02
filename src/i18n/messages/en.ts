@@ -231,7 +231,7 @@ export const enMessages: Messages = {
       page: {
         title: "Worker 1102 monitor",
         subtitle:
-          "Per-request CPU/memory limit (≠ daily quota 1027). Prefer client incidents and shared payload; notes are secondary.",
+          "Per-request CPU/memory limit (≠ daily quota 1027). Prefer failure lane, hard-reload clues, fill contention, and shared; notes are secondary.",
         backToAdmin: "← Back to admin (visit logs)",
       },
       auth: {
@@ -249,13 +249,16 @@ export const enMessages: Messages = {
         guideWhatDetail: "One request blew CPU/memory; not daily quota 1027.",
         guidePriority: "Look first",
         guidePriorityDetail:
-          "Client incidents, cold page HTML, shared/list payload, slow/large/5xx.",
+          "Failure lane, hard-reload clues (may lack cf_1102_html), fill-* contention, shared payload, slow/large/5xx.",
         guideNotes: "Notes",
         guideNotesDetail:
           "Secondary only. EN often has no notes and still hits 1102.",
         guideHardReload: "Hard full-page reload",
         guideHardReloadDetail:
           "Worker already killed; this page JS cannot self-report—soft-nav/API or other tabs can.",
+        guideTriage: "How to match incidents",
+        guideTriageDetail:
+          "Use the failure-lane column: HTML document ≠ shared API ≠ fill jobs. Missing cf_1102_html can still mean a hard-reload page 1102—cross-check same-minute shared failures and fill-* traffic.",
         copyReport: "Copy diagnostic report",
         copySuccess: "Copied",
         copyFailed: "Copy failed",
@@ -271,7 +274,14 @@ export const enMessages: Messages = {
         subjectsHeading: "JP / EN payload snapshot",
         heaviestHeading: "Heaviest notes (secondary)",
         heavySignalsHeading: "Hot-path heavy signals",
-        relatedTrafficHeading: "Related hot-path traffic today",
+        relatedTrafficHeading: "Related hot-path traffic today (fill first)",
+        fillContention: "fill-* contention total",
+        failureLane: "Failure lane",
+        laneHtml: "HTML doc",
+        laneShared: "shared API",
+        laneFill: "fill jobs",
+        laneVocab: "vocab API",
+        laneOther: "other",
         guardrailsHeading: "Guardrails",
         subject: "Subject",
         subjectJp: "Japanese",
@@ -297,12 +307,15 @@ export const enMessages: Messages = {
         maxBytes: "Max bytes",
         kind: "Kind",
         trafficQuota: "Same-day traffic {used} / {limit}",
-        emptyHeavy: "No note bodies (common for EN; empty notes ≠ no 1102 risk).",
+        emptyHeavy:
+          "No notes ≥40KB (small notes hidden to avoid noise; tiny notes ≠ no 1102).",
         emptySignals:
           "No slow/large/5xx aggregates for this quota day yet (starts after deploy on shared and other hot paths).",
-        emptyTraffic: "No related routes in traffic top yet.",
+        emptyTraffic: "No related routes in traffic top yet (includes fill-*).",
         clientAggHeading: "Client event totals",
-        clientSamplesHeading: "Client incident samples",
+        clientSamplesHeading: "Client incident samples (failures first)",
+        clientSamplesHint:
+          "page_ok only means soft-nav succeeded; hard-reload page 1102 will not appear here. Prefer non-other failure lanes.",
         eventKind: "Event",
         pagePath: "Page",
         failedUrl: "Failed request",

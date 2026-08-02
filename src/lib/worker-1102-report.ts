@@ -16,6 +16,13 @@ export type Worker1102ReportLabels = {
   heaviestHeading: string;
   heavySignalsHeading: string;
   relatedTrafficHeading: string;
+  fillContention: string;
+  failureLane: string;
+  laneHtml: string;
+  laneShared: string;
+  laneFill: string;
+  laneVocab: string;
+  laneOther: string;
   guardrailsHeading: string;
   clientAggHeading: string;
   clientSamplesHeading: string;
@@ -51,11 +58,20 @@ export function formatWorker1102DiagnosticReport(
   summary: Worker1102DiagnosticSummary,
   labels: Worker1102ReportLabels
 ): string {
+  const laneLabel = (lane: string): string => {
+    if (lane === "html_document") return labels.laneHtml;
+    if (lane === "shared_api") return labels.laneShared;
+    if (lane === "fill_api") return labels.laneFill;
+    if (lane === "vocab_api") return labels.laneVocab;
+    return labels.laneOther;
+  };
+
   const lines: string[] = [
     `${labels.reportTitle}`,
     `${labels.riskLevel}: ${riskLabel(summary.risk_level, labels)}`,
     `${labels.shareDate}: ${summary.share_date}`,
     `${labels.quotaDate}: ${summary.quota_stat_date}`,
+    `${labels.fillContention}: ${formatNumber(summary.fill_contention_hits ?? 0)}`,
     `generated_at: ${summary.generated_at}`,
     "",
     ...summary.risk_notes.map((n) => `- ${n}`),
@@ -68,7 +84,7 @@ export function formatWorker1102DiagnosticReport(
   } else {
     summary.client_event_samples.slice(0, 25).forEach((row, i) => {
       lines.push(
-        `${i + 1}. ${row.created_at}  ${row.event_kind}  page=${row.page_path}  failed=${row.failed_url || "-"}  status=${row.http_status ?? "-"}  ms=${row.duration_ms ?? "-"}  ray=${row.cf_ray || "-"}  user=${row.username || "-"}  detail=${row.detail_json || "{}"}`
+        `${i + 1}. ${row.created_at}  ${row.event_kind}  lane=${laneLabel(row.failure_lane)}  page=${row.page_path}  failed=${row.failed_url || "-"}  status=${row.http_status ?? "-"}  ms=${row.duration_ms ?? "-"}  ray=${row.cf_ray || "-"}  user=${row.username || "-"}  detail=${row.detail_json || "{}"}`
       );
     });
   }

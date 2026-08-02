@@ -225,6 +225,8 @@ export type Messages = {
       guideNotesDetail: string;
       guideHardReload: string;
       guideHardReloadDetail: string;
+      guideTriage: string;
+      guideTriageDetail: string;
       copyReport: string;
       copySuccess: string;
       copyFailed: string;
@@ -241,6 +243,13 @@ export type Messages = {
       heaviestHeading: string;
       heavySignalsHeading: string;
       relatedTrafficHeading: string;
+      fillContention: string;
+      failureLane: string;
+      laneHtml: string;
+      laneShared: string;
+      laneFill: string;
+      laneVocab: string;
+      laneOther: string;
       guardrailsHeading: string;
       subject: string;
       subjectJp: string;
@@ -271,6 +280,7 @@ export type Messages = {
       emptyTraffic: string;
       clientAggHeading: string;
       clientSamplesHeading: string;
+      clientSamplesHint: string;
       eventKind: string;
       pagePath: string;
       failedUrl: string;

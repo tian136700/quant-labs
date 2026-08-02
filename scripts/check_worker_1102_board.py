@@ -38,7 +38,10 @@ def main() -> int:
         "/api/analytics/worker-1102",
         "copyReport",
         "guideHeading",
+        "guideTriage",
         "riskNotesHeading",
+        "failureLane",
+        "fillContention",
         "admin-1102-text-table",
         "EmptyTableRow",
     ):
@@ -58,11 +61,30 @@ def main() -> int:
         "incrementWorkerHeavySignal",
         "heaviest_notes",
         "today_shared_sum_list_bytes",
-        "英语也可无备注仍 1102",
+        "fill_contention_hits",
+        "failure_lane",
+        "open_next_static_shell_cache",
         "notes_not_primary_cause",
+        "HEAVIEST_NOTES_MIN_BYTES",
     ):
         if needle not in db:
             errors.append(f"worker-1102-db.ts 须含 {needle}")
+
+    triage = read("src/lib/worker-1102-triage.ts")
+    for needle in (
+        "classifyWorker1102FailureLane",
+        "prioritizeWorker1102ClientSamples",
+        "isWorker1102FillRoute",
+        "isWorker1102RelatedTrafficRoute",
+    ):
+        if needle not in triage:
+            errors.append(f"worker-1102-triage.ts 须含 {needle}")
+
+    open_next = read("open-next.config.ts")
+    if "staticAssetsIncrementalCache" not in open_next:
+        errors.append("open-next.config.ts 须 staticAssetsIncrementalCache（study HTML 1102）")
+    if "enableCacheInterception: true" not in open_next:
+        errors.append("open-next.config.ts 须 enableCacheInterception: true")
 
     observe = read("src/lib/worker-1102-observe.ts")
     if "jsonResponseObserving1102" not in observe:
@@ -119,6 +141,8 @@ def main() -> int:
         errors.append("zh i18n 缺少 adminWorker1102")
     if "复制诊断报告" not in zh:
         errors.append("zh i18n 1102 面板须含复制诊断报告")
+    if "失败车道" not in zh or "fill-* 争用合计" not in zh:
+        errors.append("zh i18n 1102 面板须含失败车道 / fill 争用")
 
     dash = read("src/components/AdminDashboardPage.tsx")
     if "adminWorker1102Path" not in dash:
