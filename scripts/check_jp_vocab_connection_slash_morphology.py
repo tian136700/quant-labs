@@ -77,6 +77,12 @@ def main() -> None:
     if "protectNoteSlash" not in src:
         fail("slash split must protect ／ inside ｜说明 notes")
 
+    diversity = (ROOT / "src/lib/jp-vocab-connection-note-diversity.ts").read_text(encoding="utf-8")
+    if "connectionHasRepeatedIdenticalNotes" not in diversity:
+        fail("missing connectionHasRepeatedIdenticalNotes")
+    if "repeated_identical_notes" not in src:
+        fail("validate must reject repeated_identical_notes")
+
     print("ok: connection slash-morphology + id=521 かもしれない specimen guards")
 
 
