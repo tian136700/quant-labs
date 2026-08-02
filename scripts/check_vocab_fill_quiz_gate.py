@@ -81,6 +81,28 @@ def main() -> int:
         rule_text = rule.read_text(encoding="utf-8")
         if "30 分钟" not in rule_text:
             errors.append("rule must mention 30 分钟")
+        if "alwaysApply: true" not in rule_text:
+            errors.append("vocab-fill-quiz-gate.mdc must be alwaysApply: true")
+        if "1102" not in rule_text:
+            errors.append("rule must mention Error 1102")
+
+    hook_files = (
+        ".cursor/hooks/vocab-fill-quiz-gate-session.py",
+        ".cursor/hooks/remind-vocab-fill-quiz-gate.py",
+        ".cursor/hooks/remind-vocab-fill-quiz-gate-after-edit.py",
+    )
+    for rel in hook_files:
+        if not (ROOT / rel).is_file():
+            errors.append(f"missing hook {rel}")
+
+    hooks_json = read(".cursor/hooks.json")
+    for needle in (
+        "vocab-fill-quiz-gate-session.py",
+        "remind-vocab-fill-quiz-gate.py",
+        "remind-vocab-fill-quiz-gate-after-edit.py",
+    ):
+        if needle not in hooks_json:
+            errors.append(f"hooks.json must wire {needle}")
 
     # 旧例句规则若仍写 1 小时，提示需对齐（不强制删旧文件）
     old = ROOT / ".cursor/rules/jp-vocab-fill-schedule-gate.mdc"
