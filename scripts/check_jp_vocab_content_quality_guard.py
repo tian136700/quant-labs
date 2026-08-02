@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -79,6 +80,25 @@ def main() -> int:
         fail("connection 须拒 connection_has_usage")
     if "rewriteJpVocabConnectionPosToSimplifiedChinese" not in conn:
         fail("connection 须有词类简体/剥假名 rewrite")
+    if "rejoinJpVocabConnectionMorphologySlashChunks" not in conn:
+        fail("connection 须保护 动词原形／た形／ている形＋X 不被 strip 拆丢")
+    if "CONNECTION_TABLE_NOTE_SEP_RE" not in conn:
+        fail("connection 须支持｜说明列")
+
+    slash_check = ROOT / "scripts/check_jp_vocab_connection_slash_morphology.py"
+    if not slash_check.is_file():
+        fail("missing check_jp_vocab_connection_slash_morphology.py")
+    slash_run = subprocess.run(
+        [sys.executable, str(slash_check)],
+        capture_output=True,
+        text=True,
+        timeout=20,
+        cwd=ROOT,
+    )
+    if slash_run.returncode != 0:
+        fail(
+            f"slash morphology check failed: {slash_run.stderr or slash_run.stdout}"
+        )
 
     notes = (ROOT / "src/lib/jp-vocab-db/notes_fields.ts").read_text(encoding="utf-8")
     if "validateJpVocabExampleSentencesAiOutput" not in notes:
@@ -89,8 +109,6 @@ def main() -> int:
         fail("编辑写回须校验接序")
 
     # smoke: preToolUse hit
-    import subprocess
-
     smoke = subprocess.run(
         [sys.executable, str(ROOT / need["preToolUse"])],
         input=json.dumps({"file_path": "src/lib/jp-vocab-example-sentences-ai.ts"}),
