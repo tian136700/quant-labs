@@ -335,135 +335,137 @@ export function EnLessonTeacherEditModal({
           </button>
         </div>
 
-        <fieldset
-          className="jp-lesson-teacher-fieldset"
-          disabled={saving || addingTeacher || deletingTeacherId != null}
-        >
-          <legend>上课老师（可多选，可直接改名称）</legend>
-          <input
-            type="text"
-            className="jp-lesson-teacher-search"
-            value={searchQuery}
-            placeholder="模糊搜索老师名称、上课频次等"
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          <div className="jp-lesson-teacher-options">
-            {filteredTeachers.length ? (
-              <div className="jp-lesson-teacher-edit-head" aria-hidden="true">
-                <span className="jp-lesson-teacher-edit-head__check" />
-                <span className="jp-lesson-teacher-edit-head__name">称呼</span>
-                <span className="jp-lesson-teacher-edit-head__action">操作</span>
-              </div>
-            ) : null}
-            {filteredTeachers.map((teacher) => {
-              const draft = drafts[teacher.id] ?? teacherToDraft(teacher);
-              return (
-                <div
-                  key={teacher.id}
-                  className="jp-lesson-teacher-option jp-lesson-teacher-option--editable"
-                >
-                  <label className="jp-lesson-teacher-check">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.includes(teacher.id)}
-                      aria-label={`选择 ${draft.name || teacher.name}`}
-                      onChange={() => toggleTeacher(teacher.id)}
-                    />
-                  </label>
-                  <div className="jp-lesson-teacher-edit-fields">
-                    <input
-                      type="text"
-                      className="jp-lesson-teacher-add-input"
-                      value={draft.name}
-                      placeholder="老师称呼"
-                      onChange={(e) => updateDraft(teacher.id, { name: e.target.value })}
-                    />
-                    <button
-                      type="button"
-                      className="jp-lesson-teacher-delete-btn"
-                      disabled={saving || addingTeacher || deletingTeacherId === teacher.id}
-                      onClick={() => void handleDeleteTeacher(teacher)}
-                    >
-                      {deletingTeacherId === teacher.id ? "删除中…" : "删除"}
-                    </button>
-                  </div>
+        <div className="jp-lesson-teacher-body">
+          <fieldset
+            className="jp-lesson-teacher-fieldset"
+            disabled={saving || addingTeacher || deletingTeacherId != null}
+          >
+            <legend>上课老师（可多选，可直接改名称）</legend>
+            <input
+              type="text"
+              className="jp-lesson-teacher-search"
+              value={searchQuery}
+              placeholder="模糊搜索老师名称、上课频次等"
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            <div className="jp-lesson-teacher-options">
+              {filteredTeachers.length ? (
+                <div className="jp-lesson-teacher-edit-head" aria-hidden="true">
+                  <span className="jp-lesson-teacher-edit-head__check" />
+                  <span className="jp-lesson-teacher-edit-head__name">称呼</span>
+                  <span className="jp-lesson-teacher-edit-head__action">操作</span>
                 </div>
-              );
-            })}
-            <div className="jp-lesson-teacher-option jp-lesson-teacher-option--add">
-              <label className="jp-lesson-teacher-check jp-lesson-teacher-check--pending">
-                <input
-                  type="checkbox"
-                  checked={Boolean(pendingAddName)}
-                  disabled={addingTeacher || saving || !pendingAddName}
-                  aria-label={
-                    pendingAddName
-                      ? `将添加并选择 ${pendingAddName}`
-                      : "填写称呼后自动勾选"
-                  }
-                  onChange={(e) => {
-                    if (!e.target.checked) {
-                      if (pendingExistingTeacher) {
-                        setSelectedIds((prev) =>
-                          prev.filter((id) => id !== pendingExistingTeacher.id)
-                        );
+              ) : null}
+              {filteredTeachers.map((teacher) => {
+                const draft = drafts[teacher.id] ?? teacherToDraft(teacher);
+                return (
+                  <div
+                    key={teacher.id}
+                    className="jp-lesson-teacher-option jp-lesson-teacher-option--editable"
+                  >
+                    <label className="jp-lesson-teacher-check">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(teacher.id)}
+                        aria-label={`选择 ${draft.name || teacher.name}`}
+                        onChange={() => toggleTeacher(teacher.id)}
+                      />
+                    </label>
+                    <div className="jp-lesson-teacher-edit-fields">
+                      <input
+                        type="text"
+                        className="jp-lesson-teacher-add-input"
+                        value={draft.name}
+                        placeholder="老师称呼"
+                        onChange={(e) => updateDraft(teacher.id, { name: e.target.value })}
+                      />
+                      <button
+                        type="button"
+                        className="jp-lesson-teacher-delete-btn"
+                        disabled={saving || addingTeacher || deletingTeacherId === teacher.id}
+                        onClick={() => void handleDeleteTeacher(teacher)}
+                      >
+                        {deletingTeacherId === teacher.id ? "删除中…" : "删除"}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+              <div className="jp-lesson-teacher-option jp-lesson-teacher-option--add">
+                <label className="jp-lesson-teacher-check jp-lesson-teacher-check--pending">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(pendingAddName)}
+                    disabled={addingTeacher || saving || !pendingAddName}
+                    aria-label={
+                      pendingAddName
+                        ? `将添加并选择 ${pendingAddName}`
+                        : "填写称呼后自动勾选"
+                    }
+                    onChange={(e) => {
+                      if (!e.target.checked) {
+                        if (pendingExistingTeacher) {
+                          setSelectedIds((prev) =>
+                            prev.filter((id) => id !== pendingExistingTeacher.id)
+                          );
+                        }
+                        setAddName("");
+                        setAddError("");
                       }
-                      setAddName("");
-                      setAddError("");
-                    }
-                  }}
-                />
-              </label>
-              <div className="jp-lesson-teacher-add-fields">
-                <span className="jp-lesson-teacher-add-label">添加老师</span>
-                <input
-                  type="text"
-                  className="jp-lesson-teacher-add-input"
-                  value={addName}
-                  placeholder="老师称呼"
-                  disabled={addingTeacher || saving}
-                  onChange={(e) => {
-                    setAddName(e.target.value);
-                    if (addError) setAddError("");
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      void handleAddTeacher();
-                    }
-                  }}
-                />
-                <button
-                  type="button"
-                  className="jp-lesson-teacher-add-save-btn"
-                  disabled={addingTeacher || saving || !pendingAddName}
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => void handleAddTeacher()}
-                >
-                  {addingTeacher ? "保存中…" : "保存"}
-                </button>
-                <p className="jp-lesson-teacher-add-optional-hint">
-                  填写称呼后点右侧保存，会添加并关联本课；也可点底部保存一并提交。
-                </p>
+                    }}
+                  />
+                </label>
+                <div className="jp-lesson-teacher-add-fields">
+                  <span className="jp-lesson-teacher-add-label">添加老师</span>
+                  <input
+                    type="text"
+                    className="jp-lesson-teacher-add-input"
+                    value={addName}
+                    placeholder="老师称呼"
+                    disabled={addingTeacher || saving}
+                    onChange={(e) => {
+                      setAddName(e.target.value);
+                      if (addError) setAddError("");
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        void handleAddTeacher();
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="jp-lesson-teacher-add-save-btn"
+                    disabled={addingTeacher || saving || !pendingAddName}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => void handleAddTeacher()}
+                  >
+                    {addingTeacher ? "保存中…" : "保存"}
+                  </button>
+                  <p className="jp-lesson-teacher-add-optional-hint">
+                    填写称呼后点右侧保存，会添加并关联本课；也可点底部保存一并提交。
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
-          {addError ? <p className="jp-lesson-teacher-add-error">{addError}</p> : null}
-          {saveError ? <p className="jp-lesson-teacher-add-error">{saveError}</p> : null}
-          {!sortedTeachers.length ? (
-            <p className="jp-lesson-teacher-hint">暂无老师；可在下方直接添加。</p>
-          ) : !filteredTeachers.length ? (
-            <p className="jp-lesson-teacher-hint">没有匹配的老师，请换个关键词试试。</p>
-          ) : null}
-        </fieldset>
+            {addError ? <p className="jp-lesson-teacher-add-error">{addError}</p> : null}
+            {saveError ? <p className="jp-lesson-teacher-add-error">{saveError}</p> : null}
+            {!sortedTeachers.length ? (
+              <p className="jp-lesson-teacher-hint">暂无老师；可在下方直接添加。</p>
+            ) : !filteredTeachers.length ? (
+              <p className="jp-lesson-teacher-hint">没有匹配的老师，请换个关键词试试。</p>
+            ) : null}
+          </fieldset>
 
-        {saveProgress.visible ? (
-          <JpVocabSaveProgressBar
-            label={jpVocabSaveProgressLabel("save")}
-            percent={saveProgress.percent}
-            fullWidth
-          />
-        ) : null}
+          {saveProgress.visible ? (
+            <JpVocabSaveProgressBar
+              label={jpVocabSaveProgressLabel("save")}
+              percent={saveProgress.percent}
+              fullWidth
+            />
+          ) : null}
+        </div>
 
         <div className="jp-lesson-teacher-actions">
           <button
@@ -502,7 +504,11 @@ export function EnLessonTeacherEditModal({
         }
 
         .jp-lesson-teacher-modal {
+          display: flex;
+          flex-direction: column;
           width: min(560px, 100%);
+          max-height: min(94vh, 900px);
+          overflow: hidden;
           padding: 1rem 1.1rem;
           border: 1px solid var(--border);
           border-radius: 12px;
@@ -510,7 +516,16 @@ export function EnLessonTeacherEditModal({
           box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
         }
 
+        .jp-lesson-teacher-body {
+          flex: 1 1 auto;
+          min-height: 0;
+          overflow-y: auto;
+          overscroll-behavior: contain;
+          -webkit-overflow-scrolling: touch;
+        }
+
         .jp-lesson-teacher-header {
+          flex-shrink: 0;
           display: flex;
           align-items: flex-start;
           justify-content: space-between;
@@ -735,10 +750,14 @@ export function EnLessonTeacherEditModal({
         }
 
         .jp-lesson-teacher-actions {
+          flex-shrink: 0;
           display: flex;
           justify-content: flex-end;
           gap: 0.5rem;
           margin-top: 0.65rem;
+          padding-top: 0.65rem;
+          border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+          background: var(--panel);
         }
 
         :global(.jp-lesson-action-btn--primary) {

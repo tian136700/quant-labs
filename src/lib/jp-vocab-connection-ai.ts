@@ -17,6 +17,8 @@ export const JP_VOCAB_CONNECTION_UPLOAD_SPEC = {
     "用法说明里禁止再写接序（接续形态）；接序只写在本字段",
     "❌ 接序禁止夹用法说明：主语是谁、恩惠流向、强调对方好意／我方获益、意思相近可互换、视角不同等——那些只写在「用法」；接序只留形态公式（词类＋形＋本语法）",
     "用中文说明；日语形态用「」短引，禁止 漢字(かな) 假名括注",
+    "词类标签必须简体中文（动词／一类形容词／二类形容词／名词／词干…）；❌禁止日语繁体词类字（動詞／形容詞／名詞／一類／語幹）",
+    "❌词类旁禁止假名读音括注：不要「動詞(どうし)」「普通形(ふつうけい)」；写「动词普通形」即可",
     "否定形／疑问形／肯定形等变体必须另起一行（如「否定形: …」「疑问形: …」），禁止和主接续挤同一行",
     "对学生友好：写清词类，如「一类动词／二类动词／三类动词／一类形容词／二类形容词／名词＋本语法」；❌ 禁止只写笼统的「原形＋…」",
     "动词分类只用「一类动词／二类动词／三类动词」（国内教材）；❌ 禁止「五段／一段／カ变／サ变／五段动词／一段动词」",
@@ -105,10 +107,46 @@ export function rewriteJpVocabConnectionBareNumberedToUsageTags(
 
 /**
  * 「动词辞书形 / 動詞辞書形」一律写成带「（动词原形）」注解；已有则归一、不叠写。
+ * 词类标签统一简体（不要留「動詞辞書形」）。
  */
 export function formatJpVocabDongciJishokeiLabel(raw: string): string {
-  return String(raw ?? "").replace(DONGCI_JISHOKEI_RE, (m) =>
-    m.startsWith("動") ? "動詞辞書形（动词原形）" : "动词辞书形（动词原形）"
+  return String(raw ?? "").replace(DONGCI_JISHOKEI_RE, "动词辞书形（动词原形）");
+}
+
+/**
+ * 接序词类列：剥假名读音括注 + 繁体词类字 → 简体中文。
+ * 例：「動詞(どうし)普通形(ふつうけい)」→「动词普通形」
+ */
+export function rewriteJpVocabConnectionPosToSimplifiedChinese(
+  raw: string
+): string {
+  return (
+    String(raw ?? "")
+      // 漢字(かな) / 漢字（かな）→ 只留汉字（接序词类禁止读音括注）
+      .replace(
+        /([\u4E00-\u9FFF々]+)(?:\([\u3040-\u309Fー]+\)|（[\u3040-\u309Fー]+）)/g,
+        "$1"
+      )
+      // 残留的纯假名括注（无汉字紧贴时）
+      .replace(/\([\u3040-\u309Fー]+\)/g, "")
+      .replace(/（[\u3040-\u309Fー]+）/g, "")
+      .replace(/助動詞/g, "助动词")
+      .replace(/動詞/g, "动词")
+      .replace(/い形容詞/g, "一类形容词")
+      .replace(/な形容詞/g, "二类形容词")
+      .replace(/形容詞/g, "形容词")
+      .replace(/名詞/g, "名词")
+      .replace(/副詞/g, "副词")
+      .replace(/助詞/g, "助词")
+      .replace(/一類/g, "一类")
+      .replace(/二類/g, "二类")
+      .replace(/三類/g, "三类")
+      .replace(/語幹/g, "词干")
+      .replace(/辞書形/g, "辞书形")
+      .replace(/連体形/g, "连体形")
+      .replace(/連用形/g, "连用形")
+      .replace(/終止形/g, "终止形")
+      .replace(/仮定形/g, "假定形")
   );
 }
 
@@ -495,8 +533,10 @@ export function normalizeJpVocabConnectionText(
   const expanded = expandJpVocabConnectionUsageInlineBreaks(
     rewriteJpVocabConnectionBareNumberedToUsageTags(
       rewriteJpVocabConnectionNestedClassColonProse(
-        rewriteJpVocabConnectionSchoolVerbClassTerms(
-          stripJpVocabConnectionUsageNoise(String(raw ?? ""))
+        rewriteJpVocabConnectionPosToSimplifiedChinese(
+          rewriteJpVocabConnectionSchoolVerbClassTerms(
+            stripJpVocabConnectionUsageNoise(String(raw ?? ""))
+          )
         )
       )
     )
@@ -586,6 +626,7 @@ export function jpVocabConnectionPromptAppendix(
 - ✅ 各用法接续完全相同时，可只写共用形态，不必硬写用法1/2。
 - ✅ 否定形／疑问形／肯定形等变体必须另起一行（如「否定形: …」「疑问形: …」），禁止和主接续挤在同一行。
 - ✅ 对学生友好：写清词类：一类动词／二类动词／三类动词／一类形容词原形／二类形容词原形／名词＋本语法；❌禁止只写笼统「原形＋…」；少用「普通形」「现在肯定为词干」；な形容词／名词特殊时用短句（如「不加だ」「加だ」）。
+- ✅ 词类标签必须简体中文（动词／一类形容词／名词／词干…）；❌禁止日语繁体词类字（動詞／形容詞／名詞／一類／語幹）；❌禁止词类旁假名读音括注如「動詞(どうし)」「普通形(ふつうけい)」。
 - ✅ 动词只用「一类动词／二类动词／三类动词」（国内教材）；❌禁止「五段／一段／カ变／サ变」。多种动词接续时分行写（一类动词: …／二类动词: …／三类动词: …）。
 - ✅ 卡片会自动排表：同一用法下多种词类时，写成「词类＋接续；词类＋接续」（全角「；」），或分行「词类：说明」。❌禁止散文「接在动词、形容词、名词后面」。
 - ❌ 禁止「动词意志形（一类动词：…；二类动词：…）＋と思う」这类括号嵌套散文——须分行「一类动词：意志形（…）＋と思う」。
@@ -597,6 +638,10 @@ ${JP_VOCAB_CONNECTION_SECTION_MARKER}
 用法1: 动词原形＋と；一类形容词词尾い＋と；二类形容词词干＋だと；名词＋だと（条件句前项不用た形）
 用法2: 动词原形＋と（前后主语可不同；后项客观描述）
 用法3: 动词普通形（原形／ない形／た形／ている形）＋と；二类形容词词干＋だと；名词＋だと
+
+示例接序段（ようだ 类推断；词类简体、无读音括注）：
+${JP_VOCAB_CONNECTION_SECTION_MARKER}
+动词普通形＋ようだ；一类形容词普通形＋ようだ；二类形容词词干＋なようだ；名词＋のようだ
 
 示例接序段（各用法接续相同 / 活用分行）：
 ${JP_VOCAB_CONNECTION_SECTION_MARKER}
@@ -617,6 +662,7 @@ ${JP_VOCAB_CONNECTION_SECTION_MARKER}
 - 在全部例句写完后，另起一行写「${JP_VOCAB_CONNECTION_SECTION_MARKER}」，下面写本词接序/活用要点。
 - ❌ 不要把接序混进例句或译文。
 - ✅ 写词类（一类动词／二类动词／三类动词／一类形容词／二类形容词／名词等）及常用形（辞书形、ます形、て形等，按本词需要）；日语用「」短引，不要假名括注。
+- ✅ 词类标签必须简体中文；❌禁止「動詞(どうし)」「一類形容詞」这类繁体+读音。
 - ✅ 动词只用「一类／二类／三类」；❌禁止「五段／一段／カ变／サ变」。
 - ✅ 若写「动词辞书形」须写成「动词辞书形（动词原形）」。
 - 2～4 行即可。
@@ -656,6 +702,7 @@ export function buildJpVocabConnectionOnlyAiPrompt(
 - ❌ 禁止写用法说明（主语是谁、恩惠流向、强调好意／获益、意思相近可互换等）——只写接续形态公式。
 - 接续相同时可只写共用形态；否定形／疑问形等必须另起一行。
 - ✅ 对学生友好：写清词类：一类动词／二类动词／三类动词／一类形容词原形／二类形容词原形／名词＋本语法；❌禁止只写笼统「原形＋…」；少用「普通形」「现在肯定为词干」；な／名词特殊时短句说清（不加だ／加だ）。
+- ✅ 词类标签必须简体中文（动词／一类形容词／名词／词干…）；❌禁止日语繁体词类字（動詞／形容詞／名詞／一類／語幹）；❌禁止词类旁假名读音括注如「動詞(どうし)」「普通形(ふつうけい)」。
 - ✅ 动词只用「一类动词／二类动词／三类动词」；❌禁止「五段／一段／カ变／サ变」。多种动词接续时分行写。
 - ✅ 卡片自动排表：同一用法多种词类 →「词类＋接续；词类＋接续」；或分行「词类：说明」。❌禁止散文罗列词类。
 - ❌ 禁止括号嵌套散文「…（一类动词：…；二类动词：…）＋…」，须分行上表。
@@ -667,6 +714,10 @@ export function buildJpVocabConnectionOnlyAiPrompt(
 ${JP_VOCAB_CONNECTION_SECTION_MARKER}
 用法1: 动词原形＋と；一类形容词词尾い＋と；二类形容词词干＋だと；名词＋だと（条件句前项不用た形）
 用法2: 动词原形＋と（前后主语可不同；后项客观描述）
+
+输出示例（ようだ 类；词类简体、无读音）：
+${JP_VOCAB_CONNECTION_SECTION_MARKER}
+动词普通形＋ようだ；一类形容词普通形＋ようだ；二类形容词词干＋なようだ；名词＋のようだ
 
 输出示例（活用分行上表）：
 ${JP_VOCAB_CONNECTION_SECTION_MARKER}
@@ -688,6 +739,7 @@ ${JP_VOCAB_CONNECTION_SECTION_MARKER}
 硬规则：
 - 第一行必须是「${JP_VOCAB_CONNECTION_SECTION_MARKER}」，下面 2～4 行。
 - 写词类与辞书形/ます形/て形等（按本词需要）；动词用一类／二类／三类；❌禁止五段／一段／カ变／サ变；日语用「」短引；不要假名括注。
+- 词类标签必须简体中文；❌禁止「動詞(どうし)」这类繁体+读音。
 - 若写「动词辞书形」须写成「动词辞书形（动词原形）」。
 - 不要写例句、不要 markdown。
 

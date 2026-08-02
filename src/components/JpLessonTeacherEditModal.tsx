@@ -474,6 +474,7 @@ export function JpLessonTeacherEditModal({
           </button>
         </div>
 
+        <div className="jp-lesson-teacher-body">
         <fieldset
           className="jp-lesson-teacher-fieldset"
           disabled={saving || addingTeacher || deletingTeacherId != null}
@@ -673,6 +674,7 @@ export function JpLessonTeacherEditModal({
             <p className="jp-lesson-teacher-hint">没有匹配的老师，请换个关键词试试。</p>
           ) : null}
         </fieldset>
+        </div>
 
         <div className="jp-lesson-teacher-actions">
           <button
@@ -709,7 +711,11 @@ export function JpLessonTeacherEditModal({
         }
 
         .jp-lesson-teacher-modal {
+          display: flex;
+          flex-direction: column;
           width: min(620px, 100%);
+          max-height: min(94vh, 900px);
+          overflow: hidden;
           padding: 1rem 1.1rem;
           border: 1px solid var(--border);
           border-radius: 12px;
@@ -717,7 +723,16 @@ export function JpLessonTeacherEditModal({
           box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
         }
 
+        .jp-lesson-teacher-body {
+          flex: 1 1 auto;
+          min-height: 0;
+          overflow-y: auto;
+          overscroll-behavior: contain;
+          -webkit-overflow-scrolling: touch;
+        }
+
         .jp-lesson-teacher-header {
+          flex-shrink: 0;
           display: flex;
           align-items: flex-start;
           justify-content: space-between;

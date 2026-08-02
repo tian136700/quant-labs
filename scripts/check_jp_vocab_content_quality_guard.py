@@ -77,6 +77,8 @@ def main() -> int:
         fail("connection 须拒 bare_numbered_lines")
     if "connection_has_usage" not in conn:
         fail("connection 须拒 connection_has_usage")
+    if "rewriteJpVocabConnectionPosToSimplifiedChinese" not in conn:
+        fail("connection 须有词类简体/剥假名 rewrite")
 
     notes = (ROOT / "src/lib/jp-vocab-db/notes_fields.ts").read_text(encoding="utf-8")
     if "validateJpVocabExampleSentencesAiOutput" not in notes:
