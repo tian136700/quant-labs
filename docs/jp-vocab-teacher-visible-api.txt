@@ -1,0 +1,125 @@
+日语抽问 · 今日抽查数量 / 老师可见池 API
+====================================
+
+用途
+----
+轻量接口：只返回「今日抽查数量」与老师可见池配置（`teacher_visible_limit`）。
+
+给老师端 / 管理员端页面在进页、点「刷新」、软刷新时同步用，**不必**拉全库词表。
+跨子域名（japanese / finance）共用同一 D1；解决跨手机/电脑仍显示旧目标的问题。
+
+
+线上地址
+--------
+GET https://japanese.info-quests.com/api/jp-vocab/teacher-visible
+
+说明：也可用 finance.info-quests.com 同路径（同一 Worker / 同一 D1）。
+
+
+本机开发（可选）
+---------------
+GET http://127.0.0.1:3002/api/jp-vocab/teacher-visible
+
+
+鉴权
+----
+须登录 Cookie（credentials: include）。
+
+允许：持有 `jp_vocab:operate` / `jp_vocab:teacher`，
+或可操作日语抽问的老师/管理员账号。
+
+未登录或不具备权限 → 401。
+
+
+请求
+----
+无 Query / Body。GET 即可。
+
+建议请求头：
+  Cookie: <登录 Cookie>
+  Cache-Control / fetch cache: no-store（客户端勿用浏览器 HTTP 缓存）
+
+
+成功响应示例
+------------
+{
+  "ok": true,
+  "teacher_visible_limit": {
+    "date": "2026-08-02",
+    "limit": 20,
+    "count": 20,
+    "quiz_target": 20,
+    "released_today": true,
+    "release_count": 20,
+    "visible_ids": [201, 202, 203],
+    "quiz_target_adjusted_at": "2026-08-02 14:30:00"
+  }
+}
+
+字段说明（teacher_visible_limit）
+--------------------------------
+date                     北京日期 YYYY-MM-DD；跨日会回到默认目标（20）
+quiz_target              管理员设定的「今日抽查数量」（主字段）
+limit / count            与 quiz_target 同义兼容字段
+visible_ids              当日老师可见池 word_id 列表（日序前 N；跳过管理员
+                         「非常熟悉」未占名额词后补满）；可缺省
+released_today           今日是否已物化可见池
+release_count            可见池大小（通常 = visible_ids.length）
+quiz_target_adjusted_at  最近一次改目标的北京时间字符串（可选；用于防旧快照）
+
+说明：
+- 服务端读库时使用 **bypassCache: true**（绕过 Worker isolate 约 5s 读缓存），
+  保证拿到刚保存的目标，不会把其它端已改的数量打回旧值。
+- 响应头 Cache-Control: no-store。
+- 客户端应用本接口结果时应 **信任远端**（勿用本地 SWR 旧目标盖住本响应）。
+
+
+失败响应
+--------
+401
+  { "ok": false, "error": "请登录后查看单词设置。" }
+  （英文 locale 时为 Please log in to view vocabulary settings.）
+
+500
+  { "ok": false, "error": "…" }
+
+
+调用建议
+--------
+- 进页 / 点「刷新」必调一次；词表 SWR 仍新鲜时也要调（只同步数量）。
+- 同浏览器多标签：管理员保存后靠 BroadcastChannel 立刻通知；跨设备靠本接口。
+- 不要为盯「今日抽查数量」另开 <5s 高频轮询（见 workers 日请求限额约定）。
+
+
+curl 示例
+---------
+curl -sS \
+  -H 'Cookie: 你的登录 Cookie' \
+  -H 'x-locale: zh' \
+  'https://japanese.info-quests.com/api/jp-vocab/teacher-visible'
+
+
+Python 最小例
+-------------
+import requests
+
+BASE = "https://japanese.info-quests.com"
+COOKIE = "你的登录 Cookie"
+
+r = requests.get(
+    f"{BASE}/api/jp-vocab/teacher-visible",
+    headers={"Cookie": COOKIE, "x-locale": "zh"},
+    timeout=30,
+)
+data = r.json()
+print(r.status_code, data.get("ok"))
+tv = data.get("teacher_visible_limit") or {}
+print("quiz_target=", tv.get("quiz_target"), "date=", tv.get("date"))
+
+
+相关
+----
+- 设今日抽查数量：POST /api/jp-vocab  action=set_daily_quiz_target（见 docs/jp-vocab-api.txt）
+- 全量词表：GET /api/jp-vocab（docs/jp-vocab-api.txt）
+- 英语对称接口：docs/en-vocab-teacher-visible-api.txt
+- 实现：src/app/api/jp-vocab/teacher-visible/route.ts

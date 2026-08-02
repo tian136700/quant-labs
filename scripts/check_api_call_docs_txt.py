@@ -43,6 +43,14 @@ REQUIRED: list[tuple[str, str]] = [
         "docs/en-vocab-class-notes-api.txt",
     ),
     (
+        "src/app/api/en-vocab/teacher-visible/route.ts",
+        "docs/en-vocab-teacher-visible-api.txt",
+    ),
+    (
+        "src/app/api/jp-vocab/teacher-visible/route.ts",
+        "docs/jp-vocab-teacher-visible-api.txt",
+    ),
+    (
         "src/app/api/admin/users/login-link/route.ts",
         "docs/admin-users-login-link-api.txt",
     ),
