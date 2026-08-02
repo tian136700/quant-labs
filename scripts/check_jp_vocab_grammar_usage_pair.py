@@ -91,6 +91,8 @@ def main() -> int:
         errors.append("须拒 usage_missing_level")
     if "usage_has_connection" not in usage_ai:
         errors.append("须拒 usage_has_connection（用法夹接续）")
+    if "usage_empty_after_strip" not in usage_ai:
+        errors.append("须拒 usage_empty_after_strip（剥接续后空用法）")
     if "stripJpVocabUsageConnectionNoise" not in usage_ai:
         errors.append("须有 stripJpVocabUsageConnectionNoise")
     if "(N5)" not in usage_ai:

@@ -140,15 +140,30 @@ def main() -> None:
         if "动词た形" in got_f:
             fail(f"纯公式句应剥掉: {got_f!r}")
 
+    # ～みたい 脏用法3：整句「接在…」→ 剥光只剩 (N4)
+    mitai3 = "接在名词后作定语或用于句尾，表示「像……那样的」「类似……的」。(N4)"
+    mitai_got = strip_line(mitai3)
+    if mitai_got.strip() not in {"(N4)", "（N4）", ""}:
+        fail(f"～みたい 接续伪用法应剥成等级空壳，得到: {mitai_got!r}")
+    for needle in (
+        "jpVocabUsagePointIsEmptyOrLevelOnly",
+        "usage_empty_after_strip",
+    ):
+        if needle not in src:
+            fail(f"jp-vocab-usage-ai.ts missing {needle!r}")
+
     rule = RULE.read_text(encoding="utf-8")
     if "usage_has_connection" not in rule:
         fail("jp-vocab-grammar-usage.mdc 须写明 usage_has_connection")
+    if "usage_empty_after_strip" not in rule:
+        fail("jp-vocab-grammar-usage.mdc 须写明 usage_empty_after_strip")
     if "误伤义项" not in rule and "た形＋とき" not in rule:
         fail("规则须写明剥接续勿误伤「た形＋とき」义项")
 
     print("OK: strip connection noise from usage")
     print(f"OK: dirty → {got}")
     print(f"OK: toki2 → {toki_got}")
+    print(f"OK: mitai3 → {mitai_got!r}")
     print("All jp-vocab usage-no-connection-noise checks passed.")
 
 

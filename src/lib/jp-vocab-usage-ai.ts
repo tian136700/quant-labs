@@ -37,6 +37,7 @@ export const JP_VOCAB_USAGE_UPLOAD_SPEC = {
     "用法说明必须是中文（学生要看得懂）；禁止整段日语用法；「」外不要写汉字(假名)括注",
     "可在中文里用「」短引日语形态（如「～てから」「て形」）；「」内也不要假名括注",
     "❌ 用法行禁止写接序/接续（接在…、构成「…＋…」、动词辞书形＋…）；接序只写在文末【接序】段",
+    "❌ 禁止把「作定语／作状语／句尾」或「みたいな／みたいに／みたいだ」形态差拆成独立用法编号；这些写进【接序】表格",
     "每条用法句末句号后必须标该用法大概 JLPT 等级：半角括号 (N5)/(N4)/(N3)/(N2)/(N1)，紧贴句末",
     "普通语法：每条用法编号后必须带 [口语n|考试m]（口语/JLPT 考试出现分各 1～10）；对比课与变形课不要写分值标记",
     "用法与例句必须同一次输出、严格 1:1：编号中文用法下一行立刻跟日语例句，再下一行「译文：」；禁止给同一用法多造几句",
@@ -60,6 +61,7 @@ export const JP_VOCAB_USAGE_UPLOAD_SPEC = {
     "usage_missing_level",
     "usage_off_lemma",
     "usage_has_connection",
+    "usage_empty_after_strip",
     "missing_frequency",
     "invalid_frequency",
     "contrast_missing_distinction",
@@ -125,6 +127,19 @@ export function normalizeJpVocabUsageJlptTail(
   const body = m[1].replace(/\s+$/u, "");
   if (!body) return null;
   return `${body}(N${m[2]})`;
+}
+
+/**
+ * 剥接续后是否只剩空串或句末等级「(N4)」——常见于把「接在…」整句当用法。
+ * 展示应丢掉该编号点；写回须拒 usage_empty_after_strip。
+ */
+export function jpVocabUsagePointIsEmptyOrLevelOnly(text: string): boolean {
+  const t = String(text || "").trim();
+  if (!t) return true;
+  if (/^[（(]\s*N\s*[1-5]\s*[）)]\s*$/i.test(t)) return true;
+  const m = JP_VOCAB_USAGE_JLPT_TAIL_RE.exec(t);
+  if (m && !m[1].replace(/\s+$/u, "")) return true;
+  return false;
 }
 
 /**
@@ -260,6 +275,7 @@ ${jpVocabConnectionPromptAppendix("grammar")}`;
 - 用法说明必须是中文，学生要看得懂。❌ 禁止整段日语用法；❌「」外不要写 漢字(かな) 假名括注。可在中文里用「」短引日语形态（如「冷たい」「～てから」「場所に＋名詞がある」），「」内也不要假名括注。
 - ❌ 用法行禁止写接序清单（如「动词て形＋本语法」）；接序只放在文末【接序】段。
 - ❌ 用法禁止写「接在…之后」「构成「…＋…」」等接续说明；这些只写在【接序】。
+- ❌ 禁止把「作定语／作状语／句尾」或「みたいな／みたいに／みたいだ」「ような／ように／ようだ」等形态差拆成独立用法编号；形态写进【接序】表格。
 - 每条中文用法在句末句号后，必须紧跟该用法大概对应的 JLPT 等级，半角括号：。(N5) 或 .(N4) .(N3) .(N2) .(N1)。按该条用法的常见考试难度估，不要整词条只标一个级；不要写「JLPT」「能力考」等字样。
 - 只用本词条本身的用法。❌ 禁止把其它语法点塞进来凑组数（词条「～がある」时，不要写「～たことがある」「～ことがある」等别的句型当独立用法；那些是别的词条）。
 - 每一组必须完整：中文用法（含句末等级） + 日语例句 + 译文：；禁止只输出用法。
@@ -622,16 +638,18 @@ export function stripJpVocabUsageConnectionNoise(
       stripJpVocabUsageConnectionNoiseFromLine(body)
     );
   }
+  const cleanedPoints = points
+    .map((p) => ({
+      n: p.n,
+      text: stripJpVocabUsageConnectionNoiseFromLine(p.text),
+      oralFrequency: p.oralFrequency,
+      examFrequency: p.examFrequency,
+    }))
+    .filter((p) => !jpVocabUsagePointIsEmptyOrLevelOnly(p.text))
+    .map((p, i) => ({ ...p, n: i + 1 }));
   return joinJpVocabUsageWithDistinction(
     lead ? stripJpVocabUsageConnectionNoiseFromLine(lead) : null,
-    serializeJpVocabUsagePoints(
-      points.map((p) => ({
-        n: p.n,
-        text: stripJpVocabUsageConnectionNoiseFromLine(p.text),
-        oralFrequency: p.oralFrequency,
-        examFrequency: p.examFrequency,
-      }))
-    )
+    cleanedPoints.length ? serializeJpVocabUsagePoints(cleanedPoints) : ""
   );
 }
 
@@ -666,8 +684,21 @@ export function validateJpVocabUsageAiOutput(
   if (input && input.kind !== "grammar") {
     return { ok: false, reason: "not_grammar" };
   }
-  // 先剥接续噪音，再校验（存量/模型常把接序写进用法）
-  const text = stripJpVocabUsageConnectionNoise(String(raw ?? "")).trim();
+  const rawText = String(raw ?? "").trim();
+  if (!rawText) return { ok: false, reason: "empty" };
+  const rawSplit = splitJpVocabUsageDistinctionLead(rawText);
+  const rawPoints = parseJpVocabUsagePoints(rawSplit.body);
+  // 剥接续前先扫编号点：整句「接在…」剥光后只剩 (N4) → 拒（勿等展示层静默丢掉）
+  if (rawPoints?.length) {
+    for (const p of rawPoints) {
+      const cleanedLine = stripJpVocabUsageConnectionNoiseFromLine(p.text);
+      if (jpVocabUsagePointIsEmptyOrLevelOnly(cleanedLine)) {
+        return { ok: false, reason: "usage_empty_after_strip" };
+      }
+    }
+  }
+  // 再剥接续噪音（空编号点展示层会丢掉），再校验其余
+  const text = stripJpVocabUsageConnectionNoise(rawText).trim();
   if (!text) return { ok: false, reason: "empty" };
   const { lead, body } = splitJpVocabUsageDistinctionLead(text);
   const isContrast = Boolean(
@@ -730,7 +761,10 @@ export function validateJpVocabUsageAiOutput(
   const withLevel: JpVocabUsagePoint[] = [];
   for (const p of points) {
     const cleaned = stripJpVocabUsageConnectionNoiseFromLine(p.text);
-    if (!cleaned || jpVocabUsageLineHasConnectionNoise(cleaned)) {
+    if (jpVocabUsagePointIsEmptyOrLevelOnly(cleaned)) {
+      return { ok: false, reason: "usage_empty_after_strip" };
+    }
+    if (jpVocabUsageLineHasConnectionNoise(cleaned)) {
       return { ok: false, reason: "usage_has_connection" };
     }
     let oral = p.oralFrequency;
