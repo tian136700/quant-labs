@@ -518,6 +518,7 @@ export function JpVocabAdminReviewFlashcardModal({
           courseLabel={w.course_label}
           oralFrequency={w.oral_frequency}
           examFrequency={w.exam_frequency}
+          kind={w.kind}
         />
         </div>
 

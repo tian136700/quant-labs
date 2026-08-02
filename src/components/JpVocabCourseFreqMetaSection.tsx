@@ -50,22 +50,31 @@ function FreqBar({
 /**
  * 抽问/带读/学生/复习卡：备注（与标注）下方展示课数 + 口语/考试频率。
  * 无数据时仍显示行，值为空白（旧词条常见）。
+ * 语法卡：隐藏词级口语/考试（改看每种用法旁的「口语 n/10 · 考试 m/10」）。
  */
 export function JpVocabCourseFreqMetaSection({
   courseLabel,
   oralFrequency,
   examFrequency,
+  kind,
+  hideWordFrequency,
 }: {
   courseLabel?: string | null;
   oralFrequency?: number | null;
   examFrequency?: number | null;
+  /** grammar → 默认隐藏词级频率 */
+  kind?: string | null;
+  hideWordFrequency?: boolean;
 }) {
   const course = (courseLabel || "").trim();
+  const hideFreq =
+    hideWordFrequency === true ||
+    (hideWordFrequency !== false && String(kind || "").trim() === "grammar");
 
   return (
     <section
       className="jp-vocab-teacher-quiz__meta-after-notes"
-      aria-label="课数与出现频率"
+      aria-label={hideFreq ? "课数" : "课数与出现频率"}
     >
       <div className="jp-vocab-teacher-quiz__meta-row">
         <span className="jp-vocab-teacher-quiz__meta-label">
@@ -79,8 +88,18 @@ export function JpVocabCourseFreqMetaSection({
           {course || "\u00A0"}
         </span>
       </div>
-      <FreqBar label={JP_VOCAB_ORAL_FREQUENCY_LABEL} frequency={oralFrequency} />
-      <FreqBar label={JP_VOCAB_EXAM_FREQUENCY_LABEL} frequency={examFrequency} />
+      {hideFreq ? null : (
+        <>
+          <FreqBar
+            label={JP_VOCAB_ORAL_FREQUENCY_LABEL}
+            frequency={oralFrequency}
+          />
+          <FreqBar
+            label={JP_VOCAB_EXAM_FREQUENCY_LABEL}
+            frequency={examFrequency}
+          />
+        </>
+      )}
     </section>
   );
 }
