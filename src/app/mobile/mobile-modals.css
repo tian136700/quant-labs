@@ -1,5 +1,8 @@
 @media (max-width: 767px) {
-  /* ── Modals: bottom sheet on phones ── */
+  /*
+   * 新课老师/时间弹窗用局部 style jsx（.class.jsx-hash），特异性高于本文件。
+   * 壳层布局必须 !important，否则仍居中 + 94vh + overlay padding，底栏「保存」被裁掉。
+   */
   .jp-lesson-teacher-overlay,
   .jp-lesson-next-class-overlay,
   .jp-vocab-edit-overlay,
@@ -9,6 +12,15 @@
     align-items: flex-end;
     padding: 0;
     padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .jp-lesson-teacher-overlay,
+  .jp-lesson-next-class-overlay {
+    align-items: flex-end !important;
+    justify-content: flex-end !important;
+    padding: 0 !important;
+    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+    overflow: hidden !important;
   }
 
   .jp-lesson-teacher-modal,
@@ -26,16 +38,38 @@
     overflow: hidden;
   }
 
+  .jp-lesson-teacher-modal,
+  .jp-lesson-next-class-modal {
+    width: 100% !important;
+    max-width: none !important;
+    max-height: calc(
+      100svh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)
+    ) !important;
+    border-radius: 12px 12px 0 0 !important;
+    overflow: hidden !important;
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  .jp-lesson-teacher-body,
   .jp-lesson-next-class-body {
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow-y: auto;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
   }
 
+  /* 列表自滚交给 body；避免 55vh 内层再顶掉底栏按钮 */
+  .jp-lesson-teacher-options {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .jp-lesson-teacher-header,
+  .jp-lesson-next-class-header,
+  .jp-lesson-teacher-actions,
   .jp-lesson-next-class-actions {
-    flex-shrink: 0;
+    flex-shrink: 0 !important;
   }
 
   .jp-lesson-teacher-actions,
