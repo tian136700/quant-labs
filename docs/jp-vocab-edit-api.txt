@@ -4,7 +4,7 @@
 用途
 ----
 一次性更新日语词库某条词条的可编辑字段（单词或语法）：
-读音、释义、词性、备注、例句、用法、接序、助记等。
+读音、释义、词性、备注、例句、用法、接序、相关构词、助记等。
 
 网页主路径：`/jp-vocab` 编辑弹窗 → POST 本接口。
 改用法时服务端会校验语法用法格式（中文、编号、句末 (N5)/(N4)…）；
@@ -55,17 +55,20 @@ Header：
   "example_sentences": "…",       // 选填；空串存 NULL；老师手改来源记「手动」
   "usage": "1. ……。(N5)",         // 选填；语法用法（见下）
   "connection": "一类形容词原形＋…", // 选填；接序/接续
+  "related_compounds": "…",       // 选填；相关构词（仅单词；见下）
   "mnemonic": "…"                 // 选填；仅管理员
 }
 
 说明：
 - 只传要改的字段即可（未传字段保留库中原值）。
 - な形容词辞书形「〜だ」：改 word/reading 时会剥成词干入库。
-- 手改 meaning / pos / example_sentences / usage / connection 时，
-  对应 `*_source` 会记为「手动」（除非另行走 fill 接口传 source）。
+- 手改 meaning / pos / example_sentences / usage / connection /
+  related_compounds 时，对应 `*_source` 会记为「手动」
+  （除非另行走 fill 接口传 source）。
 - `example_sentences` 存库格式仍为「日语行 + 译文：…」括号假名；
   页面展示另转下方小字，勿改成 ruby HTML。
-
+- `related_compounds`：多行「漢字(かな)：中文」；卡片在例句后展示「相关构词」。
+  语法词条请留空；没有自然相关词就不要硬凑。
 
 语法 usage 校验（非变形课）
 --------------------------
@@ -114,6 +117,24 @@ kind=grammar 且词条**不是**「变形/变化规则」类活用课时，若�
 保存时会 `normalizeJpVocabConnectionText`（含裸编号改写成「用法N:」）。
 
 
+相关构词 related_compounds（选填，仅单词）
+----------------------------------------
+助记用：含本词汉字/读音的简单词（口→入口）；连浊算同一读音族。
+存库多行，每行：
+
+  入口(いりぐち)：入口
+  出口(でぐち)：出口
+
+条数：没有自然相关词 → 空串/不传（禁止硬凑）；少则 1～2；多则最多 4～5。
+校验（`validateJpVocabRelatedCompoundsAiOutput`）：
+- 语法词条非空 → related_compounds_word_only
+- 行格式不对 → related_compounds_bad_line
+- 超过 5 条 → related_compounds_too_many
+- 与本词无关 → related_compounds_unrelated
+- 写成本词自己 → related_compounds_is_self
+- 熟语漏连浊（入口标 いりくち）→ wrong_jukugo_furigana
+
+
 成功响应
 --------
 {
@@ -126,6 +147,8 @@ kind=grammar 且词条**不是**「变形/变化规则」类活用课时，若�
     "meaning": "认真；老实；正经",
     "pos": "な形容词",
     "example_sentences": "…",
+    "related_compounds": null,
+    "related_compounds_source": null,
     "usage": null,
     "connection": null,
     "updated_at": "2026-08-01T…",
@@ -165,6 +188,16 @@ kind=grammar 且词条**不是**「变形/变化规则」类活用课时，若�
 400  { "ok": false, "error": "例句格式不完整" }      // need_four_lines
 400  { "ok": false, "error": "例句须用到该语法" }    // grammar_not_used
 400  { "ok": false, "error": "日语例句格式无效" }    // invalid_japanese_line
+400  { "ok": false, "error": "相关构词仅用于单词" }  // related_compounds_word_only
+400  { "ok": false, "error": "相关构词每行格式：漢字(かな)：中文" }
+                                                     // related_compounds_bad_line
+400  { "ok": false, "error": "相关构词最多 5 条" }    // related_compounds_too_many
+400  { "ok": false, "error": "相关构词须含本词汉字或同一读音族" }
+                                                     // related_compounds_unrelated
+400  { "ok": false, "error": "不要把本词自己写成相关构词" }
+                                                     // related_compounds_is_self
+400  { "ok": false, "error": "相关构词释义须为中文" }
+                                                     // related_compounds_gloss_not_chinese
 404  { "ok": false, "error": "未找到该词条" }        // not_found
 500  { "ok": false, "error": "…" }
 
@@ -211,6 +244,17 @@ curl -sS -X POST \
   }' \
   'https://japanese.info-quests.com/api/jp-vocab/edit'
 
+# 改相关构词（仅单词；禁止硬凑无关词）
+curl -sS -X POST \
+  -H 'Cookie: 你的登录 Cookie' \
+  -H 'Content-Type: application/json' \
+  -H 'x-locale: zh' \
+  -d '{
+    "word_id": 507,
+    "related_compounds": "入口(いりぐち)：入口\n出口(でぐち)：出口\n悪口(わるぐち)：坏话"
+  }' \
+  'https://japanese.info-quests.com/api/jp-vocab/edit'
+
 
 Python 最小示例
 ---------------
@@ -246,6 +290,7 @@ with urllib.request.urlopen(req, timeout=60) as resp:
 - 例句补全（Bearer）：docs/jp-vocab-fill-example-sentences-api.txt
 - 语法用法规则：.cursor/rules/jp-vocab-grammar-usage.mdc
 - 造句/例句规则：.cursor/rules/jp-vocab-example-sentences-compose.mdc
+- 相关构词：.cursor/rules/jp-vocab-related-compounds.mdc
 - 脏数据防复发：.cursor/rules/jp-vocab-content-quality-guard.mdc
 - 代码：src/app/api/jp-vocab/edit/route.ts
         src/lib/jp-vocab-db/notes_fields.ts → updateJpVocabWordEntry
@@ -255,3 +300,5 @@ with urllib.request.urlopen(req, timeout=60) as resp:
         （译文剥标签）jp-vocab-example-sentences.ts
           → stripJpVocabExampleGlossLabel / formatJpVocabExampleGlossLine
         （接序）jp-vocab-connection-ai.ts → normalizeJpVocabConnectionText
+        （相关构词）jp-vocab-related-compounds.ts
+          → validateJpVocabRelatedCompoundsAiOutput

@@ -14,11 +14,13 @@ import { enforceVocabFillRouteRateLimit } from "@/lib/worker-api-rate-limit";
 type FillExampleSentencesBody = {
   /**
    * list_missing=拉取缺例句（默认，空 body 亦同）
+   * list_missing_related_compounds=缺相关构词（默认单汉字词）
    * apply=提交 updates 写库（有 updates 时自动）
    * catalog / scan_incomplete_gloss / scan_incomplete_furigana / normalize_gloss_label=其它运维模式
    */
   mode?:
     | "list_missing"
+    | "list_missing_related_compounds"
     | "apply"
     | "catalog"
     | "scan_incomplete_gloss"
@@ -30,6 +32,9 @@ type FillExampleSentencesBody = {
   limit?: number;
   /** list_missing：只拉 word 或 grammar */
   kind?: "word" | "grammar";
+  /** list_missing_related_compounds：默认 true 只拉单汉字 */
+  single_kanji_only?: boolean;
+  list_missing_related_compounds?: boolean;
   /** apply：整批默认来源（单条 updates[].source 优先） */
   source?: string;
   /** 默认 catalog：按内置 N5 例句词表补全 */
@@ -54,6 +59,7 @@ type FillExampleSentencesBody = {
     example_sentences?: string;
     connection?: string;
     related_compounds?: string;
+    mark_related_compounds_checked?: boolean;
     /** 例句来源，如 DeepSeek / Qwen本地 / 手动 */
     source?: string;
     example_sentences_source?: string;
@@ -98,6 +104,9 @@ export async function POST(request: Request) {
           connection: String(item.connection ?? "").trim() || null,
           related_compounds:
             String(item.related_compounds ?? "").trim() || null,
+          mark_related_compounds_checked: Boolean(
+            item.mark_related_compounds_checked
+          ),
           source: per || null,
         };
       })
@@ -107,7 +116,8 @@ export async function POST(request: Request) {
           item.word_id > 0 &&
           (Boolean(item.example_sentences) ||
             Boolean(item.connection) ||
-            Boolean(item.related_compounds))
+            Boolean(item.related_compounds) ||
+            Boolean(item.mark_related_compounds_checked))
       );
 
     const kind =
@@ -147,6 +157,18 @@ export async function POST(request: Request) {
     } else if (body.mode === "catalog" || body.from_catalog) {
       mode = "catalog";
       result = await fillJpVocabExampleSentencesFromCatalog(env.DB, { dryRun });
+    } else if (
+      body.mode === "list_missing_related_compounds" ||
+      body.list_missing_related_compounds
+    ) {
+      mode = "list_missing_related_compounds";
+      const { listJpVocabWordsMissingRelatedCompounds } = await import(
+        "@/lib/jp-vocab-related-compounds-fill"
+      );
+      result = await listJpVocabWordsMissingRelatedCompounds(env.DB, {
+        limit,
+        single_kanji_only: body.single_kanji_only !== false,
+      });
     } else {
       mode = "list_missing";
       result = await scanJpVocabWordsMissingExampleSentences(env.DB, {

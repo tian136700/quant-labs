@@ -233,16 +233,40 @@ def main() -> int:
 
     sample_label = format_fill_content_label(
         lang="jp",
-        applied="['reading', 'word_bundle', 'example_sentences']",
+        applied="['reading', 'word_bundle', 'example_sentences', 'related_compounds']",
         fill_task="jp-vocab-fill-unified",
     )
-    if "统一补全" not in sample_label or "读音" not in sample_label:
+    if (
+        "统一补全" not in sample_label
+        or "读音" not in sample_label
+        or "相关构词" not in sample_label
+    ):
         raise SystemExit(f"FAIL: fill content label bad: {sample_label!r}")
+    from maintenance_center.vocab_fill_applied_label import (  # noqa: E402
+        _APPLIED_LABELS,
+    )
+
+    if _APPLIED_LABELS.get("related_compounds") != "相关构词":
+        raise SystemExit("FAIL: related_compounds must map to 相关构词")
     pos_label = format_fill_content_label(
         lang="jp", applied="['pos']", fill_task="jp-vocab-fill-pos-online"
     )
     if "临时词性" not in pos_label or "词性" not in pos_label:
         raise SystemExit(f"FAIL: pos fill content label bad: {pos_label!r}")
+    rc_label = format_fill_content_label(
+        lang="jp",
+        applied="['related_compounds']",
+        fill_task="jp-vocab-fill-related-compounds-online",
+    )
+    if "临时相关构词" not in rc_label or "相关构词" not in rc_label:
+        raise SystemExit(f"FAIL: related compounds fill content label bad: {rc_label!r}")
+    feed_py = (ROOT / "scripts/maintenance_center/jp_vocab_fill_feed.py").read_text(
+        encoding="utf-8"
+    )
+    if "related_compounds_online" not in feed_py:
+        raise SystemExit("FAIL: jp_vocab_fill_feed missing related_compounds_online")
+    if "临时相关构词" not in app_js:
+        raise SystemExit("FAIL: app.js missing 临时相关构词 summary")
     if 'id="en-fill-interval"' not in index_html:
         raise SystemExit("FAIL: missing en-fill-interval select")
     if 'id="jp-fill-interval-save"' not in index_html:

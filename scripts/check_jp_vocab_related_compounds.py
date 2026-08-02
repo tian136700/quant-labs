@@ -38,7 +38,24 @@ def main() -> int:
     must_contain(share, "w.related_compounds", "shared select")
     must_contain(live, "related_compounds", "peek select")
     must_contain(fill, "related_compounds", "fill apply")
+    must_contain(fill, "markRelatedCompoundsCheckedEmpty", "empty checked")
     must_contain(route, "related_compounds", "api route")
+    must_contain(route, "list_missing_related_compounds", "list missing mode")
+    must_contain(
+        ROOT / "src/lib/jp-vocab-related-compounds-fill.ts",
+        "listJpVocabWordsMissingRelatedCompounds",
+        "list helper",
+    )
+    must_contain(
+        ROOT / "scripts/jp-vocab-fill-related-compounds-online-api.py",
+        "list_missing_related_compounds",
+        "temp online api",
+    )
+    must_contain(
+        ROOT / "scripts/setup-jp-vocab-fill-related-compounds-online-mac.sh",
+        "jp-vocab-fill-related-compounds-online",
+        "setup mac",
+    )
     must_contain(section, "JpVocabFuriganaText", "furigana display")
     must_contain(teacher, "JpVocabRelatedCompoundsSection", "teacher card")
     must_contain(review, "JpVocabRelatedCompoundsSection", "review card")

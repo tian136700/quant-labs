@@ -4,10 +4,12 @@
 用途
 ----
 拉取缺例句词条（含 prompt），或把生成好的例句写回 D1。
+也可同次写回接序、相关构词（单词助记：口→入口）。
 也可运维扫描：缺译义、汉字漏标假名；规范化「译文：」前缀；な形容词剥「だ」。
 
 **禁止在 Worker 内调大模型**——模型在 Mac / 其它项目跑，再经本接口 apply。
-
+线上统一补全（付费）应把 related_compounds 与例句放在**同一次**模型输出里。
+临时回填单汉字可用 Mac 任务 `jp-vocab-fill-related-compounds-online`（每分钟 1 条）。
 
 线上地址
 --------
@@ -16,6 +18,8 @@ POST https://japanese.info-quests.com/api/jp-vocab/fill-example-sentences
 说明：
 - 也可用 `finance.info-quests.com` 同路径（同一 Worker / 同一 D1）。
 - 样例客户端：`scripts/jp-vocab-fill-example-sentences-api.py`
+- 临时单汉字相关构词：`scripts/jp-vocab-fill-related-compounds-online-api.py`
+  安装：`bash scripts/setup-jp-vocab-fill-related-compounds-online-mac.sh`
 
 
 本机开发（可选）
@@ -43,6 +47,7 @@ mode 一览
 | mode | 说明 |
 |------|------|
 | list_missing（默认；空 body 亦同） | 拉缺例句；每条含 prompt；响应含 upload_spec |
+| list_missing_related_compounds | 拉缺相关构词（默认只单汉字词，如口/手）；含 prompt |
 | apply | 写回 updates（有 updates 时自动走 apply） |
 | scan_incomplete_gloss | 已有例句但缺中文译义 |
 | scan_incomplete_furigana | 已有例句但日语行汉字漏标假名（只读） |
@@ -67,15 +72,38 @@ updates           apply：数组，见下
 apply · updates[] 字段
 ----------------------
 word_id             必填。词条 id
-example_sentences   例句全文（日语行 + 「译文：」交替；勿行首 1. 2.）
+example_sentences   选填。例句全文（日语行 + 「译文：」交替；勿行首 1. 2.）
 connection          选填。接序；可与例句同次写回
+related_compounds   选填。相关构词（仅单词）；可与例句同次写回，也可单独写回
+mark_related_compounds_checked  选填。true=确认无自然相关构词（只写 source，正文空）
 source              选填。覆盖整批 source（如「本地 gemma4:26b」「Agent现写」）
 example_sentences_source  同 source（兼容旧字段）
+
+说明：
+- 至少提供 example_sentences / connection / related_compounds /
+  mark_related_compounds_checked 之一。
+- 仅传 related_compounds：可补已有例句词条的空相关构词（allow_overwrite 控制覆盖）。
+- list_missing_related_compounds：默认 single_kanji_only=true；
+  候选条件为相关构词空且 source 未写过。
 
 source 约定：
 - Mac / 本地模型：如「本地 gemma4:26b」「Qwen本地」
 - Agent 现造句写回：**「Agent现写」**（禁止写「手动」）
 - 老师在编辑框保存：系统记「手动」
+
+
+相关构词 related_compounds（单词）
+---------------------------------
+存库多行「漢字(かな)：中文」。卡片在例句后展示「相关构词」。
+
+  入口(いりぐち)：入口
+  出口(でぐち)：出口
+
+条数：没有自然相关词 → 不传/空（禁止硬凑）；少则 1～2；多则最多 4～5。
+校验失败时 skipped.reason 含：
+  related_compounds_word_only / related_compounds_bad_line /
+  related_compounds_too_many / related_compounds_unrelated /
+  related_compounds_is_self / wrong_jukugo_furigana（漏连浊）
 
 
 例句存库格式（强制）
@@ -140,7 +168,9 @@ validate_format：
       "id": 464,
       "word": "説明する",
       "example_sentences": "先生(せんせい)が…",
-      "example_sentences_source": "Agent现写"
+      "example_sentences_source": "Agent现写",
+      "related_compounds": "説明書(せつめいしょ)：说明书",
+      "related_compounds_source": "Agent现写"
     }
   ],
   "skipped": []
@@ -198,6 +228,36 @@ curl -sS -X POST \
     "updates":[{
       "word_id": 464,
       "example_sentences": "先生(せんせい)が文法(ぶんぽう)を説明(せつめい)します。\n译文：老师说明语法。\n彼(かれ)はその理由(りゆう)を説明(せつめい)しました。\n译文：他解释了那个理由。"
+    }]
+  }' \
+  'https://japanese.info-quests.com/api/jp-vocab/fill-example-sentences'
+
+# 同次写回例句 + 相关构词（推荐；线上付费亦同一次模型输出）
+curl -sS -X POST \
+  -H 'Authorization: Bearer 你的TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "mode":"apply",
+    "allow_overwrite": true,
+    "source":"Agent现写",
+    "updates":[{
+      "word_id": 507,
+      "example_sentences": "口(くち)を開(あ)けてください。(N5)\n译文：请张嘴。\nこのビルの入口(いりぐち)はどこですか。(N4)\n译文：这栋楼的入口在哪里？",
+      "related_compounds": "入口(いりぐち)：入口\n出口(でぐち)：出口\n悪口(わるぐち)：坏话"
+    }]
+  }' \
+  'https://japanese.info-quests.com/api/jp-vocab/fill-example-sentences'
+
+# 仅补相关构词（例句已有）
+curl -sS -X POST \
+  -H 'Authorization: Bearer 你的TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "mode":"apply",
+    "source":"Agent现写",
+    "updates":[{
+      "word_id": 507,
+      "related_compounds": "入口(いりぐち)：入口\n出口(でぐち)：出口"
     }]
   }' \
   'https://japanese.info-quests.com/api/jp-vocab/fill-example-sentences'
@@ -261,6 +321,10 @@ print(
                         "彼(かれ)はその理由(りゆう)を説明(せつめい)しました。\n"
                         "译文：他解释了那个理由。"
                     ),
+                    "related_compounds": (
+                        "説明書(せつめいしょ)：说明书\n"
+                        "説明会(せつめいかい)：说明会"
+                    ),
                 }
             ],
         }
@@ -272,8 +336,11 @@ print(
 ----
 - 造句条数 / 内容：.cursor/rules/jp-vocab-example-sentences-compose.mdc
 - 技术入口：.cursor/rules/jp-vocab-fill-example-sentences.mdc
+- 相关构词：.cursor/rules/jp-vocab-related-compounds.mdc
 - 假名展示：.cursor/rules/jp-vocab-example-furigana-display.mdc
 - 调度门禁：POST /api/jp-vocab/fill-schedule-gate
+- 编辑写回（Cookie）：docs/jp-vocab-edit-api.txt
 - 代码：src/app/api/jp-vocab/fill-example-sentences/route.ts
         src/lib/jp-vocab-fill-example-sentences.ts
         src/lib/jp-vocab-example-furigana-scan.ts
+        src/lib/jp-vocab-related-compounds.ts

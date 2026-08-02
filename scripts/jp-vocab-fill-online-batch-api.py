@@ -581,7 +581,14 @@ def apply_bundle(
                 },
             )
             if int(r.get("updated") or 0) > 0:
-                done.append("example_sentences" if examples else "related_compounds")
+                if examples:
+                    done.append("example_sentences")
+                # 统一补全同一次会要 related_compounds；有内容已写入，空也记进 applied
+                # 便于维护中心「补全内容」列显示「相关构词」
+                if "related_compounds" in payload:
+                    done.append("related_compounds")
+                elif related:
+                    done.append("related_compounds")
             else:
                 sk = r.get("skipped") or []
                 reason = (
@@ -646,9 +653,8 @@ def extract_bundle(data: dict[str, Any], row: dict[str, Any]) -> dict[str, Any]:
             out["pos"] = pos
         if ex:
             out["example_sentences"] = ex
-        rc = str(data.get("related_compounds") or "").strip()
-        if rc:
-            out["related_compounds"] = rc
+        # 始终带上键（可 ""）：没有自然相关词填空，禁止模型整段省略该字段
+        out["related_compounds"] = str(data.get("related_compounds") or "").strip()
         return out
 
     if is_conjugation_word(word):

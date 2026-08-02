@@ -166,7 +166,30 @@ async function updateRelatedCompoundsIfEmpty(
        WHERE id = ?3
          AND (related_compounds IS NULL OR TRIM(related_compounds) = '')`
     )
-    .bind(relatedCompounds.trim(), source, wordId)
+    .bind(relatedCompounds.trim() || null, source, wordId)
+    .run();
+  return Number(result.meta?.changes ?? 0) > 0;
+}
+
+/** 确认「无自然相关构词」：正文仍空，只写 source，避免临时任务死循环 */
+async function markRelatedCompoundsCheckedEmpty(
+  db: D1Database,
+  wordId: number,
+  source: string | null,
+  dryRun: boolean
+): Promise<boolean> {
+  if (dryRun) return true;
+  const result = await db
+    .prepare(
+      `UPDATE jp_vocab_word
+       SET related_compounds = NULL,
+           related_compounds_source = ?1,
+           updated_at = datetime('now')
+       WHERE id = ?2
+         AND (related_compounds IS NULL OR TRIM(related_compounds) = '')
+         AND (related_compounds_source IS NULL OR TRIM(related_compounds_source) = '')`
+    )
+    .bind(source, wordId)
     .run();
   return Number(result.meta?.changes ?? 0) > 0;
 }
@@ -502,6 +525,11 @@ export type JpVocabExampleSentenceUpdateItem = {
   connection?: string | null;
   /** 相关构词（仅单词）；与例句同次写回 */
   related_compounds?: string | null;
+  /**
+   * 模型确认无自然相关构词时：只写 related_compounds_source，正文保持空。
+   * 临时单字相关构词任务用，避免空结果反复进队。
+   */
+  mark_related_compounds_checked?: boolean;
   /** 例句来源，如「DeepSeek」「Qwen本地」「手动」 */
   source?: string | null;
 };
@@ -534,11 +562,19 @@ export async function applyJpVocabExampleSentenceUpdates(
     let exampleSentences = String(item.example_sentences ?? "").trim();
     let connectionRaw = String(item.connection ?? "").trim() || null;
     let relatedRaw = String(item.related_compounds ?? "").trim() || null;
+    const markRelatedChecked = Boolean(item.mark_related_compounds_checked);
     if (!Number.isInteger(wordId) || wordId <= 0) continue;
     const connectionOnly = Boolean(connectionRaw) && !exampleSentences && !relatedRaw;
     const relatedOnly =
       Boolean(relatedRaw) && !exampleSentences && !connectionRaw;
-    if (!exampleSentences && !connectionRaw && !relatedRaw) continue;
+    if (
+      !exampleSentences &&
+      !connectionRaw &&
+      !relatedRaw &&
+      !markRelatedChecked
+    ) {
+      continue;
+    }
 
     const source =
       normalizeJpVocabExampleSentencesSource(item.source) ?? defaultSource;
@@ -561,6 +597,38 @@ export async function applyJpVocabExampleSentenceUpdates(
       }>();
     if (!row) {
       skipped.push({ id: wordId, word: String(wordId), reason: "not_found" });
+      continue;
+    }
+
+    if (
+      markRelatedChecked &&
+      !exampleSentences &&
+      !connectionRaw &&
+      !relatedRaw
+    ) {
+      const changed = await markRelatedCompoundsCheckedEmpty(
+        db,
+        wordId,
+        source,
+        dryRun
+      );
+      if (changed) {
+        updated += 1;
+        applied.push({
+          id: wordId,
+          word: String(row.word),
+          example_sentences: String(row.example_sentences ?? ""),
+          example_sentences_source: source,
+          related_compounds: null,
+          related_compounds_source: source,
+        });
+      } else {
+        skipped.push({
+          id: wordId,
+          word: String(row.word),
+          reason: "already_filled",
+        });
+      }
       continue;
     }
 

@@ -47,6 +47,11 @@ FILL_TASKS: tuple[dict[str, str], ...] = (
         "title": "临时词性补全（线上）",
     },
     {
+        "label": "com.infoquests.jp-vocab-fill-related-compounds-online",
+        "id": "jp-vocab-fill-related-compounds-online",
+        "title": "临时相关构词补全（线上）",
+    },
+    {
         "label": "com.infoquests.jp-vocab-fill-grammar",
         "id": "jp-vocab-fill-grammar",
         "title": "日语语法用法+例句补全",
