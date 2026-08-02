@@ -417,15 +417,18 @@
     flex: 1 1 auto;
     min-width: 0;
     flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
     align-items: center;
     gap: 0.375rem;
+    text-align: center;
   }
 
   .jpls-date-relative {
     font-size: 0.875rem;
     font-weight: 600;
     line-height: 1.2;
-    text-align: left;
+    text-align: center;
     flex-shrink: 0;
     white-space: nowrap;
   }
@@ -441,15 +444,16 @@
     font-size: 0.875rem;
   }
 
+  /* 「N节课（时长）」单独一行居中，勿 text-align:right */
   .jpls-date-count {
     font-size: 0.75rem;
     color: var(--muted);
     font-weight: 500;
     white-space: normal;
-    flex-shrink: 1;
+    flex: 1 0 100%;
     min-width: 0;
     line-height: 1.2;
-    text-align: right;
+    text-align: center;
   }
 
   .jpls-icon-btn {

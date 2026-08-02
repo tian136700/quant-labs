@@ -77,6 +77,32 @@ def main() -> int:
                 "schedule CSS belongs in globals-jp-lesson-schedule.css"
             )
 
+    mobile = (
+        ROOT / "src" / "app" / "mobile" / "mobile-jp-lesson.css"
+    ).read_text(encoding="utf-8")
+    # Phone: day summary「N节课（时长）」must stay centered (not right).
+    count_rule = re.search(
+        r"\.jpls-date-count\s*\{([^}]*)\}", mobile, re.S
+    )
+    if not count_rule:
+        errs.append("mobile-jp-lesson.css: missing .jpls-date-count")
+    else:
+        body = count_rule.group(1)
+        if re.search(r"text-align\s*:\s*right", body):
+            errs.append(
+                "mobile-jp-lesson.css: .jpls-date-count must not be "
+                "text-align:right (center day class count + duration)"
+            )
+        if not re.search(r"text-align\s*:\s*center", body):
+            errs.append(
+                "mobile-jp-lesson.css: .jpls-date-count needs text-align:center"
+            )
+        if not re.search(r"flex\s*:\s*1\s+0\s+100%", body):
+            errs.append(
+                "mobile-jp-lesson.css: .jpls-date-count needs flex:1 0 100% "
+                "(own centered row under date)"
+            )
+
     if errs:
         print("check_jp_lesson_schedule_css FAILED:")
         for e in errs:
