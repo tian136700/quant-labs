@@ -143,6 +143,45 @@ export function joinJpVocabUsageWithDistinction(
 }
 
 /**
+ * 对比侧形态 token：须含假名或「～」，禁止把「我方」「得到」等纯中文括注当成读法/形态。
+ */
+export function isJpVocabContrastFormToken(raw: string): boolean {
+  const t = String(raw || "").trim();
+  if (!t || t === "—" || t === "-") return false;
+  if (/[\u3040-\u309F\u30A0-\u30FFー]/.test(t)) return true;
+  if (/^[～〜]/.test(t)) return true;
+  return false;
+}
+
+/** 从「くれる：…」「「なに」：…」「～てくれる：…」行首抽出形态 */
+export function jpVocabContrastFormHeadFromUsageText(
+  usageText: string
+): string | null {
+  const t = String(usageText || "").trim();
+  if (!t) return null;
+  const quotedHead = /^「([^」]+)」\s*[：:]/u.exec(t);
+  if (quotedHead && isJpVocabContrastFormToken(quotedHead[1])) {
+    return quotedHead[1];
+  }
+  const bareHead = /^([～〜]?[^\s：:「」]{1,24})\s*[：:]/u.exec(t);
+  if (bareHead && isJpVocabContrastFormToken(bareHead[1])) {
+    return bareHead[1];
+  }
+  return null;
+}
+
+/** 正文里第一个合法日语形态括注（跳过「我方」等中文） */
+export function jpVocabContrastFormQuoteFromUsageText(
+  usageText: string
+): string | null {
+  const t = String(usageText || "").trim();
+  for (const m of t.matchAll(/「([^」]+)」/gu)) {
+    if (isJpVocabContrastFormToken(m[1])) return m[1];
+  }
+  return null;
+}
+
+/**
  * 对比侧标签：优先正文「なに」／词条形态；禁止写「对照」（学生看不懂）。
  * 例：1.「くれる」 → 卡片显示「1.「くれる」的例句」
  */
@@ -152,9 +191,11 @@ export function jpVocabContrastPairLabel(
   forms?: readonly string[] | null
 ): string {
   const t = String(usageText || "").trim();
-  const quoted = /「([^」]+)」/u.exec(t);
-  if (quoted) return `${n}.「${quoted[1]}」`;
-  // 1. くれる：… / 1.对照：くれる…
+  const head = jpVocabContrastFormHeadFromUsageText(t);
+  if (head) return `${n}.「${head}」`;
+  const quotedJp = jpVocabContrastFormQuoteFromUsageText(t);
+  if (quotedJp) return `${n}.「${quotedJp}」`;
+  // 1.对照：くれる…
   const stripped = t.replace(
     /^(?:对照|對照|对比|對比|区别|區別)\s*[：:．.]?\s*/u,
     ""
@@ -162,7 +203,7 @@ export function jpVocabContrastPairLabel(
   const kanaHead = new RegExp(`^(${KANA_FORM})`, "u").exec(stripped);
   if (kanaHead) return `${n}.「${kanaHead[1]}」`;
   const form = String(forms?.[n - 1] ?? "").trim();
-  if (form) return `${n}.「${form}」`;
+  if (form && isJpVocabContrastFormToken(form)) return `${n}.「${form}」`;
   return `${n}.侧${n}`;
 }
 
@@ -179,7 +220,7 @@ export function buildJpVocabContrastUsageAiPromptAppendix(
       : "";
   return `
 本条是「读音/形态对比」课（比较「${a}」与「${b}」的区别），不是句型多义用法课。
-卡片会把两侧整理成**表格**（列：读法 / 何时用 / 接续），再在表下展示例句——不要按普通语法写一长串「1.用法 2.用法」。
+卡片会把两侧整理成**表格**（列：何时用 / 接续；形态写在「何时用」开头如「くれる：…」，不要另造「读法」列、不要用「我方」等中文当形态），再在表下展示例句——不要按普通语法写一长串「1.用法 2.用法」。
 
 硬规则（必须遵守）：
 - ❌ 禁止按场景拆成 5～7 条「1.用法：…」编号清单（那是句型课格式，不适合本条）。

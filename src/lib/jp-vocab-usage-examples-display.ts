@@ -13,6 +13,11 @@ import {
   type JpVocabExampleSentenceItem,
 } from "@/lib/jp-vocab-example-sentences";
 import {
+  isJpVocabContrastFormToken,
+  jpVocabContrastFormHeadFromUsageText,
+  jpVocabContrastFormQuoteFromUsageText,
+} from "@/lib/jp-vocab-contrast-usage-ai";
+import {
   isJpVocabContrastGrammar,
   jpVocabContrastPairLabel,
   jpVocabUsagePairLabel,
@@ -291,9 +296,9 @@ export function formatJpVocabUsageExamplesCopyText(
     if (rows?.length) {
       blocks.push("【区别】");
       blocks.push(
-        ["读法", "何时用", "接续"].join("\t"),
+        ["何时用", "接续"].join("\t"),
         ...rows.map((r) =>
-          [r.form, r.when, r.connection?.trim() || "—"].join("\t")
+          [r.when, r.connection?.trim() || "—"].join("\t")
         )
       );
     } else if (fallback) {
@@ -353,38 +358,44 @@ export function formatJpVocabUsageExamplesCopyText(
   return blocks.join("\n\n").trim();
 }
 
-/** 从对比课 label / 正文 / 词条形态抽出读法（くれる / なに）；禁止回落成「—」 */
+/**
+ * 从对比课 label / 正文 / 词条形态抽出形态（くれる / なに）。
+ * 禁止回落成「—」；禁止把「我方」「得到」等纯中文括注当形态。
+ */
 export function jpVocabContrastFormFromPair(
   usageLabel: string,
   usageText?: string | null,
   formHint?: string | null
 ): string {
+  const text = String(usageText || "").trim();
   const fromLabel = /\d+\.「([^」]+)」/u.exec(String(usageLabel || ""));
-  if (fromLabel) return fromLabel[1];
-  const fromText = /「([^」]+)」/u.exec(String(usageText || "").trim());
-  if (fromText) return fromText[1];
+  if (fromLabel && isJpVocabContrastFormToken(fromLabel[1])) return fromLabel[1];
+  const fromHead = jpVocabContrastFormHeadFromUsageText(text);
+  if (fromHead) return fromHead;
+  const fromQuote = jpVocabContrastFormQuoteFromUsageText(text);
+  if (fromQuote) return fromQuote;
   const hint = String(formHint || "").trim();
-  if (hint && hint !== "—" && hint !== "-") return hint;
+  if (hint && isJpVocabContrastFormToken(hint)) return hint;
   const cleaned = String(usageLabel || "")
     .replace(/^\d+\.?/, "")
     .replace(/用法|对照|對照|对比|對比|侧\d+/g, "")
     .replace(/[「」]/g, "")
     .trim();
-  if (cleaned && cleaned !== "—" && cleaned !== "-") return cleaned;
-  const kanaInText = /([\u3040-\u309Fー]{2,})/u.exec(
-    String(usageText || "").trim()
-  );
+  if (cleaned && isJpVocabContrastFormToken(cleaned)) return cleaned;
+  const kanaInText = /([\u3040-\u309Fー]{2,})/u.exec(text);
   if (kanaInText) return kanaInText[1];
-  return hint || "未标注";
+  if (hint && hint !== "—" && hint !== "-") return hint;
+  return "未标注";
 }
 
 export type JpVocabContrastComparisonRow = {
+  /** 形态（くれる / なに）；仅用于标签/兼容，表上不再单独「读法」列 */
   form: string;
   when: string;
   connection: string | null;
 };
 
-/** 对比课卡片表格行：读法 / 何时用 / 接续 */
+/** 对比课卡片表格行：何时用 / 接续（形态已写在何时用开头） */
 export function buildJpVocabContrastComparisonRows(
   model: JpVocabUsageExamplesPairedModel,
   connectionTextFor: (usageIndex: number) => string | null,

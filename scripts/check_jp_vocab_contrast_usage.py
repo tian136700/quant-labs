@@ -52,18 +52,26 @@ def main() -> int:
     if "jpVocabContrastPairLabel" not in display:
         errors.append("display 须用对比侧标签 jpVocabContrastPairLabel")
     if "parseJpVocabContrastForms" not in display:
-        errors.append("display 须用 parseJpVocabContrastForms 填读法/标签")
+        errors.append("display 须用 parseJpVocabContrastForms 填形态/标签")
     if '`${n}.对照`' in contrast or '`${n}.对照`' in display:
         errors.append("禁止回落标签「N.对照」——须用「くれる」等形态")
     if '|| "—"' in display or "|| '—'" in display:
-        # 接续空列仍可用 —；读法函数禁止以 — 作缺省
+        # 接续空列仍可用 —；形态函数禁止以 — 作缺省
         form_fn = display
         if 'jpVocabContrastFormFromPair' in form_fn:
             # 粗检：formFromPair 末尾不得 `|| "—"`
             idx = form_fn.find("export function jpVocabContrastFormFromPair")
-            chunk = form_fn[idx : idx + 1200] if idx >= 0 else ""
+            chunk = form_fn[idx : idx + 1800] if idx >= 0 else ""
             if 'return hint || "—"' in chunk or 'trim() || "—"' in chunk:
                 errors.append("jpVocabContrastFormFromPair 禁止回落「—」")
+    for needle in (
+        "isJpVocabContrastFormToken",
+        "jpVocabContrastFormHeadFromUsageText",
+    ):
+        if needle not in contrast:
+            errors.append(f"contrast-usage-ai 缺 {needle!r}（防「我方」当形态）")
+    if "isJpVocabContrastFormToken" not in display:
+        errors.append("display 形态抽取须用 isJpVocabContrastFormToken")
     if "的例句" not in (
         ROOT / "src/components/JpVocabUsageExamplesPairedContent.tsx"
     ).read_text(encoding="utf-8"):
@@ -99,18 +107,20 @@ def main() -> int:
         for needle in ("表格", "区别", "变形", "JpVocabContrastDistinctionTable"):
             if needle not in tr:
                 errors.append(f"contrast-conjugation-table 规则缺 {needle!r}")
+        if "两列表格" not in tr and "何时用 / 接续" not in tr:
+            errors.append("contrast-conjugation-table 须写明两列表格（何时用/接续）")
     if "展示分流" not in rule and "区别课 / 变形" not in rule:
         errors.append("grammar-usage 须写明区别/变形→表格 vs 句型→编号用法")
 
     table = (
         ROOT / "src/components/JpVocabContrastDistinctionTable.tsx"
     ).read_text(encoding="utf-8")
-    if "读法" not in table or "何时用" not in table or "接续" not in table:
-        errors.append("对比区别表须含列：读法 / 何时用 / 接续")
+    if "何时用" not in table or "接续" not in table:
+        errors.append("对比区别表须含列：何时用 / 接续")
     if "overflow-y: clip" not in table:
         errors.append("对比表须 overflow-y: clip（防触控板竖滑被拦）")
-    if "text-align: center" not in table or "vertical-align: middle" not in table:
-        errors.append("对比表「读法」列须格子内水平+垂直居中")
+    if ">读法</th>" in table or 'scope="col">读法<' in table:
+        errors.append("禁止恢复「读法」表头")
 
     paired = (
         ROOT / "src/components/JpVocabUsageExamplesPairedContent.tsx"
@@ -119,7 +129,10 @@ def main() -> int:
         errors.append("配对组件须渲染 JpVocabContrastDistinctionTable")
     if "buildJpVocabContrastComparisonRows" not in display:
         errors.append("display 须有 buildJpVocabContrastComparisonRows")
-
+    if '["读法", "何时用", "接续"]' in display:
+        errors.append("复制全文不得再含「读法」列")
+    if '["何时用", "接续"]' not in display:
+        errors.append("复制全文须为何时用 / 接续两列")
     if errors:
         for e in errors:
             print(f"FAIL: {e}", file=sys.stderr)

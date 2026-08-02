@@ -1,8 +1,6 @@
 "use client";
 
 export type JpVocabContrastTableRow = {
-  /** 读法，如 なに */
-  form: string;
   /** 何时用 */
   when: string;
   /** 接续要点（可空） */
@@ -16,8 +14,9 @@ type Props = {
 };
 
 /**
- * 读音/形态对比课：用表格展示两侧区别（读法 / 何时用 / 接续）。
+ * 读音/形态对比课：用表格展示两侧区别（何时用 / 接续）。
  * 样式对齐接续表 `jp-vocab-conn-table`（含手机断点）。
+ * 形态写在「何时用」开头（くれる：…），不再单独「读法」列，避免误抽「我方」等中文括注。
  */
 export function JpVocabContrastDistinctionTable({
   rows,
@@ -32,15 +31,13 @@ export function JpVocabContrastDistinctionTable({
         <table className="jp-vocab-conn-table jp-vocab-contrast-table">
           <thead>
             <tr>
-              <th scope="col">读法</th>
               <th scope="col">何时用</th>
               <th scope="col">接续</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row, idx) => (
-              <tr key={`${row.form}-${idx}`}>
-                <th scope="row">「{row.form}」</th>
+              <tr key={`${row.when.slice(0, 24)}-${idx}`}>
                 <td>{row.when}</td>
                 <td>{row.connection?.trim() || "—"}</td>
               </tr>
@@ -93,28 +90,14 @@ export function JpVocabContrastDistinctionTable({
           background: color-mix(in srgb, var(--accent) 6%, var(--panel));
           white-space: nowrap;
         }
-        .jp-vocab-contrast-table thead th:nth-child(1),
-        .jp-vocab-contrast-table tbody th {
-          width: 18%;
-          max-width: 5.5rem;
-          text-align: center;
-          vertical-align: middle;
-        }
-        .jp-vocab-contrast-table thead th:nth-child(3),
-        .jp-vocab-contrast-table tbody td:nth-child(3) {
-          width: 28%;
-        }
-        .jp-vocab-contrast-table tbody th {
-          font-weight: 600;
-          color: var(--text);
-          background: color-mix(in srgb, var(--bg) 55%, var(--panel));
-          white-space: nowrap;
+        .jp-vocab-contrast-table thead th:nth-child(2),
+        .jp-vocab-contrast-table tbody td:nth-child(2) {
+          width: 32%;
         }
         .jp-vocab-contrast-table tbody td {
           color: var(--muted);
           line-height: 1.55;
         }
-        .jp-vocab-contrast-table tbody tr:last-child th,
         .jp-vocab-contrast-table tbody tr:last-child td {
           border-bottom: none;
         }
@@ -126,14 +109,9 @@ export function JpVocabContrastDistinctionTable({
           .jp-vocab-contrast-table td {
             padding: 0.4rem 0.45rem;
           }
-          .jp-vocab-contrast-table thead th:nth-child(1),
-          .jp-vocab-contrast-table tbody th {
-            width: 22%;
-            max-width: 4.75rem;
-          }
-          .jp-vocab-contrast-table thead th:nth-child(3),
-          .jp-vocab-contrast-table tbody td:nth-child(3) {
-            width: 30%;
+          .jp-vocab-contrast-table thead th:nth-child(2),
+          .jp-vocab-contrast-table tbody td:nth-child(2) {
+            width: 34%;
           }
         }
       `}</style>
