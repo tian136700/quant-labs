@@ -6,10 +6,10 @@
 export const JP_VOCAB_CONNECTION_SECTION_MARKER = "【接序】";
 
 export const JP_VOCAB_CONNECTION_UPLOAD_SPEC = {
-  version: 6,
+  version: 7,
   label: "接序",
   format_example_grammar:
-    "用法1: 动词原形＋と；一类形容词词尾い＋と；二类形容词词干＋だと；名词＋だと（条件句前项不用た形）\n用法2: 动词原形＋と（前后主语可不同；后项客观描述）",
+    "用法1: 动词辞书形（动词原形）＋かもしれない｜推测将要发生或一般可能；一类形容词原形＋かもしれない｜推测性质或状态；二类形容词词干＋かもしれない（去「だ」）｜推测性质或状态；名词＋かもしれない｜推测是某事物\n用法2: 动词ている形＋かもしれない｜推测正在进行或所处状态\n用法3: 动词た形＋かもしれない｜推测已经发生的事",
   format_example_word:
     "一类动词／原形：「書く」；ます形：「書きます」；て形：「書いて」",
   rules: [
@@ -24,6 +24,8 @@ export const JP_VOCAB_CONNECTION_UPLOAD_SPEC = {
     "形态必须带词类：写「动词た形／动词原形／动词ている形」，❌禁止裸「た形」「原形」「て形」（学生不知道是哪类词）",
     "动词分类只用「一类动词／二类动词／三类动词」（国内教材）；❌ 禁止「五段／一段／カ变／サ变／五段动词／一段动词」",
     "卡片会把复杂接续自动排成表：多种词类时必须用「词类＋接续」并用全角分号「；」串在同一用法下（例：动词原形＋と；一类形容词词尾い＋と；名词＋だと）；或分行「词类：说明」（例：一类动词：…）",
+    "多种动词形态都能接时：优先写成「动词辞书形（动词原形）＋X；动词た形＋X；动词ている形＋X」（每段都带「＋」），❌ 不要写成「动词原形／动词た形／动词ている形＋X」只在最后加一次「＋」",
+    "可选：公式后用全角「｜」加短「说明」列（该形态接上后表示什么），如「动词た形＋かもしれない｜推测已经发生的事」；说明宜短，禁止写恩惠流向／主语是谁等长用法",
     "❌ 禁止写成散文「接在动词、一类形容词、名词后面」——无法上表，学生难扫读",
     "涉及多种动词接续时优先分行：一类动词: …／二类动词: …／三类动词: …（「来る」「する」）",
     "❌ 禁止把一类／二类／三类塞进同一行括号散文（如「动词意志形（一类动词：く→こう；二类动词：る→よう）＋と思う」）——卡片无法上表；须分行「一类动词：…」",
@@ -264,7 +266,12 @@ export type JpVocabConnectionTableRow = {
   label: string;
   /** 右列：接续说明 */
   body: string;
+  /** 可选第三列：该接续代表什么（短说明；用全角「｜」接在公式后） */
+  note?: string;
 };
+
+/** 接续表可选「说明」列分隔（全角｜优先，兼容 |） */
+const CONNECTION_TABLE_NOTE_SEP_RE = /\s*[｜|]\s*/;
 
 const CONNECTION_TABLE_ROW_RE = /^(.+?)[：:]\s*(.+)$/;
 /** 「用法1:」留给按用法分挂，不进词类表 */
@@ -278,13 +285,31 @@ const CONNECTION_PLUS_SEGMENT_RE = /^(.+?)([＋+].+)$/;
 export function splitJpVocabConnectionSemicolonOutsideParens(
   text: string
 ): string[] {
+  return splitJpVocabConnectionByCharsOutsideParens(text, ["；", ";"]);
+}
+
+/**
+ * 按 ／ 拆段，但不拆括号内（如「动词普通形（原形／た形）＋と」）。
+ * 用于剥用法噪音时；禁止把「动词原形／动词た形／动词ている形＋X」拆丢。
+ */
+export function splitJpVocabConnectionSlashOutsideParens(
+  text: string
+): string[] {
+  return splitJpVocabConnectionByCharsOutsideParens(text, ["／", "/"]);
+}
+
+function splitJpVocabConnectionByCharsOutsideParens(
+  text: string,
+  seps: string[]
+): string[] {
+  const sepSet = new Set(seps);
   const parts: string[] = [];
   let depth = 0;
   let buf = "";
   for (const ch of String(text ?? "")) {
     if (ch === "（" || ch === "(") depth += 1;
     else if (ch === "）" || ch === ")") depth = Math.max(0, depth - 1);
-    if (depth === 0 && (ch === "；" || ch === ";")) {
+    if (depth === 0 && sepSet.has(ch)) {
       const t = buf.trim();
       if (t) parts.push(t);
       buf = "";
@@ -295,6 +320,66 @@ export function splitJpVocabConnectionSemicolonOutsideParens(
   const last = buf.trim();
   if (last) parts.push(last);
   return parts;
+}
+
+/**
+ * 「动词原形」「动词た形」这类无「＋」的形态标签，须与后续「…形＋语法」拼回。
+ * 否则 strip 按 ／ 切开后会丢掉原形／た形，只剩ている形＋…（～かもしれない 已踩过）。
+ */
+export function rejoinJpVocabConnectionMorphologySlashChunks(
+  chunks: string[]
+): string[] {
+  const out: string[] = [];
+  let pending: string[] = [];
+  const flushPendingWith = (formula: string) => {
+    if (!pending.length) {
+      out.push(formula);
+      return;
+    }
+    out.push([...pending, formula].join("／"));
+    pending = [];
+  };
+  for (const raw of chunks) {
+    const t = String(raw ?? "").trim();
+    if (!t) continue;
+    if (jpVocabConnectionSegmentIsFormula(t)) {
+      flushPendingWith(t);
+      continue;
+    }
+    // 无「＋」的短形态标签：积起来等下一个公式
+    if (
+      pending.length < 8 &&
+      t.length <= CONNECTION_TABLE_LABEL_MAX &&
+      !/[。．]/.test(t) &&
+      /(?:形|词干|原形|辞书形|普通形|名词|形容词|动词)/.test(t)
+    ) {
+      pending.push(t);
+      continue;
+    }
+    // 其它非公式：先丢掉未拼上的标签，再原样保留（后续噪音过滤会再判）
+    if (pending.length) {
+      out.push(...pending);
+      pending = [];
+    }
+    out.push(t);
+  }
+  if (pending.length) out.push(...pending);
+  return out;
+}
+
+function splitJpVocabConnectionTableNote(body: string): {
+  body: string;
+  note?: string;
+} {
+  const raw = String(body ?? "").trim();
+  if (!raw) return { body: "" };
+  const parts = raw.split(CONNECTION_TABLE_NOTE_SEP_RE);
+  if (parts.length < 2) return { body: raw };
+  const main = String(parts[0] ?? "").trim();
+  const note = parts.slice(1).join("｜").trim();
+  if (!main) return { body: raw };
+  if (!note) return { body: main };
+  return { body: main, note };
 }
 
 /** 括号内「一类动词：…；二类动词：…」可上表的词类标签 */
@@ -408,13 +493,18 @@ function tryParseColonConnectionTableRows(
     const m = CONNECTION_TABLE_ROW_RE.exec(t);
     if (!m) return null;
     const label = String(m[1] ?? "").trim();
-    const body = String(m[2] ?? "").trim();
-    if (!label || !body) return null;
+    const rawBody = String(m[2] ?? "").trim();
+    if (!label || !rawBody) return null;
     if (CONNECTION_USAGE_TAG_RE.test(label)) return null;
     if (label.length > CONNECTION_TABLE_LABEL_MAX) return null;
-    rows.push({ label, body });
+    const { body, note } = splitJpVocabConnectionTableNote(rawBody);
+    if (!body) return null;
+    rows.push(note ? { label, body, note } : { label, body });
   }
-  return rows.length >= 2 ? rows : null;
+  // ≥2 行上表；仅 1 行但有「说明」列也上表（单形态用法如た形）
+  if (rows.length >= 2) return rows;
+  if (rows.length === 1 && rows[0]?.note) return rows;
+  return null;
 }
 
 /**
@@ -429,23 +519,30 @@ function tryParseSemicolonPlusConnectionTableRows(
     .map((l) => l.trim())
     .filter(Boolean)
     .join("；");
-  if (!/[；;]/.test(flat) || !/[＋+]/.test(flat)) return null;
-  const segments = splitJpVocabConnectionSemicolonOutsideParens(flat);
-  if (segments.length < 2) return null;
+  if (!/[＋+]/.test(flat)) return null;
+  // 多段用 ；；单段「词类＋接续｜说明」也可上表
+  const segments = /[；;]/.test(flat)
+    ? splitJpVocabConnectionSemicolonOutsideParens(flat)
+    : [flat];
+  if (segments.length < 1) return null;
   const rows: JpVocabConnectionTableRow[] = [];
   for (const seg of segments) {
     const m = CONNECTION_PLUS_SEGMENT_RE.exec(seg);
     if (!m) return null;
     const label = String(m[1] ?? "").trim();
-    const body = String(m[2] ?? "").trim().replace(/^[+]/, "＋");
-    if (!label || !body) return null;
+    const rawBody = String(m[2] ?? "").trim().replace(/^[+]/, "＋");
+    if (!label || !rawBody) return null;
     if (CONNECTION_USAGE_TAG_RE.test(label)) return null;
     if (label.length > CONNECTION_TABLE_LABEL_MAX) return null;
     // 避免把整句说明误当表（标签里不该再有句号长文）
     if (/[。．]/.test(label)) return null;
-    rows.push({ label, body });
+    const { body, note } = splitJpVocabConnectionTableNote(rawBody);
+    if (!body) return null;
+    rows.push(note ? { label, body, note } : { label, body });
   }
-  return rows.length >= 2 ? rows : null;
+  if (rows.length >= 2) return rows;
+  if (rows.length === 1 && rows[0]?.note) return rows;
+  return null;
 }
 
 /**
@@ -534,7 +631,10 @@ export function connectionHasUsageNoise(
       )
     : text;
   for (const line of body.split("\n")) {
-    for (const chunk of line.split(/[／/]/u)) {
+    const slashChunks = rejoinJpVocabConnectionMorphologySlashChunks(
+      splitJpVocabConnectionSlashOutsideParens(line)
+    );
+    for (const chunk of slashChunks) {
       for (const seg of chunk.split(/(?<=[。．])/u)) {
         if (jpVocabConnectionSegmentIsUsageNoise(seg)) return true;
       }
@@ -546,6 +646,9 @@ export function connectionHasUsageNoise(
 /**
  * 展示/normalize：剥掉接序里的用法说明句，只留形态公式。
  * 例：「くれる：【动词て形】＋くれる。主语是…。／もらう：…」→ 两行公式。
+ *
+ * 注意：不得把「动词原形／动词た形／动词ている形＋かもしれない」按 ／ 拆丢；
+ * 括号内的 ／（普通形（原形／た形））也不拆。
  */
 export function stripJpVocabConnectionUsageNoise(raw: string): string {
   const text = String(raw ?? "")
@@ -556,7 +659,10 @@ export function stripJpVocabConnectionUsageNoise(raw: string): string {
   for (const line of text.split("\n")) {
     const trimmed = line.trim();
     if (!trimmed) continue;
-    for (const chunk of trimmed.split(/[／/]/u)) {
+    const slashChunks = rejoinJpVocabConnectionMorphologySlashChunks(
+      splitJpVocabConnectionSlashOutsideParens(trimmed)
+    );
+    for (const chunk of slashChunks) {
       const formulaParts: string[] = [];
       for (const seg of chunk.split(/(?<=[。．])/u)) {
         const s = seg.trim().replace(/[。．]+$/u, "").trim();

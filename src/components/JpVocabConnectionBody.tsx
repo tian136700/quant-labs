@@ -14,7 +14,8 @@ type Props = {
 };
 
 /**
- * 接续正文：多行「词类：说明」或「词类＋接续；…」→ 两列表格；否则 pre-wrap 原文。
+ * 接续正文：多行「词类：说明」或「词类＋接续；…」→ 表格；
+ * 公式后可接「｜说明」显示第三列（该接续代表什么）。
  */
 export function JpVocabConnectionBody({
   text,
@@ -25,6 +26,7 @@ export function JpVocabConnectionBody({
   const trimmed = String(text || "").trim();
   if (!trimmed) return null;
   const rows = parseJpVocabConnectionTableRows(trimmed);
+  const showNoteCol = Boolean(rows?.some((r) => Boolean(r.note)));
 
   return (
     <div
@@ -40,13 +42,15 @@ export function JpVocabConnectionBody({
               <tr>
                 <th scope="col">词类</th>
                 <th scope="col">接续</th>
+                {showNoteCol ? <th scope="col">说明</th> : null}
               </tr>
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr key={`${row.label}:${row.body.slice(0, 24)}`}>
+                <tr key={`${row.label}:${row.body.slice(0, 24)}:${row.note ?? ""}`}>
                   <th scope="row">{row.label}</th>
                   <td>{row.body}</td>
+                  {showNoteCol ? <td>{row.note ?? "—"}</td> : null}
                 </tr>
               ))}
             </tbody>
