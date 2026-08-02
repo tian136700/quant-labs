@@ -32,6 +32,8 @@ type Props = {
   connection?: string | null;
   connectionSource?: string | null;
   wordLabel?: string | null;
+  /** 读音：对比课抽「なに／なん」「くれる／もらう」形态用 */
+  reading?: string | null;
   model?: JpVocabUsageExamplesPairedModel;
   emptyText?: string;
   /** 标题旁是否显示复制全部 */
@@ -46,6 +48,7 @@ export function JpVocabUsageExamplesPairedContent({
   connection,
   connectionSource,
   wordLabel,
+  reading,
   model: modelProp,
   emptyText = "暂无用法与例句",
   showCopyAll = false,
@@ -54,6 +57,7 @@ export function JpVocabUsageExamplesPairedContent({
     modelProp ??
     buildJpVocabUsageExamplePairs(usage, exampleSentences, {
       word: wordLabel,
+      reading,
     });
   const connParts = parseJpVocabConnectionDisplayParts(connection);
   const [copyToast, setCopyToast] = useState<string | null>(null);
@@ -110,7 +114,8 @@ export function JpVocabUsageExamplesPairedContent({
 
   const contrastRows = buildJpVocabContrastComparisonRows(
     model,
-    connectionTextFor
+    connectionTextFor,
+    { word: wordLabel, reading }
   );
   const showContrastTable = Boolean(contrastRows?.length);
 
@@ -160,9 +165,8 @@ export function JpVocabUsageExamplesPairedContent({
               ) : pair.usageText && showContrastTable ? (
                 <p className="jp-usage-ex-paired-usage jp-usage-ex-paired-usage--contrast-ex">
                   <span className="jp-usage-ex-paired-usage-label">
-                    {pair.usageLabel}
+                    {pair.usageLabel}的例句
                   </span>
-                  <span className="jp-usage-ex-paired-usage-body">例句</span>
                 </p>
               ) : null}
               {(() => {

@@ -447,6 +447,7 @@ export function JpVocabAdminReviewFlashcardModal({
                 connection={w.connection}
                 connectionSource={w.connection_source}
                 wordLabel={w.word}
+                reading={w.reading}
                 model={usageExamplePairs}
                 emptyText={isGrammar ? "暂无用法与例句" : "暂无例句"}
               />

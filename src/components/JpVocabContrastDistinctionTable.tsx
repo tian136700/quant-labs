@@ -38,8 +38,8 @@ export function JpVocabContrastDistinctionTable({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr key={row.form}>
+            {rows.map((row, idx) => (
+              <tr key={`${row.form}-${idx}`}>
                 <th scope="row">「{row.form}」</th>
                 <td>{row.when}</td>
                 <td>{row.connection?.trim() || "—"}</td>

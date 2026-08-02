@@ -5,8 +5,15 @@
 
 const NUMBERED_LINE_RE = /^\s*(\d+)\s*[.、．)\]]\s*(.+)$/;
 const DISTINCTION_MARKERS = ["【区别】", "【區別】", "【對比】", "【对比】"] as const;
+/** 假名形态分隔：／ / ・ · 、 */
+const CONTRAST_FORM_SEP = String.raw`[／\/・·、]`;
+const KANA_FORM = String.raw`[\u3040-\u309Fー]+`;
+const CONTRAST_FORM_CHAIN_RE = new RegExp(
+  `${KANA_FORM}(?:${CONTRAST_FORM_SEP}${KANA_FORM})+`,
+  "u"
+);
 
-/** 标题/读音里用「／」并列两种假名读法，或标题含「区别/对比/辨析」 */
+/** 标题/读音里用「／」并列假名形态，或标题含「区别/对比/辨析」 */
 export function isJpVocabContrastGrammar(
   word: string,
   reading?: string | null
@@ -19,47 +26,64 @@ export function isJpVocabContrastGrammar(
     return false;
   }
   const blob = `${w}\n${r}`;
-  // 何（なん／なに）的用法
-  if (
-    /[（(][^）)]*[\u3040-\u309Fー]+[／\/][\u3040-\u309Fー]+[^）)]*[）)]/.test(
-      blob
-    )
-  ) {
-    return true;
-  }
-  // reading = なに／なん
-  if (/^[\u3040-\u309Fー]+[／\/][\u3040-\u309Fー]+$/.test(r)) return true;
+  if (CONTRAST_FORM_CHAIN_RE.test(blob)) return true;
   if (/区别|对比|対比|辨析/.test(w)) return true;
   return false;
 }
 
-/** 从标题括号或 reading 抽出两侧形态，如 ["なん","なに"] */
+/** 从「なに／なん」或「あげる／くれる／もらう」一类串拆出形态列表 */
+export function splitJpVocabContrastFormChain(raw: string): string[] | null {
+  const t = String(raw || "").trim();
+  if (!t) return null;
+  const parts = t
+    .split(new RegExp(CONTRAST_FORM_SEP, "u"))
+    .map((p) => p.trim())
+    .filter((p) => new RegExp(`^${KANA_FORM}$`, "u").test(p));
+  if (parts.length < 2) return null;
+  return preferContrastFormsOrder(parts);
+}
+
+/** 从标题 / reading 抽出对比形态，如 ["なに","なん"] 或 ["くれる","もらう"] */
 export function parseJpVocabContrastForms(
   word: string,
   reading?: string | null
-): [string, string] | null {
+): string[] | null {
   const r = String(reading || "").trim();
-  const mReading = /^([\u3040-\u309Fー]+)[／\/]([\u3040-\u309Fー]+)$/.exec(r);
-  if (mReading) return preferContrastFormOrder(mReading[1], mReading[2]);
+  const fromReading = splitJpVocabContrastFormChain(r);
+  if (fromReading) return fromReading;
 
   const w = String(word || "").trim();
-  const mParen =
-    /[（(][^）)]*?([\u3040-\u309Fー]+)[／\/]([\u3040-\u309Fー]+)[^）)]*[）)]/.exec(
-      w
-    );
-  if (mParen) return preferContrastFormOrder(mParen[1], mParen[2]);
+  const mParen = new RegExp(
+    `[（(][^）)]*?(${KANA_FORM}(?:${CONTRAST_FORM_SEP}${KANA_FORM})+)[^）)]*[）)]`,
+    "u"
+  ).exec(w);
+  if (mParen) {
+    const fromParen = splitJpVocabContrastFormChain(mParen[1]);
+    if (fromParen) return fromParen;
+  }
+
+  // 词条本体：くれる／もらう、あげる・くれる・もらうの区别
+  const mEmbed = new RegExp(
+    `(${KANA_FORM}(?:${CONTRAST_FORM_SEP}${KANA_FORM})+)`,
+    "u"
+  ).exec(w);
+  if (mEmbed) {
+    const fromEmbed = splitJpVocabContrastFormChain(mEmbed[1]);
+    if (fromEmbed) return fromEmbed;
+  }
   return null;
 }
 
 /** 教学顺序：なに 先于 なん；其它保持原序 */
-function preferContrastFormOrder(a: string, b: string): [string, string] {
+function preferContrastFormsOrder(parts: string[]): string[] {
   if (
-    (a === "なん" && b === "なに") ||
-    (a === "なに" && b === "なん")
+    parts.length === 2 &&
+    ((parts[0] === "なん" && parts[1] === "なに") ||
+      (parts[0] === "なに" && parts[1] === "なん"))
   ) {
     return ["なに", "なん"];
   }
-  return [a, b];
+  return parts;
 }
 
 export function splitJpVocabUsageDistinctionLead(raw: string): {
@@ -115,12 +139,28 @@ export function joinJpVocabUsageWithDistinction(
   return `【区别】\n${leadText}\n${body}`;
 }
 
-/** 对照侧标签：优先取「なに」；否则「1.对照」 */
-export function jpVocabContrastPairLabel(n: number, usageText: string): string {
+/**
+ * 对比侧标签：优先正文「なに」／词条形态；禁止写「对照」（学生看不懂）。
+ * 例：1.「くれる」 → 卡片显示「1.「くれる」的例句」
+ */
+export function jpVocabContrastPairLabel(
+  n: number,
+  usageText: string,
+  forms?: readonly string[] | null
+): string {
   const t = String(usageText || "").trim();
-  const m = /^「([^」]+)」/.exec(t);
-  if (m) return `${n}.「${m[1]}」`;
-  return `${n}.对照`;
+  const quoted = /「([^」]+)」/u.exec(t);
+  if (quoted) return `${n}.「${quoted[1]}」`;
+  // 1. くれる：… / 1.对照：くれる…
+  const stripped = t.replace(
+    /^(?:对照|對照|对比|對比|区别|區別)\s*[：:．.]?\s*/u,
+    ""
+  );
+  const kanaHead = new RegExp(`^(${KANA_FORM})`, "u").exec(stripped);
+  if (kanaHead) return `${n}.「${kanaHead[1]}」`;
+  const form = String(forms?.[n - 1] ?? "").trim();
+  if (form) return `${n}.「${form}」`;
+  return `${n}.侧${n}`;
 }
 
 export function buildJpVocabContrastUsageAiPromptAppendix(
@@ -130,6 +170,10 @@ export function buildJpVocabContrastUsageAiPromptAppendix(
   const forms = parseJpVocabContrastForms(word, reading);
   const a = forms?.[0] ?? "A";
   const b = forms?.[1] ?? "B";
+  const more =
+    forms && forms.length > 2
+      ? `（本条共 ${forms.length} 侧：${forms.map((f) => `「${f}」`).join("、")}；每侧各 1 组）`
+      : "";
   return `
 本条是「读音/形态对比」课（比较「${a}」与「${b}」的区别），不是句型多义用法课。
 卡片会把两侧整理成**表格**（列：读法 / 何时用 / 接续），再在表下展示例句——不要按普通语法写一长串「1.用法 2.用法」。

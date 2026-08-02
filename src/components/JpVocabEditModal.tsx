@@ -810,6 +810,7 @@ export function JpVocabEditModal({
                 usage={usage}
                 exampleSentences={exampleSentences}
                 wordLabel={wordText || word?.word}
+                reading={reading}
               />
             ) : null}
 

@@ -51,6 +51,23 @@ def main() -> int:
 
     if "jpVocabContrastPairLabel" not in display:
         errors.append("display 须用对比侧标签 jpVocabContrastPairLabel")
+    if "parseJpVocabContrastForms" not in display:
+        errors.append("display 须用 parseJpVocabContrastForms 填读法/标签")
+    if '`${n}.对照`' in contrast or '`${n}.对照`' in display:
+        errors.append("禁止回落标签「N.对照」——须用「くれる」等形态")
+    if '|| "—"' in display or "|| '—'" in display:
+        # 接续空列仍可用 —；读法函数禁止以 — 作缺省
+        form_fn = display
+        if 'jpVocabContrastFormFromPair' in form_fn:
+            # 粗检：formFromPair 末尾不得 `|| "—"`
+            idx = form_fn.find("export function jpVocabContrastFormFromPair")
+            chunk = form_fn[idx : idx + 1200] if idx >= 0 else ""
+            if 'return hint || "—"' in chunk or 'trim() || "—"' in chunk:
+                errors.append("jpVocabContrastFormFromPair 禁止回落「—」")
+    if "的例句" not in (
+        ROOT / "src/components/JpVocabUsageExamplesPairedContent.tsx"
+    ).read_text(encoding="utf-8"):
+        errors.append("对比例句标题须为「…的例句」（勿只写「对照 例句」）")
     if "fallbackUsage: distinctionLead" not in display and "distinctionLead" not in display:
         errors.append("display 须展示【区别】lead")
 

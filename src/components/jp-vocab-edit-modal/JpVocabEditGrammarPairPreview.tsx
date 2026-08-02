@@ -6,6 +6,7 @@ type Props = {
   usage: string;
   exampleSentences: string;
   wordLabel?: string | null;
+  reading?: string | null;
 };
 
 /** 语法编辑：用法/例句分栏录入时，下方即时预览 1:1 配对（防只填用法看不到缺例句） */
@@ -13,6 +14,7 @@ export function JpVocabEditGrammarPairPreview({
   usage,
   exampleSentences,
   wordLabel,
+  reading,
 }: Props) {
   return (
     <div className="field jp-vocab-edit-grammar-pair-preview">
@@ -21,6 +23,7 @@ export function JpVocabEditGrammarPairPreview({
         usage={usage}
         exampleSentences={exampleSentences}
         wordLabel={wordLabel}
+        reading={reading}
         emptyText="请同时填写用法与对应例句（每条用法下一条例句）"
       />
       <p className="jp-vocab-edit-hint">

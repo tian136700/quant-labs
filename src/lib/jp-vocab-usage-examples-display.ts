@@ -16,6 +16,7 @@ import {
   isJpVocabContrastGrammar,
   jpVocabContrastPairLabel,
   jpVocabUsagePairLabel,
+  parseJpVocabContrastForms,
   parseJpVocabUsagePoints,
   splitJpVocabUsageDistinctionLead,
   stripJpVocabUsageConnectionNoise,
@@ -59,10 +60,11 @@ export function jpVocabCircledExampleIndex(n: number): string {
 function pairLabelFor(
   index: number,
   usageText: string | null | undefined,
-  contrast: boolean
+  contrast: boolean,
+  forms?: readonly string[] | null
 ): string {
   if (contrast && usageText) {
-    return jpVocabContrastPairLabel(index, usageText);
+    return jpVocabContrastPairLabel(index, usageText, forms);
   }
   return jpVocabUsagePairLabel(index);
 }
@@ -95,6 +97,9 @@ export function buildJpVocabUsageExamplePairs(
   const contrast =
     Boolean(lead?.trim()) ||
     isJpVocabContrastGrammar(String(opts?.word ?? ""), opts?.reading);
+  const contrastForms = contrast
+    ? parseJpVocabContrastForms(String(opts?.word ?? ""), opts?.reading)
+    : null;
   const distinctionLead = lead?.trim()
     ? lead.trim().startsWith("【")
       ? lead.trim()
@@ -122,7 +127,7 @@ export function buildJpVocabUsageExamplePairs(
   }
 
   const label = (i: number, text: string | null | undefined) =>
-    pairLabelFor(i, text, contrast);
+    pairLabelFor(i, text, contrast, contrastForms);
   const usageBody = (text: string | null | undefined) =>
     displayUsageBody(text, contrast);
   const freqFields = (pt: {
@@ -280,7 +285,9 @@ export function formatJpVocabUsageExamplesCopyText(
   };
 
   if (model.isContrast) {
-    const rows = buildJpVocabContrastComparisonRows(model, connFor);
+    const rows = buildJpVocabContrastComparisonRows(model, connFor, {
+      word: wordLabel,
+    });
     if (rows?.length) {
       blocks.push("【区别】");
       blocks.push(
@@ -346,19 +353,29 @@ export function formatJpVocabUsageExamplesCopyText(
   return blocks.join("\n\n").trim();
 }
 
-/** 从对比课 label / 正文抽出读法（なに / なん） */
+/** 从对比课 label / 正文 / 词条形态抽出读法（くれる / なに）；禁止回落成「—」 */
 export function jpVocabContrastFormFromPair(
   usageLabel: string,
-  usageText?: string | null
+  usageText?: string | null,
+  formHint?: string | null
 ): string {
-  const fromLabel = /\d+\.「([^」]+)」/.exec(String(usageLabel || ""));
+  const fromLabel = /\d+\.「([^」]+)」/u.exec(String(usageLabel || ""));
   if (fromLabel) return fromLabel[1];
-  const fromText = /^「([^」]+)」/.exec(String(usageText || "").trim());
+  const fromText = /「([^」]+)」/u.exec(String(usageText || "").trim());
   if (fromText) return fromText[1];
-  return String(usageLabel || "")
+  const hint = String(formHint || "").trim();
+  if (hint && hint !== "—" && hint !== "-") return hint;
+  const cleaned = String(usageLabel || "")
     .replace(/^\d+\.?/, "")
-    .replace(/用法|对照/g, "")
-    .trim() || "—";
+    .replace(/用法|对照|對照|对比|對比|侧\d+/g, "")
+    .replace(/[「」]/g, "")
+    .trim();
+  if (cleaned && cleaned !== "—" && cleaned !== "-") return cleaned;
+  const kanaInText = /([\u3040-\u309Fー]{2,})/u.exec(
+    String(usageText || "").trim()
+  );
+  if (kanaInText) return kanaInText[1];
+  return hint || "未标注";
 }
 
 export type JpVocabContrastComparisonRow = {
@@ -370,13 +387,23 @@ export type JpVocabContrastComparisonRow = {
 /** 对比课卡片表格行：读法 / 何时用 / 接续 */
 export function buildJpVocabContrastComparisonRows(
   model: JpVocabUsageExamplesPairedModel,
-  connectionTextFor: (usageIndex: number) => string | null
+  connectionTextFor: (usageIndex: number) => string | null,
+  opts?: { word?: string | null; reading?: string | null }
 ): JpVocabContrastComparisonRow[] | null {
   if (!model.isContrast) return null;
   const withUsage = model.pairs.filter((p) => Boolean(p.usageText));
   if (withUsage.length < 2) return null;
-  return withUsage.map((p) => ({
-    form: jpVocabContrastFormFromPair(p.usageLabel, p.usageText),
+  const forms =
+    parseJpVocabContrastForms(
+      String(opts?.word ?? ""),
+      opts?.reading
+    ) ?? null;
+  return withUsage.map((p, i) => ({
+    form: jpVocabContrastFormFromPair(
+      p.usageLabel,
+      p.usageText,
+      forms?.[p.index - 1] ?? forms?.[i] ?? null
+    ),
     when: String(p.usageText || "").trim(),
     connection: connectionTextFor(p.index),
   }));
