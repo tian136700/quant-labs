@@ -21,6 +21,7 @@ export const JP_VOCAB_CONNECTION_UPLOAD_SPEC = {
     "❌词类旁禁止假名读音括注：不要「動詞(どうし)」「普通形(ふつうけい)」；写「动词普通形」即可",
     "否定形／疑问形／肯定形等变体必须另起一行（如「否定形: …」「疑问形: …」），禁止和主接续挤同一行",
     "对学生友好：写清词类，如「一类动词／二类动词／三类动词／一类形容词／二类形容词／名词＋本语法」；❌ 禁止只写笼统的「原形＋…」",
+    "形态必须带词类：写「动词た形／动词原形／动词ている形」，❌禁止裸「た形」「原形」「て形」（学生不知道是哪类词）",
     "动词分类只用「一类动词／二类动词／三类动词」（国内教材）；❌ 禁止「五段／一段／カ变／サ变／五段动词／一段动词」",
     "卡片会把复杂接续自动排成表：多种词类时必须用「词类＋接续」并用全角分号「；」串在同一用法下（例：动词原形＋と；一类形容词词尾い＋と；名词＋だと）；或分行「词类：说明」（例：一类动词：…）",
     "❌ 禁止写成散文「接在动词、一类形容词、名词后面」——无法上表，学生难扫读",
@@ -148,6 +149,49 @@ export function rewriteJpVocabConnectionPosToSimplifiedChinese(
       .replace(/終止形/g, "终止形")
       .replace(/仮定形/g, "假定形")
   );
+}
+
+/** 裸形态名（た形／原形…）——须标明词类，默认补「动词」 */
+const CONNECTION_BARE_MORPH_FORMS = [
+  "ている形",
+  "た形",
+  "て形",
+  "ない形",
+  "ます形",
+  "辞书形",
+  "普通形",
+  "原形",
+] as const;
+
+/**
+ * 「动词原形／た形」→「动词原形／动词た形」；行首「た形＋」→「动词た形＋」。
+ * 学生须能看出是哪类词的形态，禁止裸写「た形」「原形」。
+ */
+export function rewriteJpVocabConnectionBareMorphologyLabels(
+  raw: string
+): string {
+  let text = String(raw ?? "");
+  for (const form of CONNECTION_BARE_MORPH_FORMS) {
+    // ／た形、/た形
+    text = text.replaceAll(`／${form}`, `／动词${form}`);
+    text = text.replaceAll(`/${form}`, `/动词${form}`);
+    // （原形／…）括号起头的裸形态
+    text = text.replaceAll(`（${form}`, `（动词${form}`);
+    text = text.replaceAll(`(${form}`, `(动词${form}`);
+    // 段首 / 冒号后：た形＋…、也可：た形＋…
+    text = text.replace(
+      new RegExp(
+        `(^|[；;\\n：:、，])(\\s*)(${form})(?=\\s*[＋+])`,
+        "gm"
+      ),
+      `$1$2动词${form}`
+    );
+  }
+  // 已是「动词た形」时勿叠成「动词动词た形」
+  text = text.replace(/动词动词/g, "动词");
+  // 「一类形容词动词原形」类误伤：形容词后的「动词原形」还原
+  text = text.replace(/形容词动词(?=原形|辞书形|普通形)/g, "形容词");
+  return text;
 }
 
 /** 行内「用法1: …。用法2: …」及「否定形／疑问形」拆成多行，便于展示 */
@@ -533,9 +577,11 @@ export function normalizeJpVocabConnectionText(
   const expanded = expandJpVocabConnectionUsageInlineBreaks(
     rewriteJpVocabConnectionBareNumberedToUsageTags(
       rewriteJpVocabConnectionNestedClassColonProse(
-        rewriteJpVocabConnectionPosToSimplifiedChinese(
-          rewriteJpVocabConnectionSchoolVerbClassTerms(
-            stripJpVocabConnectionUsageNoise(String(raw ?? ""))
+        rewriteJpVocabConnectionBareMorphologyLabels(
+          rewriteJpVocabConnectionPosToSimplifiedChinese(
+            rewriteJpVocabConnectionSchoolVerbClassTerms(
+              stripJpVocabConnectionUsageNoise(String(raw ?? ""))
+            )
           )
         )
       )
@@ -626,6 +672,7 @@ export function jpVocabConnectionPromptAppendix(
 - ✅ 各用法接续完全相同时，可只写共用形态，不必硬写用法1/2。
 - ✅ 否定形／疑问形／肯定形等变体必须另起一行（如「否定形: …」「疑问形: …」），禁止和主接续挤在同一行。
 - ✅ 对学生友好：写清词类：一类动词／二类动词／三类动词／一类形容词原形／二类形容词原形／名词＋本语法；❌禁止只写笼统「原形＋…」；少用「普通形」「现在肯定为词干」；な形容词／名词特殊时用短句（如「不加だ」「加だ」）。
+- ✅ 形态必须带词类：写「动词た形／动词原形／动词ている形」，❌禁止「动词原形／た形」或裸「た形＋…」（学生不知道た形是哪类词）。
 - ✅ 词类标签必须简体中文（动词／一类形容词／名词／词干…）；❌禁止日语繁体词类字（動詞／形容詞／名詞／一類／語幹）；❌禁止词类旁假名读音括注如「動詞(どうし)」「普通形(ふつうけい)」。
 - ✅ 动词只用「一类动词／二类动词／三类动词」（国内教材）；❌禁止「五段／一段／カ变／サ变」。多种动词接续时分行写（一类动词: …／二类动词: …／三类动词: …）。
 - ✅ 卡片会自动排表：同一用法下多种词类时，写成「词类＋接续；词类＋接续」（全角「；」），或分行「词类：说明」。❌禁止散文「接在动词、形容词、名词后面」。
@@ -639,9 +686,13 @@ ${JP_VOCAB_CONNECTION_SECTION_MARKER}
 用法2: 动词原形＋と（前后主语可不同；后项客观描述）
 用法3: 动词普通形（原形／ない形／た形／ている形）＋と；二类形容词词干＋だと；名词＋だと
 
-示例接序段（ようだ 类推断；词类简体、无读音括注）：
+示例接序段（ようだ / かもしれない 类推断；形态带词类）：
 ${JP_VOCAB_CONNECTION_SECTION_MARKER}
 动词普通形＋ようだ；一类形容词普通形＋ようだ；二类形容词词干＋なようだ；名词＋のようだ
+
+示例接序段（かもしれない；动词各形写清词类）：
+${JP_VOCAB_CONNECTION_SECTION_MARKER}
+动词原形／动词た形／动词ている形＋かもしれない；一类形容词原形＋かもしれない；二类形容词词干＋かもしれない（去「だ」）；名词＋かもしれない
 
 示例接序段（各用法接续相同 / 活用分行）：
 ${JP_VOCAB_CONNECTION_SECTION_MARKER}
@@ -702,6 +753,7 @@ export function buildJpVocabConnectionOnlyAiPrompt(
 - ❌ 禁止写用法说明（主语是谁、恩惠流向、强调好意／获益、意思相近可互换等）——只写接续形态公式。
 - 接续相同时可只写共用形态；否定形／疑问形等必须另起一行。
 - ✅ 对学生友好：写清词类：一类动词／二类动词／三类动词／一类形容词原形／二类形容词原形／名词＋本语法；❌禁止只写笼统「原形＋…」；少用「普通形」「现在肯定为词干」；な／名词特殊时短句说清（不加だ／加だ）。
+- ✅ 形态必须带词类：写「动词た形／动词原形／动词ている形」，❌禁止「动词原形／た形」或裸「た形＋…」。
 - ✅ 词类标签必须简体中文（动词／一类形容词／名词／词干…）；❌禁止日语繁体词类字（動詞／形容詞／名詞／一類／語幹）；❌禁止词类旁假名读音括注如「動詞(どうし)」「普通形(ふつうけい)」。
 - ✅ 动词只用「一类动词／二类动词／三类动词」；❌禁止「五段／一段／カ变／サ变」。多种动词接续时分行写。
 - ✅ 卡片自动排表：同一用法多种词类 →「词类＋接续；词类＋接续」；或分行「词类：说明」。❌禁止散文罗列词类。
@@ -715,9 +767,9 @@ ${JP_VOCAB_CONNECTION_SECTION_MARKER}
 用法1: 动词原形＋と；一类形容词词尾い＋と；二类形容词词干＋だと；名词＋だと（条件句前项不用た形）
 用法2: 动词原形＋と（前后主语可不同；后项客观描述）
 
-输出示例（ようだ 类；词类简体、无读音）：
+输出示例（ようだ / かもしれない 类；形态带词类）：
 ${JP_VOCAB_CONNECTION_SECTION_MARKER}
-动词普通形＋ようだ；一类形容词普通形＋ようだ；二类形容词词干＋なようだ；名词＋のようだ
+动词原形／动词た形／动词ている形＋かもしれない；一类形容词原形＋かもしれない；二类形容词词干＋かもしれない（去「だ」）；名词＋かもしれない
 
 输出示例（活用分行上表）：
 ${JP_VOCAB_CONNECTION_SECTION_MARKER}

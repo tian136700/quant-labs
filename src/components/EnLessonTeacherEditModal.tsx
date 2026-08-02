@@ -501,13 +501,16 @@ export function EnLessonTeacherEditModal({
           background: rgba(0, 0, 0, 0.55);
           backdrop-filter: blur(3px);
           -webkit-backdrop-filter: blur(3px);
+          overflow-y: auto;
+          overscroll-behavior: contain;
+          -webkit-overflow-scrolling: touch;
         }
 
         .jp-lesson-teacher-modal {
           display: flex;
           flex-direction: column;
           width: min(560px, 100%);
-          max-height: min(94vh, 900px);
+          max-height: min(calc(100dvh - 2rem), 900px);
           overflow: hidden;
           padding: 1rem 1.1rem;
           border: 1px solid var(--border);
