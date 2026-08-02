@@ -74,6 +74,17 @@ def main() -> int:
     if "区别 / 例句" not in teacher:
         errors.append("抽问卡对比课标题须为「区别 / 例句」")
 
+    table_rule = ROOT / ".cursor/rules/jp-vocab-contrast-conjugation-table.mdc"
+    if not table_rule.is_file():
+        errors.append("缺 jp-vocab-contrast-conjugation-table.mdc（区别/变形→表格）")
+    else:
+        tr = table_rule.read_text(encoding="utf-8")
+        for needle in ("表格", "区别", "变形", "JpVocabContrastDistinctionTable"):
+            if needle not in tr:
+                errors.append(f"contrast-conjugation-table 规则缺 {needle!r}")
+    if "展示分流" not in rule and "区别课 / 变形" not in rule:
+        errors.append("grammar-usage 须写明区别/变形→表格 vs 句型→编号用法")
+
     table = (
         ROOT / "src/components/JpVocabContrastDistinctionTable.tsx"
     ).read_text(encoding="utf-8")
@@ -81,6 +92,8 @@ def main() -> int:
         errors.append("对比区别表须含列：读法 / 何时用 / 接续")
     if "overflow-y: clip" not in table:
         errors.append("对比表须 overflow-y: clip（防触控板竖滑被拦）")
+    if "text-align: center" not in table or "vertical-align: middle" not in table:
+        errors.append("对比表「读法」列须格子内水平+垂直居中")
 
     paired = (
         ROOT / "src/components/JpVocabUsageExamplesPairedContent.tsx"

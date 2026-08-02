@@ -46,8 +46,53 @@ def main() -> int:
         errors.append("meaning-ai prompt must ask for oral/exam frequency")
 
     usage_ai = (ROOT / "src/lib/jp-vocab-usage-ai.ts").read_text(encoding="utf-8")
-    if "jpVocabFrequencyPromptAppendix" not in usage_ai:
-        errors.append("usage-ai prompt must ask for oral/exam frequency")
+    # 语法：按用法 [口语n|考试m]；勿再要求词级【出现频率】附录
+    if "jpVocabUsagePerUsageFrequencyPromptAppendix" not in usage_ai:
+        errors.append("usage-ai prompt must ask for per-usage oral/exam frequency")
+    if "wordForFreq" not in usage_ai:
+        errors.append(
+            "usage-ai: use wordForFreq before jpVocabGrammarNeedsPerUsageFrequency "
+            "(input may be undefined — deploy type error)"
+        )
+    if "missing_frequency" not in usage_ai:
+        errors.append("usage-ai validate must reject missing_frequency for normal grammar")
+
+    notes_fields = (ROOT / "src/lib/jp-vocab-db/notes_fields.ts").read_text(
+        encoding="utf-8"
+    )
+    # prevUsage 须提在 if 外（809 曾因块内声明 → 块外使用导致 Type error）
+    nu = notes_fields.find("const nextUsage =")
+    pu = notes_fields.find("const prevUsage = current.usage ?? null;")
+    use_pu = notes_fields.find(
+        "jpVocabUsageHasCompletePerUsageFrequency(prevUsage)"
+    )
+    if nu < 0 or pu < 0 or use_pu < 0 or not (nu < pu < use_pu):
+        errors.append(
+            "notes_fields.ts: hoist const prevUsage next to nextUsage "
+            "(must not declare only inside if input.usage)"
+        )
+
+    usage_freq = ROOT / "src/lib/jp-vocab-usage-frequency.ts"
+    if not usage_freq.is_file():
+        errors.append("missing src/lib/jp-vocab-usage-frequency.ts")
+    else:
+        uf = usage_freq.read_text(encoding="utf-8")
+        for needle in (
+            "extractJpVocabUsageLineFrequency",
+            "formatJpVocabUsageFrequencyDisplay",
+            "口语",
+            "/10",
+        ):
+            if needle not in uf:
+                errors.append(f"jp-vocab-usage-frequency.ts: missing {needle}")
+
+    paired = (
+        ROOT / "src/components/JpVocabUsageExamplesPairedContent.tsx"
+    ).read_text(encoding="utf-8")
+    if "jp-usage-ex-paired-freq" not in paired:
+        errors.append("UsageExamplesPairedContent must render per-usage freq line")
+    if "formatJpVocabUsageFrequencyDisplay" not in paired:
+        errors.append("UsageExamplesPairedContent must use formatJpVocabUsageFrequencyDisplay")
 
     fill_meaning = (ROOT / "src/lib/jp-vocab-fill-meaning.ts").read_text(encoding="utf-8")
     if "oral_frequency" not in fill_meaning or "exam_frequency" not in fill_meaning:
@@ -66,6 +111,10 @@ def main() -> int:
             errors.append("CourseFreqMetaSection must show 课数")
         if "口语频率" not in sec and "JP_VOCAB_ORAL_FREQUENCY_LABEL" not in sec:
             errors.append("CourseFreqMetaSection must show 口语频率")
+        if 'kind === "grammar"' not in sec and 'trim() === "grammar"' not in sec:
+            errors.append(
+                "CourseFreqMetaSection must hide word-level freq for grammar cards"
+            )
 
     for name in (
         "JpVocabTeacherQuizFlashcardModal.tsx",
@@ -77,7 +126,11 @@ def main() -> int:
             errors.append(f"{name}: must render JpVocabCourseFreqMetaSection")
         if "JpVocabCourseLabelSection" in text:
             errors.append(f"{name}: CourseLabel moved into CourseFreqMeta; remove old section")
-        notes_i = text.find('className="jp-vocab-teacher-quiz__notes"')
+        if "kind={w.kind}" not in text:
+            errors.append(f"{name}: CourseFreqMeta must receive kind={{w.kind}}")
+        notes_i = text.find("<JpVocabFlashcardNotesSection")
+        if notes_i < 0:
+            notes_i = text.find('className="jp-vocab-teacher-quiz__notes"')
         meta_i = text.find("<JpVocabCourseFreqMetaSection")
         level_i = text.find('className="jp-vocab-teacher-quiz__level"')
         stats_i = text.find('className="jp-vocab-teacher-quiz__stats"')
@@ -95,11 +148,19 @@ def main() -> int:
     if "extract_jp_vocab_frequencies" not in meaning_py:
         errors.append("meaning-api.py must extract frequencies from AI text")
 
+    # 语法主 fill 可仍剥词级频率；按用法分由 usage-frequency + prompt appendix 覆盖
     grammar_py = (
         ROOT / "scripts/jp-vocab-fill-grammar-usage-examples-api.py"
     ).read_text(encoding="utf-8")
-    if "extract_jp_vocab_frequencies" not in grammar_py:
-        errors.append("grammar-usage-api.py must extract frequencies from AI text")
+    if (
+        "extract_jp_vocab_frequencies" not in grammar_py
+        and "[口语" not in grammar_py
+        and "oral" not in grammar_py.lower()
+    ):
+        errors.append(
+            "grammar-usage-api.py should handle frequency "
+            "(word-level extract or per-usage markers)"
+        )
 
     rule = ROOT / ".cursor/rules/jp-vocab-course-freq-meta.mdc"
     if not rule.is_file():
@@ -111,7 +172,10 @@ def main() -> int:
             print(f"  - {e}")
         return 1
 
-    print("ok: jp-vocab course_label + oral/exam frequency (card after notes + AI)")
+    print(
+        "ok: jp-vocab course_label + oral/exam frequency "
+        "(word-level for words; per-usage for grammar)"
+    )
     return 0
 
 

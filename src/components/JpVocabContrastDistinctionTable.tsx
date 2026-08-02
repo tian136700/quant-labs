@@ -97,6 +97,8 @@ export function JpVocabContrastDistinctionTable({
         .jp-vocab-contrast-table tbody th {
           width: 18%;
           max-width: 5.5rem;
+          text-align: center;
+          vertical-align: middle;
         }
         .jp-vocab-contrast-table thead th:nth-child(3),
         .jp-vocab-contrast-table tbody td:nth-child(3) {
