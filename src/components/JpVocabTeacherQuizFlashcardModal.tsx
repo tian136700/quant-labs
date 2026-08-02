@@ -39,7 +39,7 @@ import { JpVocabUsageExamplesPairedContent } from "@/components/JpVocabUsageExam
 import { JpVocabConnectionSection } from "@/components/JpVocabConnectionSection";
 import { JpVocabRelatedCompoundsSection } from "@/components/JpVocabRelatedCompoundsSection";
 import { buildJpVocabUsageExamplePairs } from "@/lib/jp-vocab-usage-examples-display";
-import { isJpVocabConjugationGrammar } from "@/lib/jp-vocab-usage-ai";
+import { isJpVocabConjugationGrammar, isJpVocabContrastGrammar } from "@/lib/jp-vocab-usage-ai";
 import {
   hasJpVocabConnection,
   jpVocabConnectionShownInlineWithUsage,
@@ -375,16 +375,23 @@ export function JpVocabTeacherQuizFlashcardModal({
   const isGrammar = w.kind === "grammar";
   const isConjugationGrammar =
     isGrammar && isJpVocabConjugationGrammar(w.word);
+  const isContrastGrammar =
+    isGrammar &&
+    !isConjugationGrammar &&
+    isJpVocabContrastGrammar(w.word, w.reading);
   const usageExamplePairs = buildJpVocabUsageExamplePairs(
     w.usage,
-    w.example_sentences
+    w.example_sentences,
+    { word: w.word, reading: w.reading }
   );
   const hasUsageText = Boolean(String(w.usage ?? "").trim());
   const examplesSectionTitle = isConjugationGrammar
     ? "例句"
-    : isGrammar || hasUsageText
-      ? "用法 / 例句"
-      : "例句";
+    : isContrastGrammar
+      ? "区别 / 例句"
+      : isGrammar || hasUsageText
+        ? "用法 / 例句"
+        : "例句";
   const showExamples =
     isCoach ||
     isStudy ||

@@ -48,7 +48,10 @@ export function JpVocabUsageExamplesPairedContent({
   showCopyAll = false,
 }: Props) {
   const model =
-    modelProp ?? buildJpVocabUsageExamplePairs(usage, exampleSentences);
+    modelProp ??
+    buildJpVocabUsageExamplePairs(usage, exampleSentences, {
+      word: wordLabel,
+    });
   const connParts = parseJpVocabConnectionDisplayParts(connection);
   const [copyToast, setCopyToast] = useState<string | null>(null);
   const copyText = formatJpVocabUsageExamplesCopyText(model, wordLabel, {

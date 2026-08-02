@@ -13,8 +13,11 @@ import {
   type JpVocabExampleSentenceItem,
 } from "@/lib/jp-vocab-example-sentences";
 import {
+  isJpVocabContrastGrammar,
+  jpVocabContrastPairLabel,
   jpVocabUsagePairLabel,
   parseJpVocabUsagePoints,
+  splitJpVocabUsageDistinctionLead,
   stripJpVocabUsageConnectionNoise,
 } from "@/lib/jp-vocab-usage-ai";
 
@@ -46,19 +49,41 @@ export function jpVocabCircledExampleIndex(n: number): string {
   return `(${i})`;
 }
 
+function pairLabelFor(
+  index: number,
+  usageText: string | null | undefined,
+  contrast: boolean
+): string {
+  if (contrast && usageText) {
+    return jpVocabContrastPairLabel(index, usageText);
+  }
+  return jpVocabUsagePairLabel(index);
+}
+
 export function buildJpVocabUsageExamplePairs(
   usage: string | null | undefined,
-  exampleSentences: string | null | undefined
+  exampleSentences: string | null | undefined,
+  opts?: { word?: string | null; reading?: string | null }
 ): JpVocabUsageExamplesPairedModel {
   // 有接序字段时用法里常仍夹「接在…／构成＋」；展示前剥掉，避免与接序块重复
   const usageClean = stripJpVocabUsageConnectionNoise(String(usage ?? ""));
-  const points = parseJpVocabUsagePoints(usageClean) ?? [];
+  const { lead, body } = splitJpVocabUsageDistinctionLead(usageClean);
+  const points = parseJpVocabUsagePoints(body) ?? [];
   const examples = parseJpVocabExampleSentenceItems(
     String(exampleSentences ?? "")
   );
+  const contrast =
+    Boolean(lead?.trim()) ||
+    isJpVocabContrastGrammar(String(opts?.word ?? ""), opts?.reading);
+  const distinctionLead = lead?.trim()
+    ? lead.trim().startsWith("【")
+      ? lead.trim()
+      : `【区别】\n${lead.trim()}`
+    : null;
 
   if (!points.length) {
-    const fallbackUsage = usageClean.trim() || null;
+    const fallbackUsage =
+      distinctionLead || usageClean.trim() || null;
     const pairs: JpVocabUsageExamplePair[] = examples.map((example, i) => ({
       index: i + 1,
       usageLabel: jpVocabUsagePairLabel(i + 1),
@@ -75,18 +100,21 @@ export function buildJpVocabUsageExamplePairs(
     };
   }
 
+  const label = (i: number, text: string | null | undefined) =>
+    pairLabelFor(i, text, contrast);
+
   if (points.length === 1 && examples.length > 1) {
     return {
       pairs: [
         {
           index: 1,
-          usageLabel: jpVocabUsagePairLabel(1),
+          usageLabel: label(1, points[0]?.text),
           usageText: points[0]?.text ?? null,
           example: null,
           nestedExamples: examples,
         },
       ],
-      fallbackUsage: null,
+      fallbackUsage: distinctionLead,
       pairCount: 1,
       hasContent: true,
       useCircledExampleIndex: true,
@@ -104,7 +132,7 @@ export function buildJpVocabUsageExamplePairs(
       const slice = examples.slice(i * chunk, (i + 1) * chunk);
       return {
         index: i + 1,
-        usageLabel: jpVocabUsagePairLabel(i + 1),
+        usageLabel: label(i + 1, p.text),
         usageText: p.text ?? null,
         example: null,
         nestedExamples: slice.length ? slice : undefined,
@@ -112,7 +140,7 @@ export function buildJpVocabUsageExamplePairs(
     });
     return {
       pairs,
-      fallbackUsage: null,
+      fallbackUsage: distinctionLead,
       pairCount: pairs.length,
       hasContent: pairs.length > 0,
       useCircledExampleIndex: true,
@@ -127,7 +155,7 @@ export function buildJpVocabUsageExamplePairs(
     for (let i = 0; i < last; i++) {
       pairs.push({
         index: i + 1,
-        usageLabel: jpVocabUsagePairLabel(i + 1),
+        usageLabel: label(i + 1, points[i]?.text),
         usageText: points[i]?.text ?? null,
         example: examples[i] ?? null,
       });
@@ -135,14 +163,14 @@ export function buildJpVocabUsageExamplePairs(
     const nested = examples.slice(last);
     pairs.push({
       index: points.length,
-      usageLabel: jpVocabUsagePairLabel(points.length),
+      usageLabel: label(points.length, points[last]?.text),
       usageText: points[last]?.text ?? null,
       example: null,
       nestedExamples: nested.length ? nested : undefined,
     });
     return {
       pairs,
-      fallbackUsage: null,
+      fallbackUsage: distinctionLead,
       pairCount: pairs.length,
       hasContent: pairs.length > 0,
       useCircledExampleIndex: true,
@@ -154,7 +182,7 @@ export function buildJpVocabUsageExamplePairs(
   for (let i = 0; i < points.length; i++) {
     pairs.push({
       index: i + 1,
-      usageLabel: jpVocabUsagePairLabel(i + 1),
+      usageLabel: label(i + 1, points[i]?.text),
       usageText: points[i]?.text ?? null,
       example: examples[i] ?? null,
     });
@@ -162,9 +190,9 @@ export function buildJpVocabUsageExamplePairs(
 
   return {
     pairs,
-    fallbackUsage: null,
+    fallbackUsage: distinctionLead,
     pairCount: pairs.length,
-    hasContent: pairs.length > 0,
+    hasContent: pairs.length > 0 || Boolean(distinctionLead),
     useCircledExampleIndex: true,
     nestExamplesUnderSingleUsage: false,
   };

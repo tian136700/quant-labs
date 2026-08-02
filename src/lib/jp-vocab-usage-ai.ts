@@ -2,14 +2,28 @@ import {
   hasJpVocabConnection,
   jpVocabConnectionPromptAppendix,
 } from "@/lib/jp-vocab-connection-ai";
+import {
+  buildJpVocabContrastUsageAiPromptAppendix,
+  isJpVocabContrastGrammar,
+  joinJpVocabUsageWithDistinction,
+  splitJpVocabUsageDistinctionLead,
+} from "@/lib/jp-vocab-contrast-usage-ai";
 import { jpVocabFrequencyPromptAppendix } from "@/lib/jp-vocab-frequency";
+
+export {
+  isJpVocabContrastGrammar,
+  jpVocabContrastPairLabel,
+  parseJpVocabContrastForms,
+  splitJpVocabUsageDistinctionLead,
+  joinJpVocabUsageWithDistinction,
+} from "@/lib/jp-vocab-contrast-usage-ai";
 
 /** 日语语法用法上传契约：编号「中文」说明 + 1:1 例句（同一次调用） */
 
 export const JP_VOCAB_USAGE_UPLOAD_SPEC = {
-  version: 7,
+  version: 8,
   count_rule:
-    "组数=该语法真实常用用法数（N5～N2）；只有 1 种就 1 组，有几种写几组；禁止硬凑 2 组。每组=中文用法 + 恰好 1 条例句（严格 1:1，禁止多造）；同一次输出末尾必须有【接序】；再附【出现频率】口语/考试各 1～10",
+    "组数=该语法真实常用用法数（N5～N2）；只有 1 种就 1 组，有几种写几组；禁止硬凑 2 组。每组=中文用法 + 恰好 1 条例句（严格 1:1，禁止多造）；同一次输出末尾必须有【接序】；再附【出现频率】口语/考试各 1～10。例外：读音/形态对比课（何（なん／なに）等）→ 先【区别】再两侧各 1 组，禁止拆成多条场景用法清单",
   format_example:
     "1. 表示原因、理由：前句说明原因，后句说明结果。(N5)\n今日(きょう)は雨(あめ)だから、家(いえ)にいます。\n译文：今天下雨，所以我待在家里。\n【接序】\n动词原形／一类形容词原形＋「から」\n二类形容词原形／名词＋だから\n【出现频率】\n口语频率：9\n考试频率：8",
   level: "N5～N2（含 N1 以下；不要超纲冷僻用法）",
@@ -26,6 +40,7 @@ export const JP_VOCAB_USAGE_UPLOAD_SPEC = {
     "接序之后另起【出现频率】：口语频率与考试频率各打 1～10 分（词级；对齐英语出现频次）",
     "禁止拆成「先用法、后例句」两次模型调用；禁止另开定时任务只补接序",
     "组数按真实常用义项：1 种→1 组，2 种→2 组，3 种→3 组；不要为了凑数硬写两组",
+    "读音/形态对比课（标题含（なに／なん）或「区别」）：先【区别】概括差异，再恰好 2 组对照（禁止 5～7 条场景用法清单）",
     "水平限定 N5～N2：最常用排第一；例句只用简单词、不叠更难语法",
     "不要 markdown、不要给例句再编行首号；等级只写在用法句末括号，不要写「JLPT」「能力考」等字样",
     "写回时请传 source，建议「线上 claude-…」；人手为「手动」；接序可同传 connection",
@@ -40,6 +55,8 @@ export const JP_VOCAB_USAGE_UPLOAD_SPEC = {
     "usage_missing_level",
     "usage_off_lemma",
     "usage_has_connection",
+    "contrast_missing_distinction",
+    "contrast_need_two_points",
     "examples_required",
     "pair_incomplete",
     "examples_invalid",
@@ -99,6 +116,7 @@ export function isJpVocabConjugationGrammar(word: string): boolean {
 /**
  * 语法「用法+例句+接序」是否已齐。
  * 活用变形课：不要接序；有例句即算完成（勿再进 list_missing，否则会卡死队列）。
+ * 读音对比课：须有【区别】+恰好 2 组对照 + 例句 + 接序。
  */
 export function isJpVocabGrammarUsageExamplesPairComplete(
   word: string,
@@ -112,7 +130,21 @@ export function isJpVocabGrammarUsageExamplesPairComplete(
     return hasExamples;
   }
   if (!hasJpVocabConnection(connection)) return false;
-  return hasUsage && hasExamples;
+  if (!hasUsage || !hasExamples) return false;
+  if (isJpVocabContrastGrammar(word)) {
+    return isJpVocabContrastUsageComplete(usage);
+  }
+  return true;
+}
+
+/** 对比课：【区别】lead + 恰好 2 条编号对照 */
+export function isJpVocabContrastUsageComplete(
+  usage: string | null | undefined
+): boolean {
+  const { lead, body } = splitJpVocabUsageDistinctionLead(String(usage ?? ""));
+  if (!lead?.trim()) return false;
+  const points = parseJpVocabUsagePoints(body);
+  return Boolean(points && points.length === 2);
 }
 
 /**
@@ -139,16 +171,19 @@ export function buildJpVocabUsageAiPrompt(input: JpVocabUsageAiInput): string {
   const meaning = input.meaning?.trim();
   const word = input.word.trim();
   const isConjugation = isJpVocabConjugationGrammar(word);
+  const isContrast = !isConjugation && isJpVocabContrastGrammar(word, reading);
   const grammarCore = word
     .replace(/^[～~〜]+/, "")
     .replace(/[～~〜]+$/, "");
   const meta = [
     `词条：${word}`,
-    !isConjugation && grammarCore
+    !isConjugation && !isContrast && grammarCore
       ? `语法点：句中例句必须自然出现「${grammarCore}」（词条里的「～」「〜」禁止写进例句）。中文教学标题（如「て形变形」）不要求原文照抄。`
       : isConjugation
         ? `说明：本条是动词/形容词「活用变形」教学，学生会自己回答怎么变；不要写长篇规则讲解。`
-        : null,
+        : isContrast
+          ? `说明：本条是读音/形态「对比区别」课，不是多义句型用法清单。`
+          : null,
     reading ? `读音：${reading}` : null,
     meaning ? `旧释义参考（可忽略）：${meaning}` : null,
     "类型：语法",
@@ -176,6 +211,13 @@ ${jpVocabFrequencyPromptAppendix()}
 译文：吃早饭。
 友(とも)達(だち)と勉強(べんきょう)します。
 译文：和朋友一起学习。`;
+  }
+
+  if (isContrast) {
+    return `${meta}
+${buildJpVocabContrastUsageAiPromptAppendix(word, reading)}
+${jpVocabConnectionPromptAppendix("grammar")}
+${jpVocabFrequencyPromptAppendix()}`;
   }
 
   return `${meta}
@@ -262,7 +304,7 @@ export function parseJpVocabConjugationExamplesOnly(
 
 /**
  * 解析「编号用法 + 日语 + 译文」交替块。
- * 失败返回 null。至少 1 组。
+ * 可含前置【区别】段（写入 usage）。失败返回 null。至少 1 组。
  */
 export function parseJpVocabGrammarUsageExamplePairs(
   raw: string
@@ -277,6 +319,8 @@ export function parseJpVocabGrammarUsageExamplePairs(
   const blocks: Block[] = [];
   let cur: Block | null = null;
   let started = false;
+  const leadLines: string[] = [];
+  let sawDistinctionMarker = false;
   for (const line of lines) {
     const m = NUMBERED_LINE_RE.exec(line);
     if (m) {
@@ -285,8 +329,19 @@ export function parseJpVocabGrammarUsageExamplePairs(
       cur = { n: Number(m[1]), usage: m[2].trim(), body: [] };
       continue;
     }
-    // 允许模型多写标题行；正式内容从第一个「1.」开始
-    if (!started) continue;
+    if (!started) {
+      if (
+        line === "【区别】" ||
+        line === "【區別】" ||
+        line === "【对比】" ||
+        line === "【對比】"
+      ) {
+        sawDistinctionMarker = true;
+        continue;
+      }
+      leadLines.push(line);
+      continue;
+    }
     if (!cur) return null;
     cur.body.push(line);
   }
@@ -300,8 +355,17 @@ export function parseJpVocabGrammarUsageExamplePairs(
     if (blocks[i].body.length < 2) return null;
   }
 
-  const usage = serializeJpVocabUsagePoints(
-    blocks.map((b) => ({ n: b.n, text: b.usage }))
+  const lead =
+    leadLines.length > 0
+      ? leadLines.join("\n")
+      : sawDistinctionMarker
+        ? null
+        : null;
+  const usage = joinJpVocabUsageWithDistinction(
+    lead,
+    serializeJpVocabUsagePoints(
+      blocks.map((b) => ({ n: b.n, text: b.usage }))
+    )
   );
   const example_sentences = blocks.map((b) => b.body.join("\n")).join("\n");
   return { usage, example_sentences };
@@ -315,11 +379,12 @@ function stripFenceNoise(raw: string): string {
     .join("\n");
 }
 
-/** 解析并规范化编号用法行；失败返回 null */
+/** 解析并规范化编号用法行；失败返回 null。可含前置【区别】段（会被忽略，只解析编号行）。 */
 export function parseJpVocabUsagePoints(
   raw: string
 ): { n: number; text: string }[] | null {
-  const lines = stripFenceNoise(raw)
+  const { body } = splitJpVocabUsageDistinctionLead(String(raw ?? ""));
+  const lines = stripFenceNoise(body)
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
@@ -354,9 +419,13 @@ export function normalizeJpVocabUsageText(
   raw: string | null | undefined
 ): string | null {
   const cleaned = stripJpVocabUsageConnectionNoise(String(raw ?? ""));
-  const points = parseJpVocabUsagePoints(cleaned);
+  const { lead, body } = splitJpVocabUsageDistinctionLead(cleaned);
+  const points = parseJpVocabUsagePoints(body);
   if (!points || points.length < 1) return null;
-  return serializeJpVocabUsagePoints(points);
+  return joinJpVocabUsageWithDistinction(
+    lead,
+    serializeJpVocabUsagePoints(points)
+  );
 }
 
 export function normalizeJpVocabUsageSource(
@@ -380,11 +449,14 @@ export function jpVocabUsagePairLabel(n: number): string {
 
 export function formatJpVocabUsageForDisplay(raw: string): string {
   const cleaned = stripJpVocabUsageConnectionNoise(String(raw ?? ""));
-  const points = parseJpVocabUsagePoints(cleaned);
+  const { lead, body } = splitJpVocabUsageDistinctionLead(cleaned);
+  const points = parseJpVocabUsagePoints(body);
   if (!points?.length) return cleaned.trim();
-  return points
+  const numbered = points
     .map((p, i) => `${jpVocabUsagePairLabel(i + 1)}：${p.text}`)
     .join("\n");
+  if (!lead?.trim()) return numbered;
+  return `【区别】\n${lead.trim()}\n${numbered}`;
 }
 
 /**
@@ -479,22 +551,30 @@ export function stripJpVocabUsageConnectionNoiseFromLine(text: string): string {
 
 /**
  * 剥掉整段编号用法里的接续噪音（展示 / 写回共用）。
- * 编号解析失败时按单段处理。
+ * 编号解析失败时按单段处理。保留【区别】lead。
  */
 export function stripJpVocabUsageConnectionNoise(
   raw: string | null | undefined
 ): string {
   const text = String(raw ?? "").trim();
   if (!text) return "";
-  const points = parseJpVocabUsagePoints(text);
+  const { lead, body } = splitJpVocabUsageDistinctionLead(text);
+  const points = parseJpVocabUsagePoints(body);
   if (!points?.length) {
-    return stripJpVocabUsageConnectionNoiseFromLine(text);
+    if (!lead) return stripJpVocabUsageConnectionNoiseFromLine(text);
+    return joinJpVocabUsageWithDistinction(
+      stripJpVocabUsageConnectionNoiseFromLine(lead),
+      stripJpVocabUsageConnectionNoiseFromLine(body)
+    );
   }
-  return serializeJpVocabUsagePoints(
-    points.map((p) => ({
-      n: p.n,
-      text: stripJpVocabUsageConnectionNoiseFromLine(p.text),
-    }))
+  return joinJpVocabUsageWithDistinction(
+    lead ? stripJpVocabUsageConnectionNoiseFromLine(lead) : null,
+    serializeJpVocabUsagePoints(
+      points.map((p) => ({
+        n: p.n,
+        text: stripJpVocabUsageConnectionNoiseFromLine(p.text),
+      }))
+    )
   );
 }
 
@@ -532,26 +612,44 @@ export function validateJpVocabUsageAiOutput(
   // 先剥接续噪音，再校验（存量/模型常把接序写进用法）
   const text = stripJpVocabUsageConnectionNoise(String(raw ?? "")).trim();
   if (!text) return { ok: false, reason: "empty" };
+  const { lead, body } = splitJpVocabUsageDistinctionLead(text);
+  const isContrast = Boolean(
+    input?.word && isJpVocabContrastGrammar(input.word, input.reading)
+  );
   // 先挡日语用法（含假名括注），再解析编号
-  for (const line of text.split(/\r?\n/)) {
+  const checkLines = [
+    ...(lead ? lead.split(/\r?\n/) : []),
+    ...body.split(/\r?\n/),
+  ];
+  for (const line of checkLines) {
     const m = NUMBERED_LINE_RE.exec(line.trim());
-    const body = m ? m[2].trim() : line.trim();
-    if (body && jpVocabUsageLineLooksNonChinese(body)) {
+    const lineBody = m ? m[2].trim() : line.trim();
+    if (lineBody && jpVocabUsageLineLooksNonChinese(lineBody)) {
       return { ok: false, reason: "usage_not_chinese" };
     }
-    if (body && jpVocabUsageLineHasConnectionNoise(body)) {
+    if (lineBody && jpVocabUsageLineHasConnectionNoise(lineBody)) {
       return { ok: false, reason: "usage_has_connection" };
     }
-    if (input?.word && body && jpVocabGrammarUsageOffLemma(input.word, body)) {
+    if (
+      input?.word &&
+      lineBody &&
+      jpVocabGrammarUsageOffLemma(input.word, lineBody)
+    ) {
       return { ok: false, reason: "usage_off_lemma" };
     }
-    if (body && JP_VOCAB_USAGE_EXAM_BOILERPLATE_RE.test(body)) {
+    if (lineBody && JP_VOCAB_USAGE_EXAM_BOILERPLATE_RE.test(lineBody)) {
       return { ok: false, reason: "usage_missing_level" };
     }
   }
-  const points = parseJpVocabUsagePoints(text);
+  if (isContrast && !lead?.trim()) {
+    return { ok: false, reason: "contrast_missing_distinction" };
+  }
+  const points = parseJpVocabUsagePoints(body);
   if (!points) return { ok: false, reason: "invalid_numbering" };
   if (points.length < 1) return { ok: false, reason: "need_one_point" };
+  if (isContrast && points.length !== 2) {
+    return { ok: false, reason: "contrast_need_two_points" };
+  }
   const requireLevel = input?.requireJlptLevel !== false;
   const withLevel: { n: number; text: string }[] = [];
   for (const p of points) {
@@ -569,7 +667,21 @@ export function validateJpVocabUsageAiOutput(
     }
     withLevel.push({ n: p.n, text: cleaned.trim() });
   }
-  return { ok: true, text: serializeJpVocabUsagePoints(withLevel) };
+  let leadOut = lead?.trim() || null;
+  if (leadOut && requireLevel) {
+    const leadNorm = normalizeJpVocabUsageJlptTail(leadOut);
+    if (leadNorm) leadOut = leadNorm;
+    else if (isContrast) {
+      return { ok: false, reason: "usage_missing_level" };
+    }
+  }
+  return {
+    ok: true,
+    text: joinJpVocabUsageWithDistinction(
+      leadOut,
+      serializeJpVocabUsagePoints(withLevel)
+    ),
+  };
 }
 
 /** 用法+例句成对校验（只拆对；例句细则由 fill apply 再验） */
