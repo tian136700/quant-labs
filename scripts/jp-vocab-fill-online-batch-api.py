@@ -566,6 +566,7 @@ def apply_bundle(
 
         examples = str(payload.get("example_sentences") or "").strip()
         related = str(payload.get("related_compounds") or "").strip()
+        related_key_present = "related_compounds" in payload
         if examples or related:
             # 与 meaning 一致：走 online normalize（剥訳文等）；仍拒漏标假名
             ex_update: dict[str, Any] = {"word_id": word_id}
@@ -586,11 +587,7 @@ def apply_bundle(
             if int(r.get("updated") or 0) > 0:
                 if examples:
                     done.append("example_sentences")
-                # 统一补全同一次会要 related_compounds；有内容已写入，空也记进 applied
-                # 便于维护中心「补全内容」列显示「相关构词」
-                if "related_compounds" in payload:
-                    done.append("related_compounds")
-                elif related:
+                if related:
                     done.append("related_compounds")
             else:
                 sk = r.get("skipped") or []
@@ -602,6 +599,37 @@ def apply_bundle(
                 fails.append(f"examples:{reason}")
         else:
             fails.append("examples:missing_in_payload")
+
+        # 模型返回空相关构词：必须 mark source，卡片才显示「已通过AI获取，但暂无相关词汇」
+        # ❌ 禁止空结果却只往 applied 塞 related_compounds（维护中心假成功、卡片空白）
+        if related_key_present and not related:
+            r = _apply(
+                EXAMPLES_URL,
+                {
+                    "mode": "apply",
+                    "source": source,
+                    "updates": [
+                        {
+                            "word_id": word_id,
+                            "mark_related_compounds_checked": True,
+                        }
+                    ],
+                },
+            )
+            if int(r.get("updated") or 0) > 0:
+                done.append("related_compounds")
+            else:
+                sk = r.get("skipped") or []
+                reason = (
+                    str(sk[0].get("reason") or "related_mark_none")
+                    if sk
+                    else "related_mark_none"
+                )
+                # 已写过 source（空已查）→ 仍算相关构词已处理，勿假失败
+                if reason == "already_filled":
+                    done.append("related_compounds")
+                else:
+                    fails.append(f"related_compounds:{reason}")
         return done, fails
 
     if kind == "grammar":

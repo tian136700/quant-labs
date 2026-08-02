@@ -144,6 +144,15 @@ def main() -> int:
     must_contain(online, "禁止硬凑", "no forced compounds")
     must_contain(online, "同一次", "same request")
     must_contain(online, "禁止不同音读", "online same reading")
+    must_contain(online, "mark_related_compounds_checked", "empty → mark source")
+    online_text = online.read_text(encoding="utf-8")
+    # 曾假成功：空 related 却 done.append("related_compounds") 且不写 source
+    if '便于维护中心「补全内容」列显示「相关构词」' in online_text:
+        raise SystemExit(
+            "FAIL: 禁止空相关构词只记 applied 不写 source（维护中心假成功 / 卡片空白）"
+        )
+    if "mark_related_compounds_checked" not in online_text:
+        raise SystemExit("FAIL: online batch 空相关构词须 mark_related_compounds_checked")
     must_contain(ai, "禁止不同音读", "ai prompt same reading")
     must_contain(lib, "没有自然", "empty ok hint")
     must_contain(lib, "最多 4～5", "max count hint")
