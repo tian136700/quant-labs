@@ -8,7 +8,6 @@ import {
   joinJpVocabUsageWithDistinction,
   splitJpVocabUsageDistinctionLead,
 } from "@/lib/jp-vocab-contrast-usage-ai";
-import { jpVocabFrequencyPromptAppendix } from "@/lib/jp-vocab-frequency";
 import {
   extractJpVocabUsageLineFrequency,
   formatJpVocabUsageLineWithFrequency,
@@ -232,7 +231,6 @@ export function buildJpVocabUsageAiPrompt(input: JpVocabUsageAiInput): string {
 - 不要行首编号、不要 markdown、不要总标题、不要箭头对照句（書く→書きます）。
 - 例句必须 N5 左右：极短、口语、日常词；必须自然用到本变形（如ます形出现「ます」、て形出现「て」连接）。
 - 每个汉字后半角括号假名。
-${jpVocabFrequencyPromptAppendix()}
 输出格式示例（只有例句，没有用法、没有接序）：
 今日(きょう)は学校(がっこう)へ行(い)きます。
 译文：今天去学校。
@@ -245,8 +243,7 @@ ${jpVocabFrequencyPromptAppendix()}
   if (isContrast) {
     return `${meta}
 ${buildJpVocabContrastUsageAiPromptAppendix(word, reading)}
-${jpVocabConnectionPromptAppendix("grammar")}
-${jpVocabFrequencyPromptAppendix()}`;
+${jpVocabConnectionPromptAppendix("grammar")}`;
   }
 
   return `${meta}
@@ -268,10 +265,10 @@ ${jpVocabFrequencyPromptAppendix()}`;
 - 例句才是日语：简单词；不要再叠另一个更难的语法；每个汉字后半角括号假名；「译文：」后中文。
 - 不要 markdown、不要给例句再编行首号。
 - 不要写总标题；第一行就必须是「1. …」中文用法。
+${jpVocabUsagePerUsageFrequencyPromptAppendix()}
 ${jpVocabConnectionPromptAppendix("grammar")}
-${jpVocabFrequencyPromptAppendix()}
-输出格式示例（仅 1 种常用用法时就只输出 1 组；多种用法再继续 2. 3. …；末尾接序 + 出现频率）：
-1. 表示原因、理由：前句说明原因，后句说明结果。(N5)
+输出格式示例（仅 1 种常用用法时就只输出 1 组；多种用法再继续 2. 3. …；末尾接序）：
+1. [口语9|考试7] 表示原因、理由：前句说明原因，后句说明结果。(N5)
 今日(きょう)は雨(あめ)だから、家(いえ)にいます。
 译文：今天下雨，所以我待在家里。
 【接序】
@@ -393,7 +390,15 @@ export function parseJpVocabGrammarUsageExamplePairs(
   const usage = joinJpVocabUsageWithDistinction(
     lead,
     serializeJpVocabUsagePoints(
-      blocks.map((b) => ({ n: b.n, text: b.usage }))
+      blocks.map((b) => {
+        const freq = extractJpVocabUsageLineFrequency(b.usage);
+        return {
+          n: b.n,
+          text: freq.text,
+          oralFrequency: freq.oralFrequency,
+          examFrequency: freq.examFrequency,
+        };
+      })
     )
   );
   const example_sentences = blocks.map((b) => b.body.join("\n")).join("\n");
@@ -411,7 +416,7 @@ function stripFenceNoise(raw: string): string {
 /** 解析并规范化编号用法行；失败返回 null。可含前置【区别】段（会被忽略，只解析编号行）。 */
 export function parseJpVocabUsagePoints(
   raw: string
-): { n: number; text: string }[] | null {
+): JpVocabUsagePoint[] | null {
   const { body } = splitJpVocabUsageDistinctionLead(String(raw ?? ""));
   const lines = stripFenceNoise(body)
     .split(/\r?\n/)
@@ -419,16 +424,22 @@ export function parseJpVocabUsagePoints(
     .filter(Boolean);
   if (!lines.length) return null;
 
-  const points: { n: number; text: string }[] = [];
+  const points: JpVocabUsagePoint[] = [];
   for (const line of lines) {
     const m = NUMBERED_LINE_RE.exec(line);
     if (!m) return null;
     const n = Number(m[1]);
-    const text = m[2].trim();
+    const freq = extractJpVocabUsageLineFrequency(m[2].trim());
+    const text = freq.text.trim();
     if (!Number.isInteger(n) || n <= 0 || !text) return null;
     if (!HAN_RE.test(text)) return null;
     if (jpVocabUsageLineLooksNonChinese(text)) return null;
-    points.push({ n, text });
+    points.push({
+      n,
+      text,
+      oralFrequency: freq.oralFrequency,
+      examFrequency: freq.examFrequency,
+    });
   }
   if (!points.length) return null;
 
@@ -439,9 +450,23 @@ export function parseJpVocabUsagePoints(
 }
 
 export function serializeJpVocabUsagePoints(
-  points: { n: number; text: string }[]
+  points: Array<{
+    n: number;
+    text: string;
+    oralFrequency?: number | null;
+    examFrequency?: number | null;
+  }>
 ): string {
-  return points.map((p, i) => `${i + 1}. ${p.text.trim()}`).join("\n");
+  return points
+    .map((p, i) => {
+      const body = formatJpVocabUsageLineWithFrequency(
+        p.text.trim(),
+        p.oralFrequency,
+        p.examFrequency
+      );
+      return `${i + 1}. ${body}`;
+    })
+    .join("\n");
 }
 
 export function normalizeJpVocabUsageText(
@@ -602,6 +627,8 @@ export function stripJpVocabUsageConnectionNoise(
       points.map((p) => ({
         n: p.n,
         text: stripJpVocabUsageConnectionNoiseFromLine(p.text),
+        oralFrequency: p.oralFrequency,
+        examFrequency: p.examFrequency,
       }))
     )
   );
@@ -680,21 +707,66 @@ export function validateJpVocabUsageAiOutput(
     return { ok: false, reason: "contrast_need_two_points" };
   }
   const requireLevel = input?.requireJlptLevel !== false;
-  const withLevel: { n: number; text: string }[] = [];
+  const wordForFreq = String(input?.word ?? "").trim();
+  const needsPerUsageFreq =
+    Boolean(wordForFreq) &&
+    jpVocabGrammarNeedsPerUsageFrequency(wordForFreq, input?.reading);
+  // true=强制；false=不强制；undefined=普通语法默认强制（fill）；编辑传 false 或「已有分则 true」
+  const requireFreq =
+    input?.requireUsageFrequency === true
+      ? true
+      : input?.requireUsageFrequency === false
+        ? false
+        : needsPerUsageFreq;
+  const anyHasFreq = points.some((p) =>
+    Boolean(
+      p.oralFrequency != null ||
+        p.examFrequency != null ||
+        jpVocabUsagePointHasCompleteFrequency(p.oralFrequency, p.examFrequency)
+    )
+  );
+  const mustHaveFreq = requireFreq || (needsPerUsageFreq && anyHasFreq);
+  const withLevel: JpVocabUsagePoint[] = [];
   for (const p of points) {
     const cleaned = stripJpVocabUsageConnectionNoiseFromLine(p.text);
     if (!cleaned || jpVocabUsageLineHasConnectionNoise(cleaned)) {
       return { ok: false, reason: "usage_has_connection" };
     }
+    let oral = p.oralFrequency;
+    let exam = p.examFrequency;
+    const oralSet = oral != null;
+    const examSet = exam != null;
+    if (oralSet !== examSet) {
+      return { ok: false, reason: "invalid_frequency" };
+    }
+    if (mustHaveFreq) {
+      if (!jpVocabUsagePointHasCompleteFrequency(oral, exam)) {
+        return { ok: false, reason: "missing_frequency" };
+      }
+    } else if (!needsPerUsageFreq) {
+      // 对比/变形：剥掉误写的分值标记，不入库
+      oral = null;
+      exam = null;
+    }
     const normalized = normalizeJpVocabUsageJlptTail(cleaned);
     if (normalized) {
-      withLevel.push({ n: p.n, text: normalized });
+      withLevel.push({
+        n: p.n,
+        text: normalized,
+        oralFrequency: oral,
+        examFrequency: exam,
+      });
       continue;
     }
     if (requireLevel) {
       return { ok: false, reason: "usage_missing_level" };
     }
-    withLevel.push({ n: p.n, text: cleaned.trim() });
+    withLevel.push({
+      n: p.n,
+      text: cleaned.trim(),
+      oralFrequency: oral,
+      examFrequency: exam,
+    });
   }
   let leadOut = lead?.trim() || null;
   if (leadOut && requireLevel) {

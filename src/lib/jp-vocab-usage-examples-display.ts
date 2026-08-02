@@ -20,11 +20,16 @@ import {
   splitJpVocabUsageDistinctionLead,
   stripJpVocabUsageConnectionNoise,
 } from "@/lib/jp-vocab-usage-ai";
+import { formatJpVocabUsageFrequencyDisplay } from "@/lib/jp-vocab-usage-frequency";
 
 export type JpVocabUsageExamplePair = {
   index: number;
   usageLabel: string;
   usageText: string | null;
+  /** 口语出现分 1～10（普通语法；对比/变形为 null） */
+  oralFrequency?: number | null;
+  /** 考试出现分 1～10 */
+  examFrequency?: number | null;
   example: JpVocabExampleSentenceItem | null;
   /** 单词单用法多例句 / 多用法均分块：挂在该用法下的全部例句 */
   nestedExamples?: JpVocabExampleSentenceItem[];
@@ -281,6 +286,11 @@ export function formatJpVocabUsageExamplesCopyText(
     const lines: string[] = [];
     if (pair.usageText && !model.isContrast) {
       lines.push(`${pair.usageLabel}：${pair.usageText}`);
+      const freqLine = formatJpVocabUsageFrequencyDisplay(
+        pair.oralFrequency,
+        pair.examFrequency
+      );
+      if (freqLine) lines.push(freqLine);
       const bits = connFor(pair.index);
       if (bits) lines.push(`接续：${bits}`);
     } else if (pair.usageText && model.isContrast) {

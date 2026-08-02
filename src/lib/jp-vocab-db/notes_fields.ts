@@ -111,6 +111,7 @@ import {
   isJpVocabConjugationGrammar,
   validateJpVocabUsageAiOutput,
 } from "@/lib/jp-vocab-usage-ai";
+import { jpVocabUsageHasCompletePerUsageFrequency } from "@/lib/jp-vocab-usage-frequency";
 import { validateJpVocabExampleSentencesAiOutput } from "@/lib/jp-vocab-example-sentences-ai";
 import { normalizeJpVocabExampleSentencesFormat } from "@/lib/jp-vocab-example-sentences";
 import { normalizeJpVocabNaAdjStoredEntry } from "@/lib/jp-vocab-na-adj";
@@ -576,6 +577,9 @@ export async function updateJpVocabWordEntry(
       kind: "grammar",
       reading: nextReading,
       requireJlptLevel: true,
+      // 已有完整用法分则保存时必须保留；未补分的旧数据允许暂不带标记
+      requireUsageFrequency:
+        jpVocabUsageHasCompletePerUsageFrequency(prevUsage),
     });
     if (!usageOk.ok) {
       return { ok: false, error: usageOk.reason };
