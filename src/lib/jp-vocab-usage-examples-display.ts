@@ -60,6 +60,17 @@ function pairLabelFor(
   return jpVocabUsagePairLabel(index);
 }
 
+/** 标签已是 1.「なに」时，正文去掉开头「なに」：避免重复 */
+function displayUsageBody(
+  usageText: string | null | undefined,
+  contrast: boolean
+): string | null {
+  const t = String(usageText ?? "").trim();
+  if (!t) return null;
+  if (!contrast) return t;
+  return t.replace(/^「[^」]+」\s*[：:]\s*/u, "") || t;
+}
+
 export function buildJpVocabUsageExamplePairs(
   usage: string | null | undefined,
   exampleSentences: string | null | undefined,
@@ -102,6 +113,8 @@ export function buildJpVocabUsageExamplePairs(
 
   const label = (i: number, text: string | null | undefined) =>
     pairLabelFor(i, text, contrast);
+  const body = (text: string | null | undefined) =>
+    displayUsageBody(text, contrast);
 
   if (points.length === 1 && examples.length > 1) {
     return {
@@ -109,7 +122,7 @@ export function buildJpVocabUsageExamplePairs(
         {
           index: 1,
           usageLabel: label(1, points[0]?.text),
-          usageText: points[0]?.text ?? null,
+          usageText: body(points[0]?.text),
           example: null,
           nestedExamples: examples,
         },
@@ -133,7 +146,7 @@ export function buildJpVocabUsageExamplePairs(
       return {
         index: i + 1,
         usageLabel: label(i + 1, p.text),
-        usageText: p.text ?? null,
+        usageText: body(p.text),
         example: null,
         nestedExamples: slice.length ? slice : undefined,
       };
@@ -156,7 +169,7 @@ export function buildJpVocabUsageExamplePairs(
       pairs.push({
         index: i + 1,
         usageLabel: label(i + 1, points[i]?.text),
-        usageText: points[i]?.text ?? null,
+        usageText: body(points[i]?.text),
         example: examples[i] ?? null,
       });
     }
@@ -164,7 +177,7 @@ export function buildJpVocabUsageExamplePairs(
     pairs.push({
       index: points.length,
       usageLabel: label(points.length, points[last]?.text),
-      usageText: points[last]?.text ?? null,
+      usageText: body(points[last]?.text),
       example: null,
       nestedExamples: nested.length ? nested : undefined,
     });
@@ -183,7 +196,7 @@ export function buildJpVocabUsageExamplePairs(
     pairs.push({
       index: i + 1,
       usageLabel: label(i + 1, points[i]?.text),
-      usageText: points[i]?.text ?? null,
+      usageText: body(points[i]?.text),
       example: examples[i] ?? null,
     });
   }

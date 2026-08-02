@@ -97,6 +97,14 @@ def main() -> int:
         errors.append("usage prompt 须要求句末 (N5) 等级")
     if "isJpVocabConjugationGrammar" not in usage_ai:
         errors.append("须识别变形/变化规则词条")
+    if "isJpVocabContrastGrammar" not in usage_ai:
+        errors.append("须识别读音/形态对比词条")
+    if "contrast_missing_distinction" not in usage_ai:
+        errors.append("须拒 contrast_missing_distinction")
+    if "CONTRAST_PAIR_SYSTEM" not in script:
+        errors.append("Mac 脚本须有 CONTRAST_PAIR_SYSTEM")
+    if "is_contrast_word" not in script:
+        errors.append("Mac 脚本须识别 is_contrast_word")
     if "isJpVocabGrammarUsageExamplesPairComplete" not in usage_ai:
         errors.append("usage-ai 须判断变形课有例句即完成")
     if "isJpVocabGrammarUsageExamplesPairComplete" not in fill_usage:

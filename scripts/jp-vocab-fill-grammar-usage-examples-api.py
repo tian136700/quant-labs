@@ -77,6 +77,8 @@ PAIR_SYSTEM = (
     "每条中文用法句末句号后必须紧跟半角等级括号，如。(N5) 或 .(N4).(N3).(N2).(N1)；按该条用法难度估。"
     "若词条含「变形」「变化规则」「形规则」「变ます」「ます形规则」「ない形」「て形」等活用教学："
     "禁止任何用法/规则说明；只输出 2～3 条 N5 短句+译文；不要行首编号；不要接序。"
+    "若词条是读音/形态对比（如「何（なん／なに）」或标题含「区别」）："
+    "禁止拆成 5～7 条场景「用法」清单；先写【区别】概括差异，再恰好 2 组对照（「なに」侧 +「なん」侧），每侧 1 条例句。"
     "只用本词条本身；禁止把其它语法点（如たことがある）塞进本条凑组数。"
     "非变形词条：每一条编号中文用法下面必须立刻跟恰好 1 条短日语例句和 1 行「译文：」。"
     "严格 1:1：有几条用法就几条例句；禁止给某一用法多造几句（否则卡片会错挂）。"
@@ -95,6 +97,15 @@ CONJ_PAIR_SYSTEM = (
     "禁止写任何用法、规则说明、中文标签、行首编号、接序段。"
     "只输出 2～3 条 N5 口语短句；每条下一行「译文：」+中文。"
     "每个汉字后半角括号假名；不要箭头对照句。"
+)
+
+CONTRAST_PAIR_SYSTEM = (
+    "这是日语读音/形态「对比区别」课（如 何＝なに／なん），不是多义句型用法清单。"
+    "❌ 禁止拆成 5～7 条「1.用法：…」场景清单。"
+    "✅ 先写【区别】一段中文概括两者何时用、各表示什么（句末 (N5)）。"
+    "再恰好 2 组：1.「なに」：…(N5) + 1 条例句+译文；2.「なん」：…(N5) + 1 条例句+译文。"
+    "文末必须有【接序】（可用用法1:/用法2:）；再附【出现频率】。"
+    "用法必须中文；例句汉字后半角括号假名；不要 markdown。"
 )
 
 CONNECTION_ONLY_SYSTEM = (
@@ -120,9 +131,33 @@ def is_conjugation_word(word: str) -> bool:
     )
 
 
+def is_contrast_word(word: str, reading: str | None = None) -> bool:
+    """读音/形态对比课：何（なん／なに）、标题含区别等。"""
+    w = str(word or "").strip()
+    r = str(reading or "").strip()
+    if not w and not r:
+        return False
+    if is_conjugation_word(w):
+        return False
+    blob = f"{w}\n{r}"
+    if re.search(
+        r"[（(][^）)]*[\u3040-\u309fー]+[／/][\u3040-\u309fー]+[^）)]*[）)]",
+        blob,
+        re.I,
+    ):
+        return True
+    if re.fullmatch(r"[\u3040-\u309fー]+[／/][\u3040-\u309fー]+", r):
+        return True
+    if re.search(r"区别|对比|対比|辨析", w):
+        return True
+    return False
+
+
 def is_grammar_pair_still_missing(row: dict) -> bool:
-    """活用变形课：有例句即算完成（不要接序）。句型课：用法+例句+接序。"""
+    """活用变形课：有例句即算完成（不要接序）。句型课：用法+例句+接序。
+    对比课：须已是【区别】+2 组格式（否则仍缺，避免 7 条场景用法脏数据永驻）。"""
     word = str(row.get("word") or "")
+    reading = row.get("reading")
     need_examples = bool(row.get("need_examples"))
     need_usage = bool(row.get("need_usage"))
     need_connection = bool(row.get("need_connection", True))
@@ -130,6 +165,17 @@ def is_grammar_pair_still_missing(row: dict) -> bool:
         need_connection = True
     if is_conjugation_word(word):
         return need_examples
+    if is_contrast_word(word, reading if isinstance(reading, str) else None):
+        usage = str(row.get("usage") or "")
+        has_distinction = "【区别】" in usage or "【區別】" in usage
+        # 编号行超过 2 → 仍当缺失（旧 7 条场景清单）
+        numbered = [
+            ln
+            for ln in usage.splitlines()
+            if NUMBERED_LINE_RE.match(ln.strip())
+        ]
+        if not has_distinction or len(numbered) != 2:
+            return True
     return need_usage or need_examples or need_connection
 
 
@@ -558,6 +604,9 @@ def run_one_pair(
         )
     word = str(row["word"])
     is_conj = is_conjugation_word(word)
+    is_contrast = (not is_conj) and is_contrast_word(
+        word, str(row.get("reading") or "") or None
+    )
     prompt = str(row.get("prompt") or "").strip()
     if not prompt:
         prompt = (
@@ -565,14 +614,18 @@ def run_one_pair(
             + (
                 "只写 2～3 条 N5 短句+译文；禁止用法说明与行首编号。"
                 if is_conj
-                else "请一次写完：每条编号「中文」用法下紧跟 1 条例句（日语+译文：）。"
-                "组数=真实常用用法数（1 种就 1 组，禁止硬凑 2 组）。"
+                else (
+                    "先写【区别】概括差异，再恰好 2 组对照（各 1 条例句+译文）；禁止多条场景用法清单。"
+                    if is_contrast
+                    else "请一次写完：每条编号「中文」用法下紧跟 1 条例句（日语+译文：）。"
+                    "组数=真实常用用法数（1 种就 1 组，禁止硬凑 2 组）。"
+                )
             )
         )
     print(
         f"[jp-grammar-fill] pair {FILL_PER_ROUND}/{total_missing}: "
         f"id={word_id} {word!r} model={anthropic_model()} "
-        f"conj={is_conj} need_usage={row.get('need_usage')} "
+        f"conj={is_conj} contrast={is_contrast} need_usage={row.get('need_usage')} "
         f"need_examples={row.get('need_examples')} "
         f"need_connection={row.get('need_connection')}",
         flush=True,
@@ -593,7 +646,11 @@ def run_one_pair(
     system = (
         CONNECTION_ONLY_SYSTEM
         if only_connection
-        else (CONJ_PAIR_SYSTEM if is_conj else PAIR_SYSTEM)
+        else (
+            CONJ_PAIR_SYSTEM
+            if is_conj
+            else (CONTRAST_PAIR_SYSTEM if is_contrast else PAIR_SYSTEM)
+        )
     )
     try:
         raw = call_anthropic(
@@ -642,6 +699,16 @@ def run_one_pair(
                 + "- 不要接序段。\n"
             )
             sys_msg = CONJ_PAIR_SYSTEM
+        elif is_contrast:
+            retry_prompt = (
+                prompt
+                + "\n\nCRITICAL:\n"
+                + "- 先写【区别】一段中文（句末 (N5)）。\n"
+                + "- 恰好 2 组对照：1.「なに」… + 例句+译文；2.「なん」… + 例句+译文。\n"
+                + "- 禁止拆成多条场景「用法」清单。\n"
+                + f"- 文末必须有「{CONNECTION_MARKER}」接序段。\n"
+            )
+            sys_msg = CONTRAST_PAIR_SYSTEM
         else:
             retry_prompt = (
                 prompt
@@ -666,7 +733,11 @@ def run_one_pair(
             poison_word(word_id, f"anthropic_retry_error:{exc}")
             return None
         mark_paid_call()
-        return parse_fill_output(raw2, is_conj=is_conj, only_connection=only_connection)
+        return parse_fill_output(
+            raw2,
+            is_conj=is_conj,
+            only_connection=only_connection,
+        )
 
     def parse_fill_output(
         text: str, *, is_conj: bool, only_connection: bool

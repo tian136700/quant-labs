@@ -51,9 +51,17 @@ def main() -> int:
         "訳文",
         "usage_missing_level",
         "lemma_placeholder",
+        "contrast_missing_distinction",
+        "なに／なん",
     ):
         if needle not in rule_text:
             fail(f"rule missing {needle!r}")
+
+    contrast = ROOT / "src/lib/jp-vocab-contrast-usage-ai.ts"
+    if not contrast.is_file():
+        fail("missing jp-vocab-contrast-usage-ai.ts")
+    if "isJpVocabContrastGrammar" not in contrast.read_text(encoding="utf-8"):
+        fail("contrast module 须含 isJpVocabContrastGrammar")
 
     # 核心门禁仍在源码里
     gloss = (ROOT / "src/lib/jp-vocab-example-sentences.ts").read_text(encoding="utf-8")

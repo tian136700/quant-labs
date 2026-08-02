@@ -574,6 +574,7 @@ export async function updateJpVocabWordEntry(
     const usageOk = validateJpVocabUsageAiOutput(normalizedNextUsage, {
       word: nextWord,
       kind: "grammar",
+      reading: nextReading,
       requireJlptLevel: true,
     });
     if (!usageOk.ok) {
