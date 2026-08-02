@@ -266,6 +266,24 @@ def run_once(*, dry_run: bool, allow_burst: bool) -> int:
     if not scan.get("ok"):
         raise SystemExit(f"API error: {scan.get('error', scan)}")
 
+    # 旧 Worker 不认识本 mode 时会落到 list_missing（缺例句），勿误判队列空并卸 launchd
+    if str(scan.get("mode") or "") != "list_missing_related_compounds":
+        write_status(
+            {
+                "phase": "skip",
+                "reason": "api_mode_unsupported",
+                "got_mode": scan.get("mode"),
+            }
+        )
+        print(
+            f"[jp-vocab-fill-related-compounds-online] API 未支持 "
+            f"list_missing_related_compounds（got mode={scan.get('mode')!r}）；"
+            f"等部署后再跑，勿标 DONE",
+            flush=True,
+        )
+        print(f"{now_local_str()} jp-vocab-fill-related-compounds-online: done", flush=True)
+        return 0
+
     missing = list(scan.get("missing") or [])
     total_missing = int(scan.get("total_missing") or 0)
     if total_missing <= 0 or not missing:
