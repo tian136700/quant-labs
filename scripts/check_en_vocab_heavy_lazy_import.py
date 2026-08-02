@@ -8,7 +8,7 @@ Fails if:
    (must await import on Excel click).
 3) EnVocabPage statically imports EnVocabRiskChartModal
    (must next/dynamic ssr:false; match JpVocabPage).
-4) /en-vocab/study or /jp-vocab/study statically imports *StudyPage
+4) /en-vocab/study, /jp-vocab/study, /ko-pron/study statically imports *StudyPage
    (must *StudyPageClient + next/dynamic { ssr: false } + force-static).
 5) JpVocabPage / jp-vocab-coach statically import @/lib/jp-vocab-export
    (must use @/lib/jp-vocab-export-select for filters; await import export).
@@ -170,6 +170,13 @@ def main() -> int:
         client_name="JpVocabStudyPageClient",
         page_name="JpVocabStudyPage",
         app_subdir="jp-vocab",
+    )
+    check_study_shell(
+        errs,
+        lang="ko",
+        client_name="KoPronStudyPageClient",
+        page_name="KoPronStudyPage",
+        app_subdir="ko-pron",
     )
 
     check_ssr_false_shell(

@@ -56,6 +56,36 @@ def main() -> int:
     if 'dynamic = "force-static"' not in page and "force-static" not in page:
         errors.append("jp-vocab/study page must remain force-static")
 
+    open_next = (ROOT / "open-next.config.ts").read_text(encoding="utf-8")
+    if "staticAssetsIncrementalCache" not in open_next:
+        errors.append(
+            "open-next.config.ts must use staticAssetsIncrementalCache "
+            "(dummy cache → always MISS → HTML 1102)"
+        )
+    if "enableCacheInterception: true" not in open_next:
+        errors.append(
+            "open-next.config.ts must set enableCacheInterception: true "
+            "(skip NextServer on prerendered study/lesson shells)"
+        )
+    if re.search(r"defineCloudflareConfig\(\s*\)", open_next):
+        errors.append(
+            "open-next.config.ts must not call bare defineCloudflareConfig() "
+            "(defaults incrementalCache to dummy)"
+        )
+
+    ko_page = (ROOT / "src/app/ko-pron/study/page.tsx").read_text(encoding="utf-8")
+    if "force-static" not in ko_page:
+        errors.append("ko-pron/study page must remain force-static")
+    if "KoPronStudyPageClient" not in ko_page:
+        errors.append("ko-pron/study must use KoPronStudyPageClient shell")
+    ko_client = ROOT / "src/components/KoPronStudyPageClient.tsx"
+    if not ko_client.is_file():
+        errors.append("KoPronStudyPageClient.tsx missing")
+    else:
+        ko_client_src = ko_client.read_text(encoding="utf-8")
+        if "ssr: false" not in ko_client_src and "ssr:false" not in ko_client_src:
+            errors.append("KoPronStudyPageClient must use dynamic(..., { ssr: false })")
+
     if "fetchVocabStudySharedWithRetry" not in study:
         errors.append(
             "JpVocabStudyPage must use fetchVocabStudySharedWithRetry "
