@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""回归：相关构词字段（口→入口）校验 / 卡片 / fill / schema。"""
+"""回归：相关构词字段（口→入口）校验 / 卡片 / fill / 同读 / 展示。"""
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -17,22 +18,29 @@ def must_contain(path: Path, needle: str, label: str) -> None:
 
 def main() -> int:
     lib = ROOT / "src/lib/jp-vocab-related-compounds.ts"
+    section = ROOT / "src/components/JpVocabRelatedCompoundsSection.tsx"
+    styles = ROOT / "src/components/JpVocabTeacherQuizFlashcardStyles.tsx"
     helpers = ROOT / "src/lib/jp-vocab-db/helpers.ts"
     share = ROOT / "src/lib/jp-vocab-db/share.ts"
     live = ROOT / "src/lib/jp-vocab-db/live_rollover.ts"
     fill = ROOT / "src/lib/jp-vocab-fill-example-sentences.ts"
     route = ROOT / "src/app/api/jp-vocab/fill-example-sentences/route.ts"
-    section = ROOT / "src/components/JpVocabRelatedCompoundsSection.tsx"
     teacher = ROOT / "src/components/JpVocabTeacherQuizFlashcardModal.tsx"
     review = ROOT / "src/components/JpVocabAdminReviewFlashcardModal.tsx"
     online = ROOT / "scripts/jp-vocab-fill-online-batch-api.py"
     types = ROOT / "src/lib/types.ts"
+    ai = ROOT / "src/lib/jp-vocab-example-sentences-ai.ts"
 
     must_contain(lib, "JP_VOCAB_RELATED_COMPOUNDS_LABEL", "label")
     must_contain(lib, "相关构词", "zh label")
     must_contain(lib, "validateJpVocabRelatedCompoundsAiOutput", "validate")
+    must_contain(lib, "compoundSharesLemmaSameReading", "same reading")
+    must_contain(lib, "JP_VOCAB_RELATED_COMPOUNDS_EMPTY_CHECKED", "empty checked")
+    must_contain(lib, "已通过AI获取，但暂无相关词汇", "empty copy")
+    must_contain(lib, "jpVocabRelatedCompoundsCopyText", "copy text")
     must_contain(lib, "入口", "入口 example")
     must_contain(lib, "いりぐち", "rendaku reading")
+    must_contain(lib, "禁止不同音读", "prompt same reading")
     must_contain(helpers, "related_compounds", "schema/select")
     must_contain(helpers, "related_compounds_source", "source col")
     must_contain(share, "w.related_compounds", "shared select")
@@ -57,18 +65,25 @@ def main() -> int:
         "setup mac",
     )
     must_contain(section, "JpVocabFuriganaText", "furigana display")
+    must_contain(section, "复制全部", "copy all")
+    must_contain(section, "copy-toast--above-modal", "toast z")
+    must_contain(section, "related-compounds-flow", "inline flow")
+    must_contain(section, "JP_VOCAB_RELATED_COMPOUNDS_EMPTY_CHECKED", "empty ui")
+    must_contain(section, "filterJpVocabRelatedCompoundsSameReading", "filter dirty")
+    must_contain(styles, "related-compounds-flow", "flow css")
+    must_contain(styles, "related-compounds-empty", "empty css")
     must_contain(teacher, "JpVocabRelatedCompoundsSection", "teacher card")
+    must_contain(teacher, "word={w.word}", "pass word")
     must_contain(review, "JpVocabRelatedCompoundsSection", "review card")
     must_contain(online, "related_compounds", "online batch")
     must_contain(online, "相关构词", "online prompt zh")
     must_contain(online, "禁止硬凑", "no forced compounds")
     must_contain(online, "同一次", "same request")
-    must_contain(lib, "没有自然相关词", "empty ok hint")
+    must_contain(online, "禁止不同音读", "online same reading")
+    must_contain(ai, "禁止不同音读", "ai prompt same reading")
+    must_contain(lib, "没有自然", "empty ok hint")
     must_contain(lib, "最多 4～5", "max count hint")
     must_contain(types, "related_compounds?", "type field")
-
-    # Pure-Python smoke for line parse
-    import re
 
     line_re = re.compile(
         r"^([\u4E00-\u9FFF々〆ヶぁ-んァ-ンー]+)[（(]([ぁ-んァ-ンヴヵヶー]+)[）)]\s*[:：]\s*(.+)$"
@@ -79,6 +94,16 @@ def main() -> int:
         raise SystemExit("FAIL: line parse smoke")
     if ok.group(2) != "いりぐち":
         raise SystemExit("FAIL: reading extract")
+
+    # 同读启发：こと in ものごと；じ not match こと as substring of variants
+    # （Python 烟测只验提示字符串存在；TS 校验由部署后 apply 覆盖）
+    lib_text = lib.read_text(encoding="utf-8")
+    if "こと→ごと" not in lib_text and "こと→ごと" not in online.read_text(
+        encoding="utf-8"
+    ):
+        # prompt 里应有连浊例
+        if "ごと" not in lib_text:
+            raise SystemExit("FAIL: rendaku example missing")
 
     print("[check_jp_vocab_related_compounds] OK")
     return 0

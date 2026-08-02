@@ -99,11 +99,13 @@ source 约定：
   入口(いりぐち)：入口
   出口(でぐち)：出口
 
-条数：没有自然相关词 → 不传/空（禁止硬凑）；少则 1～2；多则最多 4～5。
+条数：没有自然同读相关词 → 不传/空（禁止硬凑）；少则 1～2；多则最多 4～5。
+读音：构词里本字读法须与本词一致（允许连浊くち→ぐち）；禁止不同音读（事=こと 勿写食事的「じ」）。
 校验失败时 skipped.reason 含：
   related_compounds_word_only / related_compounds_bad_line /
   related_compounds_too_many / related_compounds_unrelated /
   related_compounds_is_self / wrong_jukugo_furigana（漏连浊）
+说明：不同音读行在 validate 时会被丢掉；若全部被丢掉则写成空（算无相关）。
 
 
 例句存库格式（强制）

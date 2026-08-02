@@ -1487,17 +1487,25 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           color: var(--text);
         }
         .jp-vocab-teacher-quiz__related-compounds {
-          padding: 0.4rem 0.6rem;
+          padding: 0.45rem 0.7rem 0.5rem;
           border-radius: 10px;
-          border: 1px dashed var(--border);
-          background: transparent;
+          border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+          background: color-mix(in srgb, var(--panel) 55%, transparent);
         }
         .jp-vocab-teacher-quiz__related-compounds-head {
           display: flex;
-          align-items: baseline;
+          align-items: center;
           justify-content: space-between;
           gap: 0.5rem;
-          margin-bottom: 0.25rem;
+          margin-bottom: 0.3rem;
+          flex-wrap: wrap;
+        }
+        .jp-vocab-teacher-quiz__related-compounds-head-left {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.4rem;
+          flex-wrap: wrap;
+          min-width: 0;
         }
         .jp-vocab-teacher-quiz__related-compounds-title {
           margin: 0;
@@ -1505,26 +1513,40 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           font-weight: 600;
           color: var(--muted);
         }
-        .jp-vocab-teacher-quiz__related-compounds-list {
+        .jp-vocab-teacher-quiz__related-compounds-flow {
           margin: 0;
-          padding: 0;
-          list-style: none;
-          display: flex;
-          flex-direction: column;
-          gap: 0.28rem;
-        }
-        .jp-vocab-teacher-quiz__related-compounds-item {
-          margin: 0;
-          font-size: 0.875rem;
-          line-height: 1.55;
-          color: var(--text);
           display: flex;
           flex-wrap: wrap;
           align-items: baseline;
-          gap: 0.1rem 0.15rem;
+          gap: 0.05rem 0.05rem;
+          font-size: 0.875rem;
+          line-height: 1.65;
+          color: var(--text);
+        }
+        .jp-vocab-teacher-quiz__related-compounds-unit {
+          display: inline-flex;
+          flex-wrap: nowrap;
+          align-items: baseline;
+          white-space: nowrap;
+          max-width: 100%;
         }
         .jp-vocab-teacher-quiz__related-compounds-zh {
           color: var(--muted);
+        }
+        .jp-vocab-teacher-quiz__related-compounds-semi {
+          color: color-mix(in srgb, var(--muted) 70%, var(--text));
+          margin-right: 0.15rem;
+        }
+        .jp-vocab-teacher-quiz__related-compounds-empty {
+          margin: 0;
+          font-size: 0.8125rem;
+          line-height: 1.45;
+          color: var(--muted);
+        }
+        @media (max-width: 767px) {
+          .jp-vocab-teacher-quiz__related-compounds-unit {
+            white-space: normal;
+          }
         }
         .jp-vocab-teacher-quiz__meta-after-notes {
           display: flex;

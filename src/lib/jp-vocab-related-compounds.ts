@@ -1,16 +1,22 @@
 import { JP_VOCAB_JUKUGO_READING } from "@/lib/jp-vocab-jukugo-furigana";
 
 /**
- * 相关构词：含本词汉字/读音的简单词（口→入口），助记用。
- * 存库多行：每行「漢字(かな)：中文」；连浊算同一读音族。
+ * 相关构词：含本词汉字、且读音与本词一致（含连浊）的简单词，助记用。
+ * 例：口(くち)→入口(いりぐち)；事(こと)勿配食事(しょくじ)（じ≠こと）。
+ * 存库多行：每行「漢字(かな)：中文」。
  */
 
 export const JP_VOCAB_RELATED_COMPOUNDS_LABEL = "相关构词";
 
+/** AI 已跑过但无自然相关词时的卡片文案 */
+export const JP_VOCAB_RELATED_COMPOUNDS_EMPTY_CHECKED =
+  "已通过AI获取，但暂无相关词汇";
+
 export const JP_VOCAB_RELATED_COMPOUNDS_PROMPT_HINT = `相关构词（仅单词；与读音/释义/例句同一次输出；语法填 ""）：
-- 目的：用更简单、好记的含本字词帮记本词（例：口 → 入口(いりぐち)：入口）。
-- 条数：没有自然相关词 → 填 ""（禁止硬凑）；只有 1～2 个就写 1～2；多则最多 4～5 条。
-- 须含本词汉字（或同一读音族，连浊如 くち→ぐち 可）；优先 N5～N4 日常词，禁止商务/难词。
+- 目的：用含本字、且读音相同的简单词帮记本词（例：口(くち) → 入口(いりぐち)：入口）。
+- 读音必须一致：构词里本字的读法须与本词读音相同（允许连浊：くち→ぐち、こと→ごと）；禁止不同音读（事=こと 勿写 食事/大事 的「じ」）。
+- 条数：没有自然同读相关词 → 填 ""（禁止硬凑）；只有 1～2 个就写 1～2；多则最多 4～5 条。
+- 须含本词汉字；优先 N5～N4 日常词，禁止商务/难词。
 - 每行格式：漢字(かな)：简短中文释义；假名须正确（入口≠いりくち）。
 - 例：
 入口(いりぐち)：入口
@@ -19,53 +25,64 @@ export const JP_VOCAB_RELATED_COMPOUNDS_PROMPT_HINT = `相关构词（仅单词�
 const LINE_RE =
   /^([\u4E00-\u9FFF々〆ヶぁ-んァ-ンー]+)[（(]([ぁ-んァ-ンヴヵヶー]+)[）)]\s*[:：]\s*(.+)$/;
 
+const VOICE_PAIRS: Array<[string, string]> = [
+  ["か", "が"],
+  ["き", "ぎ"],
+  ["く", "ぐ"],
+  ["け", "げ"],
+  ["こ", "ご"],
+  ["さ", "ざ"],
+  ["し", "じ"],
+  ["す", "ず"],
+  ["せ", "ぜ"],
+  ["そ", "ぞ"],
+  ["た", "だ"],
+  ["ち", "ぢ"],
+  ["つ", "づ"],
+  ["て", "で"],
+  ["と", "ど"],
+  ["は", "ば"],
+  ["ひ", "び"],
+  ["ふ", "ぶ"],
+  ["へ", "べ"],
+  ["ほ", "ぼ"],
+  ["は", "ぱ"],
+  ["ひ", "ぴ"],
+  ["ふ", "ぷ"],
+  ["へ", "ぺ"],
+  ["ほ", "ぽ"],
+];
+
 function toHiragana(text: string): string {
   return String(text || "")
     .replace(/[ァ-ン]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0x60))
     .replace(/[^ぁ-んー]/g, "");
 }
 
-/** 清音↔浊音↔半浊简易对照（连浊族匹配） */
-function voiceFamily(hira: string): string {
-  const pairs: Array<[string, string]> = [
-    ["か", "が"],
-    ["き", "ぎ"],
-    ["く", "ぐ"],
-    ["け", "げ"],
-    ["こ", "ご"],
-    ["さ", "ざ"],
-    ["し", "じ"],
-    ["す", "ず"],
-    ["せ", "ぜ"],
-    ["そ", "ぞ"],
-    ["た", "だ"],
-    ["ち", "ぢ"],
-    ["つ", "づ"],
-    ["て", "で"],
-    ["と", "ど"],
-    ["は", "ば"],
-    ["ひ", "び"],
-    ["ふ", "ぶ"],
-    ["へ", "べ"],
-    ["ほ", "ぼ"],
-    ["は", "ぱ"],
-    ["ひ", "ぴ"],
-    ["ふ", "ぷ"],
-    ["へ", "ぺ"],
-    ["ほ", "ぽ"],
-  ];
-  let s = hira;
-  for (const [a, b] of pairs) {
-    s = s.split(b).join(a);
+/** 本词读音的连浊/清浊变体（こと→ごと；くち→ぐち），便于同读助记 */
+export function jpVocabReadingVoiceVariants(reading: string): string[] {
+  const base = toHiragana(reading);
+  if (!base) return [];
+  const out = new Set<string>([base]);
+  const chars = Array.from(base);
+  for (let i = 0; i < chars.length; i++) {
+    const ch = chars[i]!;
+    for (const [a, b] of VOICE_PAIRS) {
+      if (ch === a || ch === b) {
+        const next = chars.slice();
+        next[i] = ch === a ? b : a;
+        out.add(next.join(""));
+      }
+    }
   }
-  return s;
+  return Array.from(out);
 }
 
 export type JpVocabRelatedCompoundItem = {
   surface: string;
   reading: string;
   gloss: string;
-  /** 展示用：漢字(かな)：中文 */
+  /** 存库行：漢字(かな)：中文 */
   line: string;
 };
 
@@ -100,6 +117,14 @@ export function hasJpVocabRelatedCompounds(
   return parseJpVocabRelatedCompounds(raw).length > 0;
 }
 
+/** 复制用：漢字(かな) 中文；…； */
+export function jpVocabRelatedCompoundsCopyText(
+  items: readonly JpVocabRelatedCompoundItem[]
+): string {
+  if (!items.length) return "";
+  return items.map((i) => `${i.surface}(${i.reading}) ${i.gloss}`).join("；") + "；";
+}
+
 export function normalizeJpVocabRelatedCompoundsText(
   raw: string | null | undefined
 ): string | null {
@@ -114,21 +139,27 @@ function lemmaKanjiChars(lemma: string): string[] {
   );
 }
 
-function compoundSharesLemma(
+/**
+ * 构词须含本词汉字，且构词假名里能找到本词读音（或连浊变体）。
+ * 事(こと) + 食事(しょくじ) → false；口(くち) + 入口(いりぐち) → true。
+ */
+export function compoundSharesLemmaSameReading(
   surface: string,
-  reading: string,
+  compoundReading: string,
   lemma: string,
   lemmaReading: string | null | undefined
 ): boolean {
   const kanjis = lemmaKanjiChars(lemma);
-  if (kanjis.length > 0) {
-    if (kanjis.some((k) => surface.includes(k))) return true;
-  }
+  if (kanjis.length === 0) return false;
+  if (!kanjis.some((k) => surface.includes(k))) return false;
   const base = toHiragana(lemmaReading || "");
-  if (!base) return kanjis.length === 0;
-  const fam = voiceFamily(base);
-  const rFam = voiceFamily(reading);
-  return rFam.includes(fam) || fam.includes(rFam);
+  if (!base) {
+    // 无本词读音时无法验同读，只要求含汉字
+    return true;
+  }
+  const compound = toHiragana(compoundReading);
+  const variants = jpVocabReadingVoiceVariants(base);
+  return variants.some((v) => v.length > 0 && compound.includes(v));
 }
 
 export type JpVocabRelatedCompoundsValidateResult =
@@ -137,7 +168,7 @@ export type JpVocabRelatedCompoundsValidateResult =
 
 /**
  * 校验相关构词块。空串允许（稀有词可无）。
- * 有内容时：1～5 行、格式正确、须与本词汉字/读音族相关。
+ * 有内容时：1～5 行、格式正确、须含本字且同读（含连浊）；不同音读行会被丢掉。
  */
 export function validateJpVocabRelatedCompoundsAiOutput(
   raw: string | null | undefined,
@@ -161,33 +192,41 @@ export function validateJpVocabRelatedCompoundsAiOutput(
   }
 
   const items: JpVocabRelatedCompoundItem[] = [];
+  let sawBadLine = false;
+  let sawDifferentReading = false;
   for (const line of lines) {
     const m = LINE_RE.exec(line);
     if (!m) {
-      return { ok: false, reason: "related_compounds_bad_line" };
+      sawBadLine = true;
+      continue;
     }
     const surface = m[1]!;
     const reading = toHiragana(m[2]!);
     const gloss = m[3]!.trim();
     if (!surface || !reading || !gloss) {
-      return { ok: false, reason: "related_compounds_bad_line" };
+      sawBadLine = true;
+      continue;
     }
     if (/[\u3040-\u30ff]/.test(gloss) && !/[\u4e00-\u9fff]/.test(gloss)) {
-      // 译文应是中文；允许夹少量汉字词，禁止纯假名
       return { ok: false, reason: "related_compounds_gloss_not_chinese" };
     }
-    if (
-      !compoundSharesLemma(surface, reading, input.word, input.reading)
-    ) {
-      return { ok: false, reason: "related_compounds_unrelated" };
-    }
-    // 不要把本词自己当「相关构词」
     if (surface === String(input.word || "").trim()) {
       return { ok: false, reason: "related_compounds_is_self" };
     }
     const expectedReading = JP_VOCAB_JUKUGO_READING[surface];
     if (expectedReading && reading !== expectedReading) {
       return { ok: false, reason: "wrong_jukugo_furigana" };
+    }
+    if (
+      !compoundSharesLemmaSameReading(
+        surface,
+        reading,
+        input.word,
+        input.reading
+      )
+    ) {
+      sawDifferentReading = true;
+      continue;
     }
     items.push({
       surface,
@@ -198,7 +237,27 @@ export function validateJpVocabRelatedCompoundsAiOutput(
   }
 
   if (items.length === 0) {
+    // 全是不同音读 / 坏行 → 当作「无相关」（禁止硬凑），勿拒整批
+    if (sawBadLine && !sawDifferentReading && lines.length > 0) {
+      return { ok: false, reason: "related_compounds_bad_line" };
+    }
     return { ok: true, text: "" };
   }
   return { ok: true, text: items.map((i) => i.line).join("\n") };
+}
+
+/** 展示前过滤：丢掉不同音读的旧脏数据 */
+export function filterJpVocabRelatedCompoundsSameReading(
+  items: readonly JpVocabRelatedCompoundItem[],
+  lemma: string,
+  lemmaReading: string | null | undefined
+): JpVocabRelatedCompoundItem[] {
+  return items.filter((item) =>
+    compoundSharesLemmaSameReading(
+      item.surface,
+      item.reading,
+      lemma,
+      lemmaReading
+    )
+  );
 }

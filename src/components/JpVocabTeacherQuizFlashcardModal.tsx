@@ -680,6 +680,8 @@ export function JpVocabTeacherQuizFlashcardModal({
         <JpVocabRelatedCompoundsSection
           relatedCompounds={w.related_compounds}
           relatedCompoundsSource={w.related_compounds_source}
+          word={w.word}
+          reading={w.reading}
           kind={w.kind}
         />
 
