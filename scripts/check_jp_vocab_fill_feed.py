@@ -305,6 +305,30 @@ def main() -> int:
     ):
         if needle not in hooks_json:
             raise SystemExit(f"FAIL: hooks.json must wire {needle}")
+    # 失败日志 → 查因 + 手补（禁止只分析交差）
+    triage_rule = ROOT / ".cursor/rules/vocab-fill-fail-triage.mdc"
+    if not triage_rule.is_file():
+        raise SystemExit("FAIL: missing .cursor/rules/vocab-fill-fail-triage.mdc")
+    triage_txt = triage_rule.read_text(encoding="utf-8")
+    if "手补" not in triage_txt or "禁止只分析" not in triage_txt:
+        raise SystemExit("FAIL: fail-triage rule must require hand-fill, forbid analysis-only")
+    session_hook = (
+        ROOT / ".cursor/hooks/vocab-fill-resolved-session.py"
+    ).read_text(encoding="utf-8")
+    if "vocab-fill-fail-triage" not in session_hook or "手补写回" not in session_hook:
+        raise SystemExit("FAIL: session hook must inject fail-triage + hand-fill reminder")
+    remind_hook = (
+        ROOT / ".cursor/hooks/remind-vocab-fill-resolved.py"
+    ).read_text(encoding="utf-8")
+    if "查因" not in remind_hook or "手补" not in remind_hook:
+        raise SystemExit("FAIL: remind hook must say 查因 + 手补")
+    if "词条补全失败" not in remind_hook or "apply_none" not in remind_hook:
+        raise SystemExit("FAIL: remind hook must match pasted fail logs / apply_none")
+    after_shell = (
+        ROOT / ".cursor/hooks/remind-vocab-fill-resolved-after-shell.py"
+    ).read_text(encoding="utf-8")
+    if "vocab-fill-fail-triage" not in after_shell:
+        raise SystemExit("FAIL: after-shell remind must point to fail-triage rule")
     if 'id="jp-fill-interval"' not in index_html:
         raise SystemExit("FAIL: missing jp-fill-interval select")
     if "补全内容" not in index_html:

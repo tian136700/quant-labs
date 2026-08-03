@@ -56,11 +56,26 @@ def main() -> int:
     jp = (ROOT / "scripts/jp-vocab-fill-online-batch-api.py").read_text(encoding="utf-8")
     if "parse_llm_json_object" not in jp:
         errors.append("jp online batch must use parse_llm_json_object")
+    if "retry generate after JSON error" not in jp:
+        errors.append("jp online batch must retry once after bad JSON (like en)")
+    if "_log_raw_snippet" not in jp:
+        errors.append("jp online batch must log raw snippet on JSON fail")
 
     rule = (ROOT / ".cursor/rules/en-vocab-fill.mdc").read_text(encoding="utf-8")
     if "parse_llm_json_object" not in rule and "坏 JSON" not in rule:
         # soft: add note if missing — don't fail hard if rule not updated yet
         pass
+
+    triage = ROOT / ".cursor/rules/vocab-fill-fail-triage.mdc"
+    if not triage.is_file():
+        errors.append("missing .cursor/rules/vocab-fill-fail-triage.mdc")
+    else:
+        triage_txt = triage.read_text(encoding="utf-8")
+        if "手补" not in triage_txt or "apply_none" not in triage_txt:
+            errors.append("fail-triage rule must require hand-fill + cover apply_none")
+        if "Expecting" not in triage_txt:
+            errors.append("fail-triage rule must mention JSON delimiter errors")
+
 
     if errors:
         print("check_llm_json_parse: FAIL")

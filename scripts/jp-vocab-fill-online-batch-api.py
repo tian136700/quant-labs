@@ -662,20 +662,50 @@ def bundle_missing_keys(payload: dict[str, Any], row: dict[str, Any]) -> list[st
     return missing
 
 
+def _log_raw_snippet(raw: str, *, label: str = "raw") -> None:
+    snippet = re.sub(r"\s+", " ", (raw or "").strip())[:280]
+    if snippet:
+        print(f"    {label} snippet: {snippet}", flush=True)
+
+
 def generate_bundle(row: dict[str, Any], needs: dict[str, bool]) -> dict[str, Any]:
     kind = str(row.get("kind") or "word")
     system = GRAMMAR_SYSTEM if kind == "grammar" else WORD_SYSTEM
     prompt = build_prompt(row)
 
-    def _call(extra: str = "") -> dict[str, Any]:
+    def _call(extra: str = "", *, temperature: float = 0.25) -> dict[str, Any]:
         raw = call_anthropic(
             prompt + extra,
             system=system,
             max_tokens=4500,
-            temperature=0.25,
+            temperature=temperature,
             timeout=180,
         )
-        return extract_bundle(parse_json_object(raw), row)
+        try:
+            data = parse_json_object(raw)
+        except ValueError as err:
+            # 坏 JSON（Expecting ',' delimiter 等）：再要一次，避免空烧到熔断
+            _log_raw_snippet(raw, label="bad_json")
+            print(f"    retry generate after JSON error: {err}", flush=True)
+            raw = call_anthropic(
+                prompt
+                + extra
+                + "\n\nCRITICAL: Previous reply was invalid JSON ("
+                + str(err)[:120]
+                + "). Output ONE valid JSON object only. "
+                "Escape every double-quote inside string values as \\\". "
+                "Do not put bare /ipa/ or unquoted Chinese quotes inside values.",
+                system=system,
+                max_tokens=4500,
+                temperature=0.1,
+                timeout=180,
+            )
+            try:
+                data = parse_json_object(raw)
+            except ValueError:
+                _log_raw_snippet(raw, label="bad_json_retry")
+                raise
+        return extract_bundle(data, row)
 
     payload = _call()
     missing = bundle_missing_keys(payload, row)
