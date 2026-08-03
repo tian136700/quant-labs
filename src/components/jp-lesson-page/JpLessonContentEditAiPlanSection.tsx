@@ -357,38 +357,41 @@ export function JpLessonContentEditAiPlanSection({
       )}
 
       <style jsx global>{`
+        /* PC：左右两个独立框；禁止靠 flex+min-height:0 把 textarea/粘贴区压成 0 高 */
         .jp-lesson-content-edit-ai-plan {
-          flex: 0 1 auto;
-          min-height: 0;
-          max-height: min(42dvh, 360px);
+          flex: 0 0 auto;
           margin: 0;
-          padding: 0.65rem 1.1rem 0.75rem;
+          padding: 0.75rem 1.15rem 0.85rem;
           border-bottom: 1px solid var(--border);
-          background: color-mix(in srgb, var(--bg) 70%, var(--panel));
+          background: color-mix(in srgb, var(--bg) 55%, var(--panel));
           display: flex;
           flex-direction: column;
-          gap: 0.45rem;
-          overflow: hidden;
+          gap: 0.55rem;
+          overflow: visible;
         }
         .jp-lesson-content-edit-ai-plan-grid {
-          flex: 1;
-          min-height: 0;
           display: grid;
           grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-          gap: 0.75rem;
+          gap: 0.85rem;
           align-items: stretch;
+          min-height: 300px;
         }
         .jp-lesson-content-edit-ai-plan-col {
           display: flex;
           flex-direction: column;
-          gap: 0.4rem;
+          gap: 0.5rem;
           min-width: 0;
-          min-height: 0;
+          min-height: 300px;
+          padding: 0.7rem 0.8rem;
+          border-radius: 10px;
+          border: 1px solid var(--border);
+          background: var(--panel);
+          box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bg) 40%, transparent);
         }
         .jp-lesson-content-edit-ai-plan-title {
           margin: 0;
-          font-size: 0.88rem;
-          font-weight: 600;
+          font-size: 0.92rem;
+          font-weight: 700;
           flex-shrink: 0;
         }
         .jp-lesson-content-edit-ai-plan-prompt-head {
@@ -401,10 +404,11 @@ export function JpLessonContentEditAiPlanSection({
         }
         .jp-lesson-content-edit-ai-plan-textarea {
           width: 100%;
-          flex: 1;
-          min-height: 0;
-          resize: none;
-          padding: 0.55rem 0.65rem;
+          flex: 1 1 auto;
+          min-height: 220px;
+          height: 220px;
+          resize: vertical;
+          padding: 0.6rem 0.7rem;
           border-radius: 8px;
           border: 1px solid var(--border);
           background: var(--bg);
@@ -413,6 +417,7 @@ export function JpLessonContentEditAiPlanSection({
           font-size: 0.88rem;
           line-height: 1.45;
           overflow-y: auto;
+          box-sizing: border-box;
         }
         .jp-lesson-content-edit-ai-plan-paste-actions {
           display: flex;
@@ -421,27 +426,31 @@ export function JpLessonContentEditAiPlanSection({
           flex-shrink: 0;
         }
         .jp-lesson-content-edit-ai-plan-paste-zone {
-          flex: 1;
-          min-height: 0;
-          padding: 0.55rem;
+          flex: 1 1 auto;
+          min-height: 220px;
+          height: 220px;
+          padding: 0.65rem;
           border-radius: 8px;
-          border: 1px dashed color-mix(in srgb, var(--accent) 45%, var(--border));
-          background: color-mix(in srgb, var(--bg) 90%, var(--panel));
+          border: 1px dashed color-mix(in srgb, var(--accent) 50%, var(--border));
+          background: color-mix(in srgb, var(--bg) 88%, var(--panel));
           outline: none;
           display: flex;
           align-items: center;
           justify-content: center;
           overflow: auto;
+          box-sizing: border-box;
         }
         .jp-lesson-content-edit-ai-plan-paste-zone:focus {
           border-color: var(--accent);
+          box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 28%, transparent);
         }
         .jp-lesson-content-edit-ai-plan-paste-zone p {
           margin: 0;
           color: var(--muted);
-          font-size: 0.84rem;
-          line-height: 1.45;
+          font-size: 0.88rem;
+          line-height: 1.5;
           text-align: center;
+          max-width: 16rem;
         }
         .jp-lesson-content-edit-ai-plan-thumb {
           display: flex;
@@ -464,7 +473,7 @@ export function JpLessonContentEditAiPlanSection({
         .jp-lesson-content-edit-ai-plan-preview {
           display: block;
           max-width: 100%;
-          max-height: min(28dvh, 220px);
+          max-height: 190px;
           margin: 0 auto;
           object-fit: contain;
           border-radius: 6px;
@@ -529,14 +538,25 @@ export function JpLessonContentEditAiPlanSection({
         }
         @media (max-width: 767px) {
           .jp-lesson-content-edit-ai-plan {
-            max-height: min(50dvh, 420px);
             padding: 0.55rem 0.75rem 0.65rem;
+            max-height: min(58dvh, 520px);
+            overflow-y: auto;
           }
           .jp-lesson-content-edit-ai-plan-grid {
             grid-template-columns: 1fr;
+            min-height: 0;
+            gap: 0.65rem;
+          }
+          .jp-lesson-content-edit-ai-plan-col {
+            min-height: 0;
+          }
+          .jp-lesson-content-edit-ai-plan-textarea,
+          .jp-lesson-content-edit-ai-plan-paste-zone {
+            min-height: 140px;
+            height: 140px;
           }
           .jp-lesson-content-edit-ai-plan-preview {
-            max-height: min(22dvh, 160px);
+            max-height: 110px;
           }
         }
       `}</style>

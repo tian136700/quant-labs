@@ -661,12 +661,15 @@ export function EnLessonPageStyles() {
           max-width: 100%;
           margin-inline: auto;
         }
+        /* width:100% 只限表格操作格；勿绑全局，否则弹窗工具栏被撑成整行竖排 */
+        :global(.jp-lesson-actions .jp-lesson-action-btn) {
+          width: 100%;
+        }
         :global(.jp-lesson-action-btn) {
           display: inline-flex;
           align-items: center;
           justify-content: center;
           min-width: 0;
-          width: 100%;
           min-height: 2rem;
           padding: 0.25rem 0.4rem;
           font-size: 0.8125rem;

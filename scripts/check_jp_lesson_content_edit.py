@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -97,6 +98,36 @@ def main() -> int:
     # 禁止退回双大框靠行号对齐
     if 'className="jp-lesson-content-edit-textarea"' in modal:
         errors.append("modal must not use dual textareas for content/meanings")
+
+    # PC：宽弹窗 + 工具栏横排；手机才竖排满宽（勿整页像手机）
+    if "min(1080px" not in modal and "min(1180px" not in modal:
+        errors.append("PC content-edit modal must be ~1080–1180px wide")
+    if "flex-direction: row" not in modal:
+        errors.append("PC content-edit toolbar must use flex-direction: row")
+    toolbar_css = modal.find(".jp-lesson-content-edit-toolbar {")
+    mobile_css = modal.find("@media (max-width: 767px)")
+    if toolbar_css < 0 or mobile_css < 0 or not (toolbar_css < mobile_css):
+        errors.append("PC toolbar styles must come before mobile @media 767px")
+    elif "flex-direction: column" not in modal[mobile_css:]:
+        errors.append("mobile content-edit toolbar must stack (flex-direction: column)")
+    # 列表页禁止把 width:100% 绑在全局 .jp-lesson-action-btn（会泄漏进弹窗）
+    page_styles = (
+        ROOT / "src/components/jp-lesson-page/JpLessonPageStyles.tsx"
+    ).read_text(encoding="utf-8")
+    if ".jp-lesson-actions .jp-lesson-action-btn" not in page_styles:
+        errors.append(
+            "JpLessonPageStyles must scope width:100% to .jp-lesson-actions .jp-lesson-action-btn"
+        )
+
+    bare = re.search(
+        r":global\(\.jp-lesson-action-btn\)\s*\{[^}]*width:\s*100%",
+        page_styles,
+        re.DOTALL,
+    )
+    if bare:
+        errors.append(
+            "JpLessonPageStyles must not set width:100% on bare :global(.jp-lesson-action-btn)"
+        )
 
     table = (ROOT / "src/components/jp-lesson-page/JpLessonStatusTable.tsx").read_text(
         encoding="utf-8"

@@ -105,15 +105,41 @@ def main() -> int:
         "jp-lesson-content-edit-ai-plan-grid",
         "点击放大预览",
         "jp-lesson-content-edit-ai-plan-zoom",
-        "max-height: min(42dvh, 360px)",
+        "min-height: 300px",
+        "min-height: 220px",
+        "grid-template-columns: minmax(0, 1fr) minmax(0, 1fr)",
     ):
         if needle not in inline:
             errors.append(f"content-edit AI plan section missing {needle}")
+    if "max-height: min(42dvh, 360px)" in inline:
+        errors.append(
+            "AI plan must not use max-height:42dvh that collapses prompt/paste boxes"
+        )
+    if "min-height: 0" in inline and "jp-lesson-content-edit-ai-plan-textarea" in inline:
+        # still allow min-height:0 elsewhere (zoom stage); require textarea has real min-height
+        pass
+    if "border: 1px solid var(--border)" not in inline:
+        errors.append("AI plan columns must look like bordered boxes")
     # 「挂到本课」须在预览区上方，禁止沉底被裁切
     actions_i = inline.find("jp-lesson-content-edit-ai-plan-paste-actions")
     zone_i = inline.find("jp-lesson-content-edit-ai-plan-paste-zone")
     if not (0 <= actions_i < zone_i):
         errors.append("paste-actions must sit above paste-zone (attach buttons visible)")
+
+    # PC 必须两列；手机才单列
+    pc_grid = inline.find(
+        ".jp-lesson-content-edit-ai-plan-grid {\n"
+        "          display: grid;\n"
+        "          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);"
+    )
+    if pc_grid < 0:
+        # looser fallback already checked needle above
+        pc_grid = inline.find("grid-template-columns: minmax(0, 1fr) minmax(0, 1fr)")
+    mobile_at = inline.find("@media (max-width: 767px)")
+    if mobile_at < 0:
+        errors.append("AI plan must stack columns under max-width 767px")
+    elif "grid-template-columns: 1fr" not in inline[mobile_at:]:
+        errors.append("mobile AI plan must use single-column grid")
 
     content_edit = (
         ROOT / "src/components/JpLessonContentEditModal.tsx"

@@ -906,12 +906,15 @@ export function JpLessonPageStyles() {
           max-width: 100%;
           margin-inline: auto;
         }
+        /* width:100% 只限表格操作格；勿绑全局，否则编辑弹窗工具栏被撑成整行竖排 */
+        :global(.jp-lesson-actions .jp-lesson-action-btn) {
+          width: 100%;
+        }
         :global(.jp-lesson-action-btn) {
           display: inline-flex;
           align-items: center;
           justify-content: center;
           min-width: 0;
-          width: 100%;
           min-height: 1.75rem;
           padding: 0.15rem 0.35rem;
           font-size: 0.75rem;

@@ -527,17 +527,31 @@ export function JpLessonContentEditModal({
         .jp-lesson-content-edit-modal {
           display: flex;
           flex-direction: column;
-          width: min(980px, 100%);
-          max-height: min(calc(100dvh - 2rem), 900px);
+          width: min(1180px, calc(100vw - 2rem));
+          max-height: min(calc(100dvh - 2rem), 960px);
           overflow: hidden;
           border-radius: 12px;
           border: 1px solid var(--border);
           background: var(--panel);
           box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35);
         }
+        /* 盖过列表页 action-btn；PC 工具栏横排，禁止整行竖排 */
+        .jp-lesson-content-edit-modal .jp-lesson-action-btn {
+          display: inline-flex !important;
+          width: auto !important;
+          max-width: none !important;
+          min-width: 0;
+          flex: 0 0 auto !important;
+          min-height: 2.15rem;
+          padding: 0.35rem 0.8rem;
+          font-size: 0.88rem;
+          line-height: 1.3;
+          white-space: nowrap;
+          overflow-wrap: normal;
+        }
         .jp-lesson-content-edit-header {
           flex-shrink: 0;
-          padding: 1rem 1.1rem 0.65rem;
+          padding: 0.85rem 1.15rem 0.6rem;
           border-bottom: 1px solid var(--border);
         }
         .jp-lesson-content-edit-header h2 {
@@ -545,17 +559,18 @@ export function JpLessonContentEditModal({
           font-size: 1.1rem;
         }
         .jp-lesson-content-edit-sub {
-          margin: 0.35rem 0 0;
+          margin: 0.3rem 0 0;
           color: var(--muted);
           font-size: 0.85rem;
           line-height: 1.45;
         }
         .jp-lesson-content-edit-toolbar {
-          display: flex;
+          display: flex !important;
+          flex-direction: row !important;
           flex-wrap: wrap;
           align-items: center;
-          gap: 0.5rem 0.65rem;
-          margin-top: 0.75rem;
+          gap: 0.45rem 0.55rem;
+          margin-top: 0.7rem;
         }
         .jp-lesson-content-edit-batch-delete {
           color: #e85d6f;
@@ -583,10 +598,11 @@ export function JpLessonContentEditModal({
           flex: 1;
           min-height: 0;
           overflow-y: auto;
-          padding: 0.85rem 1.1rem;
+          overflow-x: clip;
+          padding: 0.75rem 1.15rem;
           display: flex;
           flex-direction: column;
-          gap: 0.65rem;
+          gap: 0.55rem;
         }
         .jp-lesson-content-edit-list-head {
           padding: 0 0.15rem;
@@ -615,17 +631,18 @@ export function JpLessonContentEditModal({
           padding: 0;
           display: flex;
           flex-direction: column;
-          gap: 0.45rem;
+          gap: 0.4rem;
         }
         .jp-lesson-content-edit-list-head,
         .jp-lesson-content-edit-row {
           display: grid;
-          grid-template-columns: 1.75rem 2rem minmax(0, 1fr) minmax(0, 1fr) minmax(5.5rem, 7.5rem);
-          gap: 0.45rem;
+          grid-template-columns:
+            2rem 2.25rem minmax(8rem, 1.15fr) minmax(8rem, 1fr) auto;
+          gap: 0.5rem 0.55rem;
           align-items: center;
         }
         .jp-lesson-content-edit-row {
-          padding: 0.4rem 0.35rem;
+          padding: 0.4rem 0.45rem;
           border-radius: 8px;
           border: 1px solid var(--border);
           background: color-mix(in srgb, var(--bg) 88%, var(--panel));
@@ -651,7 +668,7 @@ export function JpLessonContentEditModal({
         .jp-lesson-content-edit-input {
           width: 100%;
           min-width: 0;
-          padding: 0.5rem 0.6rem;
+          padding: 0.45rem 0.55rem;
           border-radius: 7px;
           border: 1px solid var(--border);
           background: var(--bg);
@@ -666,14 +683,15 @@ export function JpLessonContentEditModal({
         }
         .jp-lesson-content-edit-row-actions {
           display: flex;
-          flex-wrap: wrap;
+          flex-direction: row;
+          flex-wrap: nowrap;
           align-items: center;
           justify-content: flex-end;
-          gap: 0.3rem;
+          gap: 0.35rem;
         }
         .jp-lesson-content-edit-complete {
-          min-height: 2.25rem;
-          padding: 0.35rem 0.4rem;
+          min-height: 2.1rem;
+          padding: 0.3rem 0.55rem;
           border-radius: 7px;
           border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
           background: transparent;
@@ -682,6 +700,7 @@ export function JpLessonContentEditModal({
           font-size: 0.82rem;
           font-weight: 600;
           cursor: pointer;
+          white-space: nowrap;
         }
         .jp-lesson-content-edit-complete:hover:not(:disabled) {
           background: color-mix(in srgb, var(--accent) 14%, transparent);
@@ -691,8 +710,8 @@ export function JpLessonContentEditModal({
           cursor: not-allowed;
         }
         .jp-lesson-content-edit-delete {
-          min-height: 2.25rem;
-          padding: 0.35rem 0.4rem;
+          min-height: 2.1rem;
+          padding: 0.3rem 0.55rem;
           border-radius: 7px;
           border: 1px solid color-mix(in srgb, #e85d6f 45%, var(--border));
           background: transparent;
@@ -701,6 +720,7 @@ export function JpLessonContentEditModal({
           font-size: 0.82rem;
           font-weight: 600;
           cursor: pointer;
+          white-space: nowrap;
         }
         .jp-lesson-content-edit-delete:hover:not(:disabled) {
           background: color-mix(in srgb, #e85d6f 14%, transparent);
@@ -717,8 +737,8 @@ export function JpLessonContentEditModal({
           font-weight: 400;
         }
         .jp-lesson-content-edit-error {
-          margin: 0.65rem 0 0;
-          padding: 0.55rem 0.7rem;
+          margin: 0.55rem 0 0;
+          padding: 0.5rem 0.65rem;
           border-radius: 8px;
           border: 1px solid color-mix(in srgb, #e85d6f 45%, var(--border));
           background: color-mix(in srgb, #e85d6f 12%, transparent);
@@ -728,14 +748,14 @@ export function JpLessonContentEditModal({
           line-height: 1.45;
         }
         .jp-lesson-content-edit-progress {
-          margin-top: 0.65rem;
+          margin-top: 0.55rem;
         }
         .jp-lesson-content-edit-actions {
           flex-shrink: 0;
           display: flex;
           justify-content: flex-end;
           gap: 0.5rem;
-          padding: 0.75rem 1.1rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
+          padding: 0.7rem 1.15rem calc(0.7rem + env(safe-area-inset-bottom, 0px));
           border-top: 1px solid var(--border);
           background: color-mix(in srgb, var(--panel) 92%, var(--bg));
         }
@@ -748,6 +768,14 @@ export function JpLessonContentEditModal({
             width: 100%;
             max-height: min(94dvh, 900px);
             border-radius: 14px 14px 0 0;
+          }
+          .jp-lesson-content-edit-toolbar {
+            flex-direction: column !important;
+            align-items: stretch;
+          }
+          .jp-lesson-content-edit-toolbar .jp-lesson-action-btn {
+            width: 100% !important;
+            justify-content: center;
           }
           .jp-lesson-content-edit-list-head {
             display: none;
@@ -779,6 +807,7 @@ export function JpLessonContentEditModal({
           .jp-lesson-content-edit-row-actions {
             grid-area: actions;
             flex-direction: column;
+            flex-wrap: wrap;
             align-items: stretch;
             align-self: center;
             min-width: 3.6rem;
