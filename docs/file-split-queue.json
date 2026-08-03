@@ -5,12 +5,6 @@
   "threshold": 1000,
   "queue": [
     {
-      "path": "src/lib/jp-lesson-db.ts",
-      "lines": 1058,
-      "status": 0,
-      "note": ""
-    },
-    {
       "path": "src/components/EnVocabPage.tsx",
       "lines": 1028,
       "status": 0,

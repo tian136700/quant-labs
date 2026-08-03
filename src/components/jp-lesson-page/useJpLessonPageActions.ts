@@ -41,6 +41,11 @@ import {
   teacherAutoEnableStatusSuffix,
   type TeacherAutoEnableInfo,
 } from "@/components/jp-lesson-page/jp-lesson-page-helpers";
+import {
+  runJpLessonVocabSyncChunks,
+  type JpLessonVocabSyncProgress,
+} from "@/components/jp-lesson-page/runJpLessonVocabSyncChunks";
+import type { JpLessonVocabSyncPlan } from "@/lib/jp-lesson-vocab-sync-shared";
 import type { Locale } from "@/i18n/messages";
 
 export type UseJpLessonPageActionsOptions = {
@@ -81,6 +86,7 @@ export type UseJpLessonPageActionsOptions = {
       mediaType?: "image" | "pdf";
     } | null>
   >;
+  setVocabSyncProgress: Dispatch<SetStateAction<JpLessonVocabSyncProgress | null>>;
   loadLessons: (opts?: { force?: boolean }) => Promise<void>;
 };
 
@@ -116,8 +122,28 @@ export function useJpLessonPageActions(options: UseJpLessonPageActionsOptions) {
     setBatchModalOpen,
     setBatchSaving,
     setAnnotatingLesson,
+    setVocabSyncProgress,
     loadLessons,
   } = options;
+
+  const syncLessonVocabIfNeeded = async (
+    lessonId: number,
+    vocabSync: JpLessonVocabSyncPlan | null | undefined
+  ) => {
+    if (!vocabSync?.needed || !vocabSync.total) return;
+    const result = await runJpLessonVocabSyncChunks({
+      locale,
+      lessonId,
+      plan: vocabSync,
+      onProgress: setVocabSyncProgress,
+    });
+    if (!result.ok) {
+      setStatus(result.error);
+      setVocabSyncProgress(null);
+      return;
+    }
+    window.setTimeout(() => setVocabSyncProgress(null), 1200);
+  };
 
   const setLessonProgress = async (
     lessonId: number,
@@ -163,6 +189,7 @@ export function useJpLessonPageActions(options: UseJpLessonPageActionsOptions) {
         lesson?: JpLessonRecord;
         error?: string;
         teacher_auto_enable?: TeacherAutoEnableInfo | null;
+        vocab_sync?: JpLessonVocabSyncPlan | null;
       };
       if (!data.ok || !data.lesson) {
         throw new Error(data.error || "保存失败");
@@ -194,6 +221,9 @@ export function useJpLessonPageActions(options: UseJpLessonPageActionsOptions) {
       if (autoEnableSuffix) {
         setStatus(`学习状态已更新${autoEnableSuffix}`);
         window.setTimeout(() => setStatus(""), 4000);
+      }
+      if (progressStatus === "completed") {
+        await syncLessonVocabIfNeeded(lessonId, data.vocab_sync);
       }
     } catch (err) {
       if (snapshot) {
@@ -652,6 +682,7 @@ export function useJpLessonPageActions(options: UseJpLessonPageActionsOptions) {
             ok: boolean;
             error?: string;
             teacher_auto_enable?: TeacherAutoEnableInfo | null;
+            vocab_sync?: JpLessonVocabSyncPlan | null;
           };
           if (!progressData.ok) {
             throw new Error(progressData.error || `课程 #${lessonId} 状态保存失败`);
@@ -659,6 +690,9 @@ export function useJpLessonPageActions(options: UseJpLessonPageActionsOptions) {
           for (const row of progressData.teacher_auto_enable?.enabled ?? []) {
             const name = String(row.username ?? "").trim();
             if (name) autoEnabledUsernames.push(name);
+          }
+          if (progressStatus === "completed") {
+            await syncLessonVocabIfNeeded(lessonId, progressData.vocab_sync);
           }
         }
       }

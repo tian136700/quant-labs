@@ -193,6 +193,9 @@ export async function syncLessonNotesToVocab(
   if (!items.length) return;
 
   const notes = await listEnLessonNotesByLessonId(db, lesson.id);
+  // 无笔记时禁止对每个词条空 UPDATE（大课会顶 1102）
+  if (!notes.length) return;
+
   const refKey = lesson.ref_key;
   const kind = normalizeKind(lesson.kind);
   const ts = nowIso();

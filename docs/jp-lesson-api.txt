@@ -324,3 +324,51 @@ POST · set_class_schedules（管理员）
 功能索引：docs/feature-index.md → 日语新课 → 删除新课
 上传专用：docs/jp-lesson-upload-mixed-api.txt
 防 1102：列表用 note_counts，勿再 SELECT 笔记 body
+
+
+────────────────────────────────
+POST · 分片同步到日语抽问（sync_to_vocab）
+────────────────────────────────
+
+用途
+----
+新课标「已完成」后，把词条分批写入 /jp-vocab，避免单次请求 Error 1102。
+改 progress_status=completed 时响应带 vocab_sync；前端会自动循环本 action。
+若课已是已完成但词未进抽问：先改「学习中」再改回「已完成」即可重跑。
+
+
+请求 JSON
+---------
+{
+  "action": "sync_to_vocab",
+  "lesson_id": 123,
+  "offset": 0,
+  "limit": 8
+}
+
+
+成功（节选）
+------------
+{
+  "ok": true,
+  "lesson_id": 123,
+  "total": 64,
+  "offset": 0,
+  "processed": 8,
+  "next_offset": 8,
+  "done": false,
+  "inserted": 8,
+  "updated": 0
+}
+
+done=true 时本课同步结束（最后一批会顺带同步课堂笔记，无笔记则跳过）。
+
+
+改学习状态（completed）时另带
+------------------------------
+{
+  "ok": true,
+  "lesson": { … },
+  "vocab_sync": { "needed": true, "total": 64, "offset": 0, "chunk_size": 8 }
+}
+

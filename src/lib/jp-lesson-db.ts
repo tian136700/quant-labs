@@ -14,20 +14,15 @@ import {
   normalizeClassDurationMinutes,
   normalizeLessonMeaningsForStorage,
   normalizeLessonExampleSentencesForStorage,
-  alignLessonItemExampleSentences,
-  alignLessonItemMeanings,
   normalizeJpLessonKind,
-  resolveJpLessonItemKinds,
 } from "@/lib/jp-lesson-shared";
-import {
-  alignLessonItemAnnotations,
-  normalizeLessonAnnotationsForStorage,
-} from "@/lib/jp-vocab-annotation";
+import { normalizeLessonAnnotationsForStorage } from "@/lib/jp-vocab-annotation";
 import { normalizeJpVocabRefKey } from "@/lib/jp-vocab-ref-shared";
+import { syncLessonNotesToVocab } from "@/lib/jp-vocab-db";
 import {
-  syncLessonNotesToVocab,
-  upsertJpVocabFromLesson,
-} from "@/lib/jp-vocab-db";
+  buildJpLessonVocabSyncPlan,
+  type JpLessonVocabSyncPlan,
+} from "@/lib/jp-lesson-vocab-sync";
 import { getLessonTeacherIdsByLessonIds, replaceLessonTeachers } from "@/lib/jp-lesson-teacher-db";
 import {
   getClassSchedulesByLessonIds,
@@ -516,59 +511,6 @@ export async function updateJpLessonRefKey(
   return getJpLessonById(db, lessonId);
 }
 
-async function syncLessonToVocab(
-  db: D1Database,
-  lesson: JpLessonRecord
-): Promise<void> {
-  const items = parseLessonContent(lesson.content);
-  if (!items.length) return;
-
-  const itemExamples = alignLessonItemExampleSentences(
-    lesson.content,
-    lesson.example_sentences
-  );
-  const itemMeanings = alignLessonItemMeanings(lesson.content, lesson.meanings);
-  const itemAnnotations = alignLessonItemAnnotations(
-    lesson.content,
-    lesson.annotations
-  );
-  const itemKinds = resolveJpLessonItemKinds(
-    lesson.kind,
-    items.length,
-    lesson.grammar_item_count
-  );
-  const refKey = lesson.ref_key;
-  const refs = refKey
-    ? [
-        {
-          ref_key: refKey,
-          title: lesson.title,
-          media_type: "image" as const,
-        },
-      ]
-    : [];
-
-  const courseLabel =
-    (lesson.course_label || lesson.title || "").trim().slice(0, 120) || null;
-  await upsertJpVocabFromLesson(
-    db,
-    items.map((word, index) => {
-      const kind = itemKinds[index] ?? "word";
-      return {
-        word,
-        kind,
-        ref_key: refKey,
-        meaning: kind === "grammar" ? (itemMeanings[index] ?? null) : null,
-        example_sentences: itemExamples[index] ?? null,
-        annotation: itemAnnotations[index] ?? null,
-        course_label: courseLabel,
-      };
-    }),
-    refs
-  );
-  await syncLessonNotesToVocab(db, lesson);
-}
-
 export type CreateJpLessonResult =
   | { ok: true; lesson: JpLessonRecord }
   | { ok: false; error: string };
@@ -774,7 +716,7 @@ export async function syncLessonNotesToVocabIfCompleted(
 }
 
 export type UpdateJpLessonProgressResult =
-  | { ok: true; lesson: JpLessonRecord }
+  | { ok: true; lesson: JpLessonRecord; vocab_sync?: JpLessonVocabSyncPlan | null }
   | { ok: false; error: string };
 
 export async function updateJpLessonProgress(
@@ -822,12 +764,12 @@ export async function updateJpLessonProgress(
       updated_at: ts,
     };
     const lesson = devLessons[idx];
-    if (completed && !before.completed) {
-      await syncLessonToVocab(db, lesson);
-    } else if (!completed && before.completed) {
+    if (!completed && before.completed) {
       await unsyncLessonFromVocab(db, before);
     }
-    return { ok: true, lesson };
+    const vocab_sync =
+      completed ? buildJpLessonVocabSyncPlan(lesson) : null;
+    return { ok: true, lesson, vocab_sync };
   }
 
   const result = await db
@@ -844,13 +786,12 @@ export async function updateJpLessonProgress(
   const lesson = await getJpLessonById(db, lessonId);
   if (!lesson) return { ok: false, error: "not_found" };
 
-  if (completed && !before.completed) {
-    await syncLessonToVocab(db, lesson);
-  } else if (!completed && before.completed) {
+  if (!completed && before.completed) {
     await unsyncLessonFromVocab(db, before);
   }
 
-  return { ok: true, lesson };
+  const vocab_sync = completed ? buildJpLessonVocabSyncPlan(lesson) : null;
+  return { ok: true, lesson, vocab_sync };
 }
 
 /** @deprecated 使用 updateJpLessonProgress */

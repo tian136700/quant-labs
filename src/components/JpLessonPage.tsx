@@ -49,6 +49,8 @@ import { JpLessonPageModals } from "@/components/jp-lesson-page/JpLessonPageModa
 import { JpLessonApiUploadDocs } from "@/components/jp-lesson-page/JpLessonApiUploadDocs";
 import { useJpLessonCourseMergeCopy } from "@/components/jp-lesson-page/useJpLessonCourseMergeCopy";
 import { CopyToast } from "@/components/CopyToast";
+import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
+import type { JpLessonVocabSyncProgress } from "@/components/jp-lesson-page/runJpLessonVocabSyncChunks";
 import {
   DEFAULT_JP_LESSON_SECTION_SORT,
   buildTeacherById,
@@ -87,6 +89,8 @@ export function JpLessonPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
+  const [vocabSyncProgress, setVocabSyncProgress] =
+    useState<JpLessonVocabSyncProgress | null>(null);
   const [savingId, setSavingId] = useState<number | null>(null);
   const [savingTeacherLessonId, setSavingTeacherLessonId] = useState<number | null>(null);
   const [savingNextClassId, setSavingNextClassId] = useState<number | null>(null);
@@ -430,6 +434,7 @@ export function JpLessonPage() {
     setBatchModalOpen,
     setBatchSaving,
     setAnnotatingLesson,
+    setVocabSyncProgress,
     loadLessons,
   });
 
@@ -444,11 +449,11 @@ export function JpLessonPage() {
       <h1 style={{ fontSize: "1.5rem", margin: "0 0 0.35rem" }}>日语新课</h1>
 
       <p style={{ color: "var(--muted)", marginBottom: "0.75rem" }}>
-        新课学习清单与教案管理。访客可浏览；具备「新课编辑」权限的登录用户可设置学习状态（未完成 / 学习中 / 已完成）。仅「已完成」会同步进入
+        新课学习清单与教案管理。访客可浏览；具备「新课编辑」权限的登录用户可设置学习状态（未完成 / 学习中 / 已完成）。仅「已完成」会分批同步进入
         <a href="/jp-vocab" style={{ color: "var(--accent)" }}>
           日语单词抽问
         </a>
-        并带上教案链接。
+        （词多时页面下方有橙色进度条；若中断可先改回「学习中」再标「已完成」）。
       </p>
 
       {user && !checking && !canViewJpLesson ? (
@@ -480,6 +485,15 @@ export function JpLessonPage() {
 
       {status ? (
         <p style={{ color: "var(--muted)", fontSize: "0.875rem", marginBottom: "0.75rem" }}>{status}</p>
+      ) : null}
+      {vocabSyncProgress ? (
+        <div style={{ marginBottom: "0.75rem", maxWidth: "28rem" }}>
+          <JpVocabSaveProgressBar
+            label={vocabSyncProgress.label}
+            percent={vocabSyncProgress.percent}
+            fullWidth
+          />
+        </div>
       ) : null}
 
       <div className="jp-lesson-search" role="search">

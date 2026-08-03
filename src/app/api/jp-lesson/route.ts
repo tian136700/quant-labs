@@ -1,6 +1,7 @@
 import { getCloudflareEnv, jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 import { requireAdmin } from "@/lib/admin-auth";
 import {
+  getJpLessonById,
   incrementJpLessonLinkCopyCount,
   listJpLessons,
   updateJpLessonClassSchedules,
@@ -14,6 +15,10 @@ import { listJpLessonNoteCountsByLesson } from "@/lib/jp-lesson-note-db";
 import { listJpLessonTeachersWithLessonCounts } from "@/lib/jp-lesson-teacher-db";
 import { requireJpLessonOperate, requireJpLessonRead } from "@/lib/jp-lesson-auth";
 import { listJpVocabRefs } from "@/lib/jp-vocab-db";
+import {
+  JP_LESSON_VOCAB_SYNC_CHUNK_SIZE,
+  syncJpLessonRecordToVocabChunk,
+} from "@/lib/jp-lesson-vocab-sync";
 import {
   maybeEnableTeacherUsersForLearningLesson,
   type TeacherUserLearningLessonEnableResult,
@@ -123,6 +128,8 @@ export async function POST(request: Request) {
       lesson_id?: number;
       progress_status?: JpLessonProgressStatus;
       completed?: boolean;
+      offset?: number;
+      limit?: number;
       teacher_id?: number | null;
       teacher_ids?: number[];
       teacher_other?: string | null;
@@ -176,6 +183,35 @@ export async function POST(request: Request) {
       }
 
       return jsonResponse({ ok: true });
+    }
+
+    if (body.action === "sync_to_vocab") {
+      const lessonId = Number(body.lesson_id);
+      if (!Number.isInteger(lessonId) || lessonId <= 0) {
+        return jsonResponse({ ok: false, error: "lesson_id_invalid" }, 400);
+      }
+      const offset = Number(body.offset ?? 0);
+      const limit = Number(body.limit ?? JP_LESSON_VOCAB_SYNC_CHUNK_SIZE);
+      const lesson = await getJpLessonById(env.DB, lessonId);
+      if (!lesson) {
+        return jsonResponse({ ok: false, error: "not_found" }, 404);
+      }
+      const result = await syncJpLessonRecordToVocabChunk(
+        env.DB,
+        lesson,
+        offset,
+        limit
+      );
+      if (!result.ok) {
+        const status =
+          result.error === "not_found"
+            ? 404
+            : result.error === "lesson_not_completed"
+              ? 400
+              : 400;
+        return jsonResponse({ ok: false, error: result.error }, status);
+      }
+      return jsonResponse(result);
     }
 
     if (body.action === "set_next_class_at" || body.action === "set_class_schedules") {
@@ -335,7 +371,12 @@ export async function POST(request: Request) {
       env.DB,
       result.lesson
     );
-    return jsonResponse({ ok: true, lesson: result.lesson, teacher_auto_enable });
+    return jsonResponse({
+      ok: true,
+      lesson: result.lesson,
+      teacher_auto_enable,
+      vocab_sync: result.vocab_sync ?? null,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return jsonResponse({ ok: false, error: message }, 500);

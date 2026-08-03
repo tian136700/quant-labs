@@ -121,43 +121,94 @@ import {
   ensureJpVocabWordSchema,
 } from "./helpers";
 import {
-  listJpVocabWords,
-  listJpVocabWordsForPool,
   deleteJpVocabWordsByIds,
 } from "./words";
 import {
-  ensureJpVocabDailyDisplayOrder,
+  readJpVocabDailyDisplayOrderRaw,
+  saveJpVocabDailyDisplayOrder,
 } from "./daily_settings";
 
 export const JP_VOCAB_LESSON_MEANING_SOURCE = "新课";
 
+export type JpVocabLessonUpsertItem = {
+  word: string;
+  kind: JpVocabKind;
+  ref_key: string | null;
+  /** 仅语法类同步；单词类由 fill-meaning 补，忽略传入 */
+  meaning?: string | null;
+  example_sentences?: string | null;
+  /** 口语常用 / 考试常用 / 口语考试都常用；已有不覆盖 */
+  annotation?: string | null;
+  /** 教材课次（如标日初级上册第23课）；已有不覆盖 */
+  course_label?: string | null;
+};
+
+export type UpsertJpVocabFromLessonResult = {
+  processed: number;
+  inserted: number;
+  updated: number;
+};
+
+export type UpsertJpVocabFromLessonOptions = {
+  /** 分片起点（默认 0） */
+  offset?: number;
+  /** 本批最多处理条数；省略则处理到末尾 */
+  limit?: number;
+  /** 是否写 ref 元数据（分片时仅第一批 true） */
+  upsertRefs?: boolean;
+};
+
+/** 仅当日已有日序时 append；空日序跳过，避免全库 ensure → 1102 */
+async function appendJpVocabWordIdsToExistingDailyOrder(
+  db: D1Database,
+  wordIds: number[]
+): Promise<void> {
+  const cleaned = wordIds.filter((id) => Number.isInteger(id) && id > 0);
+  if (!cleaned.length) return;
+  const stored = await readJpVocabDailyDisplayOrderRaw(db);
+  const today = beijingDateString();
+  if (!stored?.ids.length || stored.date !== today) return;
+  let next = stored;
+  for (const id of cleaned) {
+    next = appendJpVocabDailyDisplayOrderId(next, id);
+  }
+  if (next.ids.length !== stored.ids.length) {
+    await saveJpVocabDailyDisplayOrder(db, next);
+  }
+}
+
+/**
+ * 新课 → 词库 upsert。
+ * 大课必须分片调用（见 jp-lesson-vocab-sync），禁止在单次请求里 listJpVocabWordsForPool。
+ */
 export async function upsertJpVocabFromLesson(
   db: D1Database,
-  items: {
-    word: string;
-    kind: JpVocabKind;
-    ref_key: string | null;
-    /** 仅语法类同步；单词类由 fill-meaning 补，忽略传入 */
-    meaning?: string | null;
-    example_sentences?: string | null;
-    /** 口语常用 / 考试常用 / 口语考试都常用；已有不覆盖 */
-    annotation?: string | null;
-    /** 教材课次（如标日初级上册第23课）；已有不覆盖 */
-    course_label?: string | null;
-  }[],
-  refs: JpVocabRefUploadInput[] = []
-): Promise<void> {
-  if (!items.length) return;
+  items: JpVocabLessonUpsertItem[],
+  refs: JpVocabRefUploadInput[] = [],
+  opts: UpsertJpVocabFromLessonOptions = {}
+): Promise<UpsertJpVocabFromLessonResult> {
+  const offset = Math.max(0, Math.floor(opts.offset ?? 0));
+  const limit =
+    opts.limit == null ? items.length : Math.max(0, Math.floor(opts.limit));
+  const slice = items.slice(offset, offset + limit);
+  if (!slice.length) {
+    return { processed: 0, inserted: 0, updated: 0 };
+  }
+
   await ensureJpVocabWordSchema(db);
-  if (refs.length) await upsertJpVocabRefMetadata(db, refs);
+  if (opts.upsertRefs !== false && refs.length) {
+    await upsertJpVocabRefMetadata(db, refs);
+  }
 
   // 新课「已完成」同步：created_at 记北京时间，今天不进抽查池，次日凌晨置顶
   // 释义：仅 grammar 写入 meaning（已有不覆盖）；单词由 fill-meaning（tokken）补
   const ts = beijingDateTimeString();
-  let addedNew = false;
+  let inserted = 0;
+  let updated = 0;
+  const newIds: number[] = [];
 
   if (jpVocabDbState.devStoreEnabled) {
-    for (const item of items) {
+    for (const item of slice) {
       const word = normalizeWord(item.word);
       if (!word) continue;
       const kind = normalizeKind(item.kind);
@@ -205,50 +256,51 @@ export async function upsertJpVocabFromLesson(
             course_label: nextCourseLabel,
             updated_at: ts,
           };
+          updated += 1;
         }
         continue;
       }
-      addedNew = true;
       const createdId = jpVocabDbState.devNextId++;
+      inserted += 1;
+      newIds.push(createdId);
       jpVocabDbState.devWords.push({
-          id: createdId,
-          word,
-          reading: null,
-          meaning,
-          pos: null,
-          kind,
-          ref_key: refKey,
-          cnt_very: 0,
-          cnt_normal: 0,
-          cnt_weak: 0,
-          today_check_count: 0,
-          today_check_date: null,
-          class_notes: null,
-          annotation,
-          course_label: courseLabel,
-          example_sentences: exampleSentences,
-          meaning_source: meaning ? JP_VOCAB_LESSON_MEANING_SOURCE : null,
-          created_at: ts,
-          updated_at: ts,
-        });
-      const today = beijingDateString();
-      if (
-        jpVocabDbState.devDailyDisplayOrder.date === today &&
-        jpVocabDbState.devDailyDisplayOrder.ids.length > 0
-      ) {
-        jpVocabDbState.devDailyDisplayOrder = appendJpVocabDailyDisplayOrderId(
-          jpVocabDbState.devDailyDisplayOrder,
-          createdId
-        );
+        id: createdId,
+        word,
+        reading: null,
+        meaning,
+        pos: null,
+        kind,
+        ref_key: refKey,
+        cnt_very: 0,
+        cnt_normal: 0,
+        cnt_weak: 0,
+        today_check_count: 0,
+        today_check_date: null,
+        class_notes: null,
+        annotation,
+        course_label: courseLabel,
+        example_sentences: exampleSentences,
+        meaning_source: meaning ? JP_VOCAB_LESSON_MEANING_SOURCE : null,
+        created_at: ts,
+        updated_at: ts,
+      });
+    }
+    const today = beijingDateString();
+    if (
+      newIds.length &&
+      jpVocabDbState.devDailyDisplayOrder.date === today &&
+      jpVocabDbState.devDailyDisplayOrder.ids.length > 0
+    ) {
+      let order = jpVocabDbState.devDailyDisplayOrder;
+      for (const id of newIds) {
+        order = appendJpVocabDailyDisplayOrderId(order, id);
       }
+      jpVocabDbState.devDailyDisplayOrder = order;
     }
-    if (addedNew) {
-      await ensureJpVocabDailyDisplayOrder(db, jpVocabDbState.devWords);
-    }
-    return;
+    return { processed: slice.length, inserted, updated };
   }
 
-  for (const item of items) {
+  for (const item of slice) {
     const word = normalizeWord(item.word);
     if (!word) continue;
     const kind = normalizeKind(item.kind);
@@ -285,7 +337,9 @@ export async function upsertJpVocabFromLesson(
       const nextAnnotation =
         annotation && !(existing.annotation || "").trim() ? annotation : null;
       const nextCourseLabel =
-        courseLabel && !(existing.course_label || "").trim() ? courseLabel : null;
+        courseLabel && !(existing.course_label || "").trim()
+          ? courseLabel
+          : null;
       if (nextExamples || nextMeaning || nextAnnotation || nextCourseLabel) {
         await db
           .prepare(
@@ -311,12 +365,12 @@ export async function upsertJpVocabFromLesson(
             existing.id
           )
           .run();
+        updated += 1;
       }
       continue;
     }
 
-    addedNew = true;
-    await db
+    const insertResult = await db
       .prepare(
         `INSERT INTO jp_vocab_word (word, reading, meaning, kind, ref_key, cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, example_sentences, meaning_source, annotation, course_label, created_at, updated_at)
          VALUES (?1, NULL, ?2, ?3, ?4, 0, 0, 0, 0, NULL, NULL, ?5, ?6, ?7, ?8, ?9, ?9)`
@@ -333,12 +387,18 @@ export async function upsertJpVocabFromLesson(
         ts
       )
       .run();
+    inserted += 1;
+    const createdId = Number(insertResult.meta?.last_row_id);
+    if (Number.isInteger(createdId) && createdId > 0) {
+      newIds.push(createdId);
+    }
   }
 
-  if (addedNew) {
-    const words = await listJpVocabWordsForPool(db);
-    await ensureJpVocabDailyDisplayOrder(db, words);
+  if (newIds.length) {
+    await appendJpVocabWordIdsToExistingDailyOrder(db, newIds);
   }
+
+  return { processed: slice.length, inserted, updated };
 }
 
 export function combineLessonNotes(notes: { body: string }[]): string | null {
@@ -355,6 +415,9 @@ export async function syncLessonNotesToVocab(
   if (!items.length) return;
 
   const notes = await listJpLessonNotesByLessonId(db, lesson.id);
+  // 无笔记时禁止对每个词条空 UPDATE（大课会顶 1102）
+  if (!notes.length) return;
+
   const refKey = lesson.ref_key;
   // 合传课按项 word/grammar；normalizeKind 只认 JpVocabKind，不能吃 lesson.kind
   const itemKinds = resolveJpLessonItemKinds(
@@ -367,9 +430,9 @@ export async function syncLessonNotesToVocab(
   if (jpVocabDbState.devStoreEnabled) {
     items.forEach((item, index) => {
       const kind = itemKinds[index] ?? "word";
-      const combined = combineLessonNotes(
-        notes.filter((n) => n.item_word === item)
-      );
+      const itemNotes = notes.filter((n) => n.item_word === item);
+      if (!itemNotes.length) return;
+      const combined = combineLessonNotes(itemNotes);
       const idx = jpVocabDbState.devWords.findIndex((w) => {
         if (w.word !== item) return false;
         if (refKey) return w.ref_key === refKey;
@@ -389,9 +452,9 @@ export async function syncLessonNotesToVocab(
   for (let index = 0; index < items.length; index++) {
     const item = items[index];
     const kind = itemKinds[index] ?? "word";
-    const combined = combineLessonNotes(
-      notes.filter((n) => n.item_word === item)
-    );
+    const itemNotes = notes.filter((n) => n.item_word === item);
+    if (!itemNotes.length) continue;
+    const combined = combineLessonNotes(itemNotes);
 
     if (refKey) {
       await db
