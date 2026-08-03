@@ -1,0 +1,67 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""Regression: 日语新课可编辑学习内容/释义（编号换行 → 入库拆解）。"""
+
+from __future__ import annotations
+
+import re
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def main() -> int:
+    errors: list[str] = []
+
+    edit_lib = (ROOT / "src/lib/jp-lesson-content-edit.ts").read_text(encoding="utf-8")
+    for needle in (
+        "formatJpLessonContentForEdit",
+        "formatJpLessonMeaningsForEdit",
+        "buildJpLessonContentMeaningsFromEdit",
+        "parseJpLessonNumberedEditLines",
+    ):
+        if needle not in edit_lib:
+            errors.append(f"missing {needle} in jp-lesson-content-edit.ts")
+
+    db = (ROOT / "src/lib/jp-lesson-db-content.ts").read_text(encoding="utf-8")
+    if "updateJpLessonContentMeanings" not in db:
+        errors.append("missing updateJpLessonContentMeanings")
+
+    route = (ROOT / "src/app/api/jp-lesson/route.ts").read_text(encoding="utf-8")
+    if 'action === "set_content"' not in route and "action === 'set_content'" not in route:
+        errors.append('API must handle action "set_content"')
+
+    modal = (ROOT / "src/components/JpLessonContentEditModal.tsx").read_text(
+        encoding="utf-8"
+    )
+    if "学习内容" not in modal or "释义" not in modal:
+        errors.append("modal must have 学习内容 + 释义 textareas")
+    if "JpVocabSaveProgressBar" not in modal:
+        errors.append("modal must use JpVocabSaveProgressBar")
+
+    table = (ROOT / "src/components/jp-lesson-page/JpLessonStatusTable.tsx").read_text(
+        encoding="utf-8"
+    )
+    if "onEditContent" not in table:
+        errors.append("StatusTable must wire onEditContent")
+    if "JpLessonContentEditIconButton" not in table:
+        errors.append("StatusTable must show 编辑内容 button")
+
+    # smoke: numbered parse logic via node-less regex check of source comments
+    if "join(\", \")" not in edit_lib and 'join(", ")' not in edit_lib:
+        errors.append("content edit must join with comma for storage")
+    if 'join("|")' not in edit_lib:
+        errors.append("meanings edit must join with | for storage")
+
+    if errors:
+        print("FAIL:")
+        for e in errors:
+            print(" -", e)
+        return 1
+    print("OK: jp-lesson content edit guards")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

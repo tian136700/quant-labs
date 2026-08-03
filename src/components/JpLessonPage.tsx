@@ -48,6 +48,7 @@ import { JpLessonPageSections } from "@/components/jp-lesson-page/JpLessonPageSe
 import { JpLessonPageModals } from "@/components/jp-lesson-page/JpLessonPageModals";
 import { JpLessonApiUploadDocs } from "@/components/jp-lesson-page/JpLessonApiUploadDocs";
 import { useJpLessonCourseMergeCopy } from "@/components/jp-lesson-page/useJpLessonCourseMergeCopy";
+import { saveJpLessonContentMeanings } from "@/components/jp-lesson-page/saveJpLessonContentMeanings";
 import { CopyToast } from "@/components/CopyToast";
 import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import type { JpLessonVocabSyncProgress } from "@/components/jp-lesson-page/runJpLessonVocabSyncChunks";
@@ -107,6 +108,9 @@ export function JpLessonPage() {
     return () => window.clearInterval(timer);
   }, []);
   const [editingLesson, setEditingLesson] = useState<JpLessonRecord | null>(null);
+  const [editingContentLesson, setEditingContentLesson] =
+    useState<JpLessonRecord | null>(null);
+  const [savingContentId, setSavingContentId] = useState<number | null>(null);
   const [editingTeacherLesson, setEditingTeacherLesson] = useState<JpLessonRecord | null>(null);
   const [editingTeacherLessonIds, setEditingTeacherLessonIds] = useState<number[]>([]);
   const [editingNextClassLesson, setEditingNextClassLesson] = useState<JpLessonRecord | null>(null);
@@ -438,6 +442,33 @@ export function JpLessonPage() {
     loadLessons,
   });
 
+  const saveLessonContentMeanings = useCallback(
+    (lessonId: number, content: string, meanings: string | null) =>
+      saveJpLessonContentMeanings({
+        locale,
+        canOperate,
+        lessonId,
+        content,
+        meanings,
+        lessons,
+        refs,
+        noteCounts,
+        teachers,
+        setLessons,
+        setStatus,
+        setSavingContentId,
+        setEditingContentLesson,
+      }),
+    [
+      locale,
+      canOperate,
+      lessons,
+      refs,
+      noteCounts,
+      teachers,
+    ]
+  );
+
   const editingRef = editingLesson?.ref_key ? refs[editingLesson.ref_key] : undefined;
 
 
@@ -575,6 +606,7 @@ export function JpLessonPage() {
           openTeacherEditModal={openTeacherEditModal}
           openNextClassEditModal={openNextClassEditModal}
           setEditingLesson={setEditingLesson}
+          setEditingContentLesson={setEditingContentLesson}
           setAnnotatingLesson={setAnnotatingLesson}
           setViewingExamples={setViewingExamples}
           deleteLesson={deleteLesson}
@@ -607,6 +639,8 @@ export function JpLessonPage() {
         batchSaving={batchSaving}
         editingLesson={editingLesson}
         editingRef={editingRef}
+        editingContentLesson={editingContentLesson}
+        savingContentId={savingContentId}
         annotatingLesson={annotatingLesson}
         viewingExamples={viewingExamples}
         setEditingTeacherLesson={setEditingTeacherLesson}
@@ -621,6 +655,8 @@ export function JpLessonPage() {
         setBatchModalOpen={setBatchModalOpen}
         setBatchClassSchedulesAndTeachers={setBatchClassSchedulesAndTeachers}
         setEditingLesson={setEditingLesson}
+        setEditingContentLesson={setEditingContentLesson}
+        saveLessonContentMeanings={saveLessonContentMeanings}
         handleRefUpdated={handleRefUpdated}
         openJpAuth={openJpAuth}
         setAnnotatingLesson={setAnnotatingLesson}

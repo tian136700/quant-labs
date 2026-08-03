@@ -2,13 +2,14 @@ import { getCloudflareEnv, jsonResponse, localeFromRequest } from "@/lib/cloudfl
 import { requireAdmin } from "@/lib/admin-auth";
 import {
   getJpLessonById,
-  incrementJpLessonLinkCopyCount,
   listJpLessons,
   updateJpLessonClassSchedules,
   updateJpLessonNextClassAt,
   updateJpLessonProgress,
   updateJpLessonTeacherAssignment,
 } from "@/lib/jp-lesson-db";
+import { updateJpLessonContentMeanings } from "@/lib/jp-lesson-db-content";
+import { incrementJpLessonLinkCopyCount } from "@/lib/jp-lesson-db-link-copy";
 import { deleteJpLesson } from "@/lib/jp-lesson-db-delete";
 import type { JpLessonProgressStatus } from "@/lib/jp-lesson-shared";
 import { listJpLessonNoteCountsByLesson } from "@/lib/jp-lesson-note-db";
@@ -135,6 +136,8 @@ export async function POST(request: Request) {
       teacher_other?: string | null;
       next_class_at?: string | null;
       class_duration_minutes?: number | null;
+      content?: string;
+      meanings?: string | null;
       class_schedules?: Array<{
         class_at: string;
         duration_minutes: number | null;
@@ -183,6 +186,38 @@ export async function POST(request: Request) {
       }
 
       return jsonResponse({ ok: true });
+    }
+
+    if (body.action === "set_content") {
+      const lessonId = Number(body.lesson_id);
+      if (!Number.isInteger(lessonId) || lessonId <= 0) {
+        return jsonResponse({ ok: false, error: "lesson_id_invalid" }, 400);
+      }
+      if (typeof body.content !== "string") {
+        return jsonResponse({ ok: false, error: "content_invalid" }, 400);
+      }
+      const meanings =
+        body.meanings === undefined || body.meanings === null
+          ? null
+          : String(body.meanings);
+
+      const result = await updateJpLessonContentMeanings(
+        env.DB,
+        lessonId,
+        body.content,
+        meanings
+      );
+      if (!result.ok) {
+        const status =
+          result.error === "not_found"
+            ? 404
+            : result.error === "content_empty" ||
+                result.error === "invalid_annotation"
+              ? 400
+              : 400;
+        return jsonResponse({ ok: false, error: result.error }, status);
+      }
+      return jsonResponse({ ok: true, lesson: result.lesson });
     }
 
     if (body.action === "sync_to_vocab") {

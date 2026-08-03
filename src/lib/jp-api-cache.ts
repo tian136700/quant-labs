@@ -26,7 +26,7 @@ import { normalizeClassDurationMinutes } from "@/lib/jp-lesson-shared";
 import { normalizeJpLessonTeacher } from "@/lib/jp-lesson-teacher-rate";
 
 export const JP_VOCAB_CACHE_KEY = "jp-api:vocab:v6";
-export const JP_LESSON_CACHE_KEY = "jp-api:lesson:v12";
+export const JP_LESSON_CACHE_KEY = "jp-api:lesson:v13";
 
 /** 词表本地缓存有效期内不重复 GET（多人同时刷新时减轻 Worker 压力） */
 export const JP_VOCAB_REFRESH_TTL_MS = 45_000;

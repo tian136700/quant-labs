@@ -26,6 +26,10 @@ import {
 import { buildJpLessonCoursePairMap, type JpLessonCoursePair } from "@/lib/jp-lesson-course-pair";
 import type { JpLessonCourseMergeBusy } from "@/components/JpLessonCopyMenu";
 import {
+  JpLessonContentEditIconButton,
+} from "@/components/jp-lesson-page/JpLessonContentEditButtons";
+import { JpLessonStatusTableMobileFooter } from "@/components/jp-lesson-page/JpLessonStatusTableMobileFooter";
+import {
   getJpLessonProgressStatus,
   getLessonClassDate,
   getLessonClassSchedules,
@@ -66,6 +70,7 @@ export type JpLessonStatusTableProps = {
   onSetLessonProgress: (lessonId: number, status: JpLessonProgressStatus) => void | Promise<void>;
   onViewExamples: (target: JpLessonExamplesViewTarget) => void;
   onEditLesson: (lesson: JpLessonRecord) => void;
+  onEditContent: (lesson: JpLessonRecord) => void;
   onAnnotateLesson: (payload: {
     lesson: JpLessonRecord;
     ref: JpVocabRef;
@@ -108,6 +113,7 @@ export function JpLessonStatusTable({
   onSetLessonProgress,
   onViewExamples,
   onEditLesson,
+  onEditContent,
   onAnnotateLesson,
   onOpenTeacherEdit,
   onOpenNextClassEdit,
@@ -154,6 +160,16 @@ export function JpLessonStatusTable({
     if (!hasRefKey) {
       return canOperate ? (
         <div className="jp-lesson-actions">
+          <button
+            type="button"
+            className="jp-lesson-action-btn"
+            onClick={() => onEditContent(lesson)}
+          >
+            <span className="jp-lesson-mobile-btn-icon" aria-hidden="true">
+              <JpLessonMobileIcon name="edit" />
+            </span>
+            编辑内容
+          </button>
           <button
             type="button"
             className="jp-lesson-action-btn"
@@ -251,6 +267,11 @@ export function JpLessonStatusTable({
     );
     if (canOperate) {
       actionItems.push(
+        <JpLessonContentEditIconButton
+          key="edit-content"
+          lesson={lesson}
+          onEdit={onEditContent}
+        />,
         <JpEditIconButton
           key="edit"
           title="编辑教案（弹窗）"
@@ -263,69 +284,18 @@ export function JpLessonStatusTable({
     return <div className="jp-lesson-actions">{actionItems}</div>;
   };
 
-  const renderMobileCardFooter = (groupLessons: JpLessonRecord[]) => {
-    const rows = groupLessons.flatMap((lesson) => {
-      const buttons: ReactNode[] = [];
-      if (canOperate) {
-        buttons.push(
-          <button
-            key={`edit-${lesson.id}`}
-            type="button"
-            className="jp-lesson-mobile-footer-btn"
-            onClick={() => onEditLesson(lesson)}
-          >
-            <JpLessonMobileIcon name="edit" />
-            <span>{groupLessons.length > 1 ? `#${lesson.id} ` : ""}编辑课程</span>
-          </button>
-        );
-      }
-      if (isAdmin) {
-        buttons.push(
-          <button
-            key={`time-${lesson.id}`}
-            type="button"
-            className="jp-lesson-mobile-footer-btn"
-            disabled={savingNextClassId === lesson.id}
-            onClick={() => onOpenNextClassEdit(lesson)}
-          >
-            <JpLessonMobileIcon name="clock" />
-            <span>{groupLessons.length > 1 ? `#${lesson.id} ` : ""}修改时间</span>
-          </button>
-        );
-        buttons.push(
-          <button
-            key={`teacher-${lesson.id}`}
-            type="button"
-            className="jp-lesson-mobile-footer-btn"
-            onClick={() => onOpenTeacherEdit(lesson)}
-          >
-            <JpLessonMobileIcon name="user" />
-            <span>{groupLessons.length > 1 ? `#${lesson.id} ` : ""}修改老师</span>
-          </button>
-        );
-      }
-      if (!buttons.length) return [];
-      return (
-        <div
-          key={lesson.id}
-          className="jp-lesson-mobile-footer-row"
-          style={{ gridTemplateColumns: `repeat(${buttons.length}, minmax(0, 1fr))` }}
-        >
-          {buttons}
-        </div>
-      );
-    });
-
-    if (!rows.length) {
-      return <td className="jp-lesson-mobile-card-footer" aria-hidden="true" />;
-    }
-
-    return (
-      <td className="jp-lesson-mobile-card-footer">
-        <div className="jp-lesson-mobile-footer-stack">{rows}</div>
-      </td>
-    );
-  };
+  const renderMobileCardFooter = (groupLessons: JpLessonRecord[]) => (
+    <JpLessonStatusTableMobileFooter
+      groupLessons={groupLessons}
+      canOperate={canOperate}
+      isAdmin={isAdmin}
+      savingNextClassId={savingNextClassId}
+      onEditContent={onEditContent}
+      onEditLesson={onEditLesson}
+      onOpenNextClassEdit={onOpenNextClassEdit}
+      onOpenTeacherEdit={onOpenTeacherEdit}
+    />
+  );
 
   const renderSharedTeacherCell = (groupLessons: JpLessonRecord[]) => {
     const lesson = groupLessons[0];

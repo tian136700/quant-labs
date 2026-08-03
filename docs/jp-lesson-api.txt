@@ -6,7 +6,7 @@
 给网页「日语新课」列表、以及其它项目（脚本 / 运维）读写课次：
 
 - GET  拉新课列表 + 教案 refs + **每课笔记条数**（管理员另含老师列表）
-- POST 按 action 改学习状态 / 老师 / 上课时间 / 记复制次数 / **删除课次**
+- POST 按 action 改学习状态 / 老师 / 上课时间 / **学习内容+释义** / 记复制次数 / **删除课次**
 
 上传新课（带教案文件）请用专用接口，勿走本路由：
   POST /api/jp-lesson/upload          → docs 见页面「API 上传说明」
@@ -371,4 +371,24 @@ done=true 时本课同步结束（最后一批会顺带同步课堂笔记，无�
   "lesson": { … },
   "vocab_sync": { "needed": true, "total": 64, "offset": 0, "chunk_size": 8 }
 }
+
+
+────────────────────────────────
+POST · 编辑学习内容与释义（set_content）
+────────────────────────────────
+
+权限：日语新课 · 编辑/操作
+
+Body:
+  {
+    "action": "set_content",
+    "lesson_id": 84,
+    "content": "～ばかり, ～ようになる",
+    "meanings": "（刚刚……）|（变得……）"
+  }
+
+说明：
+- content / meanings 为入库形态（逗号 / |）；网页编辑弹窗会把「1. xxx」换行拆成此格式后再提交
+- 保存后按新 content 项数对齐 annotations、example_sentences
+- 成功返回 { ok, lesson }
 

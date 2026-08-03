@@ -228,6 +228,15 @@ export function spliceJpLessonDevStore(lessonId: number): boolean {
   return true;
 }
 
+/** 仅供内容编辑等：替换内存课表中同 id 的一条。 */
+export function replaceJpLessonDevStoreRecord(lesson: JpLessonRecord): boolean {
+  if (!devStoreEnabled) return false;
+  const idx = devLessons.findIndex((l) => l.id === lesson.id);
+  if (idx < 0) return false;
+  devLessons[idx] = lesson;
+  return true;
+}
+
 export function enableJpLessonDevStore() {
   devStoreEnabled = true;
 }
@@ -950,50 +959,4 @@ export async function syncJpLessonTitleByRefKey(
     )
     .bind(trimmedTitle, ts, key)
     .run();
-}
-
-export type IncrementJpLessonLinkCopyCountResult =
-  | { ok: true; link_copy_count: number }
-  | { ok: false; error: string };
-
-export async function incrementJpLessonLinkCopyCount(
-  db: D1Database,
-  lessonId: number
-): Promise<IncrementJpLessonLinkCopyCountResult> {
-  if (!Number.isInteger(lessonId) || lessonId <= 0) {
-    return { ok: false, error: "lesson_id_invalid" };
-  }
-
-  await seedIfEmpty(db);
-
-  if (devStoreEnabled) {
-    const idx = devLessons.findIndex((l) => l.id === lessonId);
-    if (idx < 0) return { ok: false, error: "not_found" };
-    const next = (devLessons[idx].link_copy_count ?? 0) + 1;
-    devLessons[idx] = { ...devLessons[idx], link_copy_count: next };
-    return { ok: true, link_copy_count: next };
-  }
-
-  await ensureJpLessonLinkCopyCountColumn(db);
-
-  const ts = nowIso();
-  const result = await db
-    .prepare(
-      `UPDATE jp_lesson
-       SET link_copy_count = COALESCE(link_copy_count, 0) + 1, updated_at = ?2
-       WHERE id = ?1`
-    )
-    .bind(lessonId, ts)
-    .run();
-
-  if (!result.meta?.changes) {
-    return { ok: false, error: "not_found" };
-  }
-
-  const row = await db
-    .prepare(`SELECT link_copy_count FROM jp_lesson WHERE id = ?1`)
-    .bind(lessonId)
-    .first<{ link_copy_count: number | null }>();
-
-  return { ok: true, link_copy_count: Number(row?.link_copy_count) || 0 };
 }

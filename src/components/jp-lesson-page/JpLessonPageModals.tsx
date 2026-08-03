@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { JpLessonBatchScheduleTeacherModal } from "@/components/JpLessonBatchScheduleTeacherModal";
+import { JpLessonContentEditModal } from "@/components/JpLessonContentEditModal";
 import { JpLessonExamplesViewModal, type JpLessonExamplesViewTarget } from "@/components/JpLessonExamplesViewModal";
 import { JpLessonNextClassEditModal } from "@/components/JpLessonNextClassEditModal";
 import { JpLessonTeacherEditModal } from "@/components/JpLessonTeacherEditModal";
@@ -33,6 +34,8 @@ export type JpLessonPageModalsProps = {
   batchSaving: boolean;
   editingLesson: JpLessonRecord | null;
   editingRef: JpVocabRef | undefined;
+  editingContentLesson: JpLessonRecord | null;
+  savingContentId: number | null;
   annotatingLesson: {
     lesson: JpLessonRecord;
     ref: JpVocabRef;
@@ -52,6 +55,12 @@ export type JpLessonPageModalsProps = {
   setBatchModalOpen: (open: boolean) => void;
   setBatchClassSchedulesAndTeachers: (...args: any[]) => any;
   setEditingLesson: (v: JpLessonRecord | null) => void;
+  setEditingContentLesson: (v: JpLessonRecord | null) => void;
+  saveLessonContentMeanings: (
+    lessonId: number,
+    content: string,
+    meanings: string | null
+  ) => void | Promise<void>;
   handleRefUpdated: (...args: any[]) => void;
   openJpAuth: () => void;
   setAnnotatingLesson: (v: JpLessonPageModalsProps["annotatingLesson"]) => void;
@@ -74,6 +83,8 @@ export function JpLessonPageModals(props: JpLessonPageModalsProps) {
     teachers,
     editingLesson,
     editingRef,
+    editingContentLesson,
+    savingContentId,
     annotatingLesson,
     viewingExamples,
     setEditingTeacherLesson,
@@ -88,6 +99,8 @@ export function JpLessonPageModals(props: JpLessonPageModalsProps) {
     setBatchModalOpen,
     setBatchClassSchedulesAndTeachers,
     setEditingLesson,
+    setEditingContentLesson,
+    saveLessonContentMeanings,
     handleRefUpdated,
     openJpAuth,
     setAnnotatingLesson,
@@ -142,6 +155,21 @@ export function JpLessonPageModals(props: JpLessonPageModalsProps) {
           const lesson = editingNextClassLesson;
           setEditingNextClassLesson(null);
           openTeacherEditModal(lesson);
+        }}
+      />
+
+      <JpLessonContentEditModal
+        open={editingContentLesson != null}
+        lesson={editingContentLesson}
+        saving={savingContentId === editingContentLesson?.id}
+        onClose={() => setEditingContentLesson(null)}
+        onSave={(content, meanings) => {
+          if (!editingContentLesson) return;
+          void saveLessonContentMeanings(
+            editingContentLesson.id,
+            content,
+            meanings
+          );
         }}
       />
 
