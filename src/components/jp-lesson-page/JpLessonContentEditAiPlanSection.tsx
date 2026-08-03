@@ -10,13 +10,11 @@ import {
 import { createPortal } from "react-dom";
 import { CopyToast } from "@/components/CopyToast";
 import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
+import { useJpLessonAiPlanPromptTemplate } from "@/hooks/useJpLessonAiPlanPromptTemplate";
 import { useSaveProgressBar } from "@/hooks/useSaveProgressBar";
 import { copyTextToClipboard } from "@/lib/copy-text";
 import {
-  JP_LESSON_AI_PLAN_DEFAULT_PROMPT,
   buildJpLessonAiPlanCopyText,
-  readStoredJpLessonAiPlanPrompt,
-  writeStoredJpLessonAiPlanPrompt,
 } from "@/lib/jp-lesson-ai-plan-prompt";
 import { jpLessonKindLabel } from "@/lib/jp-lesson-shared";
 import { jpVocabSaveProgressLabel } from "@/lib/jp-vocab-save-progress";
@@ -54,7 +52,6 @@ export function JpLessonContentEditAiPlanSection({
   disabled = false,
   onAttached,
 }: Props) {
-  const [prompt, setPrompt] = useState(JP_LESSON_AI_PLAN_DEFAULT_PROMPT);
   const [copyToast, setCopyToast] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -65,6 +62,7 @@ export function JpLessonContentEditAiPlanSection({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const busy = disabled || attachBusy;
   const saveProgress = useSaveProgressBar(attachBusy);
+  const { prompt, setPrompt, flushPrompt } = useJpLessonAiPlanPromptTemplate(open);
   const canZoomImage = Boolean(
     previewUrl && imageFile && imageFile.type.startsWith("image/")
   );
@@ -75,7 +73,6 @@ export function JpLessonContentEditAiPlanSection({
 
   useEffect(() => {
     if (!open) return;
-    setPrompt(readStoredJpLessonAiPlanPrompt());
     setLocalError(null);
     setZoomOpen(false);
     setImageFile(null);
@@ -141,7 +138,7 @@ export function JpLessonContentEditAiPlanSection({
 
   const handleCopy = () => {
     const text = buildJpLessonAiPlanCopyText(groups, prompt);
-    writeStoredJpLessonAiPlanPrompt(prompt);
+    flushPrompt();
     void copyTextToClipboard(text).then((ok) =>
       setCopyToast(ok ? "复制成功" : "复制失败")
     );
@@ -154,7 +151,7 @@ export function JpLessonContentEditAiPlanSection({
     }
     setAttachBusy(true);
     setLocalError(null);
-    writeStoredJpLessonAiPlanPrompt(prompt);
+    flushPrompt();
     try {
       const form = new FormData();
       form.set("lesson_ids", JSON.stringify([lesson.id]));
@@ -194,7 +191,12 @@ export function JpLessonContentEditAiPlanSection({
       <div className="jp-lesson-content-edit-ai-plan-grid">
         <div className="jp-lesson-content-edit-ai-plan-col">
           <div className="jp-lesson-content-edit-ai-plan-prompt-head">
-            <h3 className="jp-lesson-content-edit-ai-plan-title">AI 提示词</h3>
+            <h3 className="jp-lesson-content-edit-ai-plan-title">
+              AI 提示词模板
+              <span className="jp-lesson-content-edit-ai-plan-autosave">
+                改后自动保存
+              </span>
+            </h3>
             <button
               type="button"
               className="jp-lesson-action-btn jp-lesson-action-btn--primary"
@@ -211,8 +213,9 @@ export function JpLessonContentEditAiPlanSection({
             value={prompt}
             disabled={busy}
             spellCheck={false}
-            aria-label="AI 教案提示词"
+            aria-label="AI 教案提示词模板"
             onChange={(e) => setPrompt(e.target.value)}
+            onBlur={() => flushPrompt()}
           />
         </div>
 
@@ -393,6 +396,15 @@ export function JpLessonContentEditAiPlanSection({
           font-size: 0.92rem;
           font-weight: 700;
           flex-shrink: 0;
+          display: inline-flex;
+          flex-wrap: wrap;
+          align-items: baseline;
+          gap: 0.4rem 0.55rem;
+        }
+        .jp-lesson-content-edit-ai-plan-autosave {
+          font-size: 0.75rem;
+          font-weight: 500;
+          color: var(--muted);
         }
         .jp-lesson-content-edit-ai-plan-prompt-head {
           display: flex;

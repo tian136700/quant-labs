@@ -20,6 +20,7 @@ def main() -> int:
         "JP_LESSON_AI_PLAN_DEFAULT_PROMPT",
         "buildJpLessonAiPlanCopyText",
         "readStoredJpLessonAiPlanPrompt",
+        "writeStoredJpLessonAiPlanPrompt",
         "图片版单词教案",
         "辞書形",
         "严禁自行删减大半词表",
@@ -30,6 +31,19 @@ def main() -> int:
     ):
         if needle not in prompt_lib:
             errors.append(f"missing {needle} in jp-lesson-ai-plan-prompt.ts")
+
+    auto_hook = (
+        ROOT / "src/hooks/useJpLessonAiPlanPromptTemplate.ts"
+    ).read_text(encoding="utf-8")
+    for needle in (
+        "useJpLessonAiPlanPromptTemplate",
+        "writeStoredJpLessonAiPlanPrompt",
+        "readStoredJpLessonAiPlanPrompt",
+        "AUTOSAVE_MS",
+        "flushPrompt",
+    ):
+        if needle not in auto_hook:
+            errors.append(f"missing {needle} in useJpLessonAiPlanPromptTemplate")
 
     attach = (ROOT / "src/lib/jp-lesson-ref-attach.ts").read_text(encoding="utf-8")
     for needle in (
@@ -66,6 +80,9 @@ def main() -> int:
         "copy-toast--above-modal",
         "JpVocabSaveProgressBar",
         "/api/jp-lesson/ref/attach-batch",
+        "useJpLessonAiPlanPromptTemplate",
+        "改后自动保存",
+        "onBlur",
     ):
         if needle not in modal:
             errors.append(f"modal missing {needle}")
@@ -108,6 +125,9 @@ def main() -> int:
         "min-height: 300px",
         "min-height: 220px",
         "grid-template-columns: minmax(0, 1fr) minmax(0, 1fr)",
+        "useJpLessonAiPlanPromptTemplate",
+        "改后自动保存",
+        "onBlur",
     ):
         if needle not in inline:
             errors.append(f"content-edit AI plan section missing {needle}")

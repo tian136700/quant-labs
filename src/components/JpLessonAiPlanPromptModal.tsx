@@ -4,14 +4,12 @@ import { useEffect, useMemo, useRef, useState, type ClipboardEvent } from "react
 import { createPortal } from "react-dom";
 import { CopyToast } from "@/components/CopyToast";
 import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
+import { useJpLessonAiPlanPromptTemplate } from "@/hooks/useJpLessonAiPlanPromptTemplate";
 import { useSaveProgressBar } from "@/hooks/useSaveProgressBar";
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
 import { copyTextToClipboard } from "@/lib/copy-text";
 import {
-  JP_LESSON_AI_PLAN_DEFAULT_PROMPT,
   buildJpLessonAiPlanCopyText,
-  readStoredJpLessonAiPlanPrompt,
-  writeStoredJpLessonAiPlanPrompt,
   type JpLessonAiPlanWordGroup,
 } from "@/lib/jp-lesson-ai-plan-prompt";
 import {
@@ -62,7 +60,6 @@ export function JpLessonAiPlanPromptModal({
   onAttached,
 }: Props) {
   const [mounted, setMounted] = useState(false);
-  const [prompt, setPrompt] = useState(JP_LESSON_AI_PLAN_DEFAULT_PROMPT);
   const [copyToast, setCopyToast] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -72,6 +69,7 @@ export function JpLessonAiPlanPromptModal({
   const pasteZoneRef = useRef<HTMLDivElement>(null);
   const busy = attaching || attachBusy;
   const saveProgress = useSaveProgressBar(busy);
+  const { prompt, setPrompt, flushPrompt } = useJpLessonAiPlanPromptTemplate(open);
 
   useEffect(() => {
     setMounted(true);
@@ -86,7 +84,6 @@ export function JpLessonAiPlanPromptModal({
 
   useEffect(() => {
     if (!open) return;
-    setPrompt(readStoredJpLessonAiPlanPrompt());
     setLocalError(null);
     setImageFile(null);
     setPreviewUrl((prev) => {
@@ -129,7 +126,7 @@ export function JpLessonAiPlanPromptModal({
 
   const handleCopy = () => {
     const text = buildJpLessonAiPlanCopyText(groups, prompt);
-    writeStoredJpLessonAiPlanPrompt(prompt);
+    flushPrompt();
     void copyTextToClipboard(text).then((ok) =>
       setCopyToast(ok ? "复制成功" : "复制失败")
     );
@@ -146,7 +143,7 @@ export function JpLessonAiPlanPromptModal({
     }
     setAttachBusy(true);
     setLocalError(null);
-    writeStoredJpLessonAiPlanPrompt(prompt);
+    flushPrompt();
     try {
       const form = new FormData();
       form.set(
@@ -231,7 +228,10 @@ export function JpLessonAiPlanPromptModal({
             <section className="jp-lesson-ai-plan-col" aria-label="AI提示词与教案">
               <div className="jp-lesson-ai-plan-prompt-block">
                 <div className="jp-lesson-ai-plan-prompt-head">
-                  <h3>AI 提示词</h3>
+                  <h3>
+                    AI 提示词模板
+                    <span className="jp-lesson-ai-plan-autosave">改后自动保存</span>
+                  </h3>
                   <button
                     type="button"
                     className="jp-lesson-action-btn jp-lesson-action-btn--primary"
@@ -247,7 +247,9 @@ export function JpLessonAiPlanPromptModal({
                   value={prompt}
                   disabled={busy}
                   spellCheck={false}
+                  aria-label="AI 教案提示词模板"
                   onChange={(e) => setPrompt(e.target.value)}
+                  onBlur={() => flushPrompt()}
                 />
               </div>
 
@@ -447,6 +449,18 @@ export function JpLessonAiPlanPromptModal({
           align-items: center;
           justify-content: space-between;
           gap: 0.45rem;
+        }
+        .jp-lesson-ai-plan-prompt-head h3 {
+          display: inline-flex;
+          flex-wrap: wrap;
+          align-items: baseline;
+          gap: 0.4rem 0.55rem;
+          margin: 0;
+        }
+        .jp-lesson-ai-plan-autosave {
+          font-size: 0.75rem;
+          font-weight: 500;
+          color: var(--muted);
         }
         .jp-lesson-ai-plan-textarea {
           width: 100%;

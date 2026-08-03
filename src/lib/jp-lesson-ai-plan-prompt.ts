@@ -6,7 +6,7 @@ export const JP_LESSON_AI_PLAN_PROMPT_STORAGE_KEY =
   "jp-lesson:ai-plan-prompt-template:v2";
 
 /**
- * 默认提示词（可在弹窗里改；改稿会进 localStorage）。
+ * 默认提示词（可在弹窗里改；改稿会自动进 localStorage，见 useJpLessonAiPlanPromptTemplate）。
  * 复制时会先拼「生词表」再拼本段，见 buildJpLessonAiPlanCopyText。
  */
 export const JP_LESSON_AI_PLAN_DEFAULT_PROMPT = `请根据上方词条制作一张「图片版单词教案」。
