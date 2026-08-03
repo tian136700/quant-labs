@@ -453,6 +453,10 @@ export function JpLessonPage() {
       setLessons(nextLessons);
       setRefs(nextRefs);
       persistLessonCache(nextLessons, nextRefs, noteCounts, teachers);
+      setEditingContentLesson((prev) => {
+        if (!prev) return prev;
+        return byId.get(prev.id) ?? prev;
+      });
       setAiPlanModalOpen(false);
       setStatus(`已将教案挂到 ${payload.lessons.length} 条课程`);
       window.setTimeout(() => setStatus(""), 2500);

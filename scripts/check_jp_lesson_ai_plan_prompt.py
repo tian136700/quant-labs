@@ -69,6 +69,36 @@ def main() -> int:
     if "做教案提示词" not in sections or "onOpenAiPlanPrompt" not in sections:
         errors.append("pending toolbar must open AI plan prompt")
 
+    content_edit = (
+        ROOT / "src/components/JpLessonContentEditModal.tsx"
+    ).read_text(encoding="utf-8")
+    for needle in (
+        "showAiPlanTools",
+        "做教案提示词",
+        "JpLessonContentEditAiPlanSection",
+        "lesson?.id",
+        "lesson?.content",
+        "lesson?.meanings",
+    ):
+        if needle not in content_edit:
+            errors.append(f"content edit modal missing {needle}")
+
+    inline = (
+        ROOT
+        / "src/components/jp-lesson-page/JpLessonContentEditAiPlanSection.tsx"
+    ).read_text(encoding="utf-8")
+    for needle in (
+        "复制单词+提示词",
+        "挂到本课",
+        "copyTextToClipboard",
+        "CopyToast",
+        "copy-toast--above-modal",
+        "JpVocabSaveProgressBar",
+        "/api/jp-lesson/ref/attach-batch",
+    ):
+        if needle not in inline:
+            errors.append(f"content-edit AI plan section missing {needle}")
+
     docs = ROOT / "docs/jp-lesson-ref-attach-batch-api.txt"
     if not docs.is_file():
         errors.append("missing docs/jp-lesson-ref-attach-batch-api.txt")

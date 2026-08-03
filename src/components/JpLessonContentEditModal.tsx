@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
+import { JpLessonContentEditAiPlanSection } from "@/components/jp-lesson-page/JpLessonContentEditAiPlanSection";
 import type { JpLessonCompleteContentItemsResult } from "@/components/jp-lesson-page/completeJpLessonContentItems";
 import type { JpLessonContentSaveResult } from "@/components/jp-lesson-page/saveJpLessonContentMeanings";
 import { useSaveProgressBar } from "@/hooks/useSaveProgressBar";
@@ -16,12 +17,14 @@ import {
 } from "@/lib/jp-lesson-content-edit";
 import { jpVocabSaveProgressLabel } from "@/lib/jp-vocab-save-progress";
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
-import type { JpLessonRecord } from "@/lib/types";
+import type { JpLessonRecord, JpVocabRef } from "@/lib/types";
 
 type Props = {
   open: boolean;
   lesson: JpLessonRecord | null;
   saving?: boolean;
+  /** 管理员：可展开 AI 教案提示词与粘贴挂图 */
+  showAiPlanTools?: boolean;
   onClose: () => void;
   onSave: (
     content: string,
@@ -41,21 +44,28 @@ type Props = {
     | Promise<void>
     | Promise<JpLessonCompleteContentItemsResult>
     | JpLessonCompleteContentItemsResult;
+  onAiPlanAttached?: (payload: {
+    lessons: JpLessonRecord[];
+    refs: Record<string, JpVocabRef>;
+  }) => void;
 };
 
 export function JpLessonContentEditModal({
   open,
   lesson,
   saving = false,
+  showAiPlanTools = false,
   onClose,
   onSave,
   onDeleteLesson,
   onCompleteItems,
+  onAiPlanAttached,
 }: Props) {
   const [mounted, setMounted] = useState(false);
   const [rows, setRows] = useState<JpLessonContentEditRow[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [aiPlanOpen, setAiPlanOpen] = useState(false);
   const errorRef = useRef<HTMLParagraphElement | null>(null);
   const saveBusy = saving;
   const saveProgress = useSaveProgressBar(saveBusy);
@@ -74,7 +84,17 @@ export function JpLessonContentEditModal({
     setRows(buildJpLessonContentEditRows(lesson.content, lesson.meanings));
     setSelectedIds([]);
     setLocalError(null);
-  }, [open, lesson]);
+    setAiPlanOpen(false);
+    // 仅 id / 学习内容变化时重载；挂教案只改 ref_key，勿冲掉编辑中的行或收起提示词
+  }, [open, lesson?.id, lesson?.content, lesson?.meanings]);
+
+  const aiPlanWords = useMemo(
+    () =>
+      rows
+        .map((row) => (row.content || "").trim())
+        .filter(Boolean),
+    [rows]
+  );
 
   useEffect(() => {
     if (!localError) return;
@@ -320,7 +340,28 @@ export function JpLessonContentEditModal({
                 {someSelected ? `（${selectedIds.length}）` : ""}
               </button>
             ) : null}
+            {showAiPlanTools && onAiPlanAttached ? (
+              <button
+                type="button"
+                className="jp-lesson-action-btn"
+                disabled={saveBusy}
+                aria-expanded={aiPlanOpen}
+                onClick={() => setAiPlanOpen((v) => !v)}
+                title="复制 AI 教案提示词，并粘贴图片挂到本课"
+              >
+                {aiPlanOpen ? "收起教案提示词" : "做教案提示词"}
+              </button>
+            ) : null}
           </div>
+          {showAiPlanTools && onAiPlanAttached ? (
+            <JpLessonContentEditAiPlanSection
+              open={aiPlanOpen}
+              lesson={lesson}
+              words={aiPlanWords}
+              disabled={saveBusy}
+              onAttached={onAiPlanAttached}
+            />
+          ) : null}
           {localError ? (
             <p
               ref={errorRef}

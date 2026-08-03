@@ -97,6 +97,7 @@ export function JpLessonPageModals(props: JpLessonPageModalsProps) {
   const {
     locale,
     canOperate,
+    isAdmin,
     editingTeacherLesson,
     editingTeacherLessonIds,
     savingTeacherLessonId,
@@ -199,6 +200,7 @@ export function JpLessonPageModals(props: JpLessonPageModalsProps) {
           savingContentId === editingContentLesson?.id ||
           deletingId === editingContentLesson?.id
         }
+        showAiPlanTools={isAdmin}
         onClose={() => setEditingContentLesson(null)}
         onSave={(content, meanings, options) => {
           if (!editingContentLesson) {
@@ -243,6 +245,7 @@ export function JpLessonPageModals(props: JpLessonPageModalsProps) {
               }
             : undefined
         }
+        onAiPlanAttached={isAdmin ? handleAiPlanAttached : undefined}
       />
 
       <JpLessonWordsViewModal
