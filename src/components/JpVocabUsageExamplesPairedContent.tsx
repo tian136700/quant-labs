@@ -299,7 +299,7 @@ export function JpVocabUsageExamplesPairedContent({
           color: rgba(148, 163, 184, 0.95);
           letter-spacing: 0.01em;
         }
-        /* FrequencyBars 子组件：须 :global */
+        /* FrequencyBars 自带 jsx global；此处仅保留兼容旧 class，勿再用透明 fill */
         :global(.jp-usage-ex-paired-freq-wrap) {
           display: flex;
           flex-direction: column;
@@ -323,26 +323,29 @@ export function JpVocabUsageExamplesPairedContent({
           color: var(--muted);
         }
         :global(.jp-usage-ex-paired-freq-bar) {
-          display: inline-block;
+          display: inline-flex;
+          align-items: stretch;
           width: 5.5rem;
-          height: 0.5rem;
+          height: 0.55rem;
           border-radius: 999px;
-          background: color-mix(in srgb, var(--border) 70%, transparent);
+          background: color-mix(in srgb, var(--muted, #94a3b8) 28%, #0f172a);
           overflow: hidden;
           flex: 0 0 auto;
         }
         :global(.jp-usage-ex-paired-freq-fill) {
           display: block;
           height: 100%;
+          min-height: 0.55rem;
           border-radius: inherit;
-          background: color-mix(in srgb, var(--accent) 82%, var(--text));
+          background: var(--accent, #3b82f6);
+          box-shadow: inset 0 0 0 1px color-mix(in srgb, #fff 12%, transparent);
         }
         :global(.jp-usage-ex-paired-freq-score) {
           flex: 0 0 auto;
           font-size: 0.8rem;
           font-weight: 700;
           font-variant-numeric: tabular-nums;
-          color: color-mix(in srgb, var(--accent) 88%, var(--text));
+          color: color-mix(in srgb, var(--accent, #3b82f6) 88%, var(--text, #e2e8f0));
         }
         .jp-usage-ex-paired-usage {
           margin: 0 0 0.35rem;

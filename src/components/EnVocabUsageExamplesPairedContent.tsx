@@ -284,19 +284,22 @@ export function EnVocabUsageExamplesPairedContent({
           color: var(--muted);
         }
         :global(.en-usage-ex-paired-freq-bar) {
-          display: inline-block;
+          display: inline-flex;
+          align-items: stretch;
           width: 5.5rem;
-          height: 0.5rem;
+          height: 0.55rem;
           border-radius: 999px;
-          background: color-mix(in srgb, var(--border) 70%, transparent);
+          background: color-mix(in srgb, var(--muted, #94a3b8) 28%, #0f172a);
           overflow: hidden;
           flex: 0 0 auto;
         }
         :global(.en-usage-ex-paired-freq-fill) {
           display: block;
           height: 100%;
+          min-height: 0.55rem;
           border-radius: inherit;
-          background: color-mix(in srgb, var(--accent) 82%, var(--text));
+          background: var(--accent, #3b82f6);
+          box-shadow: inset 0 0 0 1px color-mix(in srgb, #fff 12%, transparent);
         }
         :global(.en-usage-ex-paired-freq-score) {
           flex: 0 0 auto;
@@ -304,7 +307,7 @@ export function EnVocabUsageExamplesPairedContent({
           font-size: 0.78rem;
           font-weight: 700;
           font-variant-numeric: tabular-nums;
-          color: color-mix(in srgb, var(--accent) 88%, var(--text));
+          color: color-mix(in srgb, var(--accent, #3b82f6) 88%, var(--text, #e2e8f0));
         }
         :global(.en-usage-ex-paired-levels) {
           display: flex;
@@ -347,7 +350,10 @@ export function EnVocabUsageExamplesPairedContent({
         @media (max-width: 767px) {
           :global(.en-usage-ex-paired-freq-bar) {
             width: 3.6rem;
-            height: 0.38rem;
+            height: 0.48rem;
+          }
+          :global(.en-usage-ex-paired-freq-fill) {
+            min-height: 0.48rem;
           }
           :global(.en-usage-ex-paired-freq-caption),
           :global(.en-usage-ex-paired-freq-score) {

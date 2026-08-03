@@ -1662,16 +1662,21 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           flex: 1 1 auto;
           min-width: 3.5rem;
           max-width: 8rem;
-          height: 0.35rem;
+          height: 0.45rem;
           border-radius: 999px;
-          background: color-mix(in srgb, var(--muted) 18%, transparent);
+          background: color-mix(in srgb, var(--muted, #94a3b8) 28%, #0f172a);
           overflow: hidden;
+          display: inline-flex;
+          align-items: stretch;
         }
         .jp-vocab-teacher-quiz__meta-freq-fill {
           display: block;
           height: 100%;
+          min-height: 0.45rem;
           border-radius: inherit;
-          background: color-mix(in srgb, var(--accent, #3b82f6) 75%, transparent);
+          /* 实心占比色；7/10 → width 70%（inline style） */
+          background: var(--accent, #3b82f6);
+          box-shadow: inset 0 0 0 1px color-mix(in srgb, #fff 12%, transparent);
         }
         .jp-vocab-teacher-quiz__meta-freq-score {
           flex: 0 0 auto;

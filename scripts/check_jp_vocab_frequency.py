@@ -107,15 +107,30 @@ def main() -> int:
             errors.append("FrequencyBars must show full 考试频率 label")
         if "score / 10" not in bt and "/ 10" not in bt:
             errors.append("FrequencyBars width must be score/10 (7 → 70%)")
-    if "jp-usage-ex-paired-freq-fill" not in paired:
-        errors.append("UsageExamplesPairedContent must style jp-usage-ex-paired-freq-fill")
+        if "jp-usage-ex-paired-freq-fill" not in bt:
+            errors.append("FrequencyBars must include fill class styles (self-contained)")
+        if "var(--accent" not in bt:
+            errors.append("FrequencyBars fill must use solid --accent (visible on dark)")
+        if "75%, transparent" in bt or "82%, var(--text)" in bt:
+            errors.append("FrequencyBars fill must not use high-transparency color-mix")
+    if "jp-usage-ex-paired-freq-fill" not in paired and "JpVocabUsageFrequencyBars" not in paired:
+        errors.append("UsageExamplesPairedContent must render FrequencyBars / freq-fill")
     en_paired = (
         ROOT / "src/components/EnVocabUsageExamplesPairedContent.tsx"
     ).read_text(encoding="utf-8")
     if "en-usage-ex-paired-freq-fill" not in en_paired:
         errors.append("EN UsageExamplesPairedContent must style freq-fill")
+    if "var(--accent" not in en_paired:
+        errors.append("EN freq-fill must use solid --accent")
     if "{score}/10" not in en_paired and "score}/10" not in en_paired:
         errors.append("EN frequency score must show n/10")
+    flash_styles = (
+        ROOT / "src/components/JpVocabTeacherQuizFlashcardStyles.tsx"
+    ).read_text(encoding="utf-8")
+    if "meta-freq-fill" not in flash_styles:
+        errors.append("flashcard styles must include meta-freq-fill")
+    if "var(--accent, #3b82f6)" not in flash_styles:
+        errors.append("meta-freq-fill must use solid accent (not only transparent mix)")
     # 纯文案 helper 仍保留（复制/无 UI 场景）
     if "formatJpVocabUsageFrequencyDisplay" not in (
         ROOT / "src/lib/jp-vocab-usage-frequency.ts"
