@@ -357,8 +357,8 @@ def run_one(
             scope="jp-frequency-online",
             word_id=wid,
             word=word,
-            ok=False,
-            reason=reason,
+            fixed=False,
+            detail=reason,
         )
         report_word_run(
             {
@@ -396,8 +396,8 @@ def run_one(
             scope="jp-frequency-online",
             word_id=wid,
             word=word,
-            ok=False,
-            reason=reason,
+            fixed=False,
+            detail=reason,
         )
         report_word_run(
             {
@@ -420,8 +420,8 @@ def run_one(
             scope="jp-frequency-online",
             word_id=wid,
             word=word,
-            ok=False,
-            reason=reason,
+            fixed=False,
+            detail=reason,
         )
         report_word_run(
             {
@@ -439,8 +439,8 @@ def run_one(
         scope="jp-frequency-online",
         word_id=wid,
         word=word,
-        ok=True,
-        reason="applied",
+        fixed=True,
+        detail="applied",
     )
     report_word_run(
         {

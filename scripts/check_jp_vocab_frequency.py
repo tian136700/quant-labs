@@ -221,6 +221,25 @@ def main() -> int:
     ).read_text(encoding="utf-8"):
         errors.append("CourseFreqMetaSection must display score as n/10")
 
+    online_py = ROOT / "scripts/jp-vocab-fill-frequency-online-api.py"
+    if not online_py.is_file():
+        errors.append("missing jp-vocab-fill-frequency-online-api.py")
+    else:
+        op = online_py.read_text(encoding="utf-8")
+        if "after_attempt(" not in op:
+            errors.append("frequency-online-api must call after_attempt")
+        if "fixed=True" not in op or "fixed=False" not in op:
+            errors.append(
+                "frequency-online-api after_attempt must use fixed=True/False "
+                "(not legacy ok=)"
+            )
+        if "ok=True" in op or "ok=False" in op:
+            # allow only if not inside after_attempt kwargs — ban obvious legacy kwargs
+            if "ok=False,\n            reason=" in op or "ok=True,\n            reason=" in op:
+                errors.append(
+                    "frequency-online-api must not pass ok=/reason= to after_attempt"
+                )
+
     py_lib = ROOT / "scripts/lib/jp_vocab_frequency.py"
     if not py_lib.is_file():
         errors.append("missing scripts/lib/jp_vocab_frequency.py")
