@@ -1,5 +1,6 @@
 import "server-only";
 
+import { chunkIdsForD1In } from "@/lib/d1-in-chunks";
 import { hasDuplicateClassScheduleInputs } from "@/lib/lesson-class-schedule-form";
 import { normalizeClassDurationMinutes } from "@/lib/jp-lesson-shared";
 import type { JpLessonClassSchedule, JpLessonClassScheduleInput } from "@/lib/types";
@@ -77,22 +78,24 @@ export async function getClassSchedulesByLessonIds(
     return map;
   }
 
-  const placeholders = lessonIds.map((_, index) => `?${index + 1}`).join(", ");
-  const result = await db
-    .prepare(
-      `SELECT id, lesson_id, class_at, duration_minutes, sort_order
-       FROM jp_lesson_class_schedule
-       WHERE lesson_id IN (${placeholders})
-       ORDER BY sort_order ASC, class_at ASC, id ASC`
-    )
-    .bind(...lessonIds)
-    .all<Record<string, unknown>>();
+  for (const chunk of chunkIdsForD1In(lessonIds)) {
+    const placeholders = chunk.map((_, index) => `?${index + 1}`).join(", ");
+    const result = await db
+      .prepare(
+        `SELECT id, lesson_id, class_at, duration_minutes, sort_order
+         FROM jp_lesson_class_schedule
+         WHERE lesson_id IN (${placeholders})
+         ORDER BY sort_order ASC, class_at ASC, id ASC`
+      )
+      .bind(...chunk)
+      .all<Record<string, unknown>>();
 
-  for (const row of result.results || []) {
-    const lessonId = Number(row.lesson_id);
-    const list = map.get(lessonId) ?? [];
-    list.push(mapRow(row));
-    map.set(lessonId, list);
+    for (const row of result.results || []) {
+      const lessonId = Number(row.lesson_id);
+      const list = map.get(lessonId) ?? [];
+      list.push(mapRow(row));
+      map.set(lessonId, list);
+    }
   }
 
   return map;

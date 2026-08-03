@@ -99,12 +99,27 @@ export function EnLessonContentPreview({
   const shown =
     !expanded && needsMore ? lines.slice(0, EN_LESSON_CONTENT_PREVIEW_LINES) : lines;
 
+  const moreBtn = needsMore ? (
+    <button
+      type="button"
+      className="jp-lesson-content-more-btn"
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle();
+      }}
+      aria-expanded={expanded}
+    >
+      {expanded ? "收起" : "更多"}
+    </button>
+  ) : null;
+
   return (
     <div
       className={`jp-lesson-content-preview${expanded ? " is-expanded" : ""}${
         needsMore && !expanded ? " is-clamped" : ""
       }`}
     >
+      {expanded ? moreBtn : null}
       <div className="jp-lesson-content-lines jp-lesson-content-desktop">
         {shown.map((line, lineIdx) => (
           <span key={lineIdx} className="jp-lesson-content-line">
@@ -112,16 +127,7 @@ export function EnLessonContentPreview({
           </span>
         ))}
       </div>
-      {needsMore ? (
-        <button
-          type="button"
-          className="jp-lesson-content-more-btn"
-          onClick={onToggle}
-          aria-expanded={expanded}
-        >
-          {expanded ? "收起" : "更多"}
-        </button>
-      ) : null}
+      {!expanded ? moreBtn : null}
     </div>
   );
 }

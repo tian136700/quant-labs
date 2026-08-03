@@ -389,7 +389,8 @@ export function JpLessonPageStyles() {
         :global(.jp-lesson-mobile-examples-inline) {
           display: none;
         }
-        :global(.jp-lesson-content-preview) {
+        :global(.jp-lesson-content-preview),
+        :global(.jp-lesson-meanings-preview) {
           display: flex;
           flex-direction: column;
           align-items: flex-start;
@@ -406,7 +407,7 @@ export function JpLessonPageStyles() {
           max-width: 100%;
         }
         :global(.jp-lesson-content-preview.is-clamped .jp-lesson-content-lines),
-        :global(.jp-lesson-content-preview.is-clamped .jp-lesson-meanings-lines) {
+        :global(.jp-lesson-meanings-preview.is-clamped .jp-lesson-meanings-lines) {
           display: -webkit-box;
           -webkit-box-orient: vertical;
           -webkit-line-clamp: 2;

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { chunkIdsForD1In } from "@/lib/d1-in-chunks";
 import type { JpLessonTeacher } from "@/lib/types";
 import {
   normalizeHourlyRate,
@@ -385,22 +386,25 @@ export async function getLessonTeacherIdsByLessonIds(
     return map;
   }
 
-  const placeholders = [...map.keys()].map((_, i) => `?${i + 1}`).join(", ");
-  const result = await db
-    .prepare(
-      `SELECT lesson_id, teacher_id
-       FROM jp_lesson_teacher_link
-       WHERE lesson_id IN (${placeholders})
-       ORDER BY lesson_id ASC, teacher_id ASC`
-    )
-    .bind(...map.keys())
-    .all<{ lesson_id: number; teacher_id: number }>();
+  const ids = [...map.keys()];
+  for (const chunk of chunkIdsForD1In(ids)) {
+    const placeholders = chunk.map((_, i) => `?${i + 1}`).join(", ");
+    const result = await db
+      .prepare(
+        `SELECT lesson_id, teacher_id
+         FROM jp_lesson_teacher_link
+         WHERE lesson_id IN (${placeholders})
+         ORDER BY lesson_id ASC, teacher_id ASC`
+      )
+      .bind(...chunk)
+      .all<{ lesson_id: number; teacher_id: number }>();
 
-  for (const row of result.results || []) {
-    const lessonId = Number(row.lesson_id);
-    const teacherId = Number(row.teacher_id);
-    const current = map.get(lessonId);
-    if (current) current.push(teacherId);
+    for (const row of result.results || []) {
+      const lessonId = Number(row.lesson_id);
+      const teacherId = Number(row.teacher_id);
+      const current = map.get(lessonId);
+      if (current) current.push(teacherId);
+    }
   }
 
   return map;
