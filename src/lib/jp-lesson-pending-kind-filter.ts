@@ -60,7 +60,7 @@ export function filterJpLessonsByPendingKind<
 }
 
 export function filterJpLessonDisplayGroupsByPendingKind<
-  T extends { kind?: JpLessonKind | string | null },
+  T extends { id: number; kind?: JpLessonKind | string | null },
 >(
   groups: JpLessonDisplayGroup<T>[],
   filter: JpLessonPendingKindFilter
