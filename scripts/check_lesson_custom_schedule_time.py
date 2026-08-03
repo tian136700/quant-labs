@@ -56,9 +56,9 @@ def main() -> int:
         text = PICKER.read_text(encoding="utf-8")
         if 'aria-label="小时"' not in text or 'aria-label="分钟"' not in text:
             errors.append(f"{PICKER.relative_to(ROOT)}: missing hour/minute dual selects")
-        if '"00"' not in text or '"10"' not in text or '"40"' not in text:
+        if '"00"' not in text or '"05"' not in text or '"15"' not in text or '"40"' not in text:
             errors.append(
-                f"{PICKER.relative_to(ROOT)}: minute options should include 00/10/…/40"
+                f"{PICKER.relative_to(ROOT)}: minute options should include 00/05/15/…/40 (5-min steps)"
             )
         if "凌晨" not in text:
             errors.append(f"{PICKER.relative_to(ROOT)}: early-morning hours should be grouped")

@@ -9,8 +9,21 @@ const REGULAR_HOURS = [
   6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
 ] as const;
 
-/** 常用分钟：10 分钟一档（含 6:40 这类） */
-const BASE_MINUTE_OPTIONS = ["00", "10", "20", "30", "40", "50"] as const;
+/** 常用分钟：5 分钟一档（含 1:15、6:40 这类） */
+const BASE_MINUTE_OPTIONS = [
+  "00",
+  "05",
+  "10",
+  "15",
+  "20",
+  "25",
+  "30",
+  "35",
+  "40",
+  "45",
+  "50",
+  "55",
+] as const;
 
 function pad2(n: number): string {
   return String(n).padStart(2, "0");
@@ -35,7 +48,7 @@ export type LessonHmTimeSelectProps = {
 };
 
 /**
- * 上课/日程时间：左选整点小时、右选分钟（00/10/20/30/40/50）。
+ * 上课/日程时间：左选整点小时、右选分钟（00/05/10/…/55，5 分钟一档）。
  * 禁止秒；非法/空值不吸附半点。
  */
 export function LessonHmTimeSelect({
