@@ -289,6 +289,15 @@ export function EnLessonPageStyles() {
           line-height: 1.3;
           cursor: pointer;
         }
+        :global(.jp-lesson-content-more-btn.is-collapse) {
+          position: sticky;
+          top: 0;
+          z-index: 3;
+          align-self: flex-start;
+          margin-bottom: 0.15rem;
+          background: color-mix(in srgb, var(--panel) 92%, var(--accent));
+          box-shadow: 0 1px 0 color-mix(in srgb, var(--border) 70%, transparent);
+        }
         :global(.jp-lesson-content-more-btn:hover) {
           background: color-mix(in srgb, var(--accent) 14%, var(--panel));
         }

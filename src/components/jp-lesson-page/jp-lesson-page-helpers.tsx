@@ -143,8 +143,43 @@ export function formatLessonContentOneLine(raw: string): string {
 }
 
 const JP_LESSON_CONTENT_PREVIEW_LINES = 2;
-/** 折叠时最多展示的词/语法条数（约两行 × 每行 3 个） */
-const JP_LESSON_CONTENT_PREVIEW_ITEMS = 6;
+/** 折叠时最多展示的词/语法条数（超过即「更多」） */
+const JP_LESSON_CONTENT_PREVIEW_ITEMS = 3;
+/** 折叠时单行/整块过长（汉字释义常一行就撑开整页）也要能收起 */
+const JP_LESSON_PREVIEW_CHAR_BUDGET = 72;
+
+function jpLessonPreviewNeedsMore(lines: string[], itemCount: number): boolean {
+  if (itemCount > JP_LESSON_CONTENT_PREVIEW_ITEMS) return true;
+  if (lines.length > JP_LESSON_CONTENT_PREVIEW_LINES) return true;
+  const joined = lines.join("");
+  if (joined.replace(/[—\s,，、]/g, "").length > JP_LESSON_PREVIEW_CHAR_BUDGET) {
+    return true;
+  }
+  return lines.some((line) => line.length > JP_LESSON_PREVIEW_CHAR_BUDGET);
+}
+
+function JpLessonPreviewMoreButton({
+  expanded,
+  onToggle,
+}: {
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`jp-lesson-content-more-btn${expanded ? " is-collapse" : ""}`}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onToggle();
+      }}
+      aria-expanded={expanded}
+    >
+      {expanded ? "收起" : "更多"}
+    </button>
+  );
+}
 
 export function JpLessonContentPreview({
   content,
@@ -157,24 +192,12 @@ export function JpLessonContentPreview({
 }) {
   const items = parseLessonContent(content);
   const lines = formatLessonContentLines(content);
-  const needsMore =
-    lines.length > JP_LESSON_CONTENT_PREVIEW_LINES ||
-    items.length > JP_LESSON_CONTENT_PREVIEW_ITEMS;
+  const needsMore = jpLessonPreviewNeedsMore(lines, items.length);
   const shown =
     !expanded && needsMore ? lines.slice(0, JP_LESSON_CONTENT_PREVIEW_LINES) : lines;
 
   const moreBtn = needsMore ? (
-    <button
-      type="button"
-      className="jp-lesson-content-more-btn"
-      onClick={(e) => {
-        e.stopPropagation();
-        onToggle();
-      }}
-      aria-expanded={expanded}
-    >
-      {expanded ? "收起" : "更多"}
-    </button>
+    <JpLessonPreviewMoreButton expanded={expanded} onToggle={onToggle} />
   ) : null;
 
   return (
@@ -183,7 +206,7 @@ export function JpLessonContentPreview({
         needsMore && !expanded ? " is-clamped" : ""
       }`}
     >
-      {/* 展开后「收起」置顶，避免长释义滚到底才能关 */}
+      {/* 展开后「收起」置顶 sticky，避免长释义滚飞后找不到 */}
       {expanded ? moreBtn : null}
       <div className="jp-lesson-content-lines jp-lesson-content-desktop">
         {shown.map((line, lineIdx) => (
@@ -214,22 +237,13 @@ export function JpLessonMeaningsPreview({
     return <span className="jp-lesson-examples-empty">—</span>;
   }
 
-  const needsMore = lines.length > JP_LESSON_CONTENT_PREVIEW_LINES;
+  const itemCount = parseLessonContent(content).length || lines.length;
+  const needsMore = jpLessonPreviewNeedsMore(lines, itemCount);
   const shown =
     !expanded && needsMore ? lines.slice(0, JP_LESSON_CONTENT_PREVIEW_LINES) : lines;
 
   const moreBtn = needsMore ? (
-    <button
-      type="button"
-      className="jp-lesson-content-more-btn"
-      onClick={(e) => {
-        e.stopPropagation();
-        onToggle();
-      }}
-      aria-expanded={expanded}
-    >
-      {expanded ? "收起" : "更多"}
-    </button>
+    <JpLessonPreviewMoreButton expanded={expanded} onToggle={onToggle} />
   ) : null;
 
   return (
