@@ -68,6 +68,7 @@ import {
   isEnVocabTeacherQuizLiveStudentPeeked,
   normalizeEnVocabTeacherQuizLive,
   type EnVocabTeacherQuizLive,
+  type EnVocabTeacherPronounceSignal,
 } from "@/lib/en-vocab-teacher-quiz-live";
 import {
   defaultEnVocabTeacherVisibleLimit,
@@ -196,6 +197,56 @@ export async function setEnVocabTeacherQuizLiveWord(
       : {}),
   };
   return saveEnVocabTeacherQuizLive(db, next);
+}
+
+export type SendEnVocabTeacherQuizLivePronounceResult =
+  | { ok: true; live: EnVocabTeacherQuizLive; signal: EnVocabTeacherPronounceSignal }
+  | {
+      ok: false;
+      error: "no_active_word" | "word_mismatch" | "word_not_found" | "empty_word";
+    };
+
+/** 老师点「发送读音」：只写 live 信号，不改当前词 / peek，不存音频 */
+export async function sendEnVocabTeacherQuizLivePronounce(
+  db: D1Database,
+  wordId: number,
+  now = new Date()
+): Promise<SendEnVocabTeacherQuizLivePronounceResult> {
+  const parsedId =
+    Number.isFinite(wordId) && wordId > 0 ? Math.floor(wordId) : 0;
+  if (!parsedId) {
+    return { ok: false, error: "word_not_found" };
+  }
+  const current = await getEnVocabTeacherQuizLive(db, now, {
+    bypassCache: true,
+  });
+  if (current.word_id == null) {
+    return { ok: false, error: "no_active_word" };
+  }
+  if (current.word_id !== parsedId) {
+    return { ok: false, error: "word_mismatch" };
+  }
+  const word = await getEnVocabWordByIdLite(db, parsedId);
+  if (!word) {
+    return { ok: false, error: "word_not_found" };
+  }
+  const text = (word.word || "").trim();
+  if (!text) {
+    return { ok: false, error: "empty_word" };
+  }
+  const at = now.toISOString();
+  const next: EnVocabTeacherQuizLive = {
+    ...current,
+    pronounce_word_id: parsedId,
+    pronounce_text: text,
+    pronounce_at: at,
+  };
+  const live = await saveEnVocabTeacherQuizLive(db, next);
+  return {
+    ok: true,
+    live,
+    signal: { word_id: parsedId, text, at },
+  };
 }
 
 export async function getEnVocabWordByIdLite(

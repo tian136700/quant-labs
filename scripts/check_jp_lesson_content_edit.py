@@ -51,6 +51,12 @@ def main() -> int:
         errors.append("modal must allow multi-select batch delete")
     if "keepOpen" not in modal or "删除后会立即保存" not in modal:
         errors.append("delete must auto-save with keepOpen (no manual save step)")
+    if "onDeleteLesson" not in modal:
+        errors.append("modal must support deleting entire lesson when content emptied")
+    if "整条未完成课" not in modal:
+        errors.append("modal must warn that wiping last item deletes the unfinished lesson")
+    if "至少保留一项学习内容，不能全部删光" in modal:
+        errors.append("must allow deleting last item (delete whole unfinished lesson)")
     save_helper = (
         ROOT / "src/components/jp-lesson-page/saveJpLessonContentMeanings.ts"
     ).read_text(encoding="utf-8")
@@ -78,6 +84,16 @@ def main() -> int:
         )
     if "有未保存的修改，请先点「保存」，再标完成" not in modal:
         errors.append("modal must explain dirty rows block mark-complete")
+    # 进度条须在标题区（表格上方），勿塞列表底
+    progress_idx = modal.find("jp-lesson-content-edit-progress")
+    if progress_idx < 0:
+        errors.append("modal must wrap save progress above the table")
+    elif not (header_idx < progress_idx < body_idx):
+        errors.append(
+            "save progress bar must render in header above scroll body/table"
+        )
+    if "JpVocabSaveProgressBar" not in modal:
+        errors.append("modal must use JpVocabSaveProgressBar")
     # 禁止退回双大框靠行号对齐
     if 'className="jp-lesson-content-edit-textarea"' in modal:
         errors.append("modal must not use dual textareas for content/meanings")

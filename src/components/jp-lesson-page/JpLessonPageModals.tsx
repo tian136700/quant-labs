@@ -69,6 +69,11 @@ export type JpLessonPageModalsProps = {
     meanings: string | null,
     options?: { keepOpen?: boolean }
   ) => void | Promise<void> | Promise<{ ok: true } | { ok: false; error: string }>;
+  deleteLesson: (
+    lesson: JpLessonRecord,
+    options?: { skipConfirm?: boolean }
+  ) => Promise<{ ok: true } | { ok: false; error: string }>;
+  deletingId: number | null;
   completeLessonContentItems: (
     lessonId: number,
     itemIndexes: number[]
@@ -107,6 +112,8 @@ export function JpLessonPageModals(props: JpLessonPageModalsProps) {
     editingRef,
     editingContentLesson,
     savingContentId,
+    deletingId,
+    deleteLesson,
     viewingWordsLesson,
     annotatingLesson,
     viewingExamples,
@@ -188,7 +195,10 @@ export function JpLessonPageModals(props: JpLessonPageModalsProps) {
       <JpLessonContentEditModal
         open={editingContentLesson != null}
         lesson={editingContentLesson}
-        saving={savingContentId === editingContentLesson?.id}
+        saving={
+          savingContentId === editingContentLesson?.id ||
+          deletingId === editingContentLesson?.id
+        }
         onClose={() => setEditingContentLesson(null)}
         onSave={(content, meanings, options) => {
           if (!editingContentLesson) {
@@ -204,6 +214,19 @@ export function JpLessonPageModals(props: JpLessonPageModalsProps) {
             options
           );
         }}
+        onDeleteLesson={
+          canOperate
+            ? () => {
+                if (!editingContentLesson) {
+                  return Promise.resolve({
+                    ok: false as const,
+                    error: "课程已关闭，请重新打开后再删",
+                  });
+                }
+                return deleteLesson(editingContentLesson, { skipConfirm: true });
+              }
+            : undefined
+        }
         onCompleteItems={
           canOperate
             ? (itemIndexes) => {

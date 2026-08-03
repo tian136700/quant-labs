@@ -463,11 +463,38 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           display: flex;
           justify-content: flex-end;
         }
-        /* 抽问卡：喇叭 +「播放本单词的录音」明显可点按钮 */
+        /* 抽问卡：喇叭 +「播放本单词的录音」+「发送读音」 */
         .en-vocab-flashcard-speak-row {
           display: flex;
+          flex-wrap: wrap;
+          align-items: flex-start;
           justify-content: flex-start;
+          gap: 0.55rem 0.65rem;
           margin-top: 0.55rem;
+        }
+        .en-vocab-send-pronounce {
+          display: flex;
+          flex-direction: column;
+          align-items: stretch;
+          gap: 0.35rem;
+          min-width: min(11rem, 100%);
+          flex: 1 1 auto;
+          max-width: 100%;
+        }
+        .en-vocab-send-pronounce__btn {
+          min-height: 2.5rem;
+          padding: 0.5rem 0.95rem;
+          font-weight: 700;
+          white-space: nowrap;
+        }
+        .en-vocab-send-pronounce__progress {
+          margin: 0;
+        }
+        .en-vocab-send-pronounce__status {
+          margin: 0;
+          font-size: 0.8125rem;
+          color: var(--muted);
+          line-height: 1.3;
         }
         .en-vocab-flashcard-page .en-vocab-speak-btn,
         .en-vocab-flashcard-speak-row .en-vocab-speak-btn {

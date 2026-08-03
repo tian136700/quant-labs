@@ -37,6 +37,15 @@ import { fetchVocabStudySharedWithRetry } from "@/lib/vocab-study-shared-fetch";
 import type { EnVocabLevel, EnVocabRef, EnVocabSharedItem, EnVocabWord } from "@/lib/types";
 import { EnVocabStudyPageStyles } from "@/components/en-vocab-study-page/EnVocabStudyPageStyles";
 import { EnVocabStudyPageTable } from "@/components/en-vocab-study-page/EnVocabStudyPageTable";
+import { EnVocabStudentPronounceToast } from "@/components/en-vocab-study-page/EnVocabStudentPronounceToast";
+import type { EnVocabTeacherPronounceSignal } from "@/lib/en-vocab-teacher-quiz-live";
+import {
+  markHandledEnVocabPronounceAt,
+  parseEnVocabTeacherPronouncePayload,
+  readHandledEnVocabPronounceAt,
+  shouldHandleEnVocabPronounceSignal,
+  subscribeEnVocabPronounceSent,
+} from "@/lib/en-vocab-pronounce-signal";
 
 export function EnVocabStudyPage() {
   const { locale } = useI18n();
@@ -78,6 +87,10 @@ export function EnVocabStudyPage() {
   const [flashcardItem, setFlashcardItem] = useState<EnVocabSharedItem | null>(null);
   const [teacherLiveWordId, setTeacherLiveWordId] = useState<number | null>(null);
   const [peekingTeacherQuiz, setPeekingTeacherQuiz] = useState(false);
+  const [pronounceToast, setPronounceToast] =
+    useState<EnVocabTeacherPronounceSignal | null>(null);
+  const pronounceHandledAtRef = useRef<string | null>(null);
+
   const pollInFlightRef = useRef(false);
   const pendingRefreshRef = useRef(false);
   /** 老师新发词 / 同浏览器共享通知：弹详情卡；禁止 scrollIntoView */

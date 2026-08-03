@@ -763,6 +763,8 @@ export function JpLessonPage() {
         setEditingContentLesson={setEditingContentLesson}
         setViewingWordsLesson={setViewingWordsLesson}
         saveLessonContentMeanings={saveLessonContentMeanings}
+        deleteLesson={deleteLesson}
+        deletingId={deletingId}
         completeLessonContentItems={completeLessonContentItems}
         handleRefUpdated={handleRefUpdated}
         openJpAuth={openJpAuth}

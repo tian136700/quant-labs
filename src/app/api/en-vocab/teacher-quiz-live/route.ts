@@ -2,6 +2,7 @@ import { jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 import {
   getEnVocabTeacherQuizLive,
   peekEnVocabTeacherQuizLiveWord,
+  sendEnVocabTeacherQuizLivePronounce,
   setEnVocabTeacherQuizLiveWord,
 } from "@/lib/en-vocab-db";
 import {
@@ -33,6 +34,16 @@ const NO_ACTIVE_WORD_MSG = {
 const WORD_NOT_FOUND_MSG = {
   en: "Word not found.",
   zh: "单词不存在或已失效。",
+};
+
+const PRONOUNCE_MISMATCH_MSG = {
+  en: "Please send pronunciation for the word currently on the quiz card.",
+  zh: "请对当前抽查卡片上的单词发送读音。",
+};
+
+const PRONOUNCE_EMPTY_MSG = {
+  en: "This word has no text to pronounce.",
+  zh: "该词条没有可朗读的英文文本。",
 };
 
 export async function GET(request: Request) {
@@ -104,18 +115,50 @@ export async function PUT(request: Request) {
       );
     }
 
-    let wordId: number | null = null;
+    let body: { word_id?: unknown; action?: unknown };
     try {
-      const body = (await request.json()) as { word_id?: unknown };
-      if (body.word_id == null) {
-        wordId = null;
-      } else {
-        const parsed = Number(body.word_id);
-        wordId =
-          Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : null;
-      }
+      body = (await request.json()) as { word_id?: unknown; action?: unknown };
     } catch {
       return jsonResponse({ ok: false, error: "Invalid JSON body" }, 400);
+    }
+
+    if (body.action === "send_pronounce") {
+      const parsed = Number(body.word_id);
+      const wordId =
+        Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 0;
+      if (!wordId) {
+        return jsonResponse({ ok: false, error: "Invalid word_id" }, 400);
+      }
+      const result = await sendEnVocabTeacherQuizLivePronounce(env.DB, wordId);
+      if (!result.ok) {
+        const error =
+          result.error === "no_active_word"
+            ? NO_ACTIVE_WORD_MSG[locale]
+            : result.error === "word_mismatch"
+              ? PRONOUNCE_MISMATCH_MSG[locale]
+              : result.error === "empty_word"
+                ? PRONOUNCE_EMPTY_MSG[locale]
+                : WORD_NOT_FOUND_MSG[locale];
+        const status =
+          result.error === "word_mismatch" || result.error === "empty_word"
+            ? 400
+            : 404;
+        return jsonResponse({ ok: false, error, code: result.error }, status);
+      }
+      return jsonResponse({
+        ok: true,
+        live: result.live,
+        teacher_pronounce: result.signal,
+      });
+    }
+
+    let wordId: number | null = null;
+    if (body.word_id == null) {
+      wordId = null;
+    } else {
+      const parsed = Number(body.word_id);
+      wordId =
+        Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : null;
     }
 
     const live = await setEnVocabTeacherQuizLiveWord(env.DB, wordId);

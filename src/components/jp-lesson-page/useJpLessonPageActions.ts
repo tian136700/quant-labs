@@ -897,19 +897,26 @@ export function useJpLessonPageActions(options: UseJpLessonPageActionsOptions) {
     });
   };
 
-  const deleteLesson = async (lesson: JpLessonRecord) => {
+  const deleteLesson = async (
+    lesson: JpLessonRecord,
+    options?: { skipConfirm?: boolean }
+  ): Promise<{ ok: true } | { ok: false; error: string }> => {
     if (!canOperate) {
       if (!user) openJpAuth();
       else setStatus("您没有日语新课的编辑权限。");
-      return;
+      return { ok: false, error: "无操作权限" };
     }
-    if (deletingId === lesson.id) return;
+    if (deletingId === lesson.id) {
+      return { ok: false, error: "正在删除中，请稍候" };
+    }
 
-    const preview = formatLessonContentLines(lesson.content, 5).join(" / ");
-    const ok = window.confirm(
-      `确定删除新课 #${lesson.id}（${preview}）？此操作不可恢复。`
-    );
-    if (!ok) return;
+    if (!options?.skipConfirm) {
+      const preview = formatLessonContentLines(lesson.content, 5).join(" / ");
+      const ok = window.confirm(
+        `确定删除新课 #${lesson.id}（${preview}）？此操作不可恢复。`
+      );
+      if (!ok) return { ok: false, error: "cancelled" };
+    }
 
     setDeletingId(lesson.id);
     setStatus("");
@@ -939,8 +946,11 @@ export function useJpLessonPageActions(options: UseJpLessonPageActionsOptions) {
       setBatchLessonIds((prev) => prev.filter((id) => id !== lesson.id));
       setStatus(`已删除新课 #${lesson.id}`);
       window.setTimeout(() => setStatus(""), 2500);
+      return { ok: true };
     } catch (err) {
-      setStatus(err instanceof Error ? err.message : "删除失败");
+      const message = err instanceof Error ? err.message : "删除失败";
+      setStatus(message);
+      return { ok: false, error: message };
     } finally {
       setDeletingId(null);
     }

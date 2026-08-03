@@ -4,6 +4,7 @@ import { EnVocabSpeakButton } from "@/components/EnVocabSpeakButton";
 import { EnVocabUsageExamplesCopyButton } from "@/components/EnVocabUsageExamplesCopyButton";
 import { EnVocabUsageExamplesPairedContent } from "@/components/EnVocabUsageExamplesPairedContent";
 import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
+import { EnVocabSendPronounceButton } from "@/components/en-vocab-page/EnVocabSendPronounceButton";
 import { EnVocabFlashcardNotesSection } from "@/components/en-vocab-teacher-quiz-flashcard/EnVocabFlashcardNotesSection";
 import type { EnVocabLevel, EnVocabRef, EnVocabWord } from "@/lib/types";
 
@@ -17,6 +18,8 @@ export type EnVocabFlashcardPageBodyProps = {
   vocabRef: EnVocabRef | undefined;
   onOpenRef: (refKey: string, ref: EnVocabRef | undefined) => void;
   canOperate: boolean;
+  previewMode?: boolean;
+  locale?: "zh" | "en";
   onEditWord?: (w: EnVocabWord) => void;
   onEditRemarks?: (w: EnVocabWord) => void;
   onViewRemarks: (w: EnVocabWord) => void;
@@ -52,12 +55,15 @@ export type EnVocabFlashcardPageBodyProps = {
 export function EnVocabFlashcardPageBody(props: EnVocabFlashcardPageBodyProps) {
   const {
     showSideCol, wordTrim, readingTrim, meaningTrim, posTrim, w, vocabRef, onOpenRef,
-    canOperate, onEditWord, onEditRemarks, onViewRemarks, hasNotes, notesLoading = false, shareUiEnabled,
+    canOperate, previewMode = false, locale = "zh",
+    onEditWord, onEditRemarks, onViewRemarks, hasNotes, notesLoading = false, shareUiEnabled,
     isStudy, isShared, onUnshare, isSaving, isSharing, reviewLocked, usagesCompleteForShare,
     showUncheckedUsagesBlocked, usageDraftLevels, onShare, showUsageExamples,
     usageExampleModel, usePerUsageLevels, usageLevelDisabled, usageLevelDisabledReason,
     setNextBlockedHint, setNextBlockedUsageMessage, onSelectUsageLevels,
   } = props;
+  const showSendPronounce =
+    !isStudy && !previewMode && canOperate && Boolean(wordTrim);
   return (
         <div className="jp-vocab-teacher-quiz__scroll-body en-vocab-flashcard-page__body">
           <div
@@ -108,6 +114,14 @@ export function EnVocabFlashcardPageBody(props: EnVocabFlashcardPageBodyProps) {
                 {wordTrim ? (
                   <div className="en-vocab-flashcard-speak-row">
                     <EnVocabSpeakButton text={wordTrim} variant="label" />
+                    {showSendPronounce ? (
+                      <EnVocabSendPronounceButton
+                        wordId={w.id}
+                        wordText={wordTrim}
+                        locale={locale}
+                        disabled={isSaving || isSharing}
+                      />
+                    ) : null}
                   </div>
                 ) : null}
                 {readingTrim ? (

@@ -28,6 +28,12 @@ type Props = {
     meanings: string | null,
     options?: { keepOpen?: boolean }
   ) => void | Promise<void> | Promise<JpLessonContentSaveResult>;
+  /** 删光最后一项学习内容时：删除整条未完成课 */
+  onDeleteLesson?: () =>
+    | void
+    | Promise<void>
+    | Promise<JpLessonContentSaveResult>
+    | JpLessonContentSaveResult;
   onCompleteItems?: (
     itemIndexes: number[]
   ) =>
@@ -43,6 +49,7 @@ export function JpLessonContentEditModal({
   saving = false,
   onClose,
   onSave,
+  onDeleteLesson,
   onCompleteItems,
 }: Props) {
   const [mounted, setMounted] = useState(false);
@@ -107,15 +114,33 @@ export function JpLessonContentEditModal({
     if (!ids.length || saveBusy) return;
     const idSet = new Set(ids);
     const prevRows = rows;
-    const nextRows = (() => {
-      const filtered = prevRows.filter((row) => !idSet.has(row.id));
-      return filtered.length ? filtered : [createEmptyJpLessonContentEditRow()];
-    })();
+    const nextRows = prevRows.filter((row) => !idSet.has(row.id));
     const parsed = buildJpLessonContentMeaningsFromRows(nextRows);
+
+    // 删光全部学习内容 → 整条未完成课一起删掉
     if (!parsed.ok) {
-      setLocalError("至少保留一项学习内容，不能全部删光。");
+      if (!onDeleteLesson) {
+        setLocalError("当前账号不能删除整课，请保留至少一项或换有权限的账号。");
+        return;
+      }
+      setRows([createEmptyJpLessonContentEditRow()]);
+      setSelectedIds([]);
+      setLocalError(null);
+      const result = await onDeleteLesson();
+      if (
+        result &&
+        typeof result === "object" &&
+        "ok" in result &&
+        result.ok === false
+      ) {
+        setRows(prevRows);
+        setLocalError(result.error || "删除整课失败，已恢复原内容");
+        return;
+      }
+      onClose();
       return;
     }
+
     setRows(nextRows);
     setSelectedIds((prev) => prev.filter((id) => !idSet.has(id)));
     setLocalError(null);
@@ -133,25 +158,33 @@ export function JpLessonContentEditModal({
     }
   };
 
+  const willDeleteEntireLesson = (ids: string[]) => {
+    const idSet = new Set(ids);
+    const remaining = rows.filter(
+      (row) => !idSet.has(row.id) && (row.content || "").trim()
+    );
+    return remaining.length === 0;
+  };
+
   const removeRow = (id: string) => {
     if (saveBusy) return;
     const target = rows.find((row) => row.id === id);
     const label = (target?.content || "").trim() || "这一项";
-    if (!window.confirm(`确定删除「${label}」及其释义吗？删除后会立即保存。`)) {
-      return;
-    }
+    const wipeLesson = willDeleteEntireLesson([id]);
+    const message = wipeLesson
+      ? `「${label}」是最后一项。删除后整条未完成课也会删掉，确定吗？`
+      : `确定删除「${label}」及其释义吗？删除后会立即保存。`;
+    if (!window.confirm(message)) return;
     void removeRowsByIds([id]);
   };
 
   const removeSelected = () => {
     if (!selectedIds.length || saveBusy) return;
-    if (
-      !window.confirm(
-        `确定删除已选的 ${selectedIds.length} 项及其释义吗？删除后会立即保存。`
-      )
-    ) {
-      return;
-    }
+    const wipeLesson = willDeleteEntireLesson(selectedIds);
+    const message = wipeLesson
+      ? `删除已选 ${selectedIds.length} 项后将没有剩余学习内容，整条未完成课也会删掉，确定吗？`
+      : `确定删除已选的 ${selectedIds.length} 项及其释义吗？删除后会立即保存。`;
+    if (!window.confirm(message)) return;
     void removeRowsByIds(selectedIds);
   };
 
@@ -297,6 +330,15 @@ export function JpLessonContentEditModal({
               {localError}
             </p>
           ) : null}
+          {saveProgress.visible ? (
+            <div className="jp-lesson-content-edit-progress">
+              <JpVocabSaveProgressBar
+                label={jpVocabSaveProgressLabel("save")}
+                percent={saveProgress.percent}
+                fullWidth
+              />
+            </div>
+          ) : null}
         </div>
 
         <div className="jp-lesson-content-edit-body">
@@ -397,16 +439,8 @@ export function JpLessonContentEditModal({
           <p className="jp-lesson-content-edit-hint">
             共 {rows.filter((r) => r.content.trim()).length} 项有效内容
             {someSelected ? ` · 已勾选 ${selectedIds.length} 项` : ""}
-            。删除会立即保存；改文字后点「保存」。标完成前若改过文字，须先保存。
+            。删除会立即保存；删光最后一项会去掉整条未完成课。改文字后点「保存」。
           </p>
-
-          {saveProgress.visible ? (
-            <JpVocabSaveProgressBar
-              label={jpVocabSaveProgressLabel("save")}
-              percent={saveProgress.percent}
-              fullWidth
-            />
-          ) : null}
         </div>
 
         <div className="jp-lesson-content-edit-actions">
@@ -642,6 +676,9 @@ export function JpLessonContentEditModal({
           font-size: 0.85rem;
           font-weight: 600;
           line-height: 1.45;
+        }
+        .jp-lesson-content-edit-progress {
+          margin-top: 0.65rem;
         }
         .jp-lesson-content-edit-actions {
           flex-shrink: 0;

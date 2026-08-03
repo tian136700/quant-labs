@@ -6,6 +6,7 @@ import {
 } from "@/lib/en-vocab-db";
 import { requireEnVocabStudyAccess } from "@/lib/en-vocab-auth";
 import { beijingDateString } from "@/lib/en-vocab-daily-check";
+import { enVocabTeacherPronounceFromLive } from "@/lib/en-vocab-teacher-quiz-live";
 import { jsonResponseObserving1102 } from "@/lib/worker-1102-observe";
 
 const AUTH_MSG = {
@@ -49,6 +50,7 @@ export async function GET(request: Request) {
         refs,
         share_date: beijingDateString(),
         teacher_live_word_id: live.word_id,
+        teacher_pronounce: enVocabTeacherPronounceFromLive(live),
         ...(quiz_progress ? { quiz_progress } : {}),
       },
       200,

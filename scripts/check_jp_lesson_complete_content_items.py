@@ -102,6 +102,14 @@ def main() -> int:
             "JpLessonCompleteContentItemsResult"
         )
 
+    if "deleteLesson" not in modals or "onDeleteLesson" not in modals:
+        errors.append("JpLessonPageModals must wire onDeleteLesson for empty content")
+    actions = (
+        ROOT / "src/components/jp-lesson-page/useJpLessonPageActions.ts"
+    ).read_text(encoding="utf-8")
+    if "skipConfirm" not in actions:
+        errors.append("deleteLesson must support skipConfirm for content-edit wipe")
+
     api_txt = (ROOT / "docs/jp-lesson-api.txt").read_text(encoding="utf-8")
     if "complete_content_items" not in api_txt:
         errors.append("docs/jp-lesson-api.txt must document complete_content_items")

@@ -622,6 +622,8 @@ export function EnVocabTeacherQuizFlashcardModal({
             vocabRef={ref}
             onOpenRef={onOpenRef}
             canOperate={canOperate}
+            previewMode={previewMode}
+            locale={locale}
             onEditWord={onEditWord}
             onEditRemarks={onEditRemarks}
             onViewRemarks={onViewRemarks}
