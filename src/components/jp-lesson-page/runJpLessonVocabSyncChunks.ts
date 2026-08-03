@@ -12,8 +12,12 @@ export type JpLessonVocabSyncProgress = {
   label: string;
 };
 
+export const JP_LESSON_COMPLETE_PROGRESS_BUSY_LABEL = "正在执行操作…";
+export const JP_LESSON_COMPLETE_PROGRESS_DONE_LABEL = "本次执行已成功";
+
 /**
  * 标「已完成」后分批 POST sync_to_vocab，避免单次请求顶 Worker 1102。
+ * 文案统一「正在执行操作…」，成功由调用方再提示「本次执行已成功」。
  */
 export async function runJpLessonVocabSyncChunks(opts: {
   locale: Locale;
@@ -30,8 +34,8 @@ export async function runJpLessonVocabSyncChunks(opts: {
     lessonId,
     synced: 0,
     total,
-    percent: 2,
-    label: "正在同步到日语抽问…",
+    percent: 8,
+    label: JP_LESSON_COMPLETE_PROGRESS_BUSY_LABEL,
   });
 
   // 安全上限：防止异常响应死循环
@@ -65,16 +69,17 @@ export async function runJpLessonVocabSyncChunks(opts: {
     const tot = Number(data.total ?? total) || total;
     offset = next;
     const synced = Math.min(tot, offset);
+    // 留一点给「写完状态」阶段：同步占约 15%～92%
     const percent =
-      tot <= 0 ? 100 : Math.min(99, Math.max(3, Math.round((synced / tot) * 100)));
+      tot <= 0
+        ? 92
+        : Math.min(92, Math.max(15, Math.round(15 + (synced / tot) * 77)));
     onProgress?.({
       lessonId,
       synced,
       total: tot,
-      percent: data.done ? 100 : percent,
-      label: data.done
-        ? "已同步到日语抽问"
-        : `正在同步到日语抽问（${synced}/${tot}）…`,
+      percent: data.done ? 92 : percent,
+      label: JP_LESSON_COMPLETE_PROGRESS_BUSY_LABEL,
     });
     if (data.done) {
       return { ok: true };

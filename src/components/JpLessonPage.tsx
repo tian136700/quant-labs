@@ -449,11 +449,11 @@ export function JpLessonPage() {
       <h1 style={{ fontSize: "1.5rem", margin: "0 0 0.35rem" }}>日语新课</h1>
 
       <p style={{ color: "var(--muted)", marginBottom: "0.75rem" }}>
-        新课学习清单与教案管理。访客可浏览；具备「新课编辑」权限的登录用户可设置学习状态（未完成 / 学习中 / 已完成）。仅「已完成」会分批同步进入
+        新课学习清单与教案管理。访客可浏览；具备「新课编辑」权限的登录用户可设置学习状态（未完成 / 学习中 / 已完成）。标「已完成」时先显示「正在执行操作」，成功后再变为已完成并提示「本次执行已成功」；词条会分批进入
         <a href="/jp-vocab" style={{ color: "var(--accent)" }}>
           日语单词抽问
         </a>
-        （词多时页面下方有橙色进度条；若中断可先改回「学习中」再标「已完成」）。
+        。若中断可再标一次「已完成」。
       </p>
 
       {user && !checking && !canViewJpLesson ? (

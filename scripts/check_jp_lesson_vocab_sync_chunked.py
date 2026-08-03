@@ -65,6 +65,26 @@ def main() -> int:
         errors.append("useJpLessonPageActions must call runJpLessonVocabSyncChunks")
     if "sync_to_vocab" not in client:
         errors.append("client must POST action sync_to_vocab")
+    if "JP_LESSON_COMPLETE_PROGRESS_BUSY_LABEL" not in client:
+        errors.append("client must define 正在执行操作 label constant")
+    if "正在执行操作" not in client:
+        errors.append("progress busy label must be 正在执行操作")
+    if "本次执行已成功" not in client and "本次执行已成功" not in actions:
+        errors.append("success label 本次执行已成功 missing")
+    if "JP_LESSON_COMPLETE_PROGRESS_DONE_LABEL" not in actions:
+        errors.append("setLessonProgress must use DONE label after sync")
+    if "revertLessonProgress" not in actions:
+        errors.append("completed sync failure must revertLessonProgress")
+    # 禁止标已完成立刻乐观改成 completed（须等同步成功）
+    if (
+        'progressStatus === "completed"' in actions
+        and "markingCompleted" in actions
+    ):
+        # ensure optimistic block is gated
+        if "if (markingCompleted)" not in actions:
+            errors.append("completed path must gate optimistic UI update")
+    else:
+        errors.append("setLessonProgress must use markingCompleted gate")
 
     if errors:
         print("check_jp_lesson_vocab_sync_chunked FAILED:")

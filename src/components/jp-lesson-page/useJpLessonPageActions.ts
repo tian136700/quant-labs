@@ -13,6 +13,7 @@ import { lessonScheduleSaveErrorMessage } from "@/lib/lesson-class-schedule-form
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import {
   formatLessonContentLines,
+  getJpLessonProgressStatus,
   jpLessonProgressToFields,
   normalizeClassDurationMinutes,
   type JpLessonProgressStatus,
@@ -42,6 +43,8 @@ import {
   type TeacherAutoEnableInfo,
 } from "@/components/jp-lesson-page/jp-lesson-page-helpers";
 import {
+  JP_LESSON_COMPLETE_PROGRESS_BUSY_LABEL,
+  JP_LESSON_COMPLETE_PROGRESS_DONE_LABEL,
   runJpLessonVocabSyncChunks,
   type JpLessonVocabSyncProgress,
 } from "@/components/jp-lesson-page/runJpLessonVocabSyncChunks";
@@ -129,20 +132,65 @@ export function useJpLessonPageActions(options: UseJpLessonPageActionsOptions) {
   const syncLessonVocabIfNeeded = async (
     lessonId: number,
     vocabSync: JpLessonVocabSyncPlan | null | undefined
-  ) => {
-    if (!vocabSync?.needed || !vocabSync.total) return;
-    const result = await runJpLessonVocabSyncChunks({
+  ): Promise<{ ok: true } | { ok: false; error: string }> => {
+    if (!vocabSync?.needed || !vocabSync.total) {
+      return { ok: true };
+    }
+    return runJpLessonVocabSyncChunks({
       locale,
       lessonId,
       plan: vocabSync,
       onProgress: setVocabSyncProgress,
     });
-    if (!result.ok) {
-      setStatus(result.error);
-      setVocabSyncProgress(null);
-      return;
+  };
+
+  const applyLessonServerPatch = (
+    server: JpLessonRecord,
+    fallback?: JpLessonRecord
+  ) => {
+    setLessons((prev) => {
+      const next = prev.map((l) => {
+        if (l.id !== server.id) return l;
+        const base = fallback && fallback.id === server.id ? fallback : l;
+        return {
+          ...server,
+          teacher_ids: server.teacher_ids?.length
+            ? server.teacher_ids
+            : (base.teacher_ids ?? []),
+          teacher_other: server.teacher_other ?? base.teacher_other,
+          class_schedules: server.class_schedules?.length
+            ? server.class_schedules
+            : base.class_schedules,
+          next_class_at: server.next_class_at ?? base.next_class_at,
+          class_duration_minutes:
+            server.class_duration_minutes ?? base.class_duration_minutes,
+        };
+      });
+      persistLessonCache(next, refs, noteCounts, teachers);
+      return next;
+    });
+  };
+
+  const revertLessonProgress = async (
+    lessonId: number,
+    previousStatus: JpLessonProgressStatus
+  ) => {
+    try {
+      await fetch("/api/jp-lesson", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          [LOCALE_HEADER]: locale,
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          lesson_id: lessonId,
+          progress_status: previousStatus,
+        }),
+      });
+    } catch {
+      // 回滚失败时仍靠本地 snapshot 展示；下次刷新以服务端为准
     }
-    window.setTimeout(() => setVocabSyncProgress(null), 1200);
   };
 
   const setLessonProgress = async (
@@ -157,22 +205,40 @@ export function useJpLessonPageActions(options: UseJpLessonPageActionsOptions) {
     if (savingId === lessonId) return;
 
     const snapshot = lessons.find((l) => l.id === lessonId);
-    const optimistic = jpLessonProgressToFields(progressStatus);
+    const previousStatus = snapshot
+      ? getJpLessonProgressStatus(snapshot)
+      : "pending";
+    const markingCompleted = progressStatus === "completed";
+
     setSavingId(lessonId);
-    // 立刻写共享缓存：日程认「学习中/已完成」，点选后打开日程必须马上生效
-    setLessons((prev) => {
-      const next = prev.map((l) =>
-        l.id === lessonId
-          ? {
-              ...l,
-              completed: optimistic.completed,
-              learning: optimistic.learning,
-            }
-          : l
-      );
-      persistLessonCache(next, refs, noteCounts, teachers);
-      return next;
-    });
+    setStatus("");
+
+    if (markingCompleted) {
+      // 标已完成：先不改下拉状态，进度条「正在执行操作…」，成功后再切到已完成
+      setVocabSyncProgress({
+        lessonId,
+        synced: 0,
+        total: 0,
+        percent: 6,
+        label: JP_LESSON_COMPLETE_PROGRESS_BUSY_LABEL,
+      });
+    } else {
+      const optimistic = jpLessonProgressToFields(progressStatus);
+      // 立刻写共享缓存：日程认「学习中/已完成」，点选后打开日程必须马上生效
+      setLessons((prev) => {
+        const next = prev.map((l) =>
+          l.id === lessonId
+            ? {
+                ...l,
+                completed: optimistic.completed,
+                learning: optimistic.learning,
+              }
+            : l
+        );
+        persistLessonCache(next, refs, noteCounts, teachers);
+        return next;
+      });
+    }
 
     try {
       const res = await fetch("/api/jp-lesson", {
@@ -194,36 +260,62 @@ export function useJpLessonPageActions(options: UseJpLessonPageActionsOptions) {
       if (!data.ok || !data.lesson) {
         throw new Error(data.error || "保存失败");
       }
-      setLessons((prev) => {
-        const next = prev.map((l) => {
-          if (l.id !== data.lesson!.id) return l;
-          const server = data.lesson!;
-          return {
-            ...server,
-            teacher_ids: server.teacher_ids?.length
-              ? server.teacher_ids
-              : (l.teacher_ids ?? []),
-            teacher_other: server.teacher_other ?? l.teacher_other,
-            class_schedules: server.class_schedules?.length
-              ? server.class_schedules
-              : l.class_schedules,
-            next_class_at: server.next_class_at ?? l.next_class_at,
-            class_duration_minutes:
-              server.class_duration_minutes ?? l.class_duration_minutes,
-          };
+
+      if (markingCompleted) {
+        setVocabSyncProgress({
+          lessonId,
+          synced: 0,
+          total: data.vocab_sync?.total ?? 0,
+          percent: 12,
+          label: JP_LESSON_COMPLETE_PROGRESS_BUSY_LABEL,
         });
-        persistLessonCache(next, refs, noteCounts, teachers);
-        return next;
-      });
+        const syncResult = await syncLessonVocabIfNeeded(
+          lessonId,
+          data.vocab_sync
+        );
+        if (!syncResult.ok) {
+          await revertLessonProgress(lessonId, previousStatus);
+          if (snapshot) {
+            setLessons((prev) => {
+              const next = prev.map((l) => (l.id === lessonId ? snapshot : l));
+              persistLessonCache(next, refs, noteCounts, teachers);
+              return next;
+            });
+          }
+          setVocabSyncProgress(null);
+          setStatus(syncResult.error);
+          return;
+        }
+        applyLessonServerPatch(data.lesson, snapshot);
+        setVocabSyncProgress({
+          lessonId,
+          synced: data.vocab_sync?.total ?? 0,
+          total: data.vocab_sync?.total ?? 0,
+          percent: 100,
+          label: JP_LESSON_COMPLETE_PROGRESS_DONE_LABEL,
+        });
+        const autoEnableSuffix = teacherAutoEnableStatusSuffix(
+          data.teacher_auto_enable
+        );
+        setStatus(
+          autoEnableSuffix
+            ? `${JP_LESSON_COMPLETE_PROGRESS_DONE_LABEL}${autoEnableSuffix}`
+            : JP_LESSON_COMPLETE_PROGRESS_DONE_LABEL
+        );
+        window.setTimeout(() => {
+          setVocabSyncProgress(null);
+          setStatus("");
+        }, 2200);
+        return;
+      }
+
+      applyLessonServerPatch(data.lesson, snapshot);
       const autoEnableSuffix = teacherAutoEnableStatusSuffix(
         data.teacher_auto_enable
       );
       if (autoEnableSuffix) {
         setStatus(`学习状态已更新${autoEnableSuffix}`);
         window.setTimeout(() => setStatus(""), 4000);
-      }
-      if (progressStatus === "completed") {
-        await syncLessonVocabIfNeeded(lessonId, data.vocab_sync);
       }
     } catch (err) {
       if (snapshot) {
@@ -233,6 +325,7 @@ export function useJpLessonPageActions(options: UseJpLessonPageActionsOptions) {
           return next;
         });
       }
+      setVocabSyncProgress(null);
       setStatus(err instanceof Error ? err.message : "保存失败");
     } finally {
       setSavingId(null);
@@ -692,7 +785,32 @@ export function useJpLessonPageActions(options: UseJpLessonPageActionsOptions) {
             if (name) autoEnabledUsernames.push(name);
           }
           if (progressStatus === "completed") {
-            await syncLessonVocabIfNeeded(lessonId, progressData.vocab_sync);
+            setVocabSyncProgress({
+              lessonId,
+              synced: 0,
+              total: progressData.vocab_sync?.total ?? 0,
+              percent: 10,
+              label: JP_LESSON_COMPLETE_PROGRESS_BUSY_LABEL,
+            });
+            const syncResult = await syncLessonVocabIfNeeded(
+              lessonId,
+              progressData.vocab_sync
+            );
+            if (!syncResult.ok) {
+              const snap = snapshotById.get(lessonId);
+              const previousStatus = snap
+                ? getJpLessonProgressStatus(snap)
+                : "pending";
+              await revertLessonProgress(lessonId, previousStatus);
+              throw new Error(syncResult.error);
+            }
+            setVocabSyncProgress({
+              lessonId,
+              synced: progressData.vocab_sync?.total ?? 0,
+              total: progressData.vocab_sync?.total ?? 0,
+              percent: 100,
+              label: JP_LESSON_COMPLETE_PROGRESS_DONE_LABEL,
+            });
           }
         }
       }
@@ -726,14 +844,19 @@ export function useJpLessonPageActions(options: UseJpLessonPageActionsOptions) {
         enabled: autoEnabledUsernames.map((username) => ({ username })),
       });
       setStatus(
-        `已批量更新 ${batchLessonIds.length} 条未上课教案${autoEnableSuffix}`
+        progressStatus === "completed"
+          ? `${JP_LESSON_COMPLETE_PROGRESS_DONE_LABEL}（已批量更新 ${batchLessonIds.length} 条）`
+          : `已批量更新 ${batchLessonIds.length} 条未上课教案${autoEnableSuffix}`
       );
       const firstBatchId = batchLessonIds[0];
       blurActiveElementForLessonModalClose();
       setBatchLessonIds([]);
       setBatchModalOpen(false);
       if (firstBatchId != null) scrollLessonListItemIntoView(firstBatchId);
-      window.setTimeout(() => setStatus(""), 4000);
+      window.setTimeout(() => {
+        setStatus("");
+        setVocabSyncProgress(null);
+      }, 2200);
     } catch (err) {
       if (snapshotById.size) {
         setLessons((prev) =>
