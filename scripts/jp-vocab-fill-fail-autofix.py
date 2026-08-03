@@ -40,12 +40,14 @@ IQ = Path.home() / ".config" / "info-quests"
 PAUSE_SWITCH = IQ / "jp-vocab-fill-fail-autofix-PAUSE.switch"
 ENV_FILE = IQ / "jp-vocab-fill-fail-autofix.env"
 PENDING_FILE = IQ / "jp-vocab-fill-fail-autofix.pending.json"
+ARM_FOLLOWUP_FILE = IQ / "jp-vocab-fill-fail-autofix.arm-followup.json"
 LOCK_DIR = IQ / "jp-vocab-fill-fail-autofix.lock.d"
 LAST_SUCCESS = IQ / "jp-vocab-fill-fail-autofix.last_success"
 LAST_RUN = IQ / "jp-vocab-fill-fail-autofix.last_run.json"
 VENV_PYTHON = IQ / "cursor-sdk-venv" / "bin" / "python"
 DEFAULT_MODEL = "composer-2.5"
 MAX_FAILS_PER_RUN = 5
+BARK_ARM_THROTTLE = IQ / "jp-vocab-fill-fail-autofix.arm-barked.json"
 
 
 def _now() -> str:
@@ -179,6 +181,56 @@ def write_pending(fails: list[dict[str, Any]]) -> dict[str, Any]:
         encoding="utf-8",
     )
     return payload
+
+
+def arm_ide_followup(pending: dict[str, Any], *, reason: str) -> None:
+    """无 CURSOR_API_KEY 时：空闲达标后武装 IDE followup（下次 Agent stop 自动塞任务）。"""
+    payload = {
+        "armed_at": _now(),
+        "reason": reason,
+        "count": pending.get("count"),
+        "fingerprint": pending.get("fingerprint"),
+        "prompt": pending.get("prompt"),
+        "words": [
+            f"{r.get('word_id')}:{r.get('word')}"
+            for r in (pending.get("fails") or [])
+            if isinstance(r, dict)
+        ],
+    }
+    ARM_FOLLOWUP_FILE.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    # 同一 fingerprint 只 Bark 一次，避免每 10 分钟吵
+    prev_fp = ""
+    if BARK_ARM_THROTTLE.is_file():
+        try:
+            prev_fp = str(
+                json.loads(BARK_ARM_THROTTLE.read_text(encoding="utf-8")).get(
+                    "fingerprint"
+                )
+                or ""
+            )
+        except (OSError, json.JSONDecodeError):
+            prev_fp = ""
+    fp = str(pending.get("fingerprint") or "")
+    if fp and fp != prev_fp:
+        _maybe_bark(
+            "词条失败待自动修（无 API Key）",
+            f"已空闲达标，入队 {pending.get('count')} 条。"
+            "下次你在 Cursor 里让 Agent 跑完一轮后会自动跟进修复；"
+            "若要人不在也能修：Dashboard→Integrations 生成 CURSOR_API_KEY。",
+        )
+        BARK_ARM_THROTTLE.write_text(
+            json.dumps({"fingerprint": fp, "at": _now()}, ensure_ascii=False)
+            + "\n",
+            encoding="utf-8",
+        )
+    _log(f"armed IDE followup → {ARM_FOLLOWUP_FILE} ({reason})")
+
+
+def clear_ide_followup_arm() -> None:
+    ARM_FOLLOWUP_FILE.unlink(missing_ok=True)
 
 
 def _cursor_api_key() -> str:
@@ -342,6 +394,7 @@ def main(argv: list[str] | None = None) -> int:
         _log("no unresolved fails")
         if PENDING_FILE.is_file():
             PENDING_FILE.unlink(missing_ok=True)
+        clear_ide_followup_arm()
         LAST_RUN.write_text(
             json.dumps(
                 {"at": _now(), "action": "clean", "count": 0},
@@ -385,17 +438,35 @@ def main(argv: list[str] | None = None) -> int:
         _log("skip launch: quiz gate quiet")
         return 0
 
+    # 无 API Key：不跑 SDK，武装 IDE followup（人不在时需 Key；人在用 Cursor 可无 Key）
     if not _cursor_api_key():
-        _log("skip launch: missing CURSOR_API_KEY (see jp-vocab-fill-fail-autofix.env)")
-        _maybe_bark(
-            "词条失败待自动修",
-            f"已入队 {pending['count']} 条未处理失败，但未配置 CURSOR_API_KEY，无法启动后台 Agent。",
+        if args.dry_run:
+            _log("dry-run: would arm IDE followup (no CURSOR_API_KEY)")
+            return 0
+        arm_ide_followup(pending, reason=f"no_api_key:{idle_reason}")
+        LAST_RUN.write_text(
+            json.dumps(
+                {
+                    "at": _now(),
+                    "action": "arm_ide_followup",
+                    "count": pending["count"],
+                    "idle_reason": idle_reason,
+                    "words": [f"{r.get('word_id')}:{r.get('word')}" for r in fails],
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
         )
         return 0
 
     if args.dry_run:
         _log("dry-run: would launch SDK agent")
         return 0
+
+    # 有 Key：走后台 SDK；清掉 IDE 武装避免双重跟进
+    clear_ide_followup_arm()
 
     if not _acquire_lock():
         _log("skip: lock busy")

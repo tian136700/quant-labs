@@ -31,6 +31,13 @@ def main() -> None:
         raise SystemExit("FAIL: autofix must call cursor-sdk Agent")
     if "PAUSE" not in autofix or "PAUSE" not in shell:
         raise SystemExit("FAIL: must support PAUSE.switch")
+    if "arm_ide_followup" not in autofix or "arm-followup" not in autofix:
+        raise SystemExit("FAIL: no-API-key path must arm IDE followup")
+    stop_hook = ROOT / ".cursor/hooks/jp-vocab-fill-fail-autofix-stop.py"
+    if not stop_hook.is_file():
+        raise SystemExit("FAIL: missing jp-vocab-fill-fail-autofix-stop.py")
+    if "followup_message" not in stop_hook.read_text(encoding="utf-8"):
+        raise SystemExit("FAIL: stop hook must emit followup_message when armed")
     if "600" not in idle_mod and "DEFAULT_IDLE_SECONDS = 600" not in idle_mod:
         raise SystemExit("FAIL: default idle gate must be 600s (10 min)")
     if "mark_agent_busy" not in idle_mod or "mark_agent_idle" not in idle_mod:
