@@ -331,6 +331,12 @@ export function JpVocabUsageExamplesPairedContent({
           overflow: hidden;
           flex: 0 0 auto;
         }
+        :global(.jp-usage-ex-paired-freq-fill) {
+          display: block;
+          height: 100%;
+          border-radius: inherit;
+          background: color-mix(in srgb, var(--accent) 82%, var(--text));
+        }
         :global(.jp-usage-ex-paired-freq-score) {
           flex: 0 0 auto;
           font-size: 0.8rem;

@@ -292,6 +292,12 @@ export function EnVocabUsageExamplesPairedContent({
           overflow: hidden;
           flex: 0 0 auto;
         }
+        :global(.en-usage-ex-paired-freq-fill) {
+          display: block;
+          height: 100%;
+          border-radius: inherit;
+          background: color-mix(in srgb, var(--accent) 82%, var(--text));
+        }
         :global(.en-usage-ex-paired-freq-score) {
           flex: 0 0 auto;
           min-width: 2.2rem;

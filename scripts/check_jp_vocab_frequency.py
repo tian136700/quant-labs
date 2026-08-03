@@ -91,8 +91,36 @@ def main() -> int:
     ).read_text(encoding="utf-8")
     if "jp-usage-ex-paired-freq" not in paired:
         errors.append("UsageExamplesPairedContent must render per-usage freq line")
-    if "formatJpVocabUsageFrequencyDisplay" not in paired:
-        errors.append("UsageExamplesPairedContent must use formatJpVocabUsageFrequencyDisplay")
+    if "JpVocabUsageFrequencyBars" not in paired:
+        errors.append(
+            "UsageExamplesPairedContent must use JpVocabUsageFrequencyBars "
+            "(progress bars; not plain text)"
+        )
+    bars = ROOT / "src/components/JpVocabUsageFrequencyBars.tsx"
+    if not bars.is_file():
+        errors.append("missing JpVocabUsageFrequencyBars.tsx")
+    else:
+        bt = bars.read_text(encoding="utf-8")
+        if "口语频率" not in bt and "JP_VOCAB_ORAL_FREQUENCY_LABEL" not in bt:
+            errors.append("FrequencyBars must show full 口语频率 label")
+        if "考试频率" not in bt and "JP_VOCAB_EXAM_FREQUENCY_LABEL" not in bt:
+            errors.append("FrequencyBars must show full 考试频率 label")
+        if "score / 10" not in bt and "/ 10" not in bt:
+            errors.append("FrequencyBars width must be score/10 (7 → 70%)")
+    if "jp-usage-ex-paired-freq-fill" not in paired:
+        errors.append("UsageExamplesPairedContent must style jp-usage-ex-paired-freq-fill")
+    en_paired = (
+        ROOT / "src/components/EnVocabUsageExamplesPairedContent.tsx"
+    ).read_text(encoding="utf-8")
+    if "en-usage-ex-paired-freq-fill" not in en_paired:
+        errors.append("EN UsageExamplesPairedContent must style freq-fill")
+    if "{score}/10" not in en_paired and "score}/10" not in en_paired:
+        errors.append("EN frequency score must show n/10")
+    # 纯文案 helper 仍保留（复制/无 UI 场景）
+    if "formatJpVocabUsageFrequencyDisplay" not in (
+        ROOT / "src/lib/jp-vocab-usage-frequency.ts"
+    ).read_text(encoding="utf-8"):
+        errors.append("usage-frequency.ts must keep formatJpVocabUsageFrequencyDisplay")
 
     fill_meaning = (ROOT / "src/lib/jp-vocab-fill-meaning.ts").read_text(encoding="utf-8")
     if "oral_frequency" not in fill_meaning or "exam_frequency" not in fill_meaning:
