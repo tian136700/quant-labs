@@ -95,14 +95,76 @@ def main() -> int:
     online = (ROOT / "scripts/jp-vocab-fill-online-batch-api.py").read_text(
         encoding="utf-8"
     )
+    online_fixed = (
+        ROOT / "scripts/lib/jp_vocab_online_batch_fixed.py"
+    ).read_text(encoding="utf-8")
     if "EXAMPLES_URL" not in online or 'done.append("example_sentences")' not in online:
         errors.append("线上统一补全须单独 apply 例句到 fill-example-sentences")
-    if "examples_not_applied" not in online and "example_sentences" not in online:
+    if "examples_not_applied" not in online_fixed and "examples_not_applied" not in online:
         errors.append("线上统一补全须在例句未写回时 fixed=False")
+    if "evaluate_online_batch_fixed" not in online:
+        errors.append("线上统一补全须用 evaluate_online_batch_fixed 判定搞定")
+    if "grammar_still_missing_after_apply" not in online:
+        errors.append("语法 apply 后须复查 list_missing（防假成功）")
+    if "apply_ok_but_still_missing" not in online and "apply_ok_but_still_missing" not in online_fixed:
+        errors.append("假成功须记 apply_ok_but_still_missing")
+    if 'GRAMMAR_CONJ_KEYS = ("example_sentences", "connection")' not in online_fixed:
+        errors.append("变形课 GRAMMAR_CONJ_KEYS 须含 connection（勿只例句）")
+    if 'out["connection"] = ""' in online and "is_conjugation_word" in online:
+        # 允许非变形分支；禁止变形 extract 强制清空接续
+        conj_block = online.split("if is_conjugation_word(word):", 2)
+        if len(conj_block) >= 3:
+            # extract 里的变形分支（第二处）
+            extract_conj = conj_block[2].split("return out", 1)[0]
+            if 'out["connection"] = ""' in extract_conj:
+                errors.append("变形课 extract 禁止强制 connection=\"\"（假成功根因）")
+    if '"force": True' in online and "fill-usage" in online.lower():
+        # 语法 apply 不得 force 绕过 connection_required
+        if '"force": False' not in online:
+            errors.append("语法 apply 须 force=False（禁止绕过接续校验）")
     if 'fixed=True' in online and "example_sentences" in online:
         # 假成功清零：禁止仅凭 word_bundle/reading 就算 fixed
-        if "examples_ok" not in online and "examples_not_applied" not in online:
+        if (
+            "examples_ok" not in online
+            and "examples_not_applied" not in online
+            and "evaluate_online_batch_fixed" not in online
+        ):
             errors.append("线上统一补全禁止 reading/word_bundle 假成功清零熔断")
+
+    # 运行时：缺接续的变形课不得算 fixed
+    sys.path.insert(0, str(ROOT / "scripts" / "lib"))
+    from jp_vocab_online_batch_fixed import (  # noqa: E402
+        evaluate_online_batch_fixed,
+        GRAMMAR_CONJ_KEYS,
+    )
+
+    fixed_ok, _ = evaluate_online_batch_fixed(
+        kind="grammar",
+        word="动词变否定",
+        done=["grammar"],
+        fails=[],
+        payload={"example_sentences": "x", "usage": ""},
+        required=GRAMMAR_CONJ_KEYS,
+        still_missing=None,
+    )
+    if fixed_ok:
+        errors.append("变形课缺 connection 的 payload 不得 evaluate fixed=True")
+    fixed_ok2, detail2 = evaluate_online_batch_fixed(
+        kind="grammar",
+        word="动词变否定",
+        done=["grammar"],
+        fails=[],
+        payload={
+            "example_sentences": "食(た)べない。\n译文：不吃。",
+            "connection": "一类动词：…",
+            "usage": "",
+        },
+        required=GRAMMAR_CONJ_KEYS,
+        still_missing=True,
+        still_detail="apply_ok_but_still_missing:need_connection=True",
+    )
+    if fixed_ok2 or "still_missing" not in detail2:
+        errors.append("list_missing 仍缺时不得 fixed=True（须 apply_ok_but_still_missing）")
     if "vocab_fill_circuit_assert_not_killed" not in sh:
         errors.append("缺 bash 熔断门禁")
     if "after_attempt" not in grammar or "assert_not_killed" not in grammar:

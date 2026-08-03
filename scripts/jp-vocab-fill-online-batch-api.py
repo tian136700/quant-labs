@@ -5,7 +5,7 @@
 Worker 只负责 list_missing / apply（禁止 Worker 内调模型）。
 
 单词缺项：读音、释义、词性、例句（例句句末标 (N5)/(N4)…）
-语法缺项：用法、接序、例句（变形课只要例句）
+语法缺项：用法、接序、例句（变形课：例句+接续表；usage 空）
 
 仅在 JP_VOCAB_FILL_LLM_BACKEND=1 时由 jp-vocab-fill-unified-stage.sh 调用。
 """
@@ -29,6 +29,14 @@ sys.path.insert(0, str(ROOT / "scripts" / "lib"))
 
 from jp_vocab_fill_common import call_api, load_env_file, resolve_token  # noqa: E402
 from jp_vocab_llm_backend import backend_label, is_online_backend  # noqa: E402
+from jp_vocab_online_batch_fixed import (  # noqa: E402
+    GRAMMAR_CONJ_KEYS,
+    GRAMMAR_PATTERN_KEYS,
+    WORD_REQUIRED_KEYS,
+    evaluate_online_batch_fixed,
+    merge_needs_from_missing_flags,
+    required_keys_from_needs,
+)
 from paid_anthropic_client import (  # noqa: E402
     build_online_source_label,
     call_anthropic,
@@ -115,13 +123,11 @@ GRAMMAR_SYSTEM = (
     "例句只用简单词；句中每个汉字须半角括号假名；译文行禁止写成无标签的中文句（否则会被当成日语漏标）。"
     "【熟语假名·必守】二字以上熟语整词标假名；该连浊必须浊化："
     "✅出発(しゅっぱつ)／入口(いりぐち)；❌出(で)発(ぱつ)、❌入口(いりくち)、❌日本(にっぽん)語(ご)。"
-    "若词条是「变形/ます形规则/て形」等活用教学：只输出 example_sentences（2～3 条 N5 短句+译文），"
-    "usage 与 connection 必须是空字符串 \"\"。"
+    "若词条是「变形/ます形规则/て形/变否定」等活用教学："
+    "输出 example_sentences（2～3 条 N5 短句+译文）+ connection（接续表："
+    "一类／二类／三类「词类／形态＋变形结果｜短说明」；标本 id=521 风格）；"
+    "usage 必须是空字符串 \"\"（变形课不要编号用法）。"
 )
-
-WORD_REQUIRED_KEYS = ("reading", "meaning", "pos", "example_sentences")
-GRAMMAR_PATTERN_KEYS = ("usage", "connection", "example_sentences")
-GRAMMAR_CONJ_KEYS = ("example_sentences",)
 
 
 def _load_helper_module(filename: str, alias: str):
@@ -251,7 +257,8 @@ def full_refresh_needs(kind: str, word: str) -> dict[str, bool]:
                 "meaning": False,
                 "pos": False,
                 "usage": False,
-                "connection": False,
+                # 变形课有例句+接续表才算完成（usage 空是故意的）
+                "connection": True,
                 "example_sentences": True,
                 "related_compounds": False,
             }
@@ -353,12 +360,7 @@ def parse_json_object(raw: str) -> dict[str, Any]:
 
 
 def required_keys_for_row(row: dict[str, Any]) -> tuple[str, ...]:
-    kind = str(row.get("kind") or "word")
-    if kind == "grammar":
-        if is_conjugation_word(str(row.get("word") or "")):
-            return GRAMMAR_CONJ_KEYS
-        return GRAMMAR_PATTERN_KEYS
-    return WORD_REQUIRED_KEYS
+    return required_keys_from_needs(row, is_conjugation=is_conjugation_word)
 
 
 def build_prompt(row: dict[str, Any], *, full_bundle: bool = True) -> str:
@@ -366,6 +368,7 @@ def build_prompt(row: dict[str, Any], *, full_bundle: bool = True) -> str:
     kind = str(row.get("kind") or "word")
     kind_label = "语法" if kind == "grammar" else "单词"
     req_keys = required_keys_for_row(row)
+    needs = row.get("needs") if isinstance(row.get("needs"), dict) else {}
 
     if kind == "word":
         bundle_rule = (
@@ -377,8 +380,19 @@ def build_prompt(row: dict[str, Any], *, full_bundle: bool = True) -> str:
             "没有自然同读相关词填 \"\"（禁止硬凑）；少则 1～2，多则最多 4～5。"
         )
     elif is_conjugation_word(word):
+        want_ex = bool(needs.get("example_sentences", True))
+        want_conn = bool(needs.get("connection", True))
+        parts: list[str] = []
+        if want_ex:
+            parts.append("example_sentences（2～3 条 N5 短句+译文）")
+        if want_conn:
+            parts.append(
+                "connection（接续表：一类／二类／三类；词类／形态＋变形结果｜短说明）"
+            )
         bundle_rule = (
-            "必须一次性输出 example_sentences；usage 与 connection 填空字符串 \"\"."
+            "变形课："
+            + ("必须一次性输出 " + " + ".join(parts) if parts else "按 JSON 键输出")
+            + "；usage 必须是空字符串 \"\"；禁止编号用法长文。"
         )
     else:
         bundle_rule = (
@@ -401,7 +415,7 @@ def build_prompt(row: dict[str, Any], *, full_bundle: bool = True) -> str:
 已有例句：{row.get("example_sentences") or "（无）"}
 已有相关构词：{row.get("related_compounds") or "（无）"}
 
-JSON 必须包含且非空：{", ".join(req_keys)}（变形课 usage/connection 除外，填 ""；单词 related_compounds 可 ""）。
+JSON 必须包含且非空：{", ".join(req_keys)}（变形课 usage 填 ""；单词 related_compounds 可 ""）。
 只输出 JSON。"""
 
 
@@ -428,7 +442,9 @@ def fetch_candidates(token: str, *, limit: int) -> list[dict[str, Any]]:
                     "usage": row.get("usage"),
                     "connection": row.get("connection"),
                     "example_sentences": row.get("example_sentences"),
-                    "needs": full_refresh_needs(kind, word),
+                    "needs": merge_needs_from_missing_flags(
+                        full_refresh_needs(kind, word), row
+                    ),
                     "triggered": True,
                 }
                 by_id[wid] = cur
@@ -446,7 +462,14 @@ def fetch_candidates(token: str, *, limit: int) -> list[dict[str, Any]]:
                     if row.get(field) and not cur.get(field):
                         cur[field] = row.get(field)
                 kind = str(cur.get("kind") or kind)
-                cur["needs"] = full_refresh_needs(kind, str(cur.get("word") or word))
+                base_needs = full_refresh_needs(
+                    kind, str(cur.get("word") or word)
+                )
+                # 保留已收窄的 needs，再合并本行 need_*（避免已有例句仍全量重造）
+                merged = dict(cur.get("needs") or base_needs)
+                for key, val in base_needs.items():
+                    merged.setdefault(key, val)
+                cur["needs"] = merge_needs_from_missing_flags(merged, row)
             if connection_only and kind == "grammar" and not is_conjugation_word(word):
                 cur["needs"]["connection"] = True
 
@@ -634,18 +657,27 @@ def apply_bundle(
 
     if kind == "grammar":
         g_update: dict[str, Any] = {"word_id": word_id, "source": source}
-        if "usage" in payload:
-            g_update["usage"] = payload.get("usage") or ""
-        if payload.get("connection"):
-            g_update["connection"] = payload["connection"]
-        if payload.get("example_sentences"):
-            g_update["example_sentences"] = payload["example_sentences"]
+        examples = str(payload.get("example_sentences") or "").strip()
+        connection = str(payload.get("connection") or "").strip()
+        usage_raw = str(payload.get("usage") or "").strip()
+        # 仅补接续：不要带 usage:""，否则进不了 Worker connectionOnly，还可能假成功
+        connection_only = bool(connection) and not examples and not usage_raw
+        if connection_only:
+            g_update["connection"] = connection
+        else:
+            if "usage" in payload or examples:
+                g_update["usage"] = usage_raw
+            if connection:
+                g_update["connection"] = connection
+            if examples:
+                g_update["example_sentences"] = examples
         if len(g_update) > 2:
             r = _apply(
                 USAGE_URL,
                 {
                     "mode": "apply",
-                    "force": True,
+                    # 禁止 force：否则缺接续仍 updated>0 → 假成功清熔断空烧
+                    "force": False,
                     "source": source,
                     "updates": [g_update],
                 },
@@ -664,6 +696,29 @@ def apply_bundle(
             fails.append("grammar:empty_update")
 
     return done, fails
+
+
+def grammar_still_missing_after_apply(
+    token: str, word_id: int
+) -> tuple[bool, str]:
+    """apply 报成功后复查 list_missing；仍在队首 → 假成功。"""
+    data = call_api(
+        USAGE_URL,
+        token,
+        {"mode": "list_missing", "limit": 1, "word_id": int(word_id)},
+        user_agent="jp-vocab-fill-online-batch/1.0",
+    )
+    for row in list(data.get("missing") or []):
+        if int(row.get("id") or 0) != int(word_id):
+            continue
+        detail = (
+            "apply_ok_but_still_missing:"
+            f"need_usage={row.get('need_usage')} "
+            f"need_examples={row.get('need_examples')} "
+            f"need_connection={row.get('need_connection')}"
+        )
+        return True, detail
+    return False, ""
 
 
 def extract_bundle(data: dict[str, Any], row: dict[str, Any]) -> dict[str, Any]:
@@ -693,7 +748,10 @@ def extract_bundle(data: dict[str, Any], row: dict[str, Any]) -> dict[str, Any]:
         if ex:
             out["example_sentences"] = ex
         out["usage"] = ""
-        out["connection"] = ""
+        # 变形课必须保留接续表；禁止再强制 connection=""（假成功根因）
+        connection = str(data.get("connection") or "").strip()
+        if connection:
+            out["connection"] = connection
         return out
 
     usage = str(data.get("usage") or "").strip()
@@ -722,8 +780,9 @@ def bundle_missing_keys(payload: dict[str, Any], row: dict[str, Any]) -> list[st
         return missing
 
     if is_conjugation_word(word):
-        if not str(payload.get("example_sentences") or "").strip():
-            missing.append("example_sentences")
+        for key in required_keys_for_row(row):
+            if not str(payload.get(key) or "").strip():
+                missing.append(key)
         return missing
 
     for key in ("usage", "connection", "example_sentences"):
@@ -762,7 +821,11 @@ def generate_bundle(row: dict[str, Any], needs: dict[str, bool]) -> dict[str, An
                 "禁止 connection、usage。"
             )
         elif is_conjugation_word(str(row.get("word") or "")):
-            retry_hint += "变形课只要 example_sentences。"
+            retry_hint += (
+                "变形课须给出 "
+                + ", ".join(required_keys_for_row(row))
+                + "；usage 填 \"\"；须有接续表（一类／二类／三类）。"
+            )
         else:
             retry_hint += (
                 "语法必须一次性给出 usage、example_sentences、connection；"
@@ -903,20 +966,23 @@ def process_one(
     if fails:
         print(f"    apply_fails={fails}", flush=True)
 
-    # 单词：例句未真正写回 → 未搞定（即使 reading/释义覆写成功）
-    examples_ok = kind != "word" or "example_sentences" in done
-    grammar_ok = kind != "grammar" or "grammar" in done or any(
-        x.startswith("dry:") for x in done
-    )
-    fixed = bool(done) and not fails and examples_ok and grammar_ok
-    fail_detail = (
-        ";".join(fails)
-        if fails
-        else (
-            "examples_not_applied"
-            if kind == "word" and not examples_ok
-            else ("grammar_not_applied" if kind == "grammar" and not grammar_ok else "")
-        )
+    req_keys = required_keys_for_row(row)
+    still_missing: bool | None = None
+    still_detail = ""
+    if kind == "grammar" and done and not fails:
+        still_missing, still_detail = grammar_still_missing_after_apply(token, wid)
+        if still_missing:
+            print(f"    still_missing_after_apply: {still_detail}", flush=True)
+
+    fixed, fail_detail = evaluate_online_batch_fixed(
+        kind=kind,
+        word=word,
+        done=done,
+        fails=fails,
+        payload=payload,
+        required=req_keys,
+        still_missing=still_missing,
+        still_detail=still_detail,
     )
 
     preview_text = json.dumps(preview, ensure_ascii=False)
