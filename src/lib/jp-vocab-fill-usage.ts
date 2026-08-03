@@ -65,7 +65,7 @@ export type ListJpVocabMissingUsageOptions = {
   wordId?: number;
 };
 
-/** 缺用法或缺例句（成对一次补）；活用变形课有例句即不算缺 */
+/** 缺用法或缺例句（成对一次补）；活用变形课须例句+接续表 */
 export async function countJpVocabGrammarMissingUsage(
   db: D1Database
 ): Promise<number> {
@@ -92,7 +92,7 @@ export async function listJpVocabGrammarMissingUsage(
       ? options.wordId
       : null;
 
-  // 先宽查，再在内存过滤「活用变形已有例句+接序」；LIMIT 必须过滤后再裁，否则会被变形课占满
+  // 先宽查，再在内存过滤「活用变形已有例句+接续表」；LIMIT 必须过滤后再裁，否则会被变形课占满
   let sql = `SELECT id, word, kind, reading, meaning, usage, example_sentences, connection
        FROM jp_vocab_word
        WHERE kind = 'grammar'
@@ -150,9 +150,7 @@ export async function listJpVocabGrammarMissingUsage(
       const isConj = isJpVocabConjugationGrammar(word);
       const need_usage = isConj ? false : !usage;
       const need_examples = !examples;
-      const need_connection = isConj
-        ? false
-        : !hasJpVocabConnection(connection);
+      const need_connection = !hasJpVocabConnection(connection);
       const onlyConnection =
         need_connection && !need_usage && !need_examples;
       return {
@@ -657,9 +655,9 @@ export async function applyJpVocabUsageUpdates(
 
     if (validateFormat) {
       // 付费/自动写回必须成对；人手「手动」可只改用法
-      // 变形课：只要例句，用法清空
+      // 变形课：用法清空；须有例句 + 接续表（一类／二类／三类）
       const isManual = source === "手动";
-      if (!isManual && !connection && !isConj) {
+      if (!isManual && !connection) {
         skipped.push({
           id: wordId,
           word: String(row.word),

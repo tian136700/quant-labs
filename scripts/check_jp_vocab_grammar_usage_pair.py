@@ -108,17 +108,23 @@ def main() -> int:
     if "is_contrast_word" not in script:
         errors.append("Mac 脚本须识别 is_contrast_word")
     if "isJpVocabGrammarUsageExamplesPairComplete" not in usage_ai:
-        errors.append("usage-ai 须判断变形课有例句即完成")
+        errors.append("usage-ai 须判断变形课完成条件")
     if "isJpVocabGrammarUsageExamplesPairComplete" not in fill_usage:
         errors.append("fill-usage list_missing 须过滤已完成的变形课")
     if "is_grammar_pair_still_missing" not in script:
         errors.append("Mac 脚本须客户端跳过已完成的变形课（防卡队）")
-    if "活用课" not in rule or ("有例句即算完成" not in rule and "有例句+接序即算完成" not in rule):
-        errors.append("规则须写明变形课有例句即完成、勿卡 list_missing")
-    if "变形课不要接序" not in usage_ai and "不要接序" not in usage_ai:
-        errors.append("usage-ai 须写明变形课不要接序")
-    if "禁止任何「用法」" not in usage_ai and "禁止任何用法" not in usage_ai:
-        errors.append("变形词条 prompt 须禁止用法、只给例句")
+    if "活用课" not in rule or (
+        "有例句+接续表即算完成" not in rule
+        and "有例句即算完成" not in rule
+        and "接续表" not in rule
+    ):
+        errors.append("规则须写明变形课例句+接续表完成条件、勿卡 list_missing")
+    if "不要接序" in usage_ai or "变形课不要接序" in usage_ai:
+        errors.append("usage-ai 禁止再写「变形课不要接序」（须 id=521 式接续表）")
+    if "id=521" not in usage_ai and "变形结果" not in usage_ai:
+        errors.append("usage-ai 变形课须要求接续表（标本 id=521）")
+    if "禁止任何「用法」" not in usage_ai and "禁止任何用法" not in usage_ai and "编号用法长文" not in usage_ai:
+        errors.append("变形词条 prompt 须禁止编号用法长文")
     if "parseJpVocabConjugationExamplesOnly" not in usage_ai:
         errors.append("须能解析变形课纯例句")
     if "变ます" not in usage_ai and "ます形规则" not in usage_ai:

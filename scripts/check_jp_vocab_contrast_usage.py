@@ -111,6 +111,32 @@ def main() -> int:
             errors.append("contrast-conjugation-table 须写明两列表格（何时用/接续）")
     if "展示分流" not in rule and "区别课 / 变形" not in rule:
         errors.append("grammar-usage 须写明区别/变形→表格 vs 句型→编号用法")
+    if "接续表" not in rule and "id=521" not in rule:
+        errors.append("grammar-usage 须写明变形课接续表（标本 id=521）")
+
+    for needle in (
+        "id=521",
+        "词类／形态＋变形结果",
+        "hasJpVocabConnection(connection)",
+        "connection_required",
+    ):
+        if needle not in usage_ai:
+            # connection_required 可能只在 validate 分支
+            if needle == "hasJpVocabConnection(connection)":
+                if "hasJpVocabConnection(connection)" not in usage_ai and (
+                    "hasExamples && hasJpVocabConnection" not in usage_ai
+                ):
+                    errors.append("usage-ai 变形课完成判定须要求 connection")
+            elif needle == "词类／形态＋变形结果":
+                if "变形结果" not in usage_ai and "＋いて" not in usage_ai:
+                    errors.append("usage-ai 变形课 prompt 须含接续表公式")
+            elif needle not in usage_ai:
+                errors.append(f"usage-ai 缺变形课门禁 {needle!r}")
+
+    if "不要接序" in script or "不要接序段" in script:
+        errors.append("Mac grammar fill 禁止再写「变形课不要接序」")
+    if "CONJ_PAIR_SYSTEM" not in script or "id=521" not in script:
+        errors.append("Mac CONJ_PAIR_SYSTEM 须要求 id=521 式接续表")
 
     table = (
         ROOT / "src/components/JpVocabContrastDistinctionTable.tsx"

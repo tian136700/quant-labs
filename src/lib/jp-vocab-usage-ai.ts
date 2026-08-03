@@ -1,6 +1,8 @@
 import {
   hasJpVocabConnection,
   jpVocabConnectionPromptAppendix,
+  JP_VOCAB_CONNECTION_SECTION_MARKER,
+  splitJpVocabAiOutputConnectionSection,
 } from "@/lib/jp-vocab-connection-ai";
 import {
   buildJpVocabContrastUsageAiPromptAppendix,
@@ -28,7 +30,7 @@ export {
 export const JP_VOCAB_USAGE_UPLOAD_SPEC = {
   version: 9,
   count_rule:
-    "组数=该语法真实常用用法数（N5～N2）；只有 1 种就 1 组，有几种写几组；禁止硬凑 2 组。每组=中文用法 + 恰好 1 条例句（严格 1:1，禁止多造）；同一次输出末尾必须有【接序】；每条用法编号后须带 [口语n|考试m]。例外：读音/形态对比课→先【区别】再两侧各 1 组；变形课不要用法与分值",
+    "组数=该语法真实常用用法数（N5～N2）；只有 1 种就 1 组，有几种写几组；禁止硬凑 2 组。每组=中文用法 + 恰好 1 条例句（严格 1:1，禁止多造）；同一次输出末尾必须有【接序】；每条用法编号后须带 [口语n|考试m]。例外：读音/形态对比课→先【区别】再两侧各 1 组；变形课不要用法与分值，但须短例句+接续表",
   format_example:
     "1. [口语9|考试7] 表示原因、理由：前句说明原因，后句说明结果。(N5)\n今日(きょう)は雨(あめ)だから、家(いえ)にいます。\n译文：今天下雨，所以我待在家里。\n【接序】\n动词辞书形（动词原形）＋から｜表示原因；一类形容词原形＋から｜表示原因；二类形容词词干＋だから｜表示原因；名词＋だから｜表示原因",
   level: "N5～N2（含 N1 以下；不要超纲冷僻用法）",
@@ -144,7 +146,7 @@ export function jpVocabUsagePointIsEmptyOrLevelOnly(text: string): boolean {
 
 /**
  * 「て形变形 / 动词变ます形规则 / ない形变化规则」等活用教学词条：
- * 学生记怎么变，不需要「用法」；只给 2～3 条 N5 例句。
+ * 学生记怎么变，不需要「用法」；只给 2～3 条 N5 例句 + 接续表（一类／二类／三类）。
  */
 export function isJpVocabConjugationGrammar(word: string): boolean {
   const w = String(word || "").trim();
@@ -158,7 +160,7 @@ export function isJpVocabConjugationGrammar(word: string): boolean {
 
 /**
  * 语法「用法+例句+接序」是否已齐。
- * 活用变形课：不要接序；有例句即算完成（勿再进 list_missing，否则会卡死队列）。
+ * 活用变形课：无编号用法；须有短例句 + 接续表（一类／二类／三类对照，标本 id=521 式）。
  * 读音对比课：须有【区别】+恰好 2 组对照 + 例句 + 接序。
  */
 export function isJpVocabGrammarUsageExamplesPairComplete(
@@ -170,7 +172,7 @@ export function isJpVocabGrammarUsageExamplesPairComplete(
   const hasExamples = Boolean(String(examples ?? "").trim());
   const hasUsage = Boolean(String(usage ?? "").trim());
   if (isJpVocabConjugationGrammar(word)) {
-    return hasExamples;
+    return hasExamples && hasJpVocabConnection(connection);
   }
   if (!hasJpVocabConnection(connection)) return false;
   if (!hasUsage || !hasExamples) return false;
@@ -237,23 +239,26 @@ export function buildJpVocabUsageAiPrompt(input: JpVocabUsageAiInput): string {
   if (isConjugation) {
     return `${meta}
 
-请为上述「变形/变化规则」词条写例句，供中文母语的 N5 初学者朗读。
+请为上述「变形/变化规则」词条写短例句 + 接续表，供中文母语的 N5 初学者朗读与对照。
 
 硬规则（必须遵守）：
-- ❌ 禁止任何「用法」「规则讲解」「标签」「1. 五段动词…」这类中文说明。学生自己记怎么变，你只给例句。
-- ❌ 变形课不要写「接序」段（接续形态由课堂规则讲解，卡片只展示例句）。
-- ❌ 不要套普通句型的「1.用法 2.用法」清单；变形/词类对照若出现，应是表格友好的分行（一类／二类／三类），不是多义用法编号。
-- ✅ 只输出 2～3 条完整短日语例句；每条下一行「译文：」+ 中文。
-- 不要行首编号、不要 markdown、不要总标题、不要箭头对照句（書く→書きます）。
+- ❌ 禁止任何「用法」「1. 一类动词…」编号用法长文；变形课不要分值标记。
+- ❌ 不要套普通句型的「1.用法 2.用法」清单。
+- ✅ 先输出 2～3 条完整短日语例句；每条下一行「译文：」+ 中文。
+- ✅ 文末必须有「${JP_VOCAB_CONNECTION_SECTION_MARKER}」接续表：标准标本同 id=521「～かもしれない」——每段「词类／形态＋变形结果｜短说明」，多种词类用全角「；」串成一行（或分行「词类：说明」），卡片三列「词类／形态｜＋接什么｜说明」。
+- ✅ て形课示例：一类动词词尾「く」＋いて｜如「書く→書いて」；一类动词词尾「ぐ」＋いで｜如「泳ぐ→泳いで」；二类动词词干＋て｜去「る」后加「て」、如「食べる→食べて」；三类动词「する」＋して｜如「勉強する→勉強して」
+- ❌ 禁止散文「将词尾变为て行音…」——无法上表。
+- ❌ 说明列禁止多段抄同一句；说明内勿用「／」，改用「、」或「·」。
+- 不要行首编号、不要 markdown、不要总标题。
 - 例句必须 N5 左右：极短、口语、日常词；必须自然用到本变形（如ます形出现「ます」、て形出现「て」连接）。
-- 每个汉字后半角括号假名。
-输出格式示例（只有例句，没有用法、没有接序）：
-今日(きょう)は学校(がっこう)へ行(い)きます。
-译文：今天去学校。
-朝(あさ)ご飯(はん)を食(た)べます。
-译文：吃早饭。
-友(とも)達(だち)と勉強(べんきょう)します。
-译文：和朋友一起学习。`;
+- 每个汉字后半角括号假名；接序里日语形态用「」短引，不要假名括注。
+输出格式示例（例句 + 接续表；无用法）：
+手(て)を洗(あら)って、ご飯(はん)を食(た)べます。
+译文：洗完手，吃饭。
+音楽(おんがく)を聴(き)いて、寝(ね)ます。
+译文：听完音乐，睡觉。
+${JP_VOCAB_CONNECTION_SECTION_MARKER}
+一类动词词尾「く」＋いて｜如「書く→書いて」；一类动词词尾「ぐ」＋いで｜如「泳ぐ→泳いで」；二类动词词干＋て｜去「る」后加「て」、如「食べる→食べて」；三类动词「する」＋して｜如「勉強する→勉強して」`;
   }
 
   if (isContrast) {
@@ -299,25 +304,27 @@ export type JpVocabGrammarUsageExamplePairParsed = {
 
 /**
  * 变形课：只解析「日语 + 译文」块；usage 固定空串。
- * 若模型仍输出「1. 中文用法」则失败（应拒后重试）。
+ * 文末【接序】会拆出（若有）；若模型仍输出「1. 中文用法」则失败（应拒后重试）。
  */
 export function parseJpVocabConjugationExamplesOnly(
   raw: string
-): JpVocabGrammarUsageExamplePairParsed | null {
-  const lines = stripFenceNoise(raw)
+): (JpVocabGrammarUsageExamplePairParsed & { connection: string | null }) | null {
+  const { body, connection } = splitJpVocabAiOutputConnectionSection(raw);
+  const lines = stripFenceNoise(body || raw)
     .split(/\r?\n/)
     .map((line) => line.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter((line) => line !== JP_VOCAB_CONNECTION_SECTION_MARKER);
   if (!lines.length) return null;
 
   // 变形禁止「1. 中文用法」行（含句末 (N5) 的中文说明）
   for (const line of lines) {
     const m = NUMBERED_LINE_RE.exec(line);
     if (!m) continue;
-    const body = m[2].trim();
+    const bodyLine = m[2].trim();
     // 编号行若主要是中文说明（汉字多、假名括注少）→ 当作违规用法行
-    if (HAN_RE.test(body) && !USAGE_FURIGANA_PAREN_RE.test(body)) {
-      const kana = body.match(/[\u3040-\u30FFー]/g) || [];
+    if (HAN_RE.test(bodyLine) && !USAGE_FURIGANA_PAREN_RE.test(bodyLine)) {
+      const kana = bodyLine.match(/[\u3040-\u30FFー]/g) || [];
       if (kana.length < 8) return null;
     }
   }
@@ -341,7 +348,11 @@ export function parseJpVocabConjugationExamplesOnly(
   }
   if (exampleLines.length < 4 || exampleLines.length > 6) return null;
   // 2～3 组 → 4～6 行
-  return { usage: "", example_sentences: exampleLines.join("\n") };
+  return {
+    usage: "",
+    example_sentences: exampleLines.join("\n"),
+    connection: connection?.trim() || null,
+  };
 }
 
 /**
@@ -824,7 +835,12 @@ export function validateJpVocabGrammarUsageExamplePairsOutput(
   raw: string,
   input?: JpVocabUsageAiInput
 ):
-  | { ok: true; usage: string; example_sentences: string }
+  | {
+      ok: true;
+      usage: string;
+      example_sentences: string;
+      connection?: string | null;
+    }
   | { ok: false; reason: string } {
   if (input && input.kind !== "grammar") {
     return { ok: false, reason: "not_grammar" };
@@ -835,10 +851,14 @@ export function validateJpVocabGrammarUsageExamplePairsOutput(
   if (input?.word && isJpVocabConjugationGrammar(input.word)) {
     const conj = parseJpVocabConjugationExamplesOnly(text);
     if (!conj) return { ok: false, reason: "pair_incomplete" };
+    if (!hasJpVocabConnection(conj.connection)) {
+      return { ok: false, reason: "connection_required" };
+    }
     return {
       ok: true,
       usage: "",
       example_sentences: conj.example_sentences,
+      connection: conj.connection,
     };
   }
 

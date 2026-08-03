@@ -76,7 +76,7 @@ PAIR_SYSTEM = (
     "❌ 用法行禁止写接序清单（动词て形＋…）；接序只写在文末【接序】段。"
     "每条中文用法句末句号后必须紧跟半角等级括号，如。(N5) 或 .(N4).(N3).(N2).(N1)；按该条用法难度估。"
     "若词条含「变形」「变化规则」「形规则」「变ます」「ます形规则」「ない形」「て形」等活用教学："
-    "禁止任何用法/规则说明；只输出 2～3 条 N5 短句+译文；不要行首编号；不要接序。"
+    "禁止任何编号用法长文；输出 2～3 条 N5 短句+译文，文末必须有【接序】接续表（标本 id=521：词类／形态＋变形结果｜短说明；一类／二类／三类用；串）。"
     "若词条是读音/形态对比（如「何（なん／なに）」或标题含「区别」）："
     "禁止拆成 5～7 条场景「用法」清单；先写【区别】概括差异，再恰好 2 组对照（「なに」侧 +「なん」侧），每侧 1 条例句。"
     "只用本词条本身；禁止把其它语法点（如たことがある）塞进本条凑组数。"
@@ -96,10 +96,13 @@ PAIR_SYSTEM = (
 
 CONJ_PAIR_SYSTEM = (
     "这是日语活用「变形」教学词条。学生自己记怎么变。"
-    "禁止写任何用法、规则说明、中文标签、行首编号、接序段。"
-    "不要套普通句型的多义「1.用法」清单；变形对照若出现须表格友好，不是用法编号。"
-    "只输出 2～3 条 N5 口语短句；每条下一行「译文：」+中文。"
-    "每个汉字后半角括号假名；不要箭头对照句。"
+    "禁止写任何编号「1.用法」长文、中文标签、行首编号。"
+    "不要套普通句型的多义「1.用法」清单。"
+    "先输出 2～3 条 N5 口语短句；每条下一行「译文：」+中文；每个汉字后半角括号假名。"
+    "文末必须有【接序】接续表：标准标本同 id=521「～かもしれない」——"
+    "每段「词类／形态＋变形结果｜短说明」，多种词类用全角「；」；卡片三列词类／形态、＋接什么、说明。"
+    "て形示例：一类动词词尾「く」＋いて｜如「書く→書いて」；二类动词词干＋て｜去「る」后加「て」、如「食べる→食べて」；三类动词「する」＋して｜如「勉強する→勉強して」。"
+    "禁止散文「将词尾变为…」；说明内勿用「／」。"
 )
 
 CONTRAST_PAIR_SYSTEM = (
@@ -161,7 +164,7 @@ def is_contrast_word(word: str, reading: str | None = None) -> bool:
 
 
 def is_grammar_pair_still_missing(row: dict) -> bool:
-    """活用变形课：有例句即算完成（不要接序）。句型课：用法+例句+接序。
+    """活用变形课：须例句+接续表。句型课：用法+例句+接序。
     对比课：须已是【区别】+2 组格式（否则仍缺，避免 7 条场景用法脏数据永驻）。"""
     word = str(row.get("word") or "")
     reading = row.get("reading")
@@ -171,7 +174,7 @@ def is_grammar_pair_still_missing(row: dict) -> bool:
     if "need_connection" not in row:
         need_connection = True
     if is_conjugation_word(word):
-        return need_examples
+        return need_examples or need_connection
     if is_contrast_word(word, reading if isinstance(reading, str) else None):
         usage = str(row.get("usage") or "")
         has_distinction = "【区别】" in usage or "【區別】" in usage
@@ -700,10 +703,10 @@ def run_one_pair(
             retry_prompt = (
                 prompt
                 + "\n\nCRITICAL:\n"
-                + "- 禁止任何用法/规则/中文标签/行首编号。\n"
+                + "- 禁止任何编号用法/规则/中文标签/行首编号。\n"
                 + "- 只输出 2～3 条日语短句，每条下一行「译文：」。\n"
                 + "- 汉字后半角括号假名；N5 口语。\n"
-                + "- 不要接序段。\n"
+                + f"- 文末必须有「{CONNECTION_MARKER}」接续表（词类／形态＋变形结果｜短说明；一类／二类／三类）。\n"
             )
             sys_msg = CONJ_PAIR_SYSTEM
         elif is_contrast:
@@ -769,7 +772,10 @@ def run_one_pair(
             if not parsed:
                 return None
             usage, examples = parsed
-            return usage, examples, None
+            # 变形课也须接续表（标本 id=521 式一类／二类／三类）
+            if not connection:
+                return None
+            return usage, examples, connection
         if not connection:
             return None
         parsed = parse_pair_output(body)
