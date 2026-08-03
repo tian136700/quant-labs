@@ -5,14 +5,13 @@ import { CopyToast } from "@/components/CopyToast";
 import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import { copyTextToClipboard } from "@/lib/copy-text";
 import {
-  JP_VOCAB_RELATED_COMPOUNDS_EMPTY_CHECKED,
   JP_VOCAB_RELATED_COMPOUNDS_LABEL,
   filterJpVocabRelatedCompoundsSameReading,
   jpVocabRelatedCompoundsCopyText,
   parseJpVocabRelatedCompounds,
 } from "@/lib/jp-vocab-related-compounds";
 
-/** 抽问/带读/学生/复习卡：例句后展示「相关构词」 */
+/** 抽问/带读/学生/复习卡：例句后展示「相关构词」；无内容时整块不渲染（留空） */
 export function JpVocabRelatedCompoundsSection({
   relatedCompounds,
   relatedCompoundsSource,
@@ -38,10 +37,10 @@ export function JpVocabRelatedCompoundsSection({
   }, [relatedCompounds, word, reading]);
 
   const sourceTrim = String(relatedCompoundsSource || "").trim();
-  const checkedEmpty = items.length === 0 && Boolean(sourceTrim);
 
   if (kind === "grammar") return null;
-  if (items.length === 0 && !checkedEmpty) return null;
+  // 无相关词（含 AI 已查过为空）：整块留空，不展示占位文案
+  if (items.length === 0) return null;
 
   const copyText = jpVocabRelatedCompoundsCopyText(items);
 
@@ -92,40 +91,34 @@ export function JpVocabRelatedCompoundsSection({
         </div>
       </div>
 
-      {checkedEmpty ? (
-        <p className="jp-vocab-teacher-quiz__related-compounds-empty">
-          {JP_VOCAB_RELATED_COMPOUNDS_EMPTY_CHECKED}
-        </p>
-      ) : (
-        <p className="jp-vocab-teacher-quiz__related-compounds-flow">
-          {items.map((item) => (
+      <p className="jp-vocab-teacher-quiz__related-compounds-flow">
+        {items.map((item) => (
+          <span
+            key={item.line}
+            className="jp-vocab-teacher-quiz__related-compounds-unit"
+          >
+            {/* 整词一块：假名居中在词面正下方（勿再拼括号走解析，避免焚き火拆坏） */}
             <span
-              key={item.line}
-              className="jp-vocab-teacher-quiz__related-compounds-unit"
+              className="jp-vocab-teacher-quiz__related-compounds-jp jp-vocab-furigana-unit"
+              title={item.reading}
             >
-              {/* 整词一块：假名居中在词面正下方（勿再拼括号走解析，避免焚き火拆坏） */}
+              <span className="jp-vocab-furigana-base">{item.surface}</span>
               <span
-                className="jp-vocab-teacher-quiz__related-compounds-jp jp-vocab-furigana-unit"
-                title={item.reading}
+                className="jp-vocab-furigana-reading"
+                aria-hidden="true"
               >
-                <span className="jp-vocab-furigana-base">{item.surface}</span>
-                <span
-                  className="jp-vocab-furigana-reading"
-                  aria-hidden="true"
-                >
-                  {item.reading}
-                </span>
-              </span>
-              <span className="jp-vocab-teacher-quiz__related-compounds-zh">
-                {item.gloss}
-              </span>
-              <span className="jp-vocab-teacher-quiz__related-compounds-semi">
-                ；
+                {item.reading}
               </span>
             </span>
-          ))}
-        </p>
-      )}
+            <span className="jp-vocab-teacher-quiz__related-compounds-zh">
+              {item.gloss}
+            </span>
+            <span className="jp-vocab-teacher-quiz__related-compounds-semi">
+              ；
+            </span>
+          </span>
+        ))}
+      </p>
 
       {/* 来源固定在块底右下（文档流 text-align:right，勿 absolute） */}
       {sourceTrim ? (

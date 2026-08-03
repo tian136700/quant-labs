@@ -35,8 +35,6 @@ def main() -> int:
     must_contain(lib, "相关构词", "zh label")
     must_contain(lib, "validateJpVocabRelatedCompoundsAiOutput", "validate")
     must_contain(lib, "compoundSharesLemmaSameReading", "same reading")
-    must_contain(lib, "JP_VOCAB_RELATED_COMPOUNDS_EMPTY_CHECKED", "empty checked")
-    must_contain(lib, "已通过AI获取，但暂无相关词汇", "empty copy")
     must_contain(lib, "jpVocabRelatedCompoundsCopyText", "copy text")
     must_contain(lib, "入口", "入口 example")
     must_contain(lib, "いりぐち", "rendaku reading")
@@ -86,10 +84,20 @@ def main() -> int:
     must_contain(section, "复制全部", "copy all")
     must_contain(section, "copy-toast--above-modal", "toast z")
     must_contain(section, "related-compounds-flow", "inline flow")
-    must_contain(section, "JP_VOCAB_RELATED_COMPOUNDS_EMPTY_CHECKED", "empty ui")
     must_contain(section, "filterJpVocabRelatedCompoundsSameReading", "filter dirty")
+    if "items.length === 0" not in section_src and "items.length==0" not in section_src:
+        raise SystemExit(
+            "FAIL empty ui: no related compounds must early-return (leave blank)"
+        )
+    if "已通过AI获取，但暂无相关词汇" in section_src:
+        raise SystemExit(
+            "FAIL empty ui: must not render placeholder when related compounds empty"
+        )
+    if "JP_VOCAB_RELATED_COMPOUNDS_EMPTY_CHECKED" in section_src:
+        raise SystemExit(
+            "FAIL empty ui: do not import/render EMPTY_CHECKED placeholder"
+        )
     must_contain(styles, "related-compounds-flow", "flow css")
-    must_contain(styles, "related-compounds-empty", "empty css")
     must_contain(styles, "related-compounds-zh", "zh css")
     styles_text = styles.read_text(encoding="utf-8")
     # 日语与中文须空开（flex 会吃文本空格，应用 margin）

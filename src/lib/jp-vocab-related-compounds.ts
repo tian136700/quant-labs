@@ -8,7 +8,10 @@ import { JP_VOCAB_JUKUGO_READING } from "@/lib/jp-vocab-jukugo-furigana";
 
 export const JP_VOCAB_RELATED_COMPOUNDS_LABEL = "相关构词";
 
-/** AI 已跑过但无自然相关词时的卡片文案 */
+/**
+ * @deprecated 卡片无相关词时整块留空，不再展示占位文案。
+ * 仍导出仅供旧引用/测试识别；UI 勿再渲染此串。
+ */
 export const JP_VOCAB_RELATED_COMPOUNDS_EMPTY_CHECKED =
   "已通过AI获取，但暂无相关词汇";
 
