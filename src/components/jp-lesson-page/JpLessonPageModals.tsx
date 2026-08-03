@@ -70,7 +70,10 @@ export type JpLessonPageModalsProps = {
   completeLessonContentItems: (
     lessonId: number,
     itemIndexes: number[]
-  ) => void | Promise<void>;
+  ) =>
+    | void
+    | Promise<void>
+    | Promise<{ ok: true } | { ok: false; error: string }>;
   handleRefUpdated: (...args: any[]) => void;
   openJpAuth: () => void;
   setAnnotatingLesson: (v: JpLessonPageModalsProps["annotatingLesson"]) => void;
