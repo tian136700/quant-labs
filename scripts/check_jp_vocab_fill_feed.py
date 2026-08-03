@@ -335,6 +335,58 @@ def main() -> int:
         raise SystemExit("FAIL: 最近词条表须有「补全内容」列（任务类型+字段）")
     if "fill_content_label" not in app_js:
         raise SystemExit("FAIL: 表格须渲染 fill_content_label")
+    # 次数列：该词条/语法历史终态跑次；禁止再按精确 finished_at 叠双行
+    if ">次数<" not in index_html and "次数</th>" not in index_html:
+        raise SystemExit("FAIL: 最近词条表须有「次数」列（日/英）")
+    if "run_count" not in app_js or "jp-fill-run-count" not in app_js:
+        raise SystemExit("FAIL: 表格须渲染 row.run_count（次数）")
+    if "colspan=\"8\"" not in index_html and "colspan='8'" not in index_html:
+        raise SystemExit("FAIL: 表空态 colspan 须为 8（含次数列）")
+    if "merge_terminal_fill_rows" not in jp_feed or "merge_terminal_fill_rows" not in en_feed:
+        raise SystemExit("FAIL: jp/en snapshot 须用 merge_terminal_fill_rows 去重双源")
+    if "attach_run_counts" not in jp_feed or "attach_run_counts" not in en_feed:
+        raise SystemExit("FAIL: jp/en snapshot 须 attach_run_counts")
+    if "count_jp_vocab_fill_terminal_runs" not in jp_feed:
+        raise SystemExit("FAIL: jp feed 须 count_jp_vocab_fill_terminal_runs")
+    if "count_en_vocab_fill_terminal_runs" not in en_feed:
+        raise SystemExit("FAIL: en feed 须 count_en_vocab_fill_terminal_runs")
+    from maintenance_center.vocab_fill_feed_merge import (  # noqa: E402
+        SAME_RUN_WINDOW_SEC,
+        attach_run_counts,
+        merge_terminal_fill_rows,
+    )
+
+    if SAME_RUN_WINDOW_SEC < 60:
+        raise SystemExit("FAIL: SAME_RUN_WINDOW_SEC too small for log/DB skew")
+    deduped = merge_terminal_fill_rows(
+        from_log=[
+            {
+                "word_id": 119,
+                "word": "形容词变否定",
+                "status": "success",
+                "started_at": "2026-08-04 04:07:00",
+                "finished_at": "2026-08-04 04:07:00",
+                "run_finished_at": "2026-08-04 04:07:57",
+            }
+        ],
+        db_rows=[
+            {
+                "word_id": 119,
+                "word": "形容词变否定",
+                "status": "success",
+                "started_at": "2026-08-04 04:07:24",
+                "finished_at": "2026-08-04 04:07:57",
+            }
+        ],
+        limit=10,
+    )
+    if len(deduped) != 1:
+        raise SystemExit(
+            f"FAIL: log+DB same run must merge to 1 row, got {len(deduped)}: {deduped}"
+        )
+    counted = attach_run_counts(list(deduped), {119: 2})
+    if int(counted[0].get("run_count") or 0) != 2:
+        raise SystemExit(f"FAIL: attach_run_counts should set run_count=2, got {counted[0]}")
     if "vocab_fill_applied_label" not in (
         ROOT / "scripts/maintenance_center/jp_vocab_fill_feed.py"
     ).read_text(encoding="utf-8"):
@@ -532,6 +584,36 @@ def main() -> int:
     content = str(rows[0].get("fill_content_label") or "")
     if "释义/词性" not in content:
         raise SystemExit(f"FAIL: success row missing fill_content_label: {rows[0]}")
+
+    # 次数：同词再跑终态 → run_count 应 ≥2（快照挂 attach_run_counts）
+    feed.insert_jp_vocab_fill_word_run(
+        {
+            "word_id": 900034,
+            "word": "テスト英国",
+            "kind": "word",
+            "status": "success",
+            "source": "线上 test-2",
+            "applied": "['word_bundle']",
+            "finished_at": "2099-01-01 01:00:00",
+        }
+    )
+    counts = feed.count_jp_vocab_fill_terminal_runs([900034])
+    if int(counts.get(900034) or 0) < 2:
+        raise SystemExit(f"FAIL: terminal run count for 900034 should be ≥2, got {counts}")
+    snap_count = feed.jp_vocab_fill_feed_snapshot(limit=80)
+    row900 = next(
+        (
+            r
+            for r in (snap_count.get("recent") or [])
+            if int(r.get("word_id") or 0) == 900034
+        ),
+        None,
+    )
+    if row900 is None:
+        # 快照可能被真实近期数据挤出窗口；至少保证 count API 正确
+        pass
+    elif int(row900.get("run_count") or 0) < 2:
+        raise SystemExit(f"FAIL: snapshot run_count for 900034 should be ≥2, got {row900}")
 
     # 清掉测试脏数据
     from maintenance_center.db import get_conn, init_db
