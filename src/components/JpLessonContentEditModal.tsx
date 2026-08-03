@@ -151,8 +151,28 @@ export function JpLessonContentEditModal({
             课程 #{lesson.id}
             {lesson.course_label ? ` · ${lesson.course_label}` : ""}
             {" · "}
-            每行一词与释义对应；可勾选后批量删除。
+            每行一词与释义对应；勾选后点上方「删除所选」。
           </p>
+          <div className="jp-lesson-content-edit-toolbar">
+            <button
+              type="button"
+              className="jp-lesson-action-btn"
+              disabled={saveBusy}
+              onClick={addRow}
+            >
+              添加一项
+            </button>
+            <button
+              type="button"
+              className="jp-lesson-action-btn jp-lesson-content-edit-batch-delete"
+              disabled={saveBusy || !someSelected}
+              onClick={removeSelected}
+              title="删除勾选的多项及其释义"
+            >
+              删除所选
+              {someSelected ? `（${selectedIds.length}）` : ""}
+            </button>
+          </div>
         </div>
 
         <div className="jp-lesson-content-edit-body">
@@ -236,29 +256,11 @@ export function JpLessonContentEditModal({
             ))}
           </ul>
 
-          <div className="jp-lesson-content-edit-toolbar">
-            <button
-              type="button"
-              className="jp-lesson-action-btn"
-              disabled={saveBusy}
-              onClick={addRow}
-            >
-              添加一项
-            </button>
-            <button
-              type="button"
-              className="jp-lesson-action-btn jp-lesson-content-edit-batch-delete"
-              disabled={saveBusy || !someSelected}
-              onClick={removeSelected}
-              title="删除勾选的多项及其释义"
-            >
-              删除所选
-              {someSelected ? `（${selectedIds.length}）` : ""}
-            </button>
-            <p className="jp-lesson-content-edit-hint">
-              共 {rows.filter((r) => r.content.trim()).length} 项有效内容。保存后自动拆成词表用的逗号 /「|」格式；标注、例句按新条数对齐。
-            </p>
-          </div>
+          <p className="jp-lesson-content-edit-hint">
+            共 {rows.filter((r) => r.content.trim()).length} 项有效内容
+            {someSelected ? ` · 已勾选 ${selectedIds.length} 项` : ""}
+            。保存后自动拆成词表用的逗号 /「|」格式；标注、例句按新条数对齐。
+          </p>
 
           {localError ? (
             <p className="jp-lesson-content-edit-error" role="alert">
@@ -331,6 +333,24 @@ export function JpLessonContentEditModal({
           color: var(--muted);
           font-size: 0.85rem;
           line-height: 1.45;
+        }
+        .jp-lesson-content-edit-toolbar {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 0.5rem 0.65rem;
+          margin-top: 0.75rem;
+        }
+        .jp-lesson-content-edit-batch-delete {
+          color: #e85d6f;
+          border-color: color-mix(in srgb, #e85d6f 45%, var(--border));
+        }
+        .jp-lesson-content-edit-batch-delete:hover:not(:disabled) {
+          background: color-mix(in srgb, #e85d6f 14%, transparent);
+        }
+        .jp-lesson-content-edit-batch-delete:disabled {
+          opacity: 0.55;
+          cursor: not-allowed;
         }
         .jp-lesson-content-edit-body {
           flex: 1;
@@ -430,28 +450,15 @@ export function JpLessonContentEditModal({
           font-weight: 600;
           cursor: pointer;
         }
-        .jp-lesson-content-edit-delete:hover:not(:disabled),
-        .jp-lesson-content-edit-batch-delete:hover:not(:disabled) {
+        .jp-lesson-content-edit-delete:hover:not(:disabled) {
           background: color-mix(in srgb, #e85d6f 14%, transparent);
         }
         .jp-lesson-content-edit-delete:disabled {
           opacity: 0.55;
           cursor: not-allowed;
         }
-        .jp-lesson-content-edit-batch-delete {
-          color: #e85d6f;
-          border-color: color-mix(in srgb, #e85d6f 45%, var(--border));
-        }
-        .jp-lesson-content-edit-toolbar {
-          display: flex;
-          flex-wrap: wrap;
-          align-items: center;
-          gap: 0.65rem 0.85rem;
-        }
         .jp-lesson-content-edit-hint {
           margin: 0;
-          flex: 1;
-          min-width: 12rem;
           color: var(--muted);
           font-size: 0.8rem;
           line-height: 1.45;
