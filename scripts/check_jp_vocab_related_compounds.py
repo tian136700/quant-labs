@@ -47,6 +47,7 @@ def main() -> int:
     must_contain(live, "related_compounds", "peek select")
     must_contain(fill, "related_compounds", "fill apply")
     must_contain(fill, "markRelatedCompoundsCheckedEmpty", "empty checked")
+    must_contain(fill, "relatedStrippedToEmpty", "strip self → mark empty")
     must_contain(route, "related_compounds", "api route")
     must_contain(route, "list_missing_related_compounds", "list missing mode")
     must_contain(
@@ -156,6 +157,17 @@ def main() -> int:
     must_contain(ai, "禁止不同音读", "ai prompt same reading")
     must_contain(lib, "没有自然", "empty ok hint")
     must_contain(lib, "最多 4～5", "max count hint")
+    must_contain(lib, "禁止本词", "forbid lemma self in prompt")
+    must_contain(online, "禁止本词", "online forbid lemma self")
+    must_contain(ai, "禁止本词", "ai prompt forbid lemma self")
+    # 曾硬拒 is_self 导致统一补全整批失败；须丢掉本词行，勿 return related_compounds_is_self
+    lib_text_full = lib.read_text(encoding="utf-8")
+    if 'return { ok: false, reason: "related_compounds_is_self" }' in lib_text_full:
+        raise SystemExit(
+            "FAIL: related_compounds_is_self 不得硬拒整批；须丢掉本词行（与不同音读同逻辑）"
+        )
+    if "sawSelf" not in lib_text_full:
+        raise SystemExit("FAIL: validate 须 track sawSelf 并剥掉本词行")
     must_contain(types, "related_compounds?", "type field")
 
     line_re = re.compile(

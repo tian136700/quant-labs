@@ -17,6 +17,7 @@ export const JP_VOCAB_RELATED_COMPOUNDS_PROMPT_HINT = `相关构词（仅单词�
 - 读音必须一致：构词里本字的读法须与本词读音相同（允许连浊：くち→ぐち、こと→ごと）；禁止不同音读（事=こと 勿写 食事/大事 的「じ」）。
 - 条数：没有自然同读相关词 → 填 ""（禁止硬凑）；只有 1～2 个就写 1～2；多则最多 4～5 条。
 - 须含本词汉字；优先 N5～N4 日常词，禁止商务/难词。
+- 【禁止本词】不要把词条本身写进相关构词（研修生≠再写研修生；企業≠再写企業）。相关=别的词。
 - 每行格式：漢字(かな)：简短中文释义；假名须正确（入口≠いりくち）。
 - 一词多义：同一构词的多个中文义用中文逗号「，」连接（例：目上(めうえ)：上级，长辈）。禁止在释义里用分号「；」（分号只用于区分不同日语词）。
 - 例：
@@ -205,9 +206,11 @@ export function validateJpVocabRelatedCompoundsAiOutput(
     return { ok: false, reason: "related_compounds_too_many" };
   }
 
+  const lemma = String(input.word || "").trim();
   const items: JpVocabRelatedCompoundItem[] = [];
   let sawBadLine = false;
   let sawDifferentReading = false;
+  let sawSelf = false;
   for (const line of lines) {
     const m = LINE_RE.exec(line);
     if (!m) {
@@ -224,8 +227,10 @@ export function validateJpVocabRelatedCompoundsAiOutput(
     if (/[\u3040-\u30ff]/.test(gloss) && !/[\u4e00-\u9fff]/.test(gloss)) {
       return { ok: false, reason: "related_compounds_gloss_not_chinese" };
     }
-    if (surface === String(input.word || "").trim()) {
-      return { ok: false, reason: "related_compounds_is_self" };
+    // Claude 常把本词再抄一行（或写「同词条」）→ 丢掉该行，勿拒整批读音/释义/例句
+    if (surface === lemma) {
+      sawSelf = true;
+      continue;
     }
     const expectedReading = JP_VOCAB_JUKUGO_READING[surface];
     if (expectedReading && reading !== expectedReading) {
@@ -251,8 +256,13 @@ export function validateJpVocabRelatedCompoundsAiOutput(
   }
 
   if (items.length === 0) {
-    // 全是不同音读 / 坏行 → 当作「无相关」（禁止硬凑），勿拒整批
-    if (sawBadLine && !sawDifferentReading && lines.length > 0) {
+    // 全是本词 / 不同音读 / 坏行 → 当作「无相关」（禁止硬凑），勿拒整批
+    if (
+      sawBadLine &&
+      !sawDifferentReading &&
+      !sawSelf &&
+      lines.length > 0
+    ) {
       return { ok: false, reason: "related_compounds_bad_line" };
     }
     return { ok: true, text: "" };

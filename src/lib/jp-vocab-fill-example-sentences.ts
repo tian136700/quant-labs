@@ -633,6 +633,8 @@ export async function applyJpVocabExampleSentenceUpdates(
     }
 
     let relatedCompounds: string | null = relatedRaw;
+    /** 模型写了相关构词但全被剥掉（本词/不同音读）→ 当作「无相关」写 source */
+    let relatedStrippedToEmpty = false;
     if (relatedRaw) {
       const rcOk = validateJpVocabRelatedCompoundsAiOutput(relatedRaw, {
         word: String(row.word),
@@ -648,10 +650,37 @@ export async function applyJpVocabExampleSentenceUpdates(
         continue;
       }
       relatedCompounds = rcOk.text || null;
+      relatedStrippedToEmpty = !relatedCompounds;
     }
 
     if (relatedOnly) {
       if (!relatedCompounds) {
+        if (relatedStrippedToEmpty) {
+          const changed = await markRelatedCompoundsCheckedEmpty(
+            db,
+            wordId,
+            source,
+            dryRun
+          );
+          if (changed) {
+            updated += 1;
+            applied.push({
+              id: wordId,
+              word: String(row.word),
+              example_sentences: String(row.example_sentences ?? ""),
+              example_sentences_source: source,
+              related_compounds: null,
+              related_compounds_source: source,
+            });
+          } else {
+            skipped.push({
+              id: wordId,
+              word: String(row.word),
+              reason: "already_filled",
+            });
+          }
+          continue;
+        }
         skipped.push({
           id: wordId,
           word: String(row.word),
@@ -832,6 +861,8 @@ export async function applyJpVocabExampleSentenceUpdates(
             dryRun
           );
         }
+      } else if (relatedStrippedToEmpty) {
+        await markRelatedCompoundsCheckedEmpty(db, wordId, source, dryRun);
       }
       applied.push({
         id: wordId,
@@ -841,10 +872,31 @@ export async function applyJpVocabExampleSentenceUpdates(
         connection,
         connection_source: connection ? connectionSource : null,
         related_compounds: relatedCompounds,
-        related_compounds_source: relatedCompounds ? source : null,
+        related_compounds_source:
+          relatedCompounds || relatedStrippedToEmpty ? source : null,
       });
     } else {
-      // 例句已有：仍可顺带写空的相关构词
+      // 例句已有：仍可顺带写空的相关构词 / 剥光后记空已查
+      if (relatedStrippedToEmpty && !relatedCompounds) {
+        const rcChanged = await markRelatedCompoundsCheckedEmpty(
+          db,
+          wordId,
+          source,
+          dryRun
+        );
+        if (rcChanged) {
+          updated += 1;
+          applied.push({
+            id: wordId,
+            word: String(row.word),
+            example_sentences: String(row.example_sentences ?? exampleSentences),
+            example_sentences_source: source,
+            related_compounds: null,
+            related_compounds_source: source,
+          });
+          continue;
+        }
+      }
       if (relatedCompounds) {
         const rcChanged = allowOverwrite
           ? await updateRelatedCompoundsOverwrite(
