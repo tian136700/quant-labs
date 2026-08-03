@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
+import type { JpLessonCompleteContentItemsResult } from "@/components/jp-lesson-page/completeJpLessonContentItems";
 import { useSaveProgressBar } from "@/hooks/useSaveProgressBar";
 import {
   buildJpLessonContentEditRows,
@@ -22,7 +23,13 @@ type Props = {
   saving?: boolean;
   onClose: () => void;
   onSave: (content: string, meanings: string | null) => void | Promise<void>;
-  onCompleteItems?: (itemIndexes: number[]) => void | Promise<void>;
+  onCompleteItems?: (
+    itemIndexes: number[]
+  ) =>
+    | void
+    | Promise<void>
+    | Promise<JpLessonCompleteContentItemsResult>
+    | JpLessonCompleteContentItemsResult;
 };
 
 export function JpLessonContentEditModal({
@@ -37,6 +44,7 @@ export function JpLessonContentEditModal({
   const [rows, setRows] = useState<JpLessonContentEditRow[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [localError, setLocalError] = useState<string | null>(null);
+  const errorRef = useRef<HTMLParagraphElement | null>(null);
   const saveBusy = saving;
   const saveProgress = useSaveProgressBar(saveBusy);
 
@@ -55,6 +63,11 @@ export function JpLessonContentEditModal({
     setSelectedIds([]);
     setLocalError(null);
   }, [open, lesson]);
+
+  useEffect(() => {
+    if (!localError) return;
+    errorRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [localError]);
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const allSelected = rows.length > 0 && selectedIds.length === rows.length;
@@ -125,8 +138,15 @@ export function JpLessonContentEditModal({
     setRows((prev) => [...prev, createEmptyJpLessonContentEditRow()]);
   };
 
-  const requestCompleteIndexes = (rowIds: string[]) => {
-    if (!lesson || !onCompleteItems || saveBusy) return;
+  const requestCompleteIndexes = async (rowIds: string[]) => {
+    if (!lesson || !onCompleteItems) {
+      setLocalError("当前账号不能标完成，请用有操作权限的账号重试。");
+      return;
+    }
+    if (saveBusy) {
+      setLocalError("正在处理中，请稍候再标完成。");
+      return;
+    }
     if (lesson.completed) {
       setLocalError("已完成的课请在列表里管理；此处不能再拆项标完成。");
       return;
@@ -164,15 +184,23 @@ export function JpLessonContentEditModal({
       return;
     }
     setLocalError(null);
-    void onCompleteItems(indexes);
+    const result = await onCompleteItems(indexes);
+    if (
+      result &&
+      typeof result === "object" &&
+      "ok" in result &&
+      result.ok === false
+    ) {
+      setLocalError(result.error || "标完成失败");
+    }
   };
 
   const completeSelected = () => {
-    requestCompleteIndexes(selectedIds);
+    void requestCompleteIndexes(selectedIds);
   };
 
   const completeRow = (id: string) => {
-    requestCompleteIndexes([id]);
+    void requestCompleteIndexes([id]);
   };
 
   const handleSave = () => {
@@ -239,6 +267,15 @@ export function JpLessonContentEditModal({
               </button>
             ) : null}
           </div>
+          {localError ? (
+            <p
+              ref={errorRef}
+              className="jp-lesson-content-edit-error"
+              role="alert"
+            >
+              {localError}
+            </p>
+          ) : null}
         </div>
 
         <div className="jp-lesson-content-edit-body">
@@ -340,13 +377,8 @@ export function JpLessonContentEditModal({
             共 {rows.filter((r) => r.content.trim()).length} 项有效内容
             {someSelected ? ` · 已勾选 ${selectedIds.length} 项` : ""}
             。保存后自动拆成词表用的逗号 /「|」格式；标注、例句按新条数对齐。
+            标完成前若改过内容，须先点「保存」。
           </p>
-
-          {localError ? (
-            <p className="jp-lesson-content-edit-error" role="alert">
-              {localError}
-            </p>
-          ) : null}
 
           {saveProgress.visible ? (
             <JpVocabSaveProgressBar
@@ -377,7 +409,7 @@ export function JpLessonContentEditModal({
         </div>
       </div>
 
-      <style jsx>{`
+      <style jsx global>{`
         .jp-lesson-content-edit-overlay {
           position: fixed;
           inset: 0;
@@ -581,10 +613,15 @@ export function JpLessonContentEditModal({
           font-weight: 400;
         }
         .jp-lesson-content-edit-error {
-          margin: 0;
+          margin: 0.65rem 0 0;
+          padding: 0.55rem 0.7rem;
+          border-radius: 8px;
+          border: 1px solid color-mix(in srgb, #e85d6f 45%, var(--border));
+          background: color-mix(in srgb, #e85d6f 12%, transparent);
           color: #e85d6f;
           font-size: 0.85rem;
-          font-weight: 500;
+          font-weight: 600;
+          line-height: 1.45;
         }
         .jp-lesson-content-edit-actions {
           flex-shrink: 0;

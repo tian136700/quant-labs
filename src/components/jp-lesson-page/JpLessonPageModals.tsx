@@ -200,8 +200,13 @@ export function JpLessonPageModals(props: JpLessonPageModalsProps) {
         onCompleteItems={
           canOperate
             ? (itemIndexes) => {
-                if (!editingContentLesson) return;
-                void completeLessonContentItems(
+                if (!editingContentLesson) {
+                  return Promise.resolve({
+                    ok: false as const,
+                    error: "课程已关闭，请重新打开后再标完成",
+                  });
+                }
+                return completeLessonContentItems(
                   editingContentLesson.id,
                   itemIndexes
                 );

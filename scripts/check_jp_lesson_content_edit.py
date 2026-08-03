@@ -59,6 +59,18 @@ def main() -> int:
         errors.append("modal must accept onCompleteItems callback")
     if "isJpLessonContentEditRowsDirty" not in edit_lib:
         errors.append("edit lib must detect unsaved rows before mark-complete")
+    # 标完成拦截提示必须在标题区（非滚动列表底），否则词多时像没反应
+    header_idx = modal.find('className="jp-lesson-content-edit-header"')
+    body_idx = modal.find('className="jp-lesson-content-edit-body"')
+    error_idx = modal.find('className="jp-lesson-content-edit-error"')
+    if header_idx < 0 or body_idx < 0 or error_idx < 0:
+        errors.append("modal must have header/body/error regions")
+    elif not (header_idx < error_idx < body_idx):
+        errors.append(
+            "complete/save localError must render in header (above scroll body)"
+        )
+    if "有未保存的修改，请先点「保存」，再标完成" not in modal:
+        errors.append("modal must explain dirty rows block mark-complete")
     # 禁止退回双大框靠行号对齐
     if 'className="jp-lesson-content-edit-textarea"' in modal:
         errors.append("modal must not use dual textareas for content/meanings")

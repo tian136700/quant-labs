@@ -58,6 +58,18 @@ def main() -> int:
     for needle in ("标完成", "标所选完成", "onCompleteItems"):
         if needle not in modal:
             errors.append(f"modal must support {needle}")
+    if 'className="jp-lesson-content-edit-error"' not in modal:
+        errors.append("modal must show complete/save errors")
+    header_idx = modal.find('className="jp-lesson-content-edit-header"')
+    body_idx = modal.find('className="jp-lesson-content-edit-body"')
+    error_idx = modal.find('className="jp-lesson-content-edit-error"')
+    if header_idx < 0 or body_idx < 0 or error_idx < 0:
+        errors.append("modal missing header/body/error for complete feedback")
+    elif not (header_idx < error_idx < body_idx):
+        errors.append(
+            "complete localError must sit in header above scroll body "
+            "(otherwise long lessons look like 标完成无反应)"
+        )
 
     page = (ROOT / "src/components/JpLessonPage.tsx").read_text(encoding="utf-8")
     if "completeLessonContentItems" not in page:
