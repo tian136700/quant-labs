@@ -137,6 +137,12 @@ def main() -> int:
         errors.append("Mac grammar fill 禁止再写「变形课不要接序」")
     if "CONJ_PAIR_SYSTEM" not in script or "id=521" not in script:
         errors.append("Mac CONJ_PAIR_SYSTEM 须要求 id=521 式接续表")
+    if "去掉「く」加「いて」" not in usage_ai and "去掉…加…" not in usage_ai:
+        errors.append("usage-ai て形接续表第一列须写清「去掉…加…」")
+    if "一类形容词去掉「い」加「くて」" not in usage_ai:
+        errors.append("usage-ai て形接续表须含一类形容词「去掉い加くて」")
+    if "二类形容词去掉「だ」加「で」" not in usage_ai and "名词加「で」" not in usage_ai:
+        errors.append("usage-ai て形接续表须含二类形容词／名词「で」")
 
     table = (
         ROOT / "src/components/JpVocabContrastDistinctionTable.tsx"
