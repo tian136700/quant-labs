@@ -44,6 +44,7 @@ export type JpLessonPageSectionsProps = {
   openNextClassEditModal: (lesson: JpLessonRecord) => void;
   setEditingLesson: (lesson: JpLessonRecord | null) => void;
   setEditingContentLesson: (lesson: JpLessonRecord | null) => void;
+  setViewingWordsLesson: (lesson: JpLessonRecord | null) => void;
   setAnnotatingLesson: (payload: {
     lesson: JpLessonRecord;
     ref: JpVocabRef;
@@ -97,6 +98,7 @@ export function JpLessonPageSections(props: JpLessonPageSectionsProps) {
     openNextClassEditModal,
     setEditingLesson,
     setEditingContentLesson,
+    setViewingWordsLesson,
     setAnnotatingLesson,
     setViewingExamples,
     deleteLesson,
@@ -136,6 +138,7 @@ export function JpLessonPageSections(props: JpLessonPageSectionsProps) {
     onViewExamples: setViewingExamples,
     onEditLesson: setEditingLesson,
     onEditContent: setEditingContentLesson,
+    onViewWords: setViewingWordsLesson,
     onAnnotateLesson: setAnnotatingLesson,
     onOpenTeacherEdit: openTeacherEditModal,
     onOpenNextClassEdit: openNextClassEditModal,

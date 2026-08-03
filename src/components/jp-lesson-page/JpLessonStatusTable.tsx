@@ -69,6 +69,7 @@ export type JpLessonStatusTableProps = {
   onToggleMeaningsExpanded: (lessonId: number) => void;
   onSetLessonProgress: (lessonId: number, status: JpLessonProgressStatus) => void | Promise<void>;
   onViewExamples: (target: JpLessonExamplesViewTarget) => void;
+  onViewWords: (lesson: JpLessonRecord) => void;
   onEditLesson: (lesson: JpLessonRecord) => void;
   onEditContent: (lesson: JpLessonRecord) => void;
   onAnnotateLesson: (payload: {
@@ -112,6 +113,7 @@ export function JpLessonStatusTable({
   onToggleMeaningsExpanded,
   onSetLessonProgress,
   onViewExamples,
+  onViewWords,
   onEditLesson,
   onEditContent,
   onAnnotateLesson,
@@ -158,8 +160,25 @@ export function JpLessonStatusTable({
       canOperate && gid ? coursePairMap.get(gid) ?? null : null;
 
     if (!hasRefKey) {
-      return canOperate ? (
+      const viewWordsBtn = (
+        <button
+          key="view-words"
+          type="button"
+          className="jp-lesson-action-btn jp-lesson-action-btn--view"
+          onClick={() => onViewWords(lesson)}
+        >
+          <span className="jp-lesson-mobile-btn-icon" aria-hidden="true">
+            <JpLessonMobileIcon name="view" />
+          </span>
+          查看
+        </button>
+      );
+      if (!canOperate) {
+        return <div className="jp-lesson-actions">{viewWordsBtn}</div>;
+      }
+      return (
         <div className="jp-lesson-actions">
+          {viewWordsBtn}
           <button
             type="button"
             className="jp-lesson-action-btn"
@@ -182,8 +201,6 @@ export function JpLessonStatusTable({
           </button>
           {renderLessonDeleteButton(lesson)}
         </div>
-      ) : (
-        <span style={{ color: "var(--muted)" }}>—</span>
       );
     }
 
@@ -292,6 +309,7 @@ export function JpLessonStatusTable({
       savingNextClassId={savingNextClassId}
       onEditContent={onEditContent}
       onEditLesson={onEditLesson}
+      onViewWords={onViewWords}
       onOpenNextClassEdit={onOpenNextClassEdit}
       onOpenTeacherEdit={onOpenTeacherEdit}
     />

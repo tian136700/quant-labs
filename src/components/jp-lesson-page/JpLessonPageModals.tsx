@@ -6,6 +6,7 @@ import { JpLessonContentEditModal } from "@/components/JpLessonContentEditModal"
 import { JpLessonExamplesViewModal, type JpLessonExamplesViewTarget } from "@/components/JpLessonExamplesViewModal";
 import { JpLessonNextClassEditModal } from "@/components/JpLessonNextClassEditModal";
 import { JpLessonTeacherEditModal } from "@/components/JpLessonTeacherEditModal";
+import { JpLessonWordsViewModal } from "@/components/JpLessonWordsViewModal";
 import { JpVocabRefEditModal } from "@/components/JpVocabRefEditModal";
 import type { Locale } from "@/i18n/messages";
 import type { JpLessonProgressStatus } from "@/lib/jp-lesson-shared";
@@ -36,6 +37,7 @@ export type JpLessonPageModalsProps = {
   editingRef: JpVocabRef | undefined;
   editingContentLesson: JpLessonRecord | null;
   savingContentId: number | null;
+  viewingWordsLesson: JpLessonRecord | null;
   annotatingLesson: {
     lesson: JpLessonRecord;
     ref: JpVocabRef;
@@ -56,6 +58,7 @@ export type JpLessonPageModalsProps = {
   setBatchClassSchedulesAndTeachers: (...args: any[]) => any;
   setEditingLesson: (v: JpLessonRecord | null) => void;
   setEditingContentLesson: (v: JpLessonRecord | null) => void;
+  setViewingWordsLesson: (v: JpLessonRecord | null) => void;
   saveLessonContentMeanings: (
     lessonId: number,
     content: string,
@@ -85,6 +88,7 @@ export function JpLessonPageModals(props: JpLessonPageModalsProps) {
     editingRef,
     editingContentLesson,
     savingContentId,
+    viewingWordsLesson,
     annotatingLesson,
     viewingExamples,
     setEditingTeacherLesson,
@@ -100,6 +104,7 @@ export function JpLessonPageModals(props: JpLessonPageModalsProps) {
     setBatchClassSchedulesAndTeachers,
     setEditingLesson,
     setEditingContentLesson,
+    setViewingWordsLesson,
     saveLessonContentMeanings,
     handleRefUpdated,
     openJpAuth,
@@ -171,6 +176,12 @@ export function JpLessonPageModals(props: JpLessonPageModalsProps) {
             meanings
           );
         }}
+      />
+
+      <JpLessonWordsViewModal
+        open={viewingWordsLesson != null}
+        lesson={viewingWordsLesson}
+        onClose={() => setViewingWordsLesson(null)}
       />
 
       <JpLessonBatchScheduleTeacherModal

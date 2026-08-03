@@ -12,6 +12,7 @@ type Props = {
   canOperate: boolean;
   isAdmin: boolean;
   savingNextClassId: number | null;
+  onViewWords: (lesson: JpLessonRecord) => void;
   onEditContent: (lesson: JpLessonRecord) => void;
   onEditLesson: (lesson: JpLessonRecord) => void;
   onOpenNextClassEdit: (lesson: JpLessonRecord) => void;
@@ -23,6 +24,7 @@ export function JpLessonStatusTableMobileFooter({
   canOperate,
   isAdmin,
   savingNextClassId,
+  onViewWords,
   onEditContent,
   onEditLesson,
   onOpenNextClassEdit,
@@ -30,12 +32,26 @@ export function JpLessonStatusTableMobileFooter({
 }: Props): ReactNode {
   const rows = groupLessons.flatMap((lesson) => {
     const buttons: ReactNode[] = [];
+    const idPrefix = groupLessons.length > 1 ? `#${lesson.id}` : undefined;
+    if (!lesson.ref_key) {
+      buttons.push(
+        <button
+          key={`view-words-${lesson.id}`}
+          type="button"
+          className="jp-lesson-mobile-footer-btn"
+          onClick={() => onViewWords(lesson)}
+        >
+          <JpLessonMobileIcon name="view" />
+          <span>{idPrefix ? `${idPrefix} ` : ""}查看</span>
+        </button>
+      );
+    }
     if (canOperate) {
       buttons.push(
         <JpLessonContentEditMobileButton
           key={`edit-content-${lesson.id}`}
           lesson={lesson}
-          idPrefix={groupLessons.length > 1 ? `#${lesson.id}` : undefined}
+          idPrefix={idPrefix}
           onEdit={onEditContent}
         />
       );
@@ -47,7 +63,7 @@ export function JpLessonStatusTableMobileFooter({
           onClick={() => onEditLesson(lesson)}
         >
           <JpLessonMobileIcon name="edit" />
-          <span>{groupLessons.length > 1 ? `#${lesson.id} ` : ""}编辑课程</span>
+          <span>{idPrefix ? `${idPrefix} ` : ""}编辑课程</span>
         </button>
       );
     }
@@ -61,7 +77,7 @@ export function JpLessonStatusTableMobileFooter({
           onClick={() => onOpenNextClassEdit(lesson)}
         >
           <JpLessonMobileIcon name="clock" />
-          <span>{groupLessons.length > 1 ? `#${lesson.id} ` : ""}修改时间</span>
+          <span>{idPrefix ? `${idPrefix} ` : ""}修改时间</span>
         </button>
       );
       buttons.push(
@@ -72,7 +88,7 @@ export function JpLessonStatusTableMobileFooter({
           onClick={() => onOpenTeacherEdit(lesson)}
         >
           <JpLessonMobileIcon name="user" />
-          <span>{groupLessons.length > 1 ? `#${lesson.id} ` : ""}修改老师</span>
+          <span>{idPrefix ? `${idPrefix} ` : ""}修改老师</span>
         </button>
       );
     }

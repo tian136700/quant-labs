@@ -111,6 +111,8 @@ export function JpLessonPage() {
   const [editingContentLesson, setEditingContentLesson] =
     useState<JpLessonRecord | null>(null);
   const [savingContentId, setSavingContentId] = useState<number | null>(null);
+  const [viewingWordsLesson, setViewingWordsLesson] =
+    useState<JpLessonRecord | null>(null);
   const [editingTeacherLesson, setEditingTeacherLesson] = useState<JpLessonRecord | null>(null);
   const [editingTeacherLessonIds, setEditingTeacherLessonIds] = useState<number[]>([]);
   const [editingNextClassLesson, setEditingNextClassLesson] = useState<JpLessonRecord | null>(null);
@@ -607,6 +609,7 @@ export function JpLessonPage() {
           openNextClassEditModal={openNextClassEditModal}
           setEditingLesson={setEditingLesson}
           setEditingContentLesson={setEditingContentLesson}
+          setViewingWordsLesson={setViewingWordsLesson}
           setAnnotatingLesson={setAnnotatingLesson}
           setViewingExamples={setViewingExamples}
           deleteLesson={deleteLesson}
@@ -641,6 +644,7 @@ export function JpLessonPage() {
         editingRef={editingRef}
         editingContentLesson={editingContentLesson}
         savingContentId={savingContentId}
+        viewingWordsLesson={viewingWordsLesson}
         annotatingLesson={annotatingLesson}
         viewingExamples={viewingExamples}
         setEditingTeacherLesson={setEditingTeacherLesson}
@@ -656,6 +660,7 @@ export function JpLessonPage() {
         setBatchClassSchedulesAndTeachers={setBatchClassSchedulesAndTeachers}
         setEditingLesson={setEditingLesson}
         setEditingContentLesson={setEditingContentLesson}
+        setViewingWordsLesson={setViewingWordsLesson}
         saveLessonContentMeanings={saveLessonContentMeanings}
         handleRefUpdated={handleRefUpdated}
         openJpAuth={openJpAuth}
