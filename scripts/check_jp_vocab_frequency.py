@@ -221,6 +221,27 @@ def main() -> int:
     ).read_text(encoding="utf-8"):
         errors.append("CourseFreqMetaSection must display score as n/10")
 
+    online_batch = ROOT / "scripts/jp-vocab-fill-online-batch-api.py"
+    if not online_batch.is_file():
+        errors.append("missing jp-vocab-fill-online-batch-api.py")
+    else:
+        ob = online_batch.read_text(encoding="utf-8")
+        if "oral_frequency" not in ob or "exam_frequency" not in ob:
+            errors.append(
+                "online-batch must generate/apply oral_frequency + exam_frequency "
+                "with other word fields (persistent unified cron)"
+            )
+        if "clamp_freq" not in ob:
+            errors.append("online-batch must clamp oral/exam frequency 1～10")
+
+    fixed = ROOT / "scripts/lib/jp_vocab_online_batch_fixed.py"
+    if fixed.is_file():
+        ft = fixed.read_text(encoding="utf-8")
+        if "WORD_FREQUENCY_KEYS" not in ft:
+            errors.append("jp_vocab_online_batch_fixed must define WORD_FREQUENCY_KEYS")
+        if "need_oral_frequency" not in ft:
+            errors.append("merge_needs must honor need_oral_frequency")
+
     online_py = ROOT / "scripts/jp-vocab-fill-frequency-online-api.py"
     if not online_py.is_file():
         errors.append("missing jp-vocab-fill-frequency-online-api.py")

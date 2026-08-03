@@ -12,6 +12,8 @@ from typing import Any, Callable
 GRAMMAR_CONJ_KEYS = ("example_sentences", "connection")
 GRAMMAR_PATTERN_KEYS = ("usage", "connection", "example_sentences")
 WORD_REQUIRED_KEYS = ("reading", "meaning", "pos", "example_sentences")
+# 单词词级出现频率（与读音/释义等同一次补；缺则必出）
+WORD_FREQUENCY_KEYS = ("oral_frequency", "exam_frequency")
 
 
 def full_refresh_needs(
@@ -28,6 +30,8 @@ def full_refresh_needs(
                 "connection": True,
                 "example_sentences": True,
                 "related_compounds": False,
+                "oral_frequency": False,
+                "exam_frequency": False,
             }
         return {
             "reading": False,
@@ -37,6 +41,9 @@ def full_refresh_needs(
             "connection": True,
             "example_sentences": True,
             "related_compounds": False,
+            # 语法频率写在 usage 行 [口语n|考试m]，不走词级列
+            "oral_frequency": False,
+            "exam_frequency": False,
         }
     return {
         "reading": True,
@@ -46,6 +53,8 @@ def full_refresh_needs(
         "connection": False,
         "example_sentences": True,
         "related_compounds": True,
+        "oral_frequency": True,
+        "exam_frequency": True,
     }
 
 
@@ -60,6 +69,10 @@ def merge_needs_from_missing_flags(
         out["connection"] = bool(row.get("need_connection"))
     if "need_usage" in row:
         out["usage"] = bool(row.get("need_usage"))
+    if "need_oral_frequency" in row:
+        out["oral_frequency"] = bool(row.get("need_oral_frequency"))
+    if "need_exam_frequency" in row:
+        out["exam_frequency"] = bool(row.get("need_exam_frequency"))
     return out
 
 
@@ -76,9 +89,12 @@ def required_keys_from_needs(
     if kind == "word":
         if needs:
             keys = [k for k in WORD_REQUIRED_KEYS if needs.get(k)]
+            for fk in WORD_FREQUENCY_KEYS:
+                if needs.get(fk):
+                    keys.append(fk)
             if keys:
                 return tuple(keys)
-        return WORD_REQUIRED_KEYS
+        return WORD_REQUIRED_KEYS + WORD_FREQUENCY_KEYS
 
     if kind == "grammar":
         default = (
@@ -115,9 +131,18 @@ def still_missing_detail_from_rows(
 def payload_covers_required(
     payload: dict[str, Any], required: tuple[str, ...]
 ) -> list[str]:
-    """返回 payload 仍缺的必填键（空串算缺）。"""
+    """返回 payload 仍缺的必填键（空串算缺；频率须 1～10 整数）。"""
     missing: list[str] = []
     for key in required:
+        if key in WORD_FREQUENCY_KEYS:
+            try:
+                n = int(str(payload.get(key)).strip())
+            except (TypeError, ValueError):
+                missing.append(key)
+                continue
+            if not (1 <= n <= 10):
+                missing.append(key)
+            continue
         if not str(payload.get(key) or "").strip():
             missing.append(key)
     return missing

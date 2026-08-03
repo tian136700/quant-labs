@@ -4,8 +4,8 @@
 与英语 en-vocab-fill-online-batch-api.py 同模式：Mac 调 tokken Anthropic，
 Worker 只负责 list_missing / apply（禁止 Worker 内调模型）。
 
-单词缺项：读音、释义、词性、例句（例句句末标 (N5)/(N4)…）
-语法缺项：用法、接序、例句（变形课：例句+接续表；usage 空）
+单词缺项：读音、释义、词性、例句、相关构词、口语/考试出现频率（1～10）
+语法缺项：用法（含每用法 [口语n|考试m]）、接序、例句（变形课：例句+接续表；usage 空）
 
 仅在 JP_VOCAB_FILL_LLM_BACKEND=1 时由 jp-vocab-fill-unified-stage.sh 调用。
 """
@@ -26,9 +26,16 @@ sys.path.insert(0, str(ROOT / "scripts" / "lib"))
 
 from jp_vocab_fill_common import call_api, resolve_token  # noqa: E402
 from jp_vocab_llm_backend import backend_label, is_online_backend  # noqa: E402
+from jp_vocab_example_furigana import (  # noqa: E402
+    build_furigana_retry_hint,
+    describe_incomplete_furigana,
+    merge_fill_payload,
+)
+from jp_vocab_frequency import clamp_freq  # noqa: E402
 from jp_vocab_online_batch_fixed import (  # noqa: E402
     GRAMMAR_CONJ_KEYS,
     GRAMMAR_PATTERN_KEYS,
+    WORD_FREQUENCY_KEYS,
     WORD_REQUIRED_KEYS,
     evaluate_online_batch_fixed,
     full_refresh_needs as _full_refresh_needs,
@@ -55,11 +62,6 @@ from vocab_fill_circuit_breaker import (  # noqa: E402
 )
 from worker_api_guard import skip_if_worker_unavailable  # noqa: E402
 from vocab_fill_quiz_gate import skip_if_quiz_gate_quiet  # noqa: E402
-from jp_vocab_example_furigana import (  # noqa: E402
-    build_furigana_retry_hint,
-    describe_incomplete_furigana,
-    merge_fill_payload,
-)
 
 BASE = "https://finance.info-quests.com"
 READING_URL = f"{BASE}/api/jp-vocab/fill-reading"
@@ -78,9 +80,11 @@ EXAMPLE_JLPT_TAIL_RE = re.compile(
 WORD_SYSTEM = (
     "你为中文母语的日语 N5/N4 初学者补全「单词」闪卡。"
     "只输出一个 JSON 对象，不要 markdown 围栏、不要解释。"
-    "【硬规则】无论库里缺哪一项，每次都必须一次性输出该单词的全部五项，禁止只补缺项："
+    "【硬规则】无论库里缺哪一项，每次都必须一次性输出该单词的全部字段，禁止只补缺项："
     "reading（假名读音）、meaning（中文释义）、pos（中文词性）、"
-    "example_sentences（例句字符串）、related_compounds（相关构词多行字符串）。"
+    "example_sentences（例句字符串）、related_compounds（相关构词多行字符串）、"
+    "oral_frequency（口语出现频率 1～10 整数）、exam_frequency（考试/JLPT 出现频率 1～10 整数）。"
+    "口语=日常会话常见度；考试=JLPT 常见度；两分可不同。禁止输出小数/字符串分。"
     "单词没有接序，禁止输出 connection / usage 字段。"
     "释义：最常用 1～3 个中文义项，用「；」连接，常用在前；"
     "一词多种读音/大义项（与 reading 斜杠对应）用半角 / 分隔，如「前面；以前/前面的；预先的」。"
@@ -111,7 +115,7 @@ WORD_SYSTEM = (
     "✅決まり(きまり)：规定　❌決(き)まり：规定；✅知らせ(しらせ)：通知　❌知(し)らせ：通知；"
     "词条本身无汉字（如フランスじん）→ related_compounds 填 \"\"，例句须原样出现词条假名串，"
     "禁止改写成汉字（❌フランス人(じん)）。"
-    "与 reading/meaning/pos/example_sentences 同一次 JSON，禁止另开请求。"
+    "与 reading/meaning/pos/example_sentences/oral_frequency/exam_frequency 同一次 JSON，禁止另开请求。"
     "条数：没有自然同读相关词 → \"\"（禁止硬凑）；只有 1～2 个就写 1～2；多则最多 4～5 条。"
     "每行「漢字(かな)：中文」；一词多义用「，」（目上：上级，长辈），释义禁止「；」；"
     "优先 N5～N4，禁止商务难词；假名须正确。"
@@ -240,8 +244,11 @@ def build_prompt(row: dict[str, Any], *, full_bundle: bool = True) -> str:
 
     if kind == "word":
         bundle_rule = (
-            "必须一次性输出 JSON 的全部五项（即使库里只有例句缺失，也要重写读音/释义/词性/例句/相关构词）："
-            "reading, meaning, pos, example_sentences, related_compounds。"
+            "必须一次性输出 JSON 的全部字段（即使库里只有例句缺失，也要重写"
+            "读音/释义/词性/例句/相关构词/口语频率/考试频率）："
+            "reading, meaning, pos, example_sentences, related_compounds, "
+            "oral_frequency, exam_frequency。"
+            "oral_frequency / exam_frequency 为 1～10 整数（口语=会话；考试=JLPT）。"
             "禁止输出 connection、usage（单词没有接序）。"
             "related_compounds 与其它字段同一次输出；格式：每行 漢字(かな)：中文（整词假名，"
             "❌決(き)まり ✅決まり(きまり)）；"
@@ -288,9 +295,11 @@ def build_prompt(row: dict[str, Any], *, full_bundle: bool = True) -> str:
 已有接序：{row.get("connection") or "（无）"}
 已有例句：{row.get("example_sentences") or "（无）"}
 已有相关构词：{row.get("related_compounds") or "（无）"}
+已有口语频率：{row.get("oral_frequency") or "（无）"}
+已有考试频率：{row.get("exam_frequency") or "（无）"}
 已有课次：{row.get("course_label") or "（无）"}
 
-JSON 必须包含且非空：{", ".join(req_keys)}（变形课 usage 填 ""；单词 related_compounds 可 ""）。
+JSON 必须包含且非空：{", ".join(req_keys)}（变形课 usage 填 ""；单词 related_compounds 可 ""；频率为 1～10 整数）。
 只输出 JSON。"""
 
 
@@ -441,6 +450,12 @@ def apply_bundle(
             word_update["meaning"] = payload["meaning"]
         if payload.get("pos"):
             word_update["pos"] = payload["pos"]
+        oral = clamp_freq(payload.get("oral_frequency"))
+        exam = clamp_freq(payload.get("exam_frequency"))
+        if oral is not None:
+            word_update["oral_frequency"] = oral
+        if exam is not None:
+            word_update["exam_frequency"] = exam
         # 例句不走 meaning：避免 updated>0（只覆写释义）却被当成整词搞定
         if len(word_update) > 2:
             r = _apply(
@@ -610,6 +625,12 @@ def extract_bundle(data: dict[str, Any], row: dict[str, Any]) -> dict[str, Any]:
             out["example_sentences"] = ex
         # 始终带上键（可 ""）：没有自然相关词填空，禁止模型整段省略该字段
         out["related_compounds"] = str(data.get("related_compounds") or "").strip()
+        oral = clamp_freq(data.get("oral_frequency"))
+        exam = clamp_freq(data.get("exam_frequency"))
+        if oral is not None:
+            out["oral_frequency"] = oral
+        if exam is not None:
+            out["exam_frequency"] = exam
         return out
 
     if is_conjugation_word(word):
@@ -641,8 +662,11 @@ def bundle_missing_keys(payload: dict[str, Any], row: dict[str, Any]) -> list[st
     word = str(row.get("word") or "")
 
     if kind == "word":
-        for key in WORD_REQUIRED_KEYS:
-            if not str(payload.get(key) or "").strip():
+        for key in required_keys_for_row(row):
+            if key in WORD_FREQUENCY_KEYS:
+                if clamp_freq(payload.get(key)) is None:
+                    missing.append(key)
+            elif not str(payload.get(key) or "").strip():
                 missing.append(key)
         if payload.get("connection") or payload.get("usage"):
             missing.append("forbidden_word_connection_or_usage")
@@ -716,7 +740,8 @@ def generate_bundle(row: dict[str, Any], needs: dict[str, bool]) -> dict[str, An
         )
         if kind == "word":
             retry_hint += (
-                "单词必须一次性给出 reading、meaning、pos、example_sentences 四项；"
+                "单词必须一次性给出 reading、meaning、pos、example_sentences，"
+                "以及 oral_frequency、exam_frequency（各 1～10 整数）；"
                 "禁止 connection、usage。"
             )
         elif is_conjugation_word(str(row.get("word") or "")):

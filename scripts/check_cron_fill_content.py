@@ -42,6 +42,11 @@ def main() -> int:
         raise SystemExit(
             "FAIL: jp-vocab-fill-unified.fill_content 须含「相关构词」"
         )
+    if "口语频率" not in unified.fill_content or "考试频率" not in unified.fill_content:
+        raise SystemExit(
+            "FAIL: jp-vocab-fill-unified.fill_content 须含「口语频率」「考试频率」"
+            "（常规定时与读音/释义等同持久写回）"
+        )
     rc = by_id["jp-vocab-fill-related-compounds-online"]
     if rc.fill_content != ("相关构词",):
         raise SystemExit(
