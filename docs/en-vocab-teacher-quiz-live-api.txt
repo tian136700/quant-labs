@@ -1,0 +1,199 @@
+英语抽背 · 老师抽查 live / 学生 peek API
+=====================================
+
+用途
+----
+老师端把「当前抽查卡片上的单词」写入 live 状态；学生端「查看老师正在抽查的单词」
+（peek）拉词；老师端可轮询是否已被学生 peek、以及推送「发送读音」信号。
+
+学生日常列表轮询请用 GET /api/en-vocab/shared（见 docs/en-vocab-shared-api.txt），
+**不要**对学生页另开本接口的定时轮询。本接口用于：
+  - 老师 PUT 同步当前词
+  - 老师 GET 查 student_peeked
+  - 学生 POST peek（点按钮一次）
+  - 学生 GET ?scope=study 只读当前 live.word_id（轻量）
+
+
+线上地址
+--------
+GET  https://english.info-quests.com/api/en-vocab/teacher-quiz-live
+GET  https://english.info-quests.com/api/en-vocab/teacher-quiz-live?scope=study
+GET  https://english.info-quests.com/api/en-vocab/teacher-quiz-live?word_id=123
+PUT  https://english.info-quests.com/api/en-vocab/teacher-quiz-live
+POST https://english.info-quests.com/api/en-vocab/teacher-quiz-live
+
+说明：也可用 finance.info-quests.com 同路径（同一 Worker / 同一 D1）。
+
+
+本机开发（可选）
+---------------
+http://127.0.0.1:3002/api/en-vocab/teacher-quiz-live
+
+
+鉴权
+----
+须登录 Cookie（credentials: include）。
+
+| 方法 / 场景 | 谁可调 |
+|-------------|--------|
+| GET（默认，老师） | 管理员或英语老师（en_vocab 操作权） |
+| GET ?scope=study | 管理员或已授权学生（en_vocab:study） |
+| PUT | 管理员或英语老师 |
+| POST（peek） | 管理员或已授权学生 |
+
+Header（可选）：x-locale: zh | en
+
+
+live 对象字段
+-------------
+{
+  "date": "2026-08-03",           // 北京日期；跨日自动清空
+  "word_id": 123,                 // 当前抽查词；null=未在抽
+  "updated_at": "…",
+  "student_peek_word_id": 123,    // 学生 peek 记的词（须与 word_id 一致才算已查看）
+  "student_peek_by": "student1",
+  "student_peek_at": "…",
+  "pronounce_word_id": 123,       // 老师「发送读音」信号（本机 TTS，非音频文件）
+  "pronounce_text": "condition",
+  "pronounce_at": "…"
+}
+
+
+────────────────────────────────
+GET · 老师读 live / 是否已 peek
+────────────────────────────────
+
+Query：
+  word_id   选填。传入当前卡片词 id 时，响应带 student_peeked（该词是否已被学生查看）
+
+成功：
+{
+  "ok": true,
+  "live": { … },
+  "student_peeked": true,
+  "student_peek_by": "student1"
+}
+
+Cache-Control: no-store
+
+
+────────────────────────────────
+GET · 学生只读 word_id（scope=study）
+────────────────────────────────
+
+GET …/teacher-quiz-live?scope=study
+
+成功：
+{ "ok": true, "live": { "word_id": 123 } }
+
+服务端 **bypassCache**，避免 isolate 短缓存仍是 null。
+
+
+────────────────────────────────
+PUT · 老师写入当前词 / 发送读音
+────────────────────────────────
+
+Body（设当前词）：
+{
+  "word_id": 123
+}
+
+清空（关卡 / 无词）：
+{
+  "word_id": null
+}
+
+成功：{ "ok": true, "live": { … } }
+
+Body（发送读音，推学生端 TTS）：
+{
+  "action": "send_pronounce",
+  "word_id": 123
+}
+
+成功：
+{
+  "ok": true,
+  "live": { … },
+  "teacher_pronounce": { "word_id": 123, "text": "condition", "at": "…" }
+}
+
+失败（节选）：
+| HTTP | code / error |
+|------|----------------|
+| 400 | word_mismatch / empty_word |
+| 404 | no_active_word / 单词不存在 |
+
+
+────────────────────────────────
+POST · 学生 peek（查看老师正在抽查的词）
+────────────────────────────────
+
+无 Body。拉当前 live 词详情；成功会记 student_peek_*，老师端下次 GET 可见
+「该学生已查看该单词」。
+
+成功：
+{
+  "ok": true,
+  "item": { … },          // 学生端展示用条目
+  "word": { … },
+  "refs": { … }
+}
+
+失败：
+404  { "ok": false, "error": "老师当前没有在抽查单词…", "code": "no_active_word" }
+404  { "ok": false, "error": "单词不存在或已失效。", "code": "…" }
+
+客户端建议：20s 超时（VOCAB_STUDENT_PEEK_TIMEOUT_MS）；老师 PUT 失败须重试，
+见 src/lib/vocab-teacher-quiz-live-sync.ts。
+
+
+curl 示例
+---------
+# 老师设当前词
+curl -sS -X PUT 'https://english.info-quests.com/api/en-vocab/teacher-quiz-live' \
+  -H 'Cookie: 你的登录 Cookie' \
+  -H 'Content-Type: application/json' \
+  -H 'x-locale: zh' \
+  -d '{"word_id":123}'
+
+# 学生 peek
+curl -sS -X POST 'https://english.info-quests.com/api/en-vocab/teacher-quiz-live' \
+  -H 'Cookie: 学生 Cookie' \
+  -H 'x-locale: zh'
+
+
+Python 最小例
+-------------
+import requests
+
+BASE = "https://english.info-quests.com"
+TEACHER_COOKIE = "老师 Cookie"
+STUDENT_COOKIE = "学生 Cookie"
+
+# 老师同步当前词
+r = requests.put(
+    f"{BASE}/api/en-vocab/teacher-quiz-live",
+    headers={"Cookie": TEACHER_COOKIE, "Content-Type": "application/json", "x-locale": "zh"},
+    json={"word_id": 123},
+    timeout=30,
+)
+print("PUT", r.status_code, r.json())
+
+# 学生 peek
+r2 = requests.post(
+    f"{BASE}/api/en-vocab/teacher-quiz-live",
+    headers={"Cookie": STUDENT_COOKIE, "x-locale": "zh"},
+    timeout=20,
+)
+print("POST peek", r2.status_code, r2.json().get("ok"), r2.json().get("code"))
+
+
+相关
+----
+- 学生今日列表：docs/en-vocab-shared-api.txt（含 teacher_live_word_id）
+- 实现：src/app/api/en-vocab/teacher-quiz-live/route.ts
+        src/lib/en-vocab-db/live.ts
+        src/lib/en-vocab-teacher-quiz-live.ts
+- 同步约定：.cursor/rules/vocab-teacher-quiz-live-sync.mdc
+- 日语对照：/api/jp-vocab/teacher-quiz-live（结构类似）

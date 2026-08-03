@@ -43,63 +43,67 @@
    文件：docs/en-vocab-shared-api.txt
    调用：GET https://english.info-quests.com/api/en-vocab/shared
 
-10. 英语抽背 · 今日抽查数量 / 老师可见池 API
+10. 英语抽背 · 老师抽查 live / 学生 peek API
+   文件：docs/en-vocab-teacher-quiz-live-api.txt
+   调用：GET  https://english.info-quests.com/api/en-vocab/teacher-quiz-live
+
+11. 英语抽背 · 今日抽查数量 / 老师可见池 API
    文件：docs/en-vocab-teacher-visible-api.txt
    调用：GET https://english.info-quests.com/api/en-vocab/teacher-visible
 
-11. 日语新课 · 列表与操作 API（含删除）
+12. 日语新课 · 列表与操作 API（含删除）
    文件：docs/jp-lesson-api.txt
    调用：GET  https://japanese.info-quests.com/api/jp-lesson
 
-12. 日语新课 · 整课合并教案 API（同一课单词+语法 → 一份查看链接）
+13. 日语新课 · 整课合并教案 API（同一课单词+语法 → 一份查看链接）
    文件：docs/jp-lesson-course-merge-ref-api.txt
    调用：POST https://japanese.info-quests.com/api/jp-lesson/course-merge-ref
 
-13. 日语新课 · 批量挂教案图片 API（勾选多课 → 同一张图）
+14. 日语新课 · 批量挂教案图片 API（勾选多课 → 同一张图）
    文件：docs/jp-lesson-ref-attach-batch-api.txt
    调用：POST https://japanese.info-quests.com/api/jp-lesson/ref/attach-batch
 
-14. 日语新课 · 同一课合传 API（单词 + 语法一次上传，列表仍分开展示）
+15. 日语新课 · 同一课合传 API（单词 + 语法一次上传，列表仍分开展示）
    文件：docs/jp-lesson-upload-mixed-api.txt
    调用：POST https://japanese.info-quests.com/api/jp-lesson/upload-mixed
 
-15. 日语抽问 · 熟悉程度 / 同步学生 API
+16. 日语抽问 · 熟悉程度 / 同步学生 API
    文件：docs/jp-vocab-api.txt
    调用：POST https://japanese.info-quests.com/api/jp-vocab
 
-16. 日语抽问 · 课堂备注 API（按需拉正文 / 保存）
+17. 日语抽问 · 课堂备注 API（按需拉正文 / 保存）
    文件：docs/jp-vocab-class-notes-api.txt
    调用：GET  https://japanese.info-quests.com/api/jp-vocab/class-notes?word_id=123
 
-17. 日语抽问 · 一键下载全部词条 API（给其它项目比对用）
+18. 日语抽问 · 一键下载全部词条 API（给其它项目比对用）
    文件：docs/jp-vocab-download-all-api.txt
    调用：GET https://japanese.info-quests.com/api/jp-vocab/download-all
 
-18. 日语抽问 · 编辑词条 API（老师端编辑弹窗 / 其它项目写回）
+19. 日语抽问 · 编辑词条 API（老师端编辑弹窗 / 其它项目写回）
    文件：docs/jp-vocab-edit-api.txt
    调用：POST https://japanese.info-quests.com/api/jp-vocab/edit
 
-19. 日语抽问 · 词条存在性检测 API（给其它项目调用）
+20. 日语抽问 · 词条存在性检测 API（给其它项目调用）
    文件：docs/jp-vocab-exists-api.txt
    调用：GET https://japanese.info-quests.com/api/jp-vocab/exists?word=東&kind=word
 
-20. 日语抽问 · 例句补全 API（给 Mac 定时 / STT / Agent 调用）
+21. 日语抽问 · 例句补全 API（给 Mac 定时 / STT / Agent 调用）
    文件：docs/jp-vocab-fill-example-sentences-api.txt
    调用：POST https://japanese.info-quests.com/api/jp-vocab/fill-example-sentences
 
-21. 日语词条 · 口语/考试出现频率补全 API
+22. 日语词条 · 口语/考试出现频率补全 API
    文件：docs/jp-vocab-fill-frequency-api.txt
    调用：POST https://finance.info-quests.com/api/jp-vocab/fill-frequency
 
-22. 日语/英语词表补全 · 抽查门禁 API（给 Mac 定时 / STT 调用）
+23. 日语/英语词表补全 · 抽查门禁 API（给 Mac 定时 / STT 调用）
    文件：docs/jp-vocab-fill-schedule-gate-api.txt
    调用：POST https://finance.info-quests.com/api/jp-vocab/fill-schedule-gate
 
-23. 日语抽问 · 今日共享列表 API（学生端 /jp-vocab/study）
+24. 日语抽问 · 今日共享列表 API（学生端 /jp-vocab/study）
    文件：docs/jp-vocab-shared-api.txt
    调用：GET https://japanese.info-quests.com/api/jp-vocab/shared
 
-24. 日语抽问 · 今日抽查数量 / 老师可见池 API
+25. 日语抽问 · 今日抽查数量 / 老师可见池 API
    文件：docs/jp-vocab-teacher-visible-api.txt
    调用：GET https://japanese.info-quests.com/api/jp-vocab/teacher-visible
 

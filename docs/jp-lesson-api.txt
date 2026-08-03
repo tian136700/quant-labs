@@ -200,6 +200,9 @@ POST · delete（删除新课）
 ----
 删除一条日语新课（列表「删除」按钮同源）。
 
+网页「编辑学习内容与释义」若**删光最后一项**学习内容，也会调本 action
+（整条未完成课从列表消失）；不是 set_content 空串。
+
 副作用：
 - 若该课已是「已完成」，先从日语抽问卸掉本课同步过去的词/语法
 - 删除本课课堂笔记、老师关联、上课时间
@@ -391,8 +394,10 @@ Body:
   }
 
 说明：
-- content / meanings 为入库形态（逗号 / |）；网页编辑弹窗会把「1. xxx」换行拆成此格式后再提交
+- content / meanings 为入库形态（逗号 / |）；网页编辑弹窗会把成对行拆成此格式后再提交
 - 保存后按新 content 项数对齐 annotations、example_sentences
+- **content 不能为空**（空会 content_empty）；要删光整课请用 action=delete
+- 网页弹窗：删行会立刻 set_content（keepOpen）；删光最后一项改走 delete
 - 成功返回 { ok, lesson }
 
 

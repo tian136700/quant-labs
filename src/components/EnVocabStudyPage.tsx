@@ -90,6 +90,8 @@ export function EnVocabStudyPage() {
   const [pronounceToast, setPronounceToast] =
     useState<EnVocabTeacherPronounceSignal | null>(null);
   const pronounceHandledAtRef = useRef<string | null>(null);
+  const pronounceSeededRef = useRef(false);
+
 
   const pollInFlightRef = useRef(false);
   const pendingRefreshRef = useRef(false);
@@ -180,6 +182,34 @@ export function EnVocabStudyPage() {
     setTeacherLiveWordId(Number.isFinite(n) && n > 0 ? Math.floor(n) : null);
   }, []);
 
+  /** 老师「发送读音」信号：shared 轮询 / BroadcastChannel；零新增 poll */
+  const applyTeacherPronounce = useCallback((raw: unknown) => {
+    const signal = parseEnVocabTeacherPronouncePayload(raw);
+    if (!signal) return;
+
+    const handled =
+      pronounceHandledAtRef.current ?? readHandledEnVocabPronounceAt();
+
+    if (!pronounceSeededRef.current) {
+      pronounceSeededRef.current = true;
+      if (!shouldHandleEnVocabPronounceSignal(signal, handled)) {
+        pronounceHandledAtRef.current = handled ?? signal.at;
+        return;
+      }
+      // 首次进页且本会话无已处理记录：吃掉当前信号，避免一进页就弹旧读音
+      if (!handled) {
+        pronounceHandledAtRef.current = signal.at;
+        markHandledEnVocabPronounceAt(signal.at);
+        return;
+      }
+    }
+
+    if (!shouldHandleEnVocabPronounceSignal(signal, handled)) return;
+    pronounceHandledAtRef.current = signal.at;
+    markHandledEnVocabPronounceAt(signal.at);
+    setPronounceToast(signal);
+  }, []);
+
   const applyStudyPayload = useCallback(
     (payload: {
       items: EnVocabSharedItem[];
@@ -265,6 +295,7 @@ export function EnVocabStudyPage() {
         share_date?: string;
         quiz_progress?: EnVocabDailyQuizProgress;
         teacher_live_word_id?: number | null;
+        teacher_pronounce?: unknown;
         error?: string;
       }>(res);
       if (!parsed.ok) {
@@ -317,6 +348,7 @@ export function EnVocabStudyPage() {
             : null,
       });
       applyTeacherLiveWordId(data.teacher_live_word_id);
+      applyTeacherPronounce(data.teacher_pronounce);
       setError("");
       return { errorBackoff: false };
     } catch (err) {
@@ -346,7 +378,7 @@ export function EnVocabStudyPage() {
         pendingRefreshRef.current = false;
       }
     }
-  }, [locale, canViewStudy, applyStudyPayload, applyTeacherLiveWordId]);
+  }, [locale, canViewStudy, applyStudyPayload, applyTeacherLiveWordId, applyTeacherPronounce]);
 
   useEffect(() => {
     if (checking) return;
@@ -369,6 +401,17 @@ export function EnVocabStudyPage() {
       void loadShared({ force: true });
     });
   }, [loadShared, canViewStudy]);
+
+  useEffect(() => {
+    if (!canViewStudy) return;
+    return subscribeEnVocabPronounceSent((detail) => {
+      applyTeacherPronounce({
+        word_id: detail.word_id,
+        text: detail.text,
+        at: detail.at,
+      });
+    });
+  }, [canViewStudy, applyTeacherPronounce]);
 
   useEffect(() => {
     const wordId = pendingFlashcardWordIdRef.current;
@@ -747,6 +790,10 @@ export function EnVocabStudyPage() {
         onSaved={handleWordSaved}
         onSaveFailed={handleWordSaveFailed}
         onNeedAuth={openEnAuth}
+      />
+      <EnVocabStudentPronounceToast
+        signal={pronounceToast}
+        onDismiss={() => setPronounceToast(null)}
       />
       <EnVocabStudyPageStyles />
 

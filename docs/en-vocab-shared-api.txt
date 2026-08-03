@@ -126,6 +126,8 @@ print("live=", data.get("teacher_live_word_id"))
 
 相关
 ----
+- 老师 live / 学生 peek：docs/en-vocab-teacher-quiz-live-api.txt
+  （PUT 写当前词、POST peek；学生页**勿**对本接口定时轮询）
 - 备注正文：docs/en-vocab-class-notes-api.txt
 - 老师熟悉程度 / share：docs/en-vocab-api.txt
 - 1102：响应走 jsonResponseObserving1102（诊断看板 /admin/worker-1102）

@@ -39,6 +39,10 @@ REQUIRED: list[tuple[str, str]] = [
         "docs/en-vocab-shared-api.txt",
     ),
     (
+        "src/app/api/en-vocab/teacher-quiz-live/route.ts",
+        "docs/en-vocab-teacher-quiz-live-api.txt",
+    ),
+    (
         "src/app/api/en-vocab/class-notes/route.ts",
         "docs/en-vocab-class-notes-api.txt",
     ),
