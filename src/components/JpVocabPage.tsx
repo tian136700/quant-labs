@@ -887,7 +887,13 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
             isAdminMode ? (w) => void boostQuizPriority(w) : undefined
           }
           onPreviewQuizCard={
-            isAdminMode ? (w) => setQuizCardPreviewWordId(w.id) : undefined
+            isAdminMode
+              ? (w) => {
+                  // 预览用 wordsById；管理员端无常驻 sync，补全写库后易仍看旧缓存
+                  setQuizCardPreviewWordId(w.id);
+                  void loadWords({ force: true });
+                }
+              : undefined
           }
           onViewMnemonic={setViewingMnemonicWord}
           onRecordLevel={(wordId, level) => void tryRecordLevel(wordId, level)}

@@ -924,7 +924,10 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
           onViewRemarks={setViewingRemarksWord}
           onEditRemarks={setEditingRemarksWord}
           onEditWord={setEditingWord}
-          onPreviewQuizCard={(wordId) => setQuizCardPreviewWordId(wordId)}
+          onPreviewQuizCard={(wordId) => {
+            setQuizCardPreviewWordId(wordId);
+            void loadWords({ force: true });
+          }}
           onDeleteWord={(w) => void deleteWord(w)}
           onShareWord={(wordId) => void shareWord(wordId)}
           onRecordLevel={(wordId, level) => void recordLevel(wordId, level)}

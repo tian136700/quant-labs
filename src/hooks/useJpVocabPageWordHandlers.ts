@@ -2,6 +2,7 @@
 
 import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 import { copyTextToClipboard } from "@/lib/copy-text";
+import { mergeJpVocabWordAfterReviewResponse } from "@/lib/jp-vocab-class-notes";
 import { jpVocabFlashcardCopyText } from "@/lib/jp-vocab-flashcard-copy";
 import { pickRandomJpVocabWord } from "@/lib/jp-vocab-page-helpers";
 import { resolveJpVocabRefForPreview } from "@/lib/jp-vocab-ref-shared";
@@ -142,12 +143,23 @@ export function useJpVocabPageWordHandlers(options: {
   const handleWordSaved = useCallback(
     (word: JpVocabWord) => {
       setWords((prev) => {
-        const next = prev.map((w) => (w.id === word.id ? word : w));
+        // 禁止整词覆盖：class-notes 窄查询 / 部分 PATCH 可能带 null 例句·用法
+        const next = prev.map((w) =>
+          w.id === word.id ? mergeJpVocabWordAfterReviewResponse(w, word) : w
+        );
         persistCache(next, refs, displayOrderRef.current);
         return next;
       });
-      setEditingRemarksWord((prev) => (prev?.id === word.id ? word : prev));
-      setViewingRemarksWord((prev) => (prev?.id === word.id ? word : prev));
+      setEditingRemarksWord((prev) =>
+        prev?.id === word.id
+          ? mergeJpVocabWordAfterReviewResponse(prev, word)
+          : prev
+      );
+      setViewingRemarksWord((prev) =>
+        prev?.id === word.id
+          ? mergeJpVocabWordAfterReviewResponse(prev, word)
+          : prev
+      );
       if (editingRemarksIdRef.current !== word.id) {
         setStatus("词条已保存。");
       }
