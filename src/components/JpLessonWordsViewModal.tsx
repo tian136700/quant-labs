@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   alignLessonItemMeanings,
@@ -9,7 +9,7 @@ import {
 } from "@/lib/jp-lesson-shared";
 import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
-import type { JpLessonRecord } from "@/lib/types";
+import type { JpLessonNote, JpLessonRecord } from "@/lib/types";
 
 type Props = {
   open: boolean;
@@ -19,9 +19,11 @@ type Props = {
 
 /**
  * 无教案时「查看」：竖排 1. 2. 3. … 展示本课学习内容（及对齐释义）。
+ * 同步跳过备注（抽问已有辞书形）挂在对应词下方。
  */
 export function JpLessonWordsViewModal({ open, lesson, onClose }: Props) {
   const [mounted, setMounted] = useState(false);
+  const [notesByWord, setNotesByWord] = useState<Record<string, string[]>>({});
 
   useEffect(() => {
     setMounted(true);
@@ -41,18 +43,68 @@ export function JpLessonWordsViewModal({ open, lesson, onClose }: Props) {
     return lockBodyScroll();
   }, [open]);
 
-  if (!open || !mounted || !lesson) return null;
+  useEffect(() => {
+    if (!open || !lesson?.id) {
+      setNotesByWord({});
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/jp-lesson/notes?lesson_id=${lesson.id}`, {
+          credentials: "include",
+        });
+        const data = (await res.json()) as {
+          ok?: boolean;
+          notes?: JpLessonNote[];
+        };
+        if (cancelled || !data.ok || !Array.isArray(data.notes)) {
+          if (!cancelled) setNotesByWord({});
+          return;
+        }
+        const map: Record<string, string[]> = {};
+        for (const note of data.notes) {
+          const key = (note.item_word || "").trim();
+          const body = (note.body || "").trim();
+          if (!key || !body) continue;
+          if (!map[key]) map[key] = [];
+          map[key].push(body);
+        }
+        if (!cancelled) setNotesByWord(map);
+      } catch {
+        if (!cancelled) setNotesByWord({});
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, lesson?.id]);
 
-  const items = parseLessonContent(lesson.content);
-  const meanings = alignLessonItemMeanings(lesson.content, lesson.meanings);
-  const rows = items.length
-    ? items.map((word, index) => ({
+  const rows = useMemo(() => {
+    if (!lesson) return [];
+    const items = parseLessonContent(lesson.content);
+    const meanings = alignLessonItemMeanings(lesson.content, lesson.meanings);
+    if (items.length) {
+      return items.map((word, index) => ({
         word,
         meaning: meanings[index] || null,
-      }))
-    : lesson.content.trim()
-      ? [{ word: lesson.content.trim(), meaning: null }]
-      : [];
+        notes: notesByWord[word] || [],
+      }));
+    }
+    if (lesson.content.trim()) {
+      const word = lesson.content.trim();
+      return [
+        {
+          word,
+          meaning: null as string | null,
+          notes: notesByWord[word] || [],
+        },
+      ];
+    }
+    return [];
+  }, [lesson, notesByWord]);
+
+  if (!open || !mounted || !lesson) return null;
 
   const subtitleBits = [
     `#${lesson.id}`,
@@ -103,6 +155,14 @@ export function JpLessonWordsViewModal({ open, lesson, onClose }: Props) {
                     {row.meaning ? (
                       <span className="jp-lesson-words-view-meaning">{row.meaning}</span>
                     ) : null}
+                    {row.notes.map((note, noteIndex) => (
+                      <span
+                        key={`${index}-note-${noteIndex}`}
+                        className="jp-lesson-words-view-note"
+                      >
+                        备注：{note}
+                      </span>
+                    ))}
                   </div>
                 </li>
               ))}
@@ -152,83 +212,85 @@ export function JpLessonWordsViewModal({ open, lesson, onClose }: Props) {
           margin: 0.3rem 0 0;
           color: var(--muted);
           font-size: 0.85rem;
-          line-height: 1.4;
         }
         .jp-lesson-words-view-close {
           flex-shrink: 0;
           width: 2rem;
           height: 2rem;
-          border: 1px solid var(--border);
+          border: none;
           border-radius: 8px;
           background: transparent;
-          color: var(--text);
-          font-size: 1.25rem;
+          color: var(--muted);
+          font-size: 1.4rem;
           line-height: 1;
           cursor: pointer;
         }
+        .jp-lesson-words-view-close:hover {
+          background: var(--panel-2, rgba(127, 127, 127, 0.15));
+          color: var(--fg);
+        }
         .jp-lesson-words-view-body {
           flex: 1;
-          min-height: 0;
-          overflow-y: auto;
+          overflow: auto;
           padding: 0.85rem 1.1rem 1.1rem;
+          -webkit-overflow-scrolling: touch;
         }
         .jp-lesson-words-view-list {
           margin: 0;
           padding: 0;
           list-style: none;
-          display: flex;
-          flex-direction: column;
-          gap: 0.55rem;
         }
         .jp-lesson-words-view-item {
           display: flex;
-          align-items: flex-start;
-          gap: 0.45rem;
-          padding: 0.45rem 0.55rem;
-          border-radius: 8px;
-          background: color-mix(in srgb, var(--bg) 70%, var(--panel));
-          border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+          gap: 0.55rem;
+          padding: 0.55rem 0;
+          border-bottom: 1px solid var(--border);
+        }
+        .jp-lesson-words-view-item:last-child {
+          border-bottom: none;
         }
         .jp-lesson-words-view-index {
           flex-shrink: 0;
           min-width: 1.6rem;
           color: var(--muted);
           font-variant-numeric: tabular-nums;
-          font-weight: 600;
-          line-height: 1.45;
         }
         .jp-lesson-words-view-main {
-          min-width: 0;
           display: flex;
           flex-direction: column;
-          gap: 0.15rem;
+          gap: 0.25rem;
+          min-width: 0;
         }
         .jp-lesson-words-view-word {
           font-size: 1.05rem;
           font-weight: 600;
-          line-height: 1.45;
           word-break: break-word;
         }
         .jp-lesson-words-view-meaning {
           color: var(--muted);
-          font-size: 0.9rem;
+          font-size: 0.92rem;
+          word-break: break-word;
+        }
+        .jp-lesson-words-view-note {
+          color: #b45309;
+          font-size: 0.86rem;
           line-height: 1.4;
           word-break: break-word;
         }
         .jp-lesson-words-view-empty {
           margin: 0;
           color: var(--muted);
-          font-size: 0.9rem;
         }
         @media (max-width: 767px) {
           .jp-lesson-words-view-overlay {
-            align-items: flex-end;
-            padding: 0;
+            padding: max(0.5rem, env(safe-area-inset-top))
+              max(0.5rem, env(safe-area-inset-right))
+              max(0.5rem, env(safe-area-inset-bottom))
+              max(0.5rem, env(safe-area-inset-left));
           }
           .jp-lesson-words-view-modal {
             width: 100%;
-            max-height: min(92dvh, 820px);
-            border-radius: 14px 14px 0 0;
+            max-height: calc(100dvh - 1rem);
           }
         }
       `}</style>

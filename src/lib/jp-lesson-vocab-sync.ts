@@ -17,6 +17,7 @@ import {
   upsertJpVocabFromLesson,
   type JpVocabLessonUpsertItem,
 } from "@/lib/jp-vocab-db";
+import { jpVerbMasuToDictionaryForm } from "@/lib/jp-verb-masu-to-dictionary";
 import type { JpLessonRecord, JpVocabRefUploadInput } from "@/lib/types";
 import {
   JP_LESSON_VOCAB_SYNC_CHUNK_SIZE,
@@ -39,6 +40,7 @@ export type JpLessonVocabSyncChunkResult =
       done: boolean;
       inserted: number;
       updated: number;
+      skipped: number;
     }
   | { ok: false; error: string };
 
@@ -89,8 +91,12 @@ function buildJpLessonVocabUpsertItems(lesson: JpLessonRecord): {
 
   const items = words.map((word, index) => {
     const kind = itemKinds[index] ?? "word";
+    // 单词：ます形先转辞书形再入库；语法保持原文
+    const dictionary =
+      kind === "word" ? jpVerbMasuToDictionaryForm(word).dictionary : word;
     return {
-      word,
+      word: dictionary,
+      lesson_item_word: word,
       kind,
       ref_key: refKey,
       meaning: kind === "grammar" ? (itemMeanings[index] ?? null) : null,
@@ -138,6 +144,7 @@ export async function syncJpLessonRecordToVocabChunk(
       done: true,
       inserted: 0,
       updated: 0,
+      skipped: 0,
     };
   }
 
@@ -153,6 +160,7 @@ export async function syncJpLessonRecordToVocabChunk(
       done: true,
       inserted: 0,
       updated: 0,
+      skipped: 0,
     };
   }
 
@@ -160,6 +168,7 @@ export async function syncJpLessonRecordToVocabChunk(
     offset,
     limit,
     upsertRefs: offset === 0,
+    lessonId,
   });
 
   const nextOffset = Math.min(total, offset + result.processed);
@@ -178,5 +187,6 @@ export async function syncJpLessonRecordToVocabChunk(
     done,
     inserted: result.inserted,
     updated: result.updated,
+    skipped: result.skipped,
   };
 }

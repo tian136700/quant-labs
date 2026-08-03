@@ -103,7 +103,7 @@ import {
 } from "@/lib/jp-lesson-shared";
 import { normalizeJpVocabAnnotation } from "@/lib/jp-vocab-annotation";
 import { listJpLessons } from "@/lib/jp-lesson-db";
-import { listJpLessonNotesByLessonId, replaceLessonNotesForItem } from "@/lib/jp-lesson-note-db";
+import { listJpLessonNotesByLessonId, replaceLessonNotesForItem, ensureJpLessonVocabSkipNote } from "@/lib/jp-lesson-note-db";
 import type { JpLessonRecord } from "@/lib/types";
 import {
   JP_VOCAB_EXAMPLE_SENTENCES_SOURCE_MANUAL,
@@ -141,12 +141,15 @@ export type JpVocabLessonUpsertItem = {
   annotation?: string | null;
   /** 教材课次（如标日初级上册第23课）；已有不覆盖 */
   course_label?: string | null;
+  /** 新课 content 原文（可能为ます形）；跳过写笔记时用 */
+  lesson_item_word?: string | null;
 };
 
 export type UpsertJpVocabFromLessonResult = {
   processed: number;
   inserted: number;
   updated: number;
+  skipped: number;
 };
 
 export type UpsertJpVocabFromLessonOptions = {
@@ -156,6 +159,8 @@ export type UpsertJpVocabFromLessonOptions = {
   limit?: number;
   /** 是否写 ref 元数据（分片时仅第一批 true） */
   upsertRefs?: boolean;
+  /** 新课 id；单词已存在时写跳过备注 */
+  lessonId?: number;
 };
 
 /** 仅当日已有日序时 append；空日序跳过，避免全库 ensure → 1102 */
@@ -192,7 +197,7 @@ export async function upsertJpVocabFromLesson(
     opts.limit == null ? items.length : Math.max(0, Math.floor(opts.limit));
   const slice = items.slice(offset, offset + limit);
   if (!slice.length) {
-    return { processed: 0, inserted: 0, updated: 0 };
+    return { processed: 0, inserted: 0, updated: 0, skipped: 0 };
   }
 
   await ensureJpVocabWordSchema(db);
@@ -202,10 +207,23 @@ export async function upsertJpVocabFromLesson(
 
   // 新课「已完成」同步：created_at 记北京时间，今天不进抽查池，次日凌晨置顶
   // 释义：仅 grammar 写入 meaning（已有不覆盖）；单词由 fill-meaning（tokken）补
+  // 单词：抽问已有辞书形则跳过并给新课该项写备注；语法仍补空字段
   const ts = beijingDateTimeString();
+  const lessonId =
+    opts.lessonId != null && Number.isInteger(opts.lessonId) && opts.lessonId > 0
+      ? opts.lessonId
+      : null;
   let inserted = 0;
   let updated = 0;
+  let skipped = 0;
   const newIds: number[] = [];
+
+  async function noteWordSkipped(item: JpVocabLessonUpsertItem, dictionary: string) {
+    if (!lessonId) return;
+    const itemWord = (item.lesson_item_word || item.word || "").trim();
+    if (!itemWord) return;
+    await ensureJpLessonVocabSkipNote(db, lessonId, itemWord, dictionary);
+  }
 
   if (jpVocabDbState.devStoreEnabled) {
     for (const item of slice) {
@@ -223,6 +241,11 @@ export async function upsertJpVocabFromLesson(
           : null;
       const idx = jpVocabDbState.devWords.findIndex((w) => w.word === word);
       if (idx >= 0) {
+        if (kind === "word") {
+          skipped += 1;
+          await noteWordSkipped(item, word);
+          continue;
+        }
         const cur = jpVocabDbState.devWords[idx];
         const nextExamples =
           exampleSentences && !cur.example_sentences?.trim()
@@ -297,7 +320,7 @@ export async function upsertJpVocabFromLesson(
       }
       jpVocabDbState.devDailyDisplayOrder = order;
     }
-    return { processed: slice.length, inserted, updated };
+    return { processed: slice.length, inserted, updated, skipped };
   }
 
   for (const item of slice) {
@@ -328,6 +351,11 @@ export async function upsertJpVocabFromLesson(
       }>();
 
     if (existing) {
+      if (kind === "word") {
+        skipped += 1;
+        await noteWordSkipped(item, word);
+        continue;
+      }
       const nextExamples =
         exampleSentences && !(existing.example_sentences || "").trim()
           ? exampleSentences
@@ -398,7 +426,7 @@ export async function upsertJpVocabFromLesson(
     await appendJpVocabWordIdsToExistingDailyOrder(db, newIds);
   }
 
-  return { processed: slice.length, inserted, updated };
+  return { processed: slice.length, inserted, updated, skipped };
 }
 
 export function combineLessonNotes(notes: { body: string }[]): string | null {

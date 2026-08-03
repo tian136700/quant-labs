@@ -26,6 +26,10 @@ def main() -> int:
         errors.append("missing JpLessonWordsViewModal")
     if "jp-lesson-words-view-list" not in modal:
         errors.append("modal must vertical-number list")
+    if "jp-lesson-words-view-note" not in modal:
+        errors.append("modal must show per-word notes (vocab skip remarks)")
+    if "/api/jp-lesson/notes" not in modal:
+        errors.append("modal must fetch lesson notes for remarks")
     if "onViewWords" not in table:
         errors.append("StatusTable must wire onViewWords")
     if "if (!hasRefKey)" in table and "onViewWords(lesson)" not in table:

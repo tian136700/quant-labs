@@ -2,7 +2,13 @@ import "server-only";
 
 import { parseLessonContent } from "@/lib/jp-lesson-shared";
 import { listJpLessons } from "@/lib/jp-lesson-db";
+import {
+  buildJpLessonVocabSkipNoteBody,
+  JP_LESSON_VOCAB_SKIP_NOTE_MARK,
+} from "@/lib/jp-verb-masu-to-dictionary";
 import type { JpLessonNote } from "@/lib/types";
+
+const VOCAB_SKIP_NOTE_OPERATOR = "系统";
 
 let devStoreEnabled = false;
 const devNotes: JpLessonNote[] = [];
@@ -250,6 +256,41 @@ export async function deleteJpLessonNote(
 
   if (!result.meta?.changes) return { ok: false, error: "not_found" };
   return { ok: true };
+}
+
+/**
+ * 新课词已在抽问中 → 给该学习内容项写一条跳过备注（不删老师已有笔记；同标记幂等）。
+ */
+export async function ensureJpLessonVocabSkipNote(
+  db: D1Database,
+  lessonId: number,
+  itemWord: string,
+  dictionaryForm: string
+): Promise<{ ok: true; created: boolean } | { ok: false; error: string }> {
+  const trimmedItem = itemWord.trim();
+  if (!trimmedItem) return { ok: false, error: "item_word_empty" };
+  if (!Number.isInteger(lessonId) || lessonId <= 0) {
+    return { ok: false, error: "lesson_id_invalid" };
+  }
+
+  const body = buildJpLessonVocabSkipNoteBody(dictionaryForm);
+  const existing = await listJpLessonNotesByLessonId(db, lessonId);
+  const already = existing.some(
+    (n) =>
+      n.item_word === trimmedItem &&
+      n.body.includes(JP_LESSON_VOCAB_SKIP_NOTE_MARK)
+  );
+  if (already) return { ok: true, created: false };
+
+  const result = await createJpLessonNote(
+    db,
+    lessonId,
+    trimmedItem,
+    body,
+    VOCAB_SKIP_NOTE_OPERATOR
+  );
+  if (!result.ok) return result;
+  return { ok: true, created: true };
 }
 
 /** 用一条笔记替换某课某单词下的全部课堂笔记（空则清空） */
