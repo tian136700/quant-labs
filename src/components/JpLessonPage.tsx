@@ -24,6 +24,13 @@ import {
   type JpLessonProgressStatus,
 } from "@/lib/jp-lesson-shared";
 import {
+  countJpLessonsByPendingKind,
+  filterJpLessonDisplayGroupsByPendingKind,
+  readStoredJpLessonPendingKindFilter,
+  writeStoredJpLessonPendingKindFilter,
+  type JpLessonPendingKindFilter,
+} from "@/lib/jp-lesson-pending-kind-filter";
+import {
   fetchWithClientCache,
   readClientCacheAge,
 } from "@/lib/client-swr-cache";
@@ -101,6 +108,11 @@ export function JpLessonPage() {
   const [copyToast, setCopyToast] = useState<string | null>(null);
   const [mobileStatusFilter, setMobileStatusFilterState] =
     useState<JpLessonListFilter>(() => readStoredJpLessonListFilter());
+  /** 未完成区：全部 / 单词 / 语法 */
+  const [pendingKindFilter, setPendingKindFilterState] =
+    useState<JpLessonPendingKindFilter>(() =>
+      readStoredJpLessonPendingKindFilter()
+    );
   /** 北京时间墙钟：用于「上课中」窗口；与日程页同频 60s 刷新 */
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
@@ -249,6 +261,16 @@ export function JpLessonPage() {
     [loadLessons]
   );
 
+  const setPendingKindFilter = useCallback(
+    (kind: JpLessonPendingKindFilter) => {
+      setPendingKindFilterState(kind);
+      writeStoredJpLessonPendingKindFilter(kind);
+      // 切换类型后勾选可能已不在当前列表，清空批量勾选避免误操作
+      setBatchLessonIds([]);
+    },
+    []
+  );
+
   useEffect(() => {
     if (user && !checking && !canViewJpLesson) return;
     void loadLessons();
@@ -275,15 +297,26 @@ export function JpLessonPage() {
     return buckets;
   }, [filteredLessons]);
 
+  const pendingKindCounts = useMemo(
+    () => countJpLessonsByPendingKind(lessonsByStatus.pending),
+    [lessonsByStatus.pending]
+  );
+
   const displayGroupsByStatus = useMemo(() => {
+    const pendingGroups = buildJpLessonDisplayGroupsById(lessonsByStatus.pending);
     const groups: Record<JpLessonProgressStatus, JpLessonDisplayGroup<JpLessonRecord>[]> = {
       learning: groupLessonsForDisplay(lessonsByStatus.learning, sectionSort.learning),
-      // 未完成：ID 越小越靠前（先上传的基础课优先），手机 / PC 同一套
-      pending: buildJpLessonDisplayGroupsById(lessonsByStatus.pending),
+      // 未完成：ID 越小越靠前；非搜索时再按单词/语法筛
+      pending: searchActive
+        ? pendingGroups
+        : filterJpLessonDisplayGroupsByPendingKind(
+            pendingGroups,
+            pendingKindFilter
+          ),
       completed: groupLessonsForDisplay(lessonsByStatus.completed, sectionSort.completed),
     };
     return groups;
-  }, [lessonsByStatus, sectionSort]);
+  }, [lessonsByStatus, sectionSort, pendingKindFilter, searchActive]);
 
   /** 「上课中」= 开课前 10 分钟起至本节课结束（不限定老师；含日程关联的课） */
   const inClassLessons = useMemo(
@@ -580,6 +613,9 @@ export function JpLessonPage() {
           searchQuery={searchQuery}
           mobileStatusFilter={mobileStatusFilter}
           setMobileStatusFilter={setMobileStatusFilter}
+          pendingKindFilter={pendingKindFilter}
+          setPendingKindFilter={setPendingKindFilter}
+          pendingKindCounts={pendingKindCounts}
           refreshing={refreshing}
           lessonsByStatus={lessonsByStatus}
           displayGroupsByStatus={displayGroupsByStatus}

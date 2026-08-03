@@ -24,16 +24,20 @@ def main() -> int:
         errors.append("missing buildJpLessonDisplayGroupsById")
     if "compareJpLessonsByIdAsc" not in shared:
         errors.append("missing compareJpLessonsByIdAsc")
-    if not re.search(
-        r"pending:\s*buildJpLessonDisplayGroupsById\(lessonsByStatus\.pending\)",
-        page,
-    ):
+    if "buildJpLessonDisplayGroupsById(lessonsByStatus.pending)" not in page:
         errors.append("JpLessonPage pending must use buildJpLessonDisplayGroupsById")
     if re.search(
         r"pending:\s*groupLessonsForDisplay\(lessonsByStatus\.pending",
         page,
     ):
         errors.append("pending must not use groupLessonsForDisplay / classTime sort")
+    # 允许先 ById 再按单词/语法筛；禁止未完成改回按时间排序
+    if "filterJpLessonDisplayGroupsByPendingKind" in page:
+        if "pendingGroups" not in page and not re.search(
+            r"buildJpLessonDisplayGroupsById\(lessonsByStatus\.pending\)",
+            page,
+        ):
+            errors.append("kind filter must still build pending groups by ID first")
 
     if errors:
         for e in errors:

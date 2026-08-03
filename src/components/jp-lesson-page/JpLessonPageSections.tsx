@@ -7,6 +7,7 @@ import {
   type JpLessonSectionSort,
 } from "@/components/jp-lesson-page/jp-lesson-page-helpers";
 import type { JpLessonListFilter } from "@/lib/lesson-mobile-status-filter";
+import type { JpLessonPendingKindFilter } from "@/lib/jp-lesson-pending-kind-filter";
 import type { JpLessonDisplayGroup, JpLessonProgressStatus } from "@/lib/jp-lesson-shared";
 import type { JpLessonRecord, JpLessonTeacher, JpVocabRef } from "@/lib/types";
 
@@ -15,6 +16,9 @@ export type JpLessonPageSectionsProps = {
   searchQuery: string;
   mobileStatusFilter: JpLessonListFilter;
   setMobileStatusFilter: (status: JpLessonListFilter) => void;
+  pendingKindFilter: JpLessonPendingKindFilter;
+  setPendingKindFilter: (kind: JpLessonPendingKindFilter) => void;
+  pendingKindCounts: { all: number; word: number; grammar: number };
   refreshing: boolean;
   lessonsByStatus: Record<JpLessonProgressStatus, JpLessonRecord[]>;
   displayGroupsByStatus: Record<JpLessonProgressStatus, JpLessonDisplayGroup<JpLessonRecord>[]>;
@@ -70,6 +74,9 @@ export function JpLessonPageSections(props: JpLessonPageSectionsProps) {
     searchActive,
     mobileStatusFilter,
     setMobileStatusFilter,
+    pendingKindFilter,
+    setPendingKindFilter,
+    pendingKindCounts,
     refreshing,
     lessonsByStatus,
     displayGroupsByStatus,
@@ -116,6 +123,14 @@ export function JpLessonPageSections(props: JpLessonPageSectionsProps) {
 
   const inClassCount = inClassLessons.length;
   const inClassActive = mobileStatusFilter === "in_class";
+  const showPendingKindFilter =
+    !searchActive && mobileStatusFilter === "pending";
+  const pendingVisibleCount =
+    pendingKindFilter === "all"
+      ? pendingKindCounts.all
+      : pendingKindFilter === "word"
+        ? pendingKindCounts.word
+        : pendingKindCounts.grammar;
 
   const tableSharedProps = {
     isAdmin,
@@ -205,10 +220,55 @@ export function JpLessonPageSections(props: JpLessonPageSectionsProps) {
               <span className="jp-lesson-mobile-status-tab-count">{inClassCount}</span>
             </button>
           </div>
+          {showPendingKindFilter ? (
+            <div
+              className="jp-lesson-pending-kind-filter"
+              role="tablist"
+              aria-label="未完成类型筛选"
+            >
+              {(
+                [
+                  { kind: "all" as const, label: "全部", count: pendingKindCounts.all },
+                  { kind: "word" as const, label: "单词", count: pendingKindCounts.word },
+                  {
+                    kind: "grammar" as const,
+                    label: "语法",
+                    count: pendingKindCounts.grammar,
+                  },
+                ] as const
+              ).map(({ kind, label, count }) => {
+                const active = pendingKindFilter === kind;
+                return (
+                  <button
+                    key={kind}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    className={`jp-lesson-pending-kind-tab jp-lesson-pending-kind-tab--${kind}${
+                      active ? " is-active" : ""
+                    }`}
+                    onClick={() => setPendingKindFilter(kind)}
+                  >
+                    <span className="jp-lesson-pending-kind-tab-label">{label}</span>
+                    <span className="jp-lesson-pending-kind-tab-count">{count}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
           {LESSON_STATUS_SECTIONS.map(({ status, title, emptyHint }) => {
             const sectionGroups = displayGroupsByStatus[status];
-            const sectionCount = lessonsByStatus[status].length;
+            const sectionCount =
+              status === "pending" && !searchActive
+                ? pendingVisibleCount
+                : lessonsByStatus[status].length;
             if (searchActive && !sectionCount) return null;
+            const pendingEmptyHint =
+              status === "pending" && pendingKindFilter !== "all" && pendingKindCounts.all > 0
+                ? pendingKindFilter === "word"
+                  ? "当前没有未完成的单词课。"
+                  : "当前没有未完成的语法课。"
+                : emptyHint;
             return (
               <section
                 key={status}
@@ -258,7 +318,7 @@ export function JpLessonPageSections(props: JpLessonPageSectionsProps) {
                     {...tableSharedProps}
                   />
                 ) : searchActive ? null : (
-                  <p className="jp-lesson-status-card-empty">{emptyHint}</p>
+                  <p className="jp-lesson-status-card-empty">{pendingEmptyHint}</p>
                 )}
               </section>
             );

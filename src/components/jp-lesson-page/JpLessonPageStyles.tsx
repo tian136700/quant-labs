@@ -151,6 +151,47 @@ export function JpLessonPageStyles() {
           gap: 0.5rem;
           margin: 0 0 0.75rem;
         }
+        .jp-lesson-cards :global(.jp-lesson-pending-kind-filter) {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.4rem;
+          margin: -0.35rem 0 0.75rem;
+        }
+        .jp-lesson-cards :global(.jp-lesson-pending-kind-tab) {
+          flex: 1 1 calc(33.33% - 0.35rem);
+          min-width: 4.5rem;
+          display: inline-flex;
+          flex-direction: row;
+          align-items: center;
+          justify-content: center;
+          gap: 0.35rem;
+          min-height: 2.15rem;
+          padding: 0.35rem 0.5rem;
+          border: 1px solid var(--border);
+          border-radius: 999px;
+          background: var(--bg);
+          color: var(--muted);
+          font: inherit;
+          font-size: 0.875rem;
+          font-weight: 600;
+          line-height: 1.2;
+          cursor: pointer;
+          transition:
+            border-color 0.15s ease,
+            background 0.15s ease,
+            color 0.15s ease;
+        }
+        .jp-lesson-cards :global(.jp-lesson-pending-kind-tab-count) {
+          font-size: 0.78rem;
+          font-weight: 500;
+          font-variant-numeric: tabular-nums;
+          opacity: 0.85;
+        }
+        .jp-lesson-cards :global(.jp-lesson-pending-kind-tab.is-active) {
+          color: var(--accent);
+          border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+          background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+        }
         .jp-lesson-cards :global(.jp-lesson-mobile-status-tab) {
           flex: 1 1 calc(25% - 0.4rem);
           min-width: 4.75rem;
