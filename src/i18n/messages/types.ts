@@ -249,7 +249,10 @@ export type Messages = {
       laneShared: string;
       laneFill: string;
       laneVocab: string;
+      laneAuth: string;
       laneOther: string;
+      failReason: string;
+      host: string;
       guardrailsHeading: string;
       subject: string;
       subjectJp: string;

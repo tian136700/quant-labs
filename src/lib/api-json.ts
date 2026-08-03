@@ -32,6 +32,18 @@ export function sanitizeApiClientError(message: string): string {
   ) {
     return "服务器暂时不可用，请稍后刷新页面。";
   }
+  const lower = trimmed.toLowerCase();
+  if (
+    lower === "load failed" ||
+    lower.includes("failed to fetch") ||
+    lower.includes("networkerror") ||
+    lower.includes("network request failed")
+  ) {
+    return "服务器繁忙或网络中断（连接被掐），请稍等几秒后刷新。";
+  }
+  if (/abort|timeout|timed out/i.test(trimmed)) {
+    return "请求超时，服务器可能繁忙，请稍后刷新。";
+  }
   return trimmed || "请求失败，请稍后重试。";
 }
 

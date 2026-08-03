@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
-import { readApiJson } from "@/lib/api-json";
+import { readApiJson, sanitizeApiClientError } from "@/lib/api-json";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import { beijingDateString } from "@/lib/en-vocab-daily-check";
 import { type EnVocabDailyDisplayOrder } from "@/lib/en-vocab-daily-order";
@@ -226,7 +226,7 @@ export function EnVocabStudyPage() {
         : "/api/en-vocab/shared?lite=1";
 
       // 手机冷 isolate / Worker 忙时易 1102：20s 超时 + 最多再试 2 次（防挂死数分钟）
-      const { res, fetchStarted } = await fetchVocabStudySharedWithRetry(
+      const { res, fetchStarted, attempts } = await fetchVocabStudySharedWithRetry(
         sharedUrl,
         {
           headers: { [LOCALE_HEADER]: locale },
@@ -241,6 +241,8 @@ export function EnVocabStudyPage() {
           status: res.status,
           durationMs: Date.now() - fetchStarted,
           error: `shared_http_${res.status}`,
+          attempts,
+          reason: "http_5xx",
         });
       }
       const parsed = await readApiJson<{
@@ -259,6 +261,7 @@ export function EnVocabStudyPage() {
           status: res.status,
           durationMs: Date.now() - fetchStarted,
           error: parsed.error,
+          attempts,
         });
         if (!hasLoadedOnceRef.current) {
           setError(parsed.error || "加载失败");
@@ -305,7 +308,20 @@ export function EnVocabStudyPage() {
       return { errorBackoff: false };
     } catch (err) {
       errorBackoff = true;
-      setError(err instanceof Error ? err.message : String(err));
+      const raw = err instanceof Error ? err.message : String(err);
+      reportWorker1102SharedFail({
+        failedUrl: includeQuiz
+          ? "/api/en-vocab/shared"
+          : "/api/en-vocab/shared?lite=1",
+        durationMs: undefined,
+        error: raw,
+        reason: /load failed/i.test(raw)
+          ? "load_failed"
+          : /abort|timeout/i.test(raw)
+            ? "timeout"
+            : "failed_to_fetch",
+      });
+      setError(sanitizeApiClientError(raw));
       return { errorBackoff: true };
     } finally {
       setLoading(false);

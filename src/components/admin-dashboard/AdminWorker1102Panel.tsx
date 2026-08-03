@@ -96,6 +96,7 @@ export function AdminWorker1102Panel() {
       laneShared: labels.laneShared,
       laneFill: labels.laneFill,
       laneVocab: labels.laneVocab,
+      laneAuth: labels.laneAuth,
       laneOther: labels.laneOther,
       guardrailsHeading: labels.guardrailsHeading,
       clientAggHeading: labels.clientAggHeading,
@@ -266,6 +267,8 @@ export function AdminWorker1102Panel() {
                     <th>{labels.time}</th>
                     <th>{labels.eventKind}</th>
                     <th>{labels.failureLane}</th>
+                    <th>{labels.failReason}</th>
+                    <th>{labels.host}</th>
                     <th>{labels.pagePath}</th>
                     <th>{labels.failedUrl}</th>
                     <th>{labels.httpStatus}</th>
@@ -288,8 +291,12 @@ export function AdminWorker1102Panel() {
                               ? labels.laneFill
                               : row.failure_lane === "vocab_api"
                                 ? labels.laneVocab
-                                : labels.laneOther}
+                                : row.failure_lane === "auth_api"
+                                  ? labels.laneAuth
+                                  : labels.laneOther}
                       </td>
+                      <td>{row.fail_reason || "—"}</td>
+                      <td>{row.host || "—"}</td>
                       <td>{row.page_path}</td>
                       <td className="admin-1102-url-cell">
                         {row.failed_url || "—"}

@@ -24,9 +24,37 @@ import {
   prioritizeWorker1102ClientSamples,
   type Worker1102FailureLane,
 } from "@/lib/worker-1102-triage";
+import { worker1102PageHostFromHref } from "@/lib/worker-1102-client-shared";
 
 let schemaReady = false;
 let devStoreEnabled = false;
+
+function parseWorker1102SampleDetail(detailJson: string): {
+  fail_reason: string;
+  host: string;
+} {
+  try {
+    const d = JSON.parse(detailJson || "{}") as Record<string, unknown>;
+    const reason = typeof d.reason === "string" ? d.reason.trim() : "";
+    const hostRaw =
+      (typeof d.host === "string" && d.host.trim()) ||
+      worker1102PageHostFromHref(
+        typeof d.page_href === "string" ? d.page_href : ""
+      );
+    const msg = typeof d.message === "string" ? d.message : "";
+    const fallbackReason = /load failed/i.test(msg)
+      ? "load_failed"
+      : /failed to fetch/i.test(msg)
+        ? "failed_to_fetch"
+        : "";
+    return {
+      fail_reason: reason || fallbackReason,
+      host: hostRaw,
+    };
+  } catch {
+    return { fail_reason: "", host: "" };
+  }
+}
 
 type DevKey = string;
 const devHeavy = new Map<
@@ -68,8 +96,12 @@ export type Worker1102HeavyWord = {
 export type Worker1102RiskLevel = "ok" | "warn" | "critical";
 
 export type Worker1102BoardSample = Worker1102ClientEventSample & {
-  /** 诊断车道：整页 HTML / shared / fill / 词表 API */
+  /** 诊断车道：整页 HTML / shared / fill / 词表 API / 鉴权 */
   failure_lane: Worker1102FailureLane;
+  /** 从 detail_json 解析：abort / load_failed / cf_1102_html … */
+  fail_reason: string;
+  /** 从 detail_json / page_href 解析：finance.info-quests.com 等 */
+  host: string;
 };
 
 export type Worker1102DiagnosticSummary = {
@@ -403,6 +435,29 @@ function buildRiskNotes(input: {
     );
   }
 
+  const shortLoadFailed = clientSamples.filter(
+    (s) =>
+      /\/en-vocab\/study/.test(s.page_path) &&
+      (s.event_kind === "fetch_network" || s.event_kind === "shared_fail") &&
+      (s.fail_reason === "load_failed" ||
+        /load failed/i.test(s.detail_json || "")) &&
+      (s.duration_ms == null || s.duration_ms < 500)
+  );
+  if (shortLoadFailed.length >= 2) {
+    bump(
+      "warn",
+      `英语今日单词有 ${shortLoadFailed.length} 次极短 Load failed（常与鉴权 API 同秒失败；页壳可成功）。优先看失败原因/主机列，勿先怪备注`
+    );
+  }
+
+  const authFails = clientSamples.filter((s) => s.failure_lane === "auth_api");
+  if (authFails.length >= 2) {
+    bump(
+      "warn",
+      `鉴权 API（/api/english-teacher-review/auth）失败 ${authFails.length} 次；与 shared 同秒失败时多半是冷 isolate/连接被掐，不是备注体积`
+    );
+  }
+
   if (fillContentionHits >= 1_500) {
     bump(
       "critical",
@@ -547,14 +602,19 @@ export async function getWorker1102DiagnosticSummary(
     .reduce((sum, row) => sum + row.hit_count, 0);
 
   const boardSamples: Worker1102BoardSample[] =
-    prioritizeWorker1102ClientSamples(client_event_samples).map((row) => ({
-      ...row,
-      failure_lane: classifyWorker1102FailureLane({
-        eventKind: row.event_kind,
-        pagePath: row.page_path,
-        failedUrl: row.failed_url,
-      }),
-    }));
+    prioritizeWorker1102ClientSamples(client_event_samples).map((row) => {
+      const parsed = parseWorker1102SampleDetail(row.detail_json || "");
+      return {
+        ...row,
+        failure_lane: classifyWorker1102FailureLane({
+          eventKind: row.event_kind,
+          pagePath: row.page_path,
+          failedUrl: row.failed_url,
+        }),
+        fail_reason: parsed.fail_reason,
+        host: parsed.host,
+      };
+    });
 
   const { level, notes } = buildRiskNotes({
     subjects,

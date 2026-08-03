@@ -9,6 +9,7 @@ export type Worker1102FailureLane =
   | "shared_api"
   | "fill_api"
   | "vocab_api"
+  | "auth_api"
   | "other";
 
 const EVENT_RANK: Record<Worker1102ClientEventKind, number> = {
@@ -29,6 +30,14 @@ export function classifyWorker1102FailureLane(input: {
   const page = (input.pagePath || "").split("?")[0] || "";
   const failed = (input.failedUrl || "").toLowerCase();
   const pathOnly = failed.replace(/^https?:\/\/[^/]+/i, "");
+
+  if (
+    pathOnly.includes("/english-teacher-review/auth") ||
+    pathOnly.includes("/api/auth") ||
+    failed.includes("teacher-review/auth")
+  ) {
+    return "auth_api";
+  }
 
   if (kind === "cf_1102_html") {
     // fetch 拿到 CF 1102 HTML：看失败 URL 是文档还是 API
@@ -84,6 +93,8 @@ export function worker1102FailureLaneLabelZh(lane: Worker1102FailureLane): strin
       return "fill补全";
     case "vocab_api":
       return "词表API";
+    case "auth_api":
+      return "鉴权API";
     default:
       return "其它";
   }

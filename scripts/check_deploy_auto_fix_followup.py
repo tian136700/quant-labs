@@ -39,11 +39,23 @@ def main() -> int:
 
     fix = FIX_HOOK.read_text(encoding="utf-8")
     if "followup_message" not in fix:
-        return fail("deploy-auto-fix-stop must emit followup_message")
+        return fail("deploy-auto-fix-stop must emit followup_message on failure path")
     if "last_deploy_failure.txt" not in fix:
         return fail("deploy-auto-fix-stop must mention last_deploy_failure.txt")
     if "MAX_ATTEMPTS" not in fix and "max_attempts" not in fix.lower():
         return fail("deploy-auto-fix-stop must cap attempts")
+    # 等待阶段禁止 followup，否则会打断用户正在 Plan 的对话
+    if "_spawn_background_wait" not in fix and "Popen" not in fix:
+        return fail("deploy-auto-fix-stop must background-spawn wait_deploy (no wait followup)")
+    if "FOLLOWUP_WAIT" in fix:
+        return fail("deploy-auto-fix-stop must not define FOLLOWUP_WAIT (interrupts Plan)")
+    if "避免打断 Plan" not in fix and "不发 followup" not in fix:
+        return fail("deploy-auto-fix-stop must document skipping wait followup for Plan")
+    if "conversation_id" not in fix:
+        return fail("deploy-auto-fix-stop must scope failure followup by conversation_id")
+
+    if "conversation_id" not in feature:
+        return fail("feature-remark-stop must store conversation_id in pending")
 
     wait = WAIT.read_text(encoding="utf-8")
     if "/api/deploy-logs" not in wait:
@@ -55,6 +67,12 @@ def main() -> int:
 
     if "notify_deploy_autofix" not in fix and "正在修复" not in fix:
         return fail("deploy-auto-fix-stop must Bark 正在修复 on failure path")
+
+    rule = RULE.read_text(encoding="utf-8")
+    if "禁止" not in rule or "followup" not in rule:
+        return fail("deploy-auto-fix-followup.mdc must forbid wait followup interrupting Plan")
+    if "后台" not in rule and "spawn" not in rule:
+        return fail("rule must describe background wait")
 
     bark = (ROOT / "scripts" / "maintenance_center" / "bark_notify.py").read_text(
         encoding="utf-8"

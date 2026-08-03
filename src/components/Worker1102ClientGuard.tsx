@@ -10,7 +10,9 @@
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import {
+  classifyWorker1102FetchFailReason,
   parseCf1102FromText,
+  worker1102PageHostFromHref,
   type Worker1102ClientEventKind,
 } from "@/lib/worker-1102-client-shared";
 
@@ -38,6 +40,25 @@ function requestUrl(input: RequestInfo | URL): string {
   }
 }
 
+function commonClientDetail(
+  extra?: Record<string, unknown>
+): Record<string, unknown> {
+  const href =
+    typeof window !== "undefined" ? window.location.href : "";
+  return {
+    host: worker1102PageHostFromHref(href),
+    page_href: href,
+    online: typeof navigator !== "undefined" ? navigator.onLine : null,
+    visibility:
+      typeof document !== "undefined" ? document.visibilityState : null,
+    viewport:
+      typeof window !== "undefined"
+        ? `${window.innerWidth}x${window.innerHeight}`
+        : null,
+    ...extra,
+  };
+}
+
 function postReport(payload: {
   event_kind: Worker1102ClientEventKind;
   page_path: string;
@@ -50,7 +71,14 @@ function postReport(payload: {
 }): void {
   const key = `${payload.event_kind}|${payload.failed_url || payload.page_path}`;
   if (shouldThrottle(key)) return;
-  const body = JSON.stringify(payload);
+  const href =
+    payload.page_href ||
+    (typeof window !== "undefined" ? window.location.href : "");
+  const body = JSON.stringify({
+    ...payload,
+    page_href: href,
+    detail: commonClientDetail(payload.detail),
+  });
   try {
     if (typeof navigator !== "undefined" && navigator.sendBeacon) {
       const blob = new Blob([body], { type: "application/json" });
@@ -97,7 +125,6 @@ function patchFetchOnce(): void {
               postReport({
                 event_kind: "cf_1102_html",
                 page_path: pagePath,
-                page_href: window.location.href,
                 failed_url: url,
                 http_status: status,
                 duration_ms: Date.now() - started,
@@ -107,27 +134,24 @@ function patchFetchOnce(): void {
                   res.headers.get("CF-Ray") ||
                   "",
                 detail: {
+                  reason: "cf_1102_html",
                   content_type: ct,
                   body_snip: parsed.snip,
-                  online: navigator.onLine,
-                  visibility: document.visibilityState,
                   lang: document.documentElement.lang,
-                  viewport: `${window.innerWidth}x${window.innerHeight}`,
                 },
               });
             } else if (status >= 500) {
               postReport({
                 event_kind: "api_5xx",
                 page_path: pagePath,
-                page_href: window.location.href,
                 failed_url: url,
                 http_status: status,
                 duration_ms: Date.now() - started,
                 cf_ray: res.headers.get("cf-ray") || "",
                 detail: {
+                  reason: "http_5xx",
                   content_type: ct,
                   body_snip: text.replace(/\s+/g, " ").trim().slice(0, 200),
-                  online: navigator.onLine,
                 },
               });
             }
@@ -138,12 +162,11 @@ function patchFetchOnce(): void {
           postReport({
             event_kind: "api_5xx",
             page_path: window.location.pathname,
-            page_href: window.location.href,
             failed_url: url,
             http_status: status,
             duration_ms: Date.now() - started,
             cf_ray: res.headers.get("cf-ray") || "",
-            detail: { content_type: ct },
+            detail: { reason: "http_5xx", content_type: ct },
           });
         }
       }
@@ -151,15 +174,16 @@ function patchFetchOnce(): void {
     } catch (err) {
       const pagePath =
         typeof window !== "undefined" ? window.location.pathname : "/";
+      const reason = classifyWorker1102FetchFailReason(err);
       postReport({
         event_kind: "fetch_network",
         page_path: pagePath,
-        page_href: typeof window !== "undefined" ? window.location.href : "",
         failed_url: url,
         duration_ms: Date.now() - started,
         detail: {
+          reason,
           message: err instanceof Error ? err.message : String(err),
-          online: typeof navigator !== "undefined" ? navigator.onLine : null,
+          error_name: err instanceof Error ? err.name : "",
         },
       });
       throw err;
@@ -225,15 +249,25 @@ export function reportWorker1102SharedFail(opts: {
   status?: number;
   durationMs?: number;
   error?: string;
+  attempts?: number;
+  reason?: string;
 }): void {
   if (typeof window === "undefined") return;
+  const reason =
+    opts.reason ||
+    (opts.status != null && opts.status >= 500
+      ? "http_5xx"
+      : classifyWorker1102FetchFailReason(opts.error || "other"));
   postReport({
     event_kind: "shared_fail",
     page_path: window.location.pathname,
-    page_href: window.location.href,
     failed_url: opts.failedUrl,
     http_status: opts.status,
     duration_ms: opts.durationMs,
-    detail: { error: opts.error ?? null },
+    detail: {
+      reason,
+      error: opts.error ?? null,
+      attempts: opts.attempts ?? null,
+    },
   });
 }

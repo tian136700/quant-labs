@@ -22,6 +22,7 @@ export type Worker1102ReportLabels = {
   laneShared: string;
   laneFill: string;
   laneVocab: string;
+  laneAuth: string;
   laneOther: string;
   guardrailsHeading: string;
   clientAggHeading: string;
@@ -63,6 +64,7 @@ export function formatWorker1102DiagnosticReport(
     if (lane === "shared_api") return labels.laneShared;
     if (lane === "fill_api") return labels.laneFill;
     if (lane === "vocab_api") return labels.laneVocab;
+    if (lane === "auth_api") return labels.laneAuth;
     return labels.laneOther;
   };
 
@@ -84,7 +86,7 @@ export function formatWorker1102DiagnosticReport(
   } else {
     summary.client_event_samples.slice(0, 25).forEach((row, i) => {
       lines.push(
-        `${i + 1}. ${row.created_at}  ${row.event_kind}  lane=${laneLabel(row.failure_lane)}  page=${row.page_path}  failed=${row.failed_url || "-"}  status=${row.http_status ?? "-"}  ms=${row.duration_ms ?? "-"}  ray=${row.cf_ray || "-"}  user=${row.username || "-"}  detail=${row.detail_json || "{}"}`
+        `${i + 1}. ${row.created_at}  ${row.event_kind}  lane=${laneLabel(row.failure_lane)}  reason=${row.fail_reason || "-"}  host=${row.host || "-"}  page=${row.page_path}  failed=${row.failed_url || "-"}  status=${row.http_status ?? "-"}  ms=${row.duration_ms ?? "-"}  ray=${row.cf_ray || "-"}  user=${row.username || "-"}  detail=${row.detail_json || "{}"}`
       );
     });
   }

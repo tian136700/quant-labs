@@ -144,6 +144,26 @@ def main() -> int:
     if "失败车道" not in zh or "fill-* 争用合计" not in zh:
         errors.append("zh i18n 1102 面板须含失败车道 / fill 争用")
 
+    if "鉴权API" not in zh or "原因" not in zh:
+        errors.append("zh i18n 1102 面板须含鉴权API / 原因列")
+    shared = read("src/lib/worker-1102-client-shared.ts")
+    if "classifyWorker1102FetchFailReason" not in shared:
+        errors.append("worker-1102-client-shared 须有 classifyWorker1102FetchFailReason")
+    triage = read("src/lib/worker-1102-triage.ts")
+    if 'auth_api' not in triage:
+        errors.append("triage 须含 auth_api 车道")
+    guard = read("src/components/Worker1102ClientGuard.tsx")
+    if "classifyWorker1102FetchFailReason" not in guard:
+        errors.append("Worker1102ClientGuard 须写入 fail reason")
+    for rel in (
+        "src/components/JpVocabStudyPage.tsx",
+        "src/components/EnVocabStudyPage.tsx",
+    ):
+        body = read(rel)
+        if "sanitizeApiClientError" not in body:
+            errors.append(f"{rel} catch 须 sanitizeApiClientError")
+
+
     dash = read("src/components/AdminDashboardPage.tsx")
     if "adminWorker1102Path" not in dash:
         errors.append("AdminDashboardPage 须链接到 adminWorker1102Path")

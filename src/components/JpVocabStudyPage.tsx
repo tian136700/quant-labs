@@ -324,7 +324,7 @@ export function JpVocabStudyPage() {
         : "/api/jp-vocab/shared?lite=1";
 
       // 手机冷 isolate / Worker 忙时易 1102：20s 超时 + 最多再试 2 次（防挂死数分钟）
-      const { res, fetchStarted } = await fetchVocabStudySharedWithRetry(
+      const { res, fetchStarted, attempts } = await fetchVocabStudySharedWithRetry(
         sharedUrl,
         {
           headers: { [LOCALE_HEADER]: locale },
@@ -339,6 +339,8 @@ export function JpVocabStudyPage() {
           status: res.status,
           durationMs: Date.now() - fetchStarted,
           error: `shared_http_${res.status}`,
+          attempts,
+          reason: "http_5xx",
         });
       }
       const parsed = await readApiJson<SharedPayload>(res);
@@ -350,6 +352,7 @@ export function JpVocabStudyPage() {
           status: res.status,
           durationMs: Date.now() - fetchStarted,
           error: parsed.error,
+          attempts,
         });
         if (!hasLoadedOnceRef.current) {
           setError(parsed.error);
@@ -403,8 +406,17 @@ export function JpVocabStudyPage() {
       return { errorBackoff: false };
     } catch (err) {
       errorBackoff = true;
+      const message = err instanceof Error ? err.message : String(err);
+      reportWorker1102SharedFail({
+        failedUrl: "/api/jp-vocab/shared",
+        error: message,
+        reason: /load failed/i.test(message)
+          ? "load_failed"
+          : /abort|timeout/i.test(message)
+            ? "timeout"
+            : "failed_to_fetch",
+      });
       if (!hasLoadedOnceRef.current) {
-        const message = err instanceof Error ? err.message : String(err);
         setError(sanitizeApiClientError(message));
       }
       return { errorBackoff: true };
