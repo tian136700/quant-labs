@@ -113,6 +113,10 @@ export function validateJpVocabUsageExamplePairAlignment(input: {
   if (items.length < usageBodies.length) {
     return { ok: false, reason: "pair_semantic_mismatch:count" };
   }
+  // 单用法须 3 条例句（覆盖不同接续）；多用法仍 1:1 下限
+  if (usageBodies.length === 1 && items.length < 3) {
+    return { ok: false, reason: "pair_semantic_mismatch:single_usage_need_three" };
+  }
 
   const word = String(input.word || "");
   const core = lemmaCoreKana(word);

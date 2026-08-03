@@ -230,12 +230,33 @@ def main() -> int:
     assert not resolved_sample[2].get("resolved_later"), resolved_sample[2]
     if 'RESOLVED_LATER_LABEL = "已处理"' not in resolved_mod:
         raise SystemExit("FAIL: RESOLVED_LATER_LABEL must be 已处理")
+    if 'RESOLVED_DELETED_LABEL = "此词条已被删除"' not in resolved_mod:
+        raise SystemExit("FAIL: RESOLVED_DELETED_LABEL must be 此词条已被删除")
+    deleted_sample = annotate_rows_resolved_later(
+        [
+            {
+                "word_id": 540,
+                "status": "success",
+                "finished_at": "2026-08-04 03:20:00",
+                "preview": "此词条已被删除。已并入原形",
+            },
+            {
+                "word_id": 540,
+                "status": "failed",
+                "finished_at": "2026-08-03 23:00:00",
+            },
+        ]
+    )
+    assert deleted_sample[1].get("resolved_later") is True, deleted_sample[1]
+    assert deleted_sample[1].get("resolved_label") == "此词条已被删除", deleted_sample[1]
     mark_helper = ROOT / "scripts/lib/vocab_fill_mark_resolved.py"
     if not mark_helper.is_file():
         raise SystemExit("FAIL: missing scripts/lib/vocab_fill_mark_resolved.py")
     mark_txt = mark_helper.read_text(encoding="utf-8")
     if "mark_resolved" not in mark_txt or "word-runs" not in mark_txt:
         raise SystemExit("FAIL: mark_resolved helper must POST word-runs")
+    if "--resolved-label" not in mark_txt or "此词条已被删除" not in mark_txt:
+        raise SystemExit("FAIL: mark_resolved must support deleted resolved-label")
     for hook_rel in (
         ".cursor/hooks/vocab-fill-resolved-session.py",
         ".cursor/hooks/remind-vocab-fill-resolved.py",

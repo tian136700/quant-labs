@@ -19,6 +19,7 @@ export const JP_VOCAB_RELATED_COMPOUNDS_PROMPT_HINT = `相关构词（仅单词�
 - 须含本词汉字；优先 N5～N4 日常词，禁止商务/难词。
 - 【禁止本词】不要把词条本身写进相关构词（研修生≠再写研修生；企業≠再写企業）。相关=别的词。
 - 每行格式：漢字(かな)：简短中文释义；假名须正确（入口≠いりくち）。
+- 【整词假名·必守】假名括号包住整词，禁止词中拆标：✅決まり(きまり)：规定　❌決(き)まり：规定；✅知らせ(しらせ)：通知　❌知(し)らせ：通知。
 - 一词多义：同一构词的多个中文义用中文逗号「，」连接（例：目上(めうえ)：上级，长辈）。禁止在释义里用分号「；」（分号只用于区分不同日语词）。
 - 例：
 入口(いりぐち)：入口
@@ -208,20 +209,15 @@ export function validateJpVocabRelatedCompoundsAiOutput(
 
   const lemma = String(input.word || "").trim();
   const items: JpVocabRelatedCompoundItem[] = [];
-  let sawBadLine = false;
-  let sawDifferentReading = false;
-  let sawSelf = false;
   for (const line of lines) {
     const m = LINE_RE.exec(line);
     if (!m) {
-      sawBadLine = true;
       continue;
     }
     const surface = m[1]!;
     const reading = toHiragana(m[2]!);
     const gloss = normalizeJpVocabRelatedCompoundGloss(m[3]!);
     if (!surface || !reading || !gloss) {
-      sawBadLine = true;
       continue;
     }
     if (/[\u3040-\u30ff]/.test(gloss) && !/[\u4e00-\u9fff]/.test(gloss)) {
@@ -229,7 +225,6 @@ export function validateJpVocabRelatedCompoundsAiOutput(
     }
     // Claude 常把本词再抄一行（或写「同词条」）→ 丢掉该行，勿拒整批读音/释义/例句
     if (surface === lemma) {
-      sawSelf = true;
       continue;
     }
     const expectedReading = JP_VOCAB_JUKUGO_READING[surface];
@@ -244,7 +239,6 @@ export function validateJpVocabRelatedCompoundsAiOutput(
         input.reading
       )
     ) {
-      sawDifferentReading = true;
       continue;
     }
     items.push({
@@ -255,16 +249,8 @@ export function validateJpVocabRelatedCompoundsAiOutput(
     });
   }
 
+  // 本词 / 不同音读 / 坏行（如決(き)まり）剥光 → 当作无相关，勿硬拒整批例句
   if (items.length === 0) {
-    // 全是本词 / 不同音读 / 坏行 → 当作「无相关」（禁止硬凑），勿拒整批
-    if (
-      sawBadLine &&
-      !sawDifferentReading &&
-      !sawSelf &&
-      lines.length > 0
-    ) {
-      return { ok: false, reason: "related_compounds_bad_line" };
-    }
     return { ok: true, text: "" };
   }
   return { ok: true, text: items.map((i) => i.line).join("\n") };

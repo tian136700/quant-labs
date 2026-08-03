@@ -303,7 +303,7 @@ export async function listJpVocabWordsMissingExampleSentences(
       ? Math.floor(options.limit)
       : null;
 
-  let sql = `SELECT id, word, kind, reading, meaning, usage, pos, example_sentences, connection
+  let sql = `SELECT id, word, kind, reading, meaning, usage, pos, example_sentences, connection, course_label
        FROM jp_vocab_word
        WHERE (
            (
@@ -339,6 +339,7 @@ export async function listJpVocabWordsMissingExampleSentences(
     pos: string | null;
     example_sentences: string | null;
     connection: string | null;
+    course_label: string | null;
   }>();
 
   return (result.results ?? []).map((row) => {
@@ -357,6 +358,8 @@ export async function listJpVocabWordsMissingExampleSentences(
         : null;
     const connection =
       row.connection != null ? String(row.connection).trim() || null : null;
+    const course_label =
+      row.course_label != null ? String(row.course_label).trim() || null : null;
     const need_examples = !examples;
     const need_connection = !hasJpVocabConnection(connection);
     const onlyConnection =
@@ -369,6 +372,7 @@ export async function listJpVocabWordsMissingExampleSentences(
       meaning,
       usage,
       connection,
+      course_label,
       need_examples,
       need_connection,
       suggested: need_examples ? lookupJpVocabExampleSentences(word) : null,
@@ -386,6 +390,8 @@ export async function listJpVocabWordsMissingExampleSentences(
             reading,
             meaning,
             usage,
+            connection,
+            course_label,
           }),
     };
   });

@@ -176,13 +176,13 @@ export function clampEnVocabUsageFrequency(
   return n;
 }
 
-/** 展示文案：出现频次 8 */
+/** 展示文案：出现频次 8/10（满分 10） */
 export function formatEnVocabUsageFrequencyLabel(
   frequency: number | null | undefined
 ): string | null {
   const score = clampEnVocabUsageFrequency(frequency);
   if (score == null) return null;
-  return `出现频次 ${score}`;
+  return `出现频次 ${score}/10`;
 }
 
 /**

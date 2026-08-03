@@ -57,7 +57,7 @@ function EnVocabUsageFrequencyBar({
   return (
     <span
       className="en-usage-ex-paired-freq"
-      title="该用法在英语中的相对出现频次（1～10）"
+      title="该用法在英语中的相对出现频次（满分 10；7/10＝约七成）"
       aria-label={label ?? undefined}
     >
       <span className="en-usage-ex-paired-freq-caption">出现频次</span>
@@ -73,7 +73,7 @@ function EnVocabUsageFrequencyBar({
           style={{ width: `${pct}%` }}
         />
       </span>
-      <span className="en-usage-ex-paired-freq-score">{score}</span>
+      <span className="en-usage-ex-paired-freq-score">{score}/10</span>
     </span>
   );
 }

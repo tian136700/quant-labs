@@ -160,14 +160,23 @@ def main() -> int:
     must_contain(lib, "禁止本词", "forbid lemma self in prompt")
     must_contain(online, "禁止本词", "online forbid lemma self")
     must_contain(ai, "禁止本词", "ai prompt forbid lemma self")
-    # 曾硬拒 is_self 导致统一补全整批失败；须丢掉本词行，勿 return related_compounds_is_self
+    # 曾硬拒 is_self / bad_line 导致统一补全整批失败；须丢掉坏行，勿 return 硬拒码
     lib_text_full = lib.read_text(encoding="utf-8")
     if 'return { ok: false, reason: "related_compounds_is_self" }' in lib_text_full:
         raise SystemExit(
             "FAIL: related_compounds_is_self 不得硬拒整批；须丢掉本词行（与不同音读同逻辑）"
         )
-    if "sawSelf" not in lib_text_full:
-        raise SystemExit("FAIL: validate 须 track sawSelf 并剥掉本词行")
+    if 'return { ok: false, reason: "related_compounds_bad_line" }' in lib_text_full:
+        raise SystemExit(
+            "FAIL: related_compounds_bad_line 不得硬拒整批；坏行丢掉，剥光则 \"\""
+        )
+    must_contain(lib, "整词假名", "forbid mid-word furigana in prompt")
+    must_contain(online, "整词假名", "online forbid mid-word furigana")
+    must_contain(online, "[口语", "online grammar usage frequency marker")
+    must_contain(online, "五段", "online forbid academic verb class")
+    must_contain(lib, "禁止本词", "forbid lemma self in prompt")
+    must_contain(online, "禁止本词", "online forbid lemma self")
+    must_contain(ai, "禁止本词", "ai prompt forbid lemma self")
     must_contain(types, "related_compounds?", "type field")
 
     line_re = re.compile(
@@ -175,10 +184,13 @@ def main() -> int:
     )
     ok = line_re.match("入口(いりぐち)：入口")
     bad = line_re.match("入口いりぐち")
+    mid = line_re.match("決(き)まり：规定，惯例")
     if not ok or bad:
         raise SystemExit("FAIL: line parse smoke")
     if ok.group(2) != "いりぐち":
         raise SystemExit("FAIL: reading extract")
+    if mid:
+        raise SystemExit("FAIL: mid-word furigana must NOT match whole-line LINE_RE")
 
     # 同读启发：こと in ものごと；じ not match こと as substring of variants
     # （Python 烟测只验提示字符串存在；TS 校验由部署后 apply 覆盖）

@@ -1,13 +1,22 @@
 #!/usr/bin/env python3
-"""维护中心：失败词条写回成功后，报一条 success 跑次 → 失败行旁绿「已处理」。
+"""维护中心：失败词条写回成功后，报一条 success 跑次 → 失败行旁绿标。
+
+绿标文案：
+- 默认「已处理」
+- 词条已从词库删除：`--resolved-label '此词条已被删除'`（写入 preview，表旁显示同文案）
 
 页外 apply（Agent / 手动 fill-usage）只写 Worker 时，表里没有晚于失败的 success，
 绿标不会出现。统一走本脚本（或等价 POST /api/*-vocab-fill/word-runs）。
 
 用法：
   python3 scripts/lib/vocab_fill_mark_resolved.py \\
-    --lang jp --word-id 146 --word '自动词与他动词的区分' --kind grammar \\
-    --source 'Agent现写' --applied grammar --preview '手动写回用法+接序+例句'
+    --lang jp --word-id 146 --word '自动词与他动词的区分' \\
+    --kind grammar --source 'Agent现写' --applied grammar
+
+  # 词条已删
+  python3 scripts/lib/vocab_fill_mark_resolved.py \\
+    --lang jp --word-id 540 --word '違います' --kind word \\
+    --resolved-label '此词条已被删除' --preview '已并入原形違う'
 """
 
 from __future__ import annotations
@@ -21,6 +30,7 @@ import urllib.request
 from pathlib import Path
 
 DEFAULT_HUB = "http://127.0.0.1:17823"
+RESOLVED_DELETED_LABEL = "此词条已被删除"
 
 
 def _hub_base() -> str:
@@ -41,6 +51,7 @@ def mark_resolved(
     applied: str = "grammar",
     fill_task: str | None = None,
     preview: str = "",
+    resolved_label: str = "",
     hub: str | None = None,
     timeout: float = 15.0,
 ) -> dict:
@@ -62,6 +73,17 @@ def mark_resolved(
         else "/api/en-vocab-fill/word-runs"
     )
     url = f"{(hub or _hub_base()).rstrip('/')}{path}"
+    label = str(resolved_label or "").strip()
+    preview_text = str(preview or "").strip()
+    if label == RESOLVED_DELETED_LABEL:
+        if RESOLVED_DELETED_LABEL not in preview_text:
+            preview_text = (
+                f"{RESOLVED_DELETED_LABEL}。{preview_text}"
+                if preview_text
+                else RESOLVED_DELETED_LABEL
+            )
+    elif not preview_text:
+        preview_text = "失败后已写回；标已处理"
     body = {
         "word_id": wid,
         "word": name,
@@ -70,7 +92,7 @@ def mark_resolved(
         "source": (source or "Agent现写").strip() or "Agent现写",
         "applied": (applied or "").strip(),
         "fill_task": fill_task,
-        "preview": (preview or "失败后已写回；标已处理").strip(),
+        "preview": preview_text,
     }
     raw = json.dumps(body, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(
@@ -99,7 +121,7 @@ def mark_resolved(
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(
-        description="失败词条写回后报 success → 维护中心绿标「已处理」"
+        description="失败词条写回后报 success → 绿标「已处理」或「此词条已被删除」"
     )
     p.add_argument("--lang", choices=("jp", "en"), required=True)
     p.add_argument("--word-id", type=int, required=True)
@@ -109,6 +131,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--applied", default="grammar")
     p.add_argument("--fill-task", default="")
     p.add_argument("--preview", default="")
+    p.add_argument(
+        "--resolved-label",
+        default="",
+        help="绿标：已处理（默认）或 此词条已被删除",
+    )
     p.add_argument("--hub", default="")
     args = p.parse_args(argv)
     try:
@@ -121,6 +148,7 @@ def main(argv: list[str] | None = None) -> int:
             applied=args.applied,
             fill_task=args.fill_task or None,
             preview=args.preview,
+            resolved_label=args.resolved_label,
             hub=args.hub or None,
         )
     except Exception as exc:
@@ -131,6 +159,5 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    # allow `python3 scripts/lib/vocab_fill_mark_resolved.py` from repo root
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     raise SystemExit(main())

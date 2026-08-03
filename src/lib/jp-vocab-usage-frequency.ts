@@ -1,13 +1,19 @@
 /**
  * 日语「普通语法」每种用法旁的口语 / 考试出现分（1～10）。
- * 存库行内标记：`1. [口语7|考试8] 中文说明。(N4)`；展示剥标记后写「口语 7/10 · 考试 8/10」。
+ * 存库行内标记：`1. [口语7|考试8] 中文说明。(N4)`；
+ * 展示用进度条 +「口语频率 7/10」「考试频率 8/10」（满分 10）。
  * 对比课、变形课不加分（由 usage-ai 的 jpVocabGrammarNeedsPerUsageFrequency 判定）。
  */
 
-import { clampJpVocabFrequency } from "@/lib/jp-vocab-frequency";
+import {
+  clampJpVocabFrequency,
+  JP_VOCAB_EXAM_FREQUENCY_LABEL,
+  JP_VOCAB_ORAL_FREQUENCY_LABEL,
+} from "@/lib/jp-vocab-frequency";
 
-export const JP_VOCAB_USAGE_ORAL_FREQ_LABEL = "口语";
-export const JP_VOCAB_USAGE_EXAM_FREQ_LABEL = "考试";
+/** 存库标记里仍用短名「口语／考试」；展示用完整「口语频率／考试频率」 */
+export const JP_VOCAB_USAGE_ORAL_FREQ_LABEL = JP_VOCAB_ORAL_FREQUENCY_LABEL;
+export const JP_VOCAB_USAGE_EXAM_FREQ_LABEL = JP_VOCAB_EXAM_FREQUENCY_LABEL;
 
 /** 编号行正文开头：`[口语7|考试8]`（兼容冒号、全角竖线） */
 export const JP_VOCAB_USAGE_FREQUENCY_PREFIX_RE =
@@ -75,7 +81,7 @@ export function formatJpVocabUsageLineWithFrequency(
   return `${formatJpVocabUsageFrequencyMarker(o, e)} ${body}`;
 }
 
-/** 展示：「口语 7/10 · 考试 8/10」（缺一边则只显示有的） */
+/** 展示：「口语频率 7/10 · 考试频率 8/10」（缺一边则只显示有的） */
 export function formatJpVocabUsageFrequencyDisplay(
   oral: number | null | undefined,
   exam: number | null | undefined
@@ -83,8 +89,8 @@ export function formatJpVocabUsageFrequencyDisplay(
   const o = clampJpVocabFrequency(oral);
   const e = clampJpVocabFrequency(exam);
   const parts: string[] = [];
-  if (o != null) parts.push(`${JP_VOCAB_USAGE_ORAL_FREQ_LABEL} ${o}/10`);
-  if (e != null) parts.push(`${JP_VOCAB_USAGE_EXAM_FREQ_LABEL} ${e}/10`);
+  if (o != null) parts.push(`${JP_VOCAB_ORAL_FREQUENCY_LABEL} ${o}/10`);
+  if (e != null) parts.push(`${JP_VOCAB_EXAM_FREQUENCY_LABEL} ${e}/10`);
   return parts.length ? parts.join(" · ") : null;
 }
 

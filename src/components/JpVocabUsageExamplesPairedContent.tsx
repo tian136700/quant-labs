@@ -21,7 +21,7 @@ import {
   parseJpVocabConnectionDisplayParts,
 } from "@/lib/jp-vocab-connection-ai";
 import { uniqueJpVocabSourcesForDisplay } from "@/lib/jp-vocab-source-display";
-import { formatJpVocabUsageFrequencyDisplay } from "@/lib/jp-vocab-usage-frequency";
+import { JpVocabUsageFrequencyBars } from "@/components/JpVocabUsageFrequencyBars";
 
 type Props = {
   usage: string | null | undefined;
@@ -169,17 +169,12 @@ export function JpVocabUsageExamplesPairedContent({
                   </span>
                 </p>
               ) : null}
-              {(() => {
-                const freqLine = formatJpVocabUsageFrequencyDisplay(
-                  pair.oralFrequency,
-                  pair.examFrequency
-                );
-                return freqLine && !showContrastTable ? (
-                  <p className="jp-usage-ex-paired-freq" aria-label={freqLine}>
-                    {freqLine}
-                  </p>
-                ) : null;
-              })()}
+              {!showContrastTable ? (
+                <JpVocabUsageFrequencyBars
+                  oralFrequency={pair.oralFrequency}
+                  examFrequency={pair.examFrequency}
+                />
+              ) : null}
               {connText ? (
                 <JpVocabConnectionBody text={connText} showLabel />
               ) : null}
@@ -303,6 +298,51 @@ export function JpVocabUsageExamplesPairedContent({
           font-weight: 500;
           color: rgba(148, 163, 184, 0.95);
           letter-spacing: 0.01em;
+        }
+        /* FrequencyBars 子组件：须 :global */
+        :global(.jp-usage-ex-paired-freq-wrap) {
+          display: flex;
+          flex-direction: column;
+          gap: 0.28rem;
+          margin: 0.28rem 0 0.4rem;
+          max-width: 100%;
+        }
+        :global(.jp-usage-ex-paired-freq-row) {
+          display: flex;
+          align-items: center;
+          gap: 0.35rem;
+          white-space: nowrap;
+          max-width: 100%;
+        }
+        :global(.jp-usage-ex-paired-freq-caption) {
+          flex: 0 0 auto;
+          min-width: 4.2em;
+          font-size: 0.78rem;
+          font-weight: 600;
+          letter-spacing: 0.01em;
+          color: var(--muted);
+        }
+        :global(.jp-usage-ex-paired-freq-bar) {
+          display: inline-block;
+          width: 4.5rem;
+          height: 0.42rem;
+          border-radius: 999px;
+          background: color-mix(in srgb, var(--border) 70%, transparent);
+          overflow: hidden;
+          flex: 0 0 auto;
+        }
+        :global(.jp-usage-ex-paired-freq-fill) {
+          display: block;
+          height: 100%;
+          border-radius: inherit;
+          background: color-mix(in srgb, var(--accent) 82%, var(--text));
+        }
+        :global(.jp-usage-ex-paired-freq-score) {
+          flex: 0 0 auto;
+          font-size: 0.78rem;
+          font-weight: 700;
+          font-variant-numeric: tabular-nums;
+          color: color-mix(in srgb, var(--accent) 88%, var(--text));
         }
         .jp-usage-ex-paired-usage {
           margin: 0 0 0.35rem;

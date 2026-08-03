@@ -59,7 +59,7 @@ function lemmaSurfacesForExampleHit(
 export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
   version: 3,
   count_rule:
-    "单词：释义含 / 时条数=斜杠段数；无斜杠固定 2（；近义不是条数）。语法：条数=用法点数（须先有 usage；1:1；可为 1）。同一次输出末尾须有【接序】",
+    "单词：释义含 / 时条数=斜杠段数；无斜杠固定 2（；近义不是条数）。语法：多用法→条数=用法点数（1:1）；仅 1 种用法→固定 3 句，按接续不同类型各造（一类／二类／名词等）；须先有 usage。同一次输出末尾须有【接序】",
   format_example:
     "電車(でんしゃ)に間(ま)に合(あ)いました。\n译文：我赶上电车了。\nもう少(すこ)し早(はや)く来(き)てください。\n译文：请再早一点来。\n【接序】\n一类动词／辞书形（动词原形）：「書く」；ます形：「書きます」；て形：「書いて」",
   rules: [
@@ -69,7 +69,7 @@ export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
     "释义栏的「关于……」等只是义项提示，不要每句译文都机械套同一套壳",
     "句中每一个汉字都必须立刻半角括号假名（不能只标词条本身）：如 今日(きょう)は気分(きぶん)がいいです；词尾假名如 静か(しずか)、落(お)ち着(つ)き；括号内只能是假名、不要空格、不要整句读音尾注；禁止句末语法说明括号；页面展示会转成汉字下方小字",
     "N5～N4、口语、短句；必须自然用到该词条 / 语法点",
-    "语法例句：第 N 句对应第 N 条用法（条数与语义都要对：否定推断勿配肯定句、用法括号里点名的形态须出现在该句）；只用简单词、不要叠更难的语法（避免多焦点）",
+    "语法例句：多用法时第 N 句对应第 N 条用法；仅 1 种用法时造 3 句，分别覆盖接续里不同词类/形态（如一类形容词／二类形容词／名词），不要三句同一接续；只用简单词、不要叠更难的语法（避免多焦点）；有课数时勿超纲（标日初级勿写中级/N2 词）",
     "初学者友好：一句尽量只用一个话题助词「は」；时间/场景已用「今は」等时，主语改用「が」或省略，不要叠「今は傘は…」这类双は（语法虽对但 N5 易误判）",
     "语法词条里的「～」「〜」是占位符，禁止原样写进例句；要用具体词：天气预报によると／彼によると…",
     "语法助词（～が / ～は / ～を…）：句中必须出现该助词本身；教「が」时不要写成只有「は」的例句",
@@ -178,11 +178,15 @@ export type JpVocabExampleSentencesAiInput = {
   kind: string;
   reading?: string | null;
   meaning?: string | null;
-  /** 语法条：编号用法；驱动例句条数与 1:1 对应 */
+  /** 语法条：编号用法；驱动例句条数（单用法→3；多用法→1:1） */
   usage?: string | null;
+  /** 教材课次（如「标日初级上册第23课」）；例句勿超纲 */
+  course_label?: string | null;
+  /** 接序：单用法时按不同接续类型各造一例 */
+  connection?: string | null;
 };
 
-/** 例句目标条数：语法看 usage；变形课无 usage 时固定 2～3（按 2 验收下限） */
+/** 例句目标条数：语法看 usage；单用法→3 句（覆盖不同接续类型）；多用法→1:1；变形课无 usage 时固定 2 */
 export function expectedJpVocabExampleSentenceCount(
   input: Pick<
     JpVocabExampleSentencesAiInput,
@@ -191,9 +195,10 @@ export function expectedJpVocabExampleSentenceCount(
 ): number {
   if (input.kind === "grammar") {
     const n = countJpVocabUsagePoints(input.usage);
-    if (n >= 1) return Math.max(1, n);
+    if (n === 1) return 3;
+    if (n >= 2) return n;
     if (isJpVocabConjugationGrammar(input.word)) return 2;
-    return Math.max(1, n || 1);
+    return 3;
   }
   return countJpVocabExampleSentenceTargetFromMeaning(input.meaning, input.kind);
 }
@@ -205,12 +210,15 @@ export function buildJpVocabExampleSentencesAiPrompt(
   const reading = input.reading?.trim();
   const meaning = input.meaning?.trim();
   const usage = input.usage?.trim();
+  const connection = input.connection?.trim();
+  const courseLabel = input.course_label?.trim();
   const { stem, hasDa } = jpVocabNaAdjParts(input.word);
   const stemReading = jpVocabNaAdjReadingForStem(reading || "", hasDa);
   const grammarCore = input.word
     .trim()
     .replace(/^[～~〜]+/, "")
     .replace(/[～~〜]+$/, "");
+  const usagePointCount = countJpVocabUsagePoints(usage);
   const meta = [
     `词条：${input.word.trim()}`,
     input.kind === "grammar" && grammarCore
@@ -223,7 +231,13 @@ export function buildJpVocabExampleSentencesAiPrompt(
     hasDa && stemReading
       ? `词干假名：${stemReading}（标在「${stem}」上，写成 ${stem}(${stemReading})）`
       : null,
+    courseLabel
+      ? `教材课次：${courseLabel}（例句难度对齐本课附近，禁止明显超纲：初级勿用中级专词／N2 难词）`
+      : null,
     input.kind === "grammar" && usage ? `用法：\n${usage}` : null,
+    input.kind === "grammar" && connection
+      ? `接序（造句须覆盖不同接续类型）：\n${connection}`
+      : null,
     input.kind !== "grammar" && meaning ? `释义：${meaning}` : null,
     `类型：${kindLabel}`,
   ]
@@ -234,7 +248,9 @@ export function buildJpVocabExampleSentencesAiPrompt(
   const majorSenses = splitJpVocabMeaningMajorSenses(meaning || "");
   const countRuleHint =
     input.kind === "grammar"
-      ? `须造 ${targetCount} 句：与上方「用法」一一对应（第 1 句对应用法 1，第 2 句对应用法 2…）`
+      ? usagePointCount === 1
+        ? `须造恰好 ${targetCount} 句：本语法只有 1 种用法，按接序里不同词类/形态各造一例（如一类形容词、二类形容词、名词等）；不足 3 种接续时仍造 3 句，换场景/词类，禁止三句同一接续`
+        : `须造 ${targetCount} 句：与上方「用法」一一对应（第 1 句对应用法 1，第 2 句对应用法 2…）`
       : majorSenses.length >= 2
         ? `释义含 ${majorSenses.length} 个斜杠段 → 须造 ${targetCount} 句（每段 1 句，例句须体现对应读音）`
         : `须造 ${targetCount} 句（无斜杠时固定 2；释义里的 ； 只是近义，不要按近义数加句）`;
