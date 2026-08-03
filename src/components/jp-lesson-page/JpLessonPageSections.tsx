@@ -31,6 +31,7 @@ export type JpLessonPageSectionsProps = {
   batchLessonIds: number[];
   setBatchModalOpen: (open: boolean) => void;
   setBatchLessonIds: (ids: number[]) => void;
+  onOpenAiPlanPrompt?: () => void;
   teachers: JpLessonTeacher[];
   refs: Record<string, JpVocabRef>;
   teacherById: Map<number, JpLessonTeacher>;
@@ -89,6 +90,7 @@ export function JpLessonPageSections(props: JpLessonPageSectionsProps) {
     batchLessonIds,
     setBatchModalOpen,
     setBatchLessonIds,
+    onOpenAiPlanPrompt,
     refs,
     teacherById,
     noteCountByLesson,
@@ -290,6 +292,16 @@ export function JpLessonPageSections(props: JpLessonPageSectionsProps) {
                       onClick={() => setBatchModalOpen(true)}
                     >
                       设置时间和老师
+                      {batchLessonIds.length ? `（${batchLessonIds.length}）` : ""}
+                    </button>
+                    <button
+                      type="button"
+                      className="jp-lesson-action-btn"
+                      disabled={!batchLessonIds.length}
+                      onClick={() => onOpenAiPlanPrompt?.()}
+                      title="用勾选课的单词做 ChatGPT 教案提示词，并粘贴图片挂教案"
+                    >
+                      做教案提示词
                       {batchLessonIds.length ? `（${batchLessonIds.length}）` : ""}
                     </button>
                     {batchLessonIds.length ? (

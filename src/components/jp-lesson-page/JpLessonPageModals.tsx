@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { JpLessonAiPlanPromptModal } from "@/components/JpLessonAiPlanPromptModal";
 import { JpLessonBatchScheduleTeacherModal } from "@/components/JpLessonBatchScheduleTeacherModal";
 import { JpLessonContentEditModal } from "@/components/JpLessonContentEditModal";
 import { JpLessonExamplesViewModal, type JpLessonExamplesViewTarget } from "@/components/JpLessonExamplesViewModal";
@@ -33,6 +34,8 @@ export type JpLessonPageModalsProps = {
   batchModalOpen: boolean;
   batchLessonIds: number[];
   batchSaving: boolean;
+  aiPlanModalOpen: boolean;
+  aiPlanLessons: JpLessonRecord[];
   editingLesson: JpLessonRecord | null;
   editingRef: JpVocabRef | undefined;
   editingContentLesson: JpLessonRecord | null;
@@ -69,6 +72,11 @@ export type JpLessonPageModalsProps = {
   setAnnotatingLesson: (v: JpLessonPageModalsProps["annotatingLesson"]) => void;
   handleAnnotateSaved: (...args: any[]) => void;
   setViewingExamples: (v: JpLessonExamplesViewTarget | null) => void;
+  setAiPlanModalOpen: (open: boolean) => void;
+  handleAiPlanAttached: (payload: {
+    lessons: JpLessonRecord[];
+    refs: Record<string, JpVocabRef>;
+  }) => void;
 };
 
 export function JpLessonPageModals(props: JpLessonPageModalsProps) {
@@ -83,6 +91,8 @@ export function JpLessonPageModals(props: JpLessonPageModalsProps) {
     batchModalOpen,
     batchLessonIds,
     batchSaving,
+    aiPlanModalOpen,
+    aiPlanLessons,
     teachers,
     editingLesson,
     editingRef,
@@ -111,6 +121,8 @@ export function JpLessonPageModals(props: JpLessonPageModalsProps) {
     setAnnotatingLesson,
     handleAnnotateSaved,
     setViewingExamples,
+    setAiPlanModalOpen,
+    handleAiPlanAttached,
   } = props;
 
   return (
@@ -200,6 +212,13 @@ export function JpLessonPageModals(props: JpLessonPageModalsProps) {
             progressStatus
           );
         }}
+      />
+
+      <JpLessonAiPlanPromptModal
+        open={aiPlanModalOpen}
+        lessons={aiPlanLessons}
+        onClose={() => setAiPlanModalOpen(false)}
+        onAttached={handleAiPlanAttached}
       />
 
       <JpVocabRefEditModal

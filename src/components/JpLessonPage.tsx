@@ -63,6 +63,7 @@ import {
   DEFAULT_JP_LESSON_SECTION_SORT,
   buildTeacherById,
   groupLessonsForDisplay,
+  persistLessonCache,
   readLessonCache,
 } from "@/components/jp-lesson-page/jp-lesson-page-helpers";
 
@@ -131,6 +132,7 @@ export function JpLessonPage() {
   const [batchModalOpen, setBatchModalOpen] = useState(false);
   const [batchLessonIds, setBatchLessonIds] = useState<number[]>([]);
   const [batchSaving, setBatchSaving] = useState(false);
+  const [aiPlanModalOpen, setAiPlanModalOpen] = useState(false);
   const [annotatingLesson, setAnnotatingLesson] = useState<{
     lesson: JpLessonRecord;
     ref: JpVocabRef;
@@ -431,6 +433,32 @@ export function JpLessonPage() {
     );
   }, []);
 
+  const aiPlanLessons = useMemo(
+    () =>
+      batchLessonIds
+        .map((id) => lessons.find((l) => l.id === id))
+        .filter((l): l is JpLessonRecord => l != null),
+    [batchLessonIds, lessons]
+  );
+
+  const handleAiPlanAttached = useCallback(
+    (payload: {
+      lessons: JpLessonRecord[];
+      refs: Record<string, JpVocabRef>;
+    }) => {
+      const byId = new Map(payload.lessons.map((l) => [l.id, l]));
+      const nextLessons = lessons.map((l) => byId.get(l.id) ?? l);
+      const nextRefs = { ...refs, ...payload.refs };
+      setLessons(nextLessons);
+      setRefs(nextRefs);
+      persistLessonCache(nextLessons, nextRefs, noteCounts, teachers);
+      setAiPlanModalOpen(false);
+      setStatus(`已将教案挂到 ${payload.lessons.length} 条课程`);
+      window.setTimeout(() => setStatus(""), 2500);
+    },
+    [lessons, refs, noteCounts, teachers]
+  );
+
   const {
     setLessonProgress,
     setLessonTeachersForMany,
@@ -628,6 +656,7 @@ export function JpLessonPage() {
           batchLessonIds={batchLessonIds}
           setBatchModalOpen={setBatchModalOpen}
           setBatchLessonIds={setBatchLessonIds}
+          onOpenAiPlanPrompt={() => setAiPlanModalOpen(true)}
           teachers={teachers}
           refs={refs}
           teacherById={teacherById}
@@ -676,6 +705,8 @@ export function JpLessonPage() {
         batchModalOpen={batchModalOpen}
         batchLessonIds={batchLessonIds}
         batchSaving={batchSaving}
+        aiPlanModalOpen={aiPlanModalOpen}
+        aiPlanLessons={aiPlanLessons}
         editingLesson={editingLesson}
         editingRef={editingRef}
         editingContentLesson={editingContentLesson}
@@ -703,6 +734,8 @@ export function JpLessonPage() {
         setAnnotatingLesson={setAnnotatingLesson}
         handleAnnotateSaved={handleAnnotateSaved}
         setViewingExamples={setViewingExamples}
+        setAiPlanModalOpen={setAiPlanModalOpen}
+        handleAiPlanAttached={handleAiPlanAttached}
       />
 
       <JpLessonApiUploadDocs />
