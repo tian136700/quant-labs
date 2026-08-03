@@ -176,6 +176,17 @@ def main() -> int:
         raise SystemExit("FAIL: fail-log copy toast must confirm copy")
     if "【词条补全失败】" not in app_js or "错误：" not in app_js:
         raise SystemExit("FAIL: fail-log text must include title + error line")
+    # 一键复制当前列表全部失败日志（排查时不必逐条点「复制日志」）
+    if "formatVocabFillAllFailLogs" not in app_js or "copyVocabFillAllFailLogs" not in app_js:
+        raise SystemExit("FAIL: missing one-click copy-all-fail-logs helpers")
+    if "jp-fill-copy-all-fails" not in index_html or "en-fill-copy-all-fails" not in index_html:
+        raise SystemExit("FAIL: missing #jp/#en-fill-copy-all-fails buttons in index.html")
+    if "一键复制失败日志" not in index_html:
+        raise SystemExit("FAIL: copy-all-fails button label missing")
+    if "copyAllFails" not in app_js or "syncVocabFillCopyAllFailsBtn" not in app_js:
+        raise SystemExit("FAIL: copyAllFails must be wired in VOCAB_FILL_LANGS + synced on render")
+    if "条失败日志" not in app_js:
+        raise SystemExit("FAIL: copy-all toast must report fail count")
     if "resolved_later" not in app_js or "jp-fill-badge--resolved" not in app_js:
         raise SystemExit("FAIL: failed-row must show green 已处理 when resolved_later")
     if "已处理" not in app_js:
