@@ -102,9 +102,27 @@ def main() -> int:
         "copy-toast--above-modal",
         "JpVocabSaveProgressBar",
         "/api/jp-lesson/ref/attach-batch",
+        "jp-lesson-content-edit-ai-plan-grid",
+        "点击放大预览",
+        "jp-lesson-content-edit-ai-plan-zoom",
+        "max-height: min(42dvh, 360px)",
     ):
         if needle not in inline:
             errors.append(f"content-edit AI plan section missing {needle}")
+    # 「挂到本课」须在预览区上方，禁止沉底被裁切
+    actions_i = inline.find("jp-lesson-content-edit-ai-plan-paste-actions")
+    zone_i = inline.find("jp-lesson-content-edit-ai-plan-paste-zone")
+    if not (0 <= actions_i < zone_i):
+        errors.append("paste-actions must sit above paste-zone (attach buttons visible)")
+
+    content_edit = (
+        ROOT / "src/components/JpLessonContentEditModal.tsx"
+    ).read_text(encoding="utf-8")
+    # 教案区不得塞进 flex-shrink:0 的 header（会撑爆弹窗裁掉底栏）
+    ai_pos = content_edit.find("<JpLessonContentEditAiPlanSection")
+    body_pos = content_edit.find('className="jp-lesson-content-edit-body"')
+    if not (0 <= ai_pos < body_pos):
+        errors.append("AiPlanSection must sit above body, outside non-scrolling header")
 
     docs = ROOT / "docs/jp-lesson-ref-attach-batch-api.txt"
     if not docs.is_file():

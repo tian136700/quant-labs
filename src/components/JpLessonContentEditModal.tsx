@@ -360,16 +360,6 @@ export function JpLessonContentEditModal({
               </button>
             ) : null}
           </div>
-          {showAiPlanTools && onAiPlanAttached ? (
-            <JpLessonContentEditAiPlanSection
-              open={aiPlanOpen}
-              lesson={lesson}
-              words={aiPlanWords}
-              meanings={aiPlanMeanings}
-              disabled={saveBusy}
-              onAttached={onAiPlanAttached}
-            />
-          ) : null}
           {localError ? (
             <p
               ref={errorRef}
@@ -389,6 +379,17 @@ export function JpLessonContentEditModal({
             </div>
           ) : null}
         </div>
+
+        {showAiPlanTools && onAiPlanAttached ? (
+          <JpLessonContentEditAiPlanSection
+            open={aiPlanOpen}
+            lesson={lesson}
+            words={aiPlanWords}
+            meanings={aiPlanMeanings}
+            disabled={saveBusy}
+            onAttached={onAiPlanAttached}
+          />
+        ) : null}
 
         <div className="jp-lesson-content-edit-body">
           <div className="jp-lesson-content-edit-list-head">
@@ -526,7 +527,7 @@ export function JpLessonContentEditModal({
         .jp-lesson-content-edit-modal {
           display: flex;
           flex-direction: column;
-          width: min(900px, 100%);
+          width: min(980px, 100%);
           max-height: min(calc(100dvh - 2rem), 900px);
           overflow: hidden;
           border-radius: 12px;
