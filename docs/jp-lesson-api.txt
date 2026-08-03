@@ -187,6 +187,9 @@ action 一览
 | set_teacher | 管理员 | 设置上课老师 |
 | set_class_schedules | 管理员 | 设置多段上课时间 |
 | set_next_class_at | 管理员 | 兼容：设单段下次上课时间 |
+| set_content | 有编辑权 | 编辑学习内容 + 释义 |
+| complete_content_items | 有编辑权 | 熟悉词拆项标完成（拆课 + vocab_sync） |
+| sync_to_vocab | 有编辑权 | 已完成课分片同步到日语抽问 |
 
 
 ────────────────────────────────
@@ -391,4 +394,130 @@ Body:
 - content / meanings 为入库形态（逗号 / |）；网页编辑弹窗会把「1. xxx」换行拆成此格式后再提交
 - 保存后按新 content 项数对齐 annotations、example_sentences
 - 成功返回 { ok, lesson }
+
+
+────────────────────────────────
+POST · 熟悉词拆项标完成（complete_content_items）
+────────────────────────────────
+
+用途
+----
+未完成/学习中课有多词时，把**已熟悉**的项单独标完成：
+
+- 每个选中项 → **新建一条** `jp_lesson`（只含该词/语法项），状态 **已完成**，出现在「已完成」Tab
+- 继承原课 `course_label` / `title` / `kind` / `course_group_id`；**无教案**（`ref_key = null`）
+- 不复制老师、上课时间
+- 从原课 `content` 剔除对应项；原课词全部标完则 **删除原课**
+- 响应带 `vocab_syncs`；客户端须对每个新建课循环 `sync_to_vocab`（每批 8，防 1102）
+
+权限：日语新课 · 编辑/操作（与 set_content 同级）
+
+`item_indexes` 为 **0-based**，对当前库内 `parseLessonContent(lesson.content)` 的下标；
+须与已保存 content 一致（网页弹窗有未保存改动时会提示先保存）。
+
+
+请求 JSON
+---------
+{
+  "action": "complete_content_items",
+  "lesson_id": 109,
+  "item_indexes": [0, 2]
+}
+
+
+成功响应（节选）
+----------------
+{
+  "ok": true,
+  "source_lesson": { "id": 109, "content": "フランスじん, 教授", … },
+  "source_deleted": false,
+  "created_lessons": [
+    { "id": 120, "content": "中国人", "completed": true, "ref_key": null, … }
+  ],
+  "vocab_syncs": [
+    { "lesson_id": 120, "vocab_sync": { "needed": true, "total": 1, "offset": 0, "chunk_size": 8 } }
+  ]
+}
+
+若原课词全部被标完：
+  "source_lesson": null,
+  "source_deleted": true
+
+
+失败 error
+----------
+| error | 含义 |
+|-------|------|
+| lesson_id_invalid | lesson_id 非正整数 |
+| not_found | 课不存在 |
+| lesson_already_completed | 源课已是已完成 |
+| item_indexes_empty | 未传或空数组 |
+| item_indexes_invalid | 下标越界或非法 |
+| invalid_annotation | 标注对齐失败 |
+| create_failed / update_failed / delete_failed | 写库失败 |
+
+
+推荐调用顺序（脚本）
+--------------------
+1. POST complete_content_items
+2. 对每个 vocab_syncs[].lesson_id 循环 POST sync_to_vocab（offset/limit，直到 done=true）
+   见上文「分片同步到日语抽问」
+
+
+curl 示例
+---------
+curl -sS -X POST 'https://japanese.info-quests.com/api/jp-lesson' \
+  -H 'Cookie: 你的登录 Cookie' \
+  -H 'Content-Type: application/json' \
+  -H 'x-locale: zh' \
+  -d '{"action":"complete_content_items","lesson_id":109,"item_indexes":[0]}'
+
+
+Python 最小例
+-------------
+import requests
+
+BASE = "https://japanese.info-quests.com"
+COOKIE = "你的登录 Cookie"
+CHUNK = 8
+
+s = requests.Session()
+s.headers.update({"Cookie": COOKIE, "Content-Type": "application/json", "x-locale": "zh"})
+
+r = s.post(
+    f"{BASE}/api/jp-lesson",
+    json={"action": "complete_content_items", "lesson_id": 109, "item_indexes": [0]},
+)
+r.raise_for_status()
+data = r.json()
+assert data["ok"], data.get("error")
+
+for entry in data.get("vocab_syncs") or []:
+    lesson_id = entry["lesson_id"]
+    offset = 0
+    while True:
+        sync = s.post(
+            f"{BASE}/api/jp-lesson",
+            json={
+                "action": "sync_to_vocab",
+                "lesson_id": lesson_id,
+                "offset": offset,
+                "limit": CHUNK,
+            },
+        ).json()
+        if not sync.get("ok"):
+            raise RuntimeError(sync.get("error"))
+        if sync.get("done"):
+            break
+        offset = int(sync.get("next_offset", offset + CHUNK))
+
+print("created:", [x["id"] for x in data.get("created_lessons") or []])
+print("source_deleted:", data.get("source_deleted"))
+
+
+实现
+----
+src/lib/jp-lesson-complete-content-items.ts → completeJpLessonContentItems
+src/app/api/jp-lesson/route.ts
+src/components/jp-lesson-page/completeJpLessonContentItems.ts（网页编排 + 进度条）
 

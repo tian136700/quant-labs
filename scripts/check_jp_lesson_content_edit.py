@@ -53,6 +53,12 @@ def main() -> int:
         errors.append("modal must have row checkboxes for multi-select")
     if "添加一项" not in modal:
         errors.append("modal must allow adding a row")
+    if "标完成" not in modal or "标所选完成" not in modal:
+        errors.append("modal must support mark-complete per row and batch")
+    if "onCompleteItems" not in modal:
+        errors.append("modal must accept onCompleteItems callback")
+    if "isJpLessonContentEditRowsDirty" not in edit_lib:
+        errors.append("edit lib must detect unsaved rows before mark-complete")
     # 禁止退回双大框靠行号对齐
     if 'className="jp-lesson-content-edit-textarea"' in modal:
         errors.append("modal must not use dual textareas for content/meanings")
