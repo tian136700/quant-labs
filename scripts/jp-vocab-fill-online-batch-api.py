@@ -276,6 +276,7 @@ def build_prompt(row: dict[str, Any], *, full_bundle: bool = True) -> str:
 
     return f"""词条：{word}
 类型：{kind_label}
+{f"教材课次：{str(row.get('course_label') or '').strip()}（例句难度对齐本课附近，禁止明显超纲）" if str(row.get("course_label") or "").strip() else ""}
 
 {bundle_rule}
 
@@ -287,6 +288,7 @@ def build_prompt(row: dict[str, Any], *, full_bundle: bool = True) -> str:
 已有接序：{row.get("connection") or "（无）"}
 已有例句：{row.get("example_sentences") or "（无）"}
 已有相关构词：{row.get("related_compounds") or "（无）"}
+已有课次：{row.get("course_label") or "（无）"}
 
 JSON 必须包含且非空：{", ".join(req_keys)}（变形课 usage 填 ""；单词 related_compounds 可 ""）。
 只输出 JSON。"""
@@ -315,6 +317,7 @@ def fetch_candidates(token: str, *, limit: int) -> list[dict[str, Any]]:
                     "usage": row.get("usage"),
                     "connection": row.get("connection"),
                     "example_sentences": row.get("example_sentences"),
+                    "course_label": row.get("course_label"),
                     "needs": merge_needs_from_missing_flags(
                         full_refresh_needs(kind, word), row
                     ),
@@ -329,6 +332,7 @@ def fetch_candidates(token: str, *, limit: int) -> list[dict[str, Any]]:
                     "usage",
                     "connection",
                     "example_sentences",
+                    "course_label",
                     "kind",
                     "word",
                 ):

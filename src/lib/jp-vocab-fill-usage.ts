@@ -30,6 +30,8 @@ export type JpVocabMissingUsageRow = {
   usage: string | null;
   /** 已有接序 */
   connection: string | null;
+  /** 教材课次（例句难度对齐） */
+  course_label: string | null;
   need_usage: boolean;
   need_examples: boolean;
   need_connection: boolean;
@@ -93,7 +95,7 @@ export async function listJpVocabGrammarMissingUsage(
       : null;
 
   // 先宽查，再在内存过滤「活用变形已有例句+接续表」；LIMIT 必须过滤后再裁，否则会被变形课占满
-  let sql = `SELECT id, word, kind, reading, meaning, usage, example_sentences, connection
+  let sql = `SELECT id, word, kind, reading, meaning, usage, example_sentences, connection, course_label
        FROM jp_vocab_word
        WHERE kind = 'grammar'
          AND (
@@ -120,6 +122,7 @@ export async function listJpVocabGrammarMissingUsage(
     usage: string | null;
     example_sentences: string | null;
     connection: string | null;
+    course_label: string | null;
   }>();
 
   const mapped = (result.results ?? [])
@@ -137,6 +140,10 @@ export async function listJpVocabGrammarMissingUsage(
           : null;
       const connection =
         row.connection != null ? String(row.connection).trim() || null : null;
+      const course_label =
+        row.course_label != null
+          ? String(row.course_label).trim() || null
+          : null;
       if (
         isJpVocabGrammarUsageExamplesPairComplete(
           word,
@@ -161,6 +168,7 @@ export async function listJpVocabGrammarMissingUsage(
         meaning,
         usage,
         connection,
+        course_label,
         need_usage,
         need_examples,
         need_connection,
@@ -176,6 +184,7 @@ export async function listJpVocabGrammarMissingUsage(
               kind: "grammar",
               reading,
               meaning,
+              course_label,
             }),
       };
     })

@@ -176,17 +176,21 @@ def main() -> int:
         raise SystemExit("FAIL: fail-log copy toast must confirm copy")
     if "【词条补全失败】" not in app_js or "错误：" not in app_js:
         raise SystemExit("FAIL: fail-log text must include title + error line")
-    # 一键复制当前列表全部失败日志（排查时不必逐条点「复制日志」）
+    # 一键复制：只拷未处理失败（已处理/已删除不进）；含表外旧失败 unresolved_fails
     if "formatVocabFillAllFailLogs" not in app_js or "copyVocabFillAllFailLogs" not in app_js:
         raise SystemExit("FAIL: missing one-click copy-all-fail-logs helpers")
+    if "vocabFillRowIsUnresolvedFail" not in app_js:
+        raise SystemExit("FAIL: one-click must filter unresolved fails only")
+    if "unresolved_fails" not in app_js:
+        raise SystemExit("FAIL: one-click must prefer API unresolved_fails")
     if "jp-fill-copy-all-fails" not in index_html or "en-fill-copy-all-fails" not in index_html:
         raise SystemExit("FAIL: missing #jp/#en-fill-copy-all-fails buttons in index.html")
     if "一键复制失败日志" not in index_html:
         raise SystemExit("FAIL: copy-all-fails button label missing")
     if "copyAllFails" not in app_js or "syncVocabFillCopyAllFailsBtn" not in app_js:
         raise SystemExit("FAIL: copyAllFails must be wired in VOCAB_FILL_LANGS + synced on render")
-    if "条失败日志" not in app_js:
-        raise SystemExit("FAIL: copy-all toast must report fail count")
+    if "未处理失败" not in app_js:
+        raise SystemExit("FAIL: copy-all toast/title must say 未处理失败")
     if "resolved_later" not in app_js or "jp-fill-badge--resolved" not in app_js:
         raise SystemExit("FAIL: failed-row must show green 已处理 when resolved_later")
     if "已处理" not in app_js:
@@ -200,10 +204,19 @@ def main() -> int:
     ).read_text(encoding="utf-8")
     if "annotate_rows_resolved_later" not in resolved_mod:
         raise SystemExit("FAIL: missing annotate_rows_resolved_later helper")
+    if "select_unresolved_fail_rows" not in resolved_mod:
+        raise SystemExit("FAIL: missing select_unresolved_fail_rows for one-click scope")
+    if "list_jp_vocab_fill_unresolved_fails" not in jp_feed:
+        raise SystemExit("FAIL: jp feed must list unresolved_fails for one-click copy")
+    if "list_en_vocab_fill_unresolved_fails" not in en_feed:
+        raise SystemExit("FAIL: en feed must list unresolved_fails for one-click copy")
+    if '"unresolved_fails"' not in jp_feed or '"unresolved_fails"' not in en_feed:
+        raise SystemExit("FAIL: jp/en feed snapshot must include unresolved_fails")
     if "annotate_rows_resolved_later" not in jp_feed or "annotate_rows_resolved_later" not in en_feed:
         raise SystemExit("FAIL: jp/en feed must annotate resolved_later")
     from maintenance_center.vocab_fill_resolved_later import (  # noqa: E402
         annotate_rows_resolved_later,
+        select_unresolved_fail_rows,
     )
 
     resolved_sample = annotate_rows_resolved_later(
@@ -228,6 +241,26 @@ def main() -> int:
     assert resolved_sample[1].get("resolved_later") is True, resolved_sample[1]
     assert resolved_sample[1].get("resolved_label") == "已处理", resolved_sample[1]
     assert not resolved_sample[2].get("resolved_later"), resolved_sample[2]
+    only_unresolved = select_unresolved_fail_rows(resolved_sample)
+    assert len(only_unresolved) == 1 and only_unresolved[0]["word_id"] == 999, only_unresolved
+    deleted_only = select_unresolved_fail_rows(
+        annotate_rows_resolved_later(
+            [
+                {
+                    "word_id": 540,
+                    "status": "success",
+                    "finished_at": "2026-08-04 03:20:00",
+                    "preview": "此词条已被删除。已并入原形",
+                },
+                {
+                    "word_id": 540,
+                    "status": "failed",
+                    "finished_at": "2026-08-03 23:00:00",
+                },
+            ]
+        )
+    )
+    assert deleted_only == [], deleted_only
     if 'RESOLVED_LATER_LABEL = "已处理"' not in resolved_mod:
         raise SystemExit("FAIL: RESOLVED_LATER_LABEL must be 已处理")
     if 'RESOLVED_DELETED_LABEL = "此词条已被删除"' not in resolved_mod:

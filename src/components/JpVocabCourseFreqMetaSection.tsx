@@ -25,8 +25,8 @@ function FreqBar({
       ) : (
         <span
           className="jp-vocab-teacher-quiz__meta-freq"
-          title={`${label} ${score}（1～10）`}
-          aria-label={`${label} ${score}`}
+          title={`${label} ${score}/10（满分 10；约${Math.round((score / 10) * 100)}%）`}
+          aria-label={`${label} ${score}/10，满分 10`}
         >
           <span
             className="jp-vocab-teacher-quiz__meta-freq-bar"

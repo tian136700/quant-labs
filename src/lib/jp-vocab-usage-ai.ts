@@ -10,6 +10,7 @@ import {
   joinJpVocabUsageWithDistinction,
   splitJpVocabUsageDistinctionLead,
 } from "@/lib/jp-vocab-contrast-usage-ai";
+import { parseJpVocabExampleSentenceItems } from "@/lib/jp-vocab-example-sentences";
 import {
   extractJpVocabUsageLineFrequency,
   formatJpVocabUsageLineWithFrequency,
@@ -166,6 +167,7 @@ export function isJpVocabConjugationGrammar(word: string): boolean {
  * 语法「用法+例句+接序」是否已齐。
  * 活用变形课：无编号用法；须有短例句 + 接续表（一类／二类／三类对照，标本 id=521 式）。
  * 读音对比课：须有【区别】+恰好 2 组对照 + 例句 + 接序。
+ * 普通句型：单用法须 ≥3 条例句；多用法 ≥用法条数（1:1）。
  */
 export function isJpVocabGrammarUsageExamplesPairComplete(
   word: string,
@@ -183,7 +185,11 @@ export function isJpVocabGrammarUsageExamplesPairComplete(
   if (isJpVocabContrastGrammar(word)) {
     return isJpVocabContrastUsageComplete(usage);
   }
-  return true;
+  const usageN = countJpVocabUsagePoints(usage);
+  if (usageN < 1) return false;
+  const exN = parseJpVocabExampleSentenceItems(String(examples ?? "")).length;
+  if (usageN === 1) return exN >= 3;
+  return exN >= usageN;
 }
 
 /** 对比课：【区别】lead + 恰好 2 条编号对照 */
@@ -211,7 +217,8 @@ export function jpVocabUsageLineLooksNonChinese(text: string): boolean {
 }
 
 /**
- * 语法：用法+例句同一次输出（1:1）。
+ * 语法：用法+例句同一次输出。
+ * 单用法 → 3 条例句（按接续类型）；多用法 → 1:1。
  * 禁止拆成两次模型调用。用法必须中文。
  * 「变形/变化规则」词条走短标签模式，禁止长篇规则讲解。
  */
@@ -297,12 +304,16 @@ ${jpVocabConnectionPromptAppendix("grammar")}`;
 - 不要写总标题；第一行就必须是「1. …」中文用法。
 ${jpVocabUsagePerUsageFrequencyPromptAppendix()}
 ${jpVocabConnectionPromptAppendix("grammar")}
-输出格式示例（仅 1 种常用用法时就只输出 1 组；多种用法再继续 2. 3. …；末尾接序）：
-1. [口语9|考试7] 表示原因、理由：前句说明原因，后句说明结果。(N5)
-今日(きょう)は雨(あめ)だから、家(いえ)にいます。
-译文：今天下雨，所以我待在家里。
+输出格式示例（仅 1 种常用用法 → 1 条用法 + 3 条例句覆盖不同接续；多种用法再 1:1；末尾接序）：
+1. [口语9|考试7] 表示状态反复交替，相当于「有时…有时…」。(N4)
+今日(きょう)の天気(てんき)は暑(あつ)かったり、寒(さむ)かったりです。
+译文：今天的天气时热时冷。
+この部屋(へや)は静(しず)かだったり、うるさかったりです。
+译文：这间屋子有时安静、有时吵。
+週末(しゅうまつ)は忙(いそが)しかったり、暇(ひま)だったりです。
+译文：周末有时忙、有时空闲。
 【接序】
-动词辞书形（动词原形）＋から｜表示原因；一类形容词原形＋から｜表示原因；二类形容词词干＋だから｜表示原因；名词＋だから｜表示原因`;
+一类形容词词干＋かったり～かったりです｜状态交替；二类形容词词干＋だったり～だったりです｜状态交替`;
 }
 
 export type JpVocabGrammarUsageExamplePairParsed = {

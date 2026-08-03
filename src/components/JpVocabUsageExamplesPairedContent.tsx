@@ -316,30 +316,24 @@ export function JpVocabUsageExamplesPairedContent({
         }
         :global(.jp-usage-ex-paired-freq-caption) {
           flex: 0 0 auto;
-          min-width: 4.2em;
-          font-size: 0.78rem;
-          font-weight: 600;
+          min-width: 4.8em;
+          font-size: 0.8rem;
+          font-weight: 650;
           letter-spacing: 0.01em;
           color: var(--muted);
         }
         :global(.jp-usage-ex-paired-freq-bar) {
           display: inline-block;
-          width: 4.5rem;
-          height: 0.42rem;
+          width: 5.5rem;
+          height: 0.5rem;
           border-radius: 999px;
           background: color-mix(in srgb, var(--border) 70%, transparent);
           overflow: hidden;
           flex: 0 0 auto;
         }
-        :global(.jp-usage-ex-paired-freq-fill) {
-          display: block;
-          height: 100%;
-          border-radius: inherit;
-          background: color-mix(in srgb, var(--accent) 82%, var(--text));
-        }
         :global(.jp-usage-ex-paired-freq-score) {
           flex: 0 0 auto;
-          font-size: 0.78rem;
+          font-size: 0.8rem;
           font-weight: 700;
           font-variant-numeric: tabular-nums;
           color: color-mix(in srgb, var(--accent) 88%, var(--text));

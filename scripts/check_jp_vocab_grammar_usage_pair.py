@@ -139,8 +139,12 @@ def main() -> int:
         errors.append("usage prompt 禁止再写「例句另有阶段」")
     if "一次写完" not in usage_ai and "同一次输出" not in usage_ai:
         errors.append("usage prompt 须要求用法+例句同一次输出")
-    if "严格 1:1" not in usage_ai and "恰好 1 条" not in usage_ai:
-        errors.append("usage prompt 须强调用法↔例句严格 1:1 / 恰好 1 条")
+    if "单用法" not in usage_ai or "3 条" not in usage_ai:
+        errors.append("usage prompt 须写明单用法 → 恰好 3 条例句")
+    if "多用法" not in usage_ai and "1:1" not in usage_ai:
+        errors.append("usage prompt 须写明多用法 → 1:1")
+    if "course_label" not in usage_ai and "教材课次" not in usage_ai:
+        errors.append("usage prompt 须支持教材课次 / course_label（防超纲）")
     if "张冠李戴" not in usage_ai and "对应该条用法" not in usage_ai:
         errors.append("usage prompt 须要求例句接续对应该条用法（防た形/辞书形错挂）")
     if "pair_semantic_mismatch" not in usage_ai:
@@ -152,21 +156,38 @@ def main() -> int:
     ).read_text(encoding="utf-8")
     if "validateJpVocabUsageExamplePairAlignment" not in align_ts:
         errors.append("缺 usage-example pair alignment 模块")
+    if "single_usage_need_three" not in align_ts:
+        errors.append("pair align 须拒 single_usage_need_three")
     ex_ai = (
         ROOT / "src/lib/jp-vocab-example-sentences-ai.ts"
     ).read_text(encoding="utf-8")
     if "validateJpVocabUsageExamplePairAlignment" not in ex_ai:
         errors.append("example apply 须调用 pair alignment")
-    if "严格 1:1" not in script and "对应该条用法" not in script:
-        errors.append("Mac PAIR_SYSTEM 须含严格 1:1 / 接续对应")
+    if "单用法" not in script or "3 条" not in script:
+        errors.append("Mac PAIR_SYSTEM 须含单用法 → 3 条例句")
+    if "1:1" not in script and "对应该条用法" not in script:
+        errors.append("Mac PAIR_SYSTEM 须含多用法 1:1 / 接续对应")
     if "语义必须对齐" not in script and "点名的形态" not in script:
         errors.append("Mac PAIR_SYSTEM 须要求语义对齐")
-    if "严格 1:1" not in rule and "恰好 1 条" not in rule:
-        errors.append("grammar-usage 规则须写明严格 1:1 / 接续对应")
+    if "单用法" not in rule or "3 条" not in rule:
+        errors.append("grammar-usage 规则须写明单用法 → 3 条例句")
+    if "1:1" not in rule and "恰好 1 条" not in rule:
+        errors.append("grammar-usage 规则须写明多用法 1:1 / 接续对应")
+    if "course_label" not in fill_usage:
+        errors.append("fill-usage list_missing 须带 course_label 给 prompt")
     if "pair_semantic_mismatch" not in rule and "语义" not in rule:
         errors.append("grammar-usage 规则须写 pair_semantic_mismatch / 语义对齐")
     if "按块均分" not in display and "examples.length % points.length" not in display:
         errors.append("展示层须支持多例句按块均分（存量兜底）")
+    if "nestExamplesUnderSingleUsage" not in display and "nestedExamples" not in display:
+        errors.append("展示层须支持单用法挂多条例句（nestedExamples）")
+    freq_bars = (
+        ROOT / "src/components/JpVocabUsageFrequencyBars.tsx"
+    ).read_text(encoding="utf-8")
+    if "口语频率" not in freq_bars or "考试频率" not in freq_bars:
+        errors.append("用法旁频率条须用完整「口语频率」「考试频率」文案")
+    if "score / 10" not in freq_bars and "/ 10" not in freq_bars:
+        errors.append("频率条须按满分 10 算宽度（7→70%）")
     if "clearJpVocabGrammarPairById" not in fill_usage:
         errors.append("fill-usage 缺单条 clear_pair")
     if "clear_pair" not in route:

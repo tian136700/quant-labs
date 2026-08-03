@@ -7,8 +7,9 @@ import {
 } from "@/lib/jp-vocab-frequency";
 
 /**
- * 语法用法旁：口语频率 / 考试频率小进度条（满分 10，7 → 70%），
+ * 语法用法旁：口语频率 / 考试频率小进度条（满分 10，7 → 70% 条宽），
  * 对齐词级 JpVocabCourseFreqMetaSection 与英语「出现频次」条。
+ * 文案必须写完整「口语频率」「考试频率」，勿只写「口语」「考试」。
  */
 export function JpVocabUsageFrequencyBars({
   oralFrequency,
@@ -27,14 +28,14 @@ export function JpVocabUsageFrequencyBars({
       <span
         key={label}
         className="jp-usage-ex-paired-freq-row"
-        title={`${label} ${score}/10（满分 10）`}
-        aria-label={`${label} ${score}/10`}
+        title={`${label} ${score}/10（满分 10；约${pct}%）`}
+        aria-label={`${label} ${score}/10，满分 10`}
       >
         <span className="jp-usage-ex-paired-freq-caption">{label}</span>
         <span
           className="jp-usage-ex-paired-freq-bar"
           role="progressbar"
-          aria-valuemin={1}
+          aria-valuemin={0}
           aria-valuemax={10}
           aria-valuenow={score}
         >
@@ -49,7 +50,7 @@ export function JpVocabUsageFrequencyBars({
   };
 
   return (
-    <div className="jp-usage-ex-paired-freq-wrap">
+    <div className="jp-usage-ex-paired-freq-wrap" aria-label="出现频率">
       {oral != null ? row(JP_VOCAB_ORAL_FREQUENCY_LABEL, oral) : null}
       {exam != null ? row(JP_VOCAB_EXAM_FREQUENCY_LABEL, exam) : null}
     </div>

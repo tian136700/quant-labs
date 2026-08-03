@@ -57,14 +57,14 @@ function EnVocabUsageFrequencyBar({
   return (
     <span
       className="en-usage-ex-paired-freq"
-      title="该用法在英语中的相对出现频次（满分 10；7/10＝约七成）"
-      aria-label={label ?? undefined}
+      title={`出现频次 ${score}/10（满分 10；约${pct}%）`}
+      aria-label={label ? `${label}，满分 10` : undefined}
     >
       <span className="en-usage-ex-paired-freq-caption">出现频次</span>
       <span
         className="en-usage-ex-paired-freq-bar"
         role="progressbar"
-        aria-valuemin={1}
+        aria-valuemin={0}
         aria-valuemax={10}
         aria-valuenow={score}
       >
@@ -278,30 +278,24 @@ export function EnVocabUsageExamplesPairedContent({
         }
         :global(.en-usage-ex-paired-freq-caption) {
           flex: 0 0 auto;
-          font-size: 0.72rem;
-          font-weight: 600;
+          font-size: 0.78rem;
+          font-weight: 650;
           letter-spacing: 0.01em;
           color: var(--muted);
         }
         :global(.en-usage-ex-paired-freq-bar) {
           display: inline-block;
-          width: 4.5rem;
-          height: 0.42rem;
+          width: 5.5rem;
+          height: 0.5rem;
           border-radius: 999px;
           background: color-mix(in srgb, var(--border) 70%, transparent);
           overflow: hidden;
           flex: 0 0 auto;
         }
-        :global(.en-usage-ex-paired-freq-fill) {
-          display: block;
-          height: 100%;
-          border-radius: inherit;
-          background: color-mix(in srgb, var(--accent) 82%, var(--text));
-        }
         :global(.en-usage-ex-paired-freq-score) {
           flex: 0 0 auto;
-          min-width: 1.1rem;
-          font-size: 0.72rem;
+          min-width: 2.2rem;
+          font-size: 0.78rem;
           font-weight: 700;
           font-variant-numeric: tabular-nums;
           color: color-mix(in srgb, var(--accent) 88%, var(--text));
