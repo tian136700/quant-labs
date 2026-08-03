@@ -27,6 +27,8 @@ type Props = {
   lesson: JpLessonRecord;
   /** 当前编辑行里的学习内容（未保存也按屏上词复制） */
   words: string[];
+  /** 与 words 对齐的释义 */
+  meanings?: Array<string | null | undefined>;
   disabled?: boolean;
   onAttached: (payload: {
     lessons: JpLessonRecord[];
@@ -41,6 +43,7 @@ export function JpLessonContentEditAiPlanSection({
   open,
   lesson,
   words,
+  meanings,
   disabled = false,
   onAttached,
 }: Props) {
@@ -78,9 +81,10 @@ export function JpLessonContentEditAiPlanSection({
         courseLabel: lesson.course_label,
         kindLabel: jpLessonKindLabel(lesson.kind),
         words,
+        meanings,
       },
     ],
-    [lesson.id, lesson.course_label, lesson.kind, words]
+    [lesson.id, lesson.course_label, lesson.kind, words, meanings]
   );
 
   if (!open) return null;

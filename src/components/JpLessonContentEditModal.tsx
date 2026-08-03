@@ -95,6 +95,13 @@ export function JpLessonContentEditModal({
         .filter(Boolean),
     [rows]
   );
+  const aiPlanMeanings = useMemo(
+    () =>
+      rows
+        .filter((row) => (row.content || "").trim())
+        .map((row) => (row.meaning || "").trim() || null),
+    [rows]
+  );
 
   useEffect(() => {
     if (!localError) return;
@@ -358,6 +365,7 @@ export function JpLessonContentEditModal({
               open={aiPlanOpen}
               lesson={lesson}
               words={aiPlanWords}
+              meanings={aiPlanMeanings}
               disabled={saveBusy}
               onAttached={onAiPlanAttached}
             />

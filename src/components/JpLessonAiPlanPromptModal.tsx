@@ -17,6 +17,7 @@ import {
 import {
   jpLessonKindLabel,
   parseLessonContent,
+  alignLessonItemMeanings,
 } from "@/lib/jp-lesson-shared";
 import { jpVocabSaveProgressLabel } from "@/lib/jp-vocab-save-progress";
 import type { JpLessonRecord, JpVocabRef } from "@/lib/types";
@@ -40,12 +41,17 @@ type Props = {
 };
 
 function buildGroups(lessons: JpLessonRecord[]): JpLessonAiPlanWordGroup[] {
-  return lessons.map((lesson) => ({
-    lessonId: lesson.id,
-    courseLabel: lesson.course_label,
-    kindLabel: jpLessonKindLabel(lesson.kind),
-    words: parseLessonContent(lesson.content),
-  }));
+  return lessons.map((lesson) => {
+    const words = parseLessonContent(lesson.content);
+    const meanings = alignLessonItemMeanings(lesson.content, lesson.meanings);
+    return {
+      lessonId: lesson.id,
+      courseLabel: lesson.course_label,
+      kindLabel: jpLessonKindLabel(lesson.kind),
+      words,
+      meanings,
+    };
+  });
 }
 
 export function JpLessonAiPlanPromptModal({
@@ -193,8 +199,7 @@ export function JpLessonAiPlanPromptModal({
         <div className="jp-lesson-ai-plan-header">
           <h2 id="jp-lesson-ai-plan-title">做教案提示词</h2>
           <p className="jp-lesson-ai-plan-sub">
-            已勾选 {lessons.length} 课 · 共 {wordCount} 个词条。左边是单词，右上复制给
-            ChatGPT；右下粘贴教案图挂到勾选课。
+            已勾选 {lessons.length} 课 · 共 {wordCount} 个词条。点「复制单词+提示词」得到生词表成稿模板（辞書形、插图教案版式）；右下粘贴教案图挂到勾选课。
           </p>
         </div>
 

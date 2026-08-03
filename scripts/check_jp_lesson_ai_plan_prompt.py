@@ -20,6 +20,13 @@ def main() -> int:
         "JP_LESSON_AI_PLAN_DEFAULT_PROMPT",
         "buildJpLessonAiPlanCopyText",
         "readStoredJpLessonAiPlanPrompt",
+        "图片版单词教案",
+        "辞書形",
+        "严禁自行删减大半词表",
+        "Your turn / Make a sentence / 造个句子",
+        "A4 纵向",
+        "生词表",
+        "ai-plan-prompt-template:v2",
     ):
         if needle not in prompt_lib:
             errors.append(f"missing {needle} in jp-lesson-ai-plan-prompt.ts")
