@@ -2,6 +2,7 @@ import {
   hasJpVocabConnection,
   jpVocabConnectionPromptAppendix,
   JP_VOCAB_CONNECTION_SECTION_MARKER,
+  parseJpVocabConnectionTableRows,
   splitJpVocabAiOutputConnectionSection,
 } from "@/lib/jp-vocab-connection-ai";
 import {
@@ -178,7 +179,10 @@ export function isJpVocabGrammarUsageExamplesPairComplete(
   const hasExamples = Boolean(String(examples ?? "").trim());
   const hasUsage = Boolean(String(usage ?? "").trim());
   if (isJpVocabConjugationGrammar(word)) {
-    return hasExamples && hasJpVocabConnection(connection);
+    // 须能 parse 成接续表（标本 id=521 / て形 id=60）；散文「一类动词词尾变い段…」不算完成
+    return (
+      hasExamples && Boolean(parseJpVocabConnectionTableRows(connection))
+    );
   }
   if (!hasJpVocabConnection(connection)) return false;
   if (!hasUsage || !hasExamples) return false;

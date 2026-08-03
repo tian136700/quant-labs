@@ -152,9 +152,9 @@ export function JpVocabPageToolbar({
               className="btn-rsi-filter"
               onClick={onRefresh}
               disabled={loading || refreshing}
-              title="从服务器重新加载词表"
+              title="强制从服务器拉取最新词表与今日抽查数量，并更新本机缓存（不会整页刷新）"
             >
-              {refreshing ? "刷新中…" : "刷新"}
+              {refreshing ? "更新中…" : "更新缓存"}
             </button>
           ) : null}
           {canOperate && quizTarget > 0 && quizTargetWordsLength > 0 ? (

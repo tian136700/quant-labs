@@ -5,6 +5,7 @@ import {
   hasJpVocabConnection,
   JP_VOCAB_CONNECTION_UPLOAD_SPEC,
   normalizeJpVocabConnectionSource,
+  parseJpVocabConnectionTableRows,
   validateJpVocabConnectionAiOutput,
 } from "@/lib/jp-vocab-connection-ai";
 import { ensureJpVocabWordSchema } from "@/lib/jp-vocab-db";
@@ -157,7 +158,9 @@ export async function listJpVocabGrammarMissingUsage(
       const isConj = isJpVocabConjugationGrammar(word);
       const need_usage = isConj ? false : !usage;
       const need_examples = !examples;
-      const need_connection = !hasJpVocabConnection(connection);
+      const need_connection = isConj
+        ? !parseJpVocabConnectionTableRows(connection)
+        : !hasJpVocabConnection(connection);
       const onlyConnection =
         need_connection && !need_usage && !need_examples;
       return {
@@ -627,6 +630,19 @@ export async function applyJpVocabUsageUpdates(
         continue;
       }
       connection = connOk.text;
+      // 变形课接续必须能上表（＋…｜说明）；散文旧稿拒写回
+      if (
+        isConj &&
+        connection &&
+        !parseJpVocabConnectionTableRows(connection)
+      ) {
+        skipped.push({
+          id: wordId,
+          word: String(row.word),
+          reason: "invalid_format:connection_invalid:not_table",
+        });
+        continue;
+      }
     }
 
     if (connectionOnly) {

@@ -362,7 +362,7 @@ export function useJpVocabAdminActions(options: {
       });
       setStatus(
         `今日抽查数量已设为 ${data.teacher_visible_limit.quiz_target} 个（老师端按可见池抽查，优先从未抽查过的词条）。` +
-          ` 同浏览器已打开的老师页会立即同步；老师在别的手机/电脑上请点「刷新」，或开着抽查卡时会自动跟上。`
+          ` 同浏览器已打开的老师页会立即同步；其它手机/电脑请重新打开页面，或在管理员端点「更新缓存」；开着抽查卡时也会自动跟上。`
       );
     } catch (err) {
       setStatus(err instanceof Error ? err.message : String(err));

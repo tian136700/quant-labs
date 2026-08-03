@@ -109,17 +109,22 @@ def check_toolbar(path: Path) -> None:
             "(not bare 抽查)"
         )
     if path.name == "JpVocabPageToolbar.tsx":
-        # Teacher toolbar must not expose 刷新; admin may keep it behind isAdminMode.
+        # Teacher toolbar must not expose 更新缓存; admin may keep it behind isAdminMode.
         if re.search(
-            r"\{isAdminMode \? \(\s*<button[\s\S]*?刷新[\s\S]*?\) : null\}",
+            r"\{isAdminMode \? \(\s*<button[\s\S]*?更新缓存[\s\S]*?\) : null\}",
             src,
         ) is None and re.search(
-            r"isAdminMode \?[\s\S]{0,400}刷新",
+            r"isAdminMode \?[\s\S]{0,400}更新缓存",
             src,
         ) is None:
             fail(
-                f"{path.name}: teacher toolbar must hide 刷新 "
+                f"{path.name}: teacher toolbar must hide 更新缓存 "
                 "(only show under isAdminMode)"
+            )
+        if re.search(r">刷新<|>刷新中", src):
+            fail(
+                f"{path.name}: admin cache button must be labeled 更新缓存 "
+                "(not 刷新 — users mistake it for a full page reload)"
             )
 
 

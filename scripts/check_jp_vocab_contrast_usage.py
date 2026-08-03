@@ -117,21 +117,29 @@ def main() -> int:
     for needle in (
         "id=521",
         "词类／形态＋变形结果",
-        "hasJpVocabConnection(connection)",
+        "parseJpVocabConnectionTableRows",
         "connection_required",
     ):
         if needle not in usage_ai:
             # connection_required 可能只在 validate 分支
-            if needle == "hasJpVocabConnection(connection)":
-                if "hasJpVocabConnection(connection)" not in usage_ai and (
-                    "hasExamples && hasJpVocabConnection" not in usage_ai
-                ):
-                    errors.append("usage-ai 变形课完成判定须要求 connection")
+            if needle == "parseJpVocabConnectionTableRows":
+                if "parseJpVocabConnectionTableRows(connection)" not in usage_ai:
+                    errors.append(
+                        "usage-ai 变形课完成判定须 parse 接续表（拒散文）"
+                    )
             elif needle == "词类／形态＋变形结果":
                 if "变形结果" not in usage_ai and "＋いて" not in usage_ai:
                     errors.append("usage-ai 变形课 prompt 须含接续表公式")
             elif needle not in usage_ai:
                 errors.append(f"usage-ai 缺变形课门禁 {needle!r}")
+
+    fill_usage = (ROOT / "src/lib/jp-vocab-fill-usage.ts").read_text(
+        encoding="utf-8"
+    )
+    if "not_table" not in fill_usage:
+        errors.append("fill-usage 须拒变形课散文接续（connection_invalid:not_table）")
+    if "parseJpVocabConnectionTableRows(connection)" not in fill_usage:
+        errors.append("fill-usage list_missing 变形课 need_connection 须按表判定")
 
     if "不要接序" in script or "不要接序段" in script:
         errors.append("Mac grammar fill 禁止再写「变形课不要接序」")

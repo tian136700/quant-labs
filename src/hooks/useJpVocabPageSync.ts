@@ -65,7 +65,7 @@ export function useJpVocabPageSync(options: {
   teacherIdleCompleteRef: MutableRefObject<boolean>;
   /** 开卡后半小时无勾选熟悉程度 → 降频 */
   teacherQuizIdleRef?: MutableRefObject<boolean>;
-  /** 仅老师抽查会话进行中才后台轮询；否则靠用户点「刷新」 */
+  /** 仅老师抽查会话进行中才后台轮询；否则靠用户点「更新缓存」 */
   enableBackgroundSyncPoll?: boolean;
   /** 半小时无勾选降频态变化时重排 timer（再勾选立刻恢复日间间隔） */
   teacherQuizPollIdle?: boolean;
