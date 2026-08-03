@@ -20,6 +20,11 @@ type VocabSyncEntry = {
   vocab_sync: JpLessonVocabSyncPlan;
 };
 
+/** 标完成客户端结果；Modals props 须能接住，勿收窄成 Promise<void>（会挂 next build） */
+export type JpLessonCompleteContentItemsResult =
+  | { ok: true }
+  | { ok: false; error: string };
+
 type CompleteArgs = {
   locale: Locale;
   canOperate: boolean;
@@ -43,7 +48,7 @@ type CompleteArgs = {
  */
 export async function completeJpLessonContentItemsClient(
   args: CompleteArgs
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<JpLessonCompleteContentItemsResult> {
   const {
     locale,
     canOperate,

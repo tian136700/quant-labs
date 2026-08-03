@@ -13,6 +13,7 @@ import type { Locale } from "@/i18n/messages";
 import type { JpLessonProgressStatus } from "@/lib/jp-lesson-shared";
 import type { JpLessonClassScheduleInput, JpLessonRecord, JpLessonTeacher, JpVocabRef } from "@/lib/types";
 import { refViewUrl } from "@/components/jp-lesson-page/jp-lesson-page-helpers";
+import type { JpLessonCompleteContentItemsResult } from "@/components/jp-lesson-page/completeJpLessonContentItems";
 
 /** 含 pdfjs/jspdf：禁止打进 Worker，仅客户端懒加载 */
 const JpLessonAnnotateModal = dynamic(
@@ -73,7 +74,7 @@ export type JpLessonPageModalsProps = {
   ) =>
     | void
     | Promise<void>
-    | Promise<{ ok: true } | { ok: false; error: string }>;
+    | Promise<JpLessonCompleteContentItemsResult>;
   handleRefUpdated: (...args: any[]) => void;
   openJpAuth: () => void;
   setAnnotatingLesson: (v: JpLessonPageModalsProps["annotatingLesson"]) => void;

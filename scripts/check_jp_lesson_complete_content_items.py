@@ -68,6 +68,27 @@ def main() -> int:
     ).read_text(encoding="utf-8")
     if "completeLessonContentItems" not in modals:
         errors.append("JpLessonPageModals must pass completeLessonContentItems")
+    # 曾挂部署：props 写成 Promise<void>，而 client 返回 {ok}/error
+    prop_block = modals.split("completeLessonContentItems:", 1)
+    if len(prop_block) < 2:
+        errors.append("JpLessonPageModals props missing completeLessonContentItems type")
+    else:
+        prop_ty = prop_block[1].split("handleRefUpdated", 1)[0]
+        if "Promise<void>" in prop_ty and "JpLessonCompleteContentItemsResult" not in prop_ty and "{ ok: true }" not in prop_ty:
+            errors.append(
+                "completeLessonContentItems prop must accept Result "
+                "(not only Promise<void>; next build type error)"
+            )
+        if "JpLessonCompleteContentItemsResult" not in prop_ty and "{ ok: true }" not in prop_ty:
+            errors.append(
+                "completeLessonContentItems prop must mention "
+                "JpLessonCompleteContentItemsResult or { ok: true }"
+            )
+    if "JpLessonCompleteContentItemsResult" not in client:
+        errors.append(
+            "completeJpLessonContentItems.ts must export "
+            "JpLessonCompleteContentItemsResult"
+        )
 
     api_txt = (ROOT / "docs/jp-lesson-api.txt").read_text(encoding="utf-8")
     if "complete_content_items" not in api_txt:
