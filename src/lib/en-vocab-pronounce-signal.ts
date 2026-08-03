@@ -55,12 +55,14 @@ export function markHandledEnVocabPronounceAt(at: string): void {
 
 /** 是否应弹框：at 比本地已处理更新（同一词可多次发送） */
 export function shouldHandleEnVocabPronounceSignal(
-  signal: EnVocabTeacherPronounceSignal | null | undefined,
+  signal: EnVocabTeacherPronounceSignal,
   handledAt: string | null
 ): boolean {
-  if (!signal?.at || !signal.text) return false;
+  const at = signal.at;
+  const text = signal.text;
+  if (!at || !text) return false;
   if (!handledAt) return true;
-  return signal.at > handledAt;
+  return at > handledAt;
 }
 
 export function notifyEnVocabPronounceSent(

@@ -92,6 +92,20 @@ def main() -> None:
     must_contain(STUDY, "applyTeacherPronounce")
     must_contain(STUDY, "teacher_pronounce")
     must_contain(STUDY, "subscribeEnVocabPronounceSent")
+    # 部署曾因 signal.at 被收成 never 失败：须先取 signalAt；helper 只收非空 signal
+    must_contain(STUDY, "const signalAt = signal.at")
+    must_contain(STUDY, "handled ?? signalAt")
+    signal_src = SIGNAL.read_text(encoding="utf-8")
+    if (
+        "shouldHandleEnVocabPronounceSignal(\n"
+        "  signal: EnVocabTeacherPronounceSignal | null | undefined,"
+    ) in signal_src or "signal?: EnVocabTeacherPronounceSignal | null" in signal_src:
+        fail(
+            "shouldHandleEnVocabPronounceSignal must take non-null signal "
+            "(null|undefined param + signal?.at caused Next typecheck never)"
+        )
+    if "signal: EnVocabTeacherPronounceSignal," not in signal_src:
+        fail("shouldHandleEnVocabPronounceSignal must take EnVocabTeacherPronounceSignal")
 
     # 禁止学生端为读音另开 live 定时轮询
     study = STUDY.read_text(encoding="utf-8")

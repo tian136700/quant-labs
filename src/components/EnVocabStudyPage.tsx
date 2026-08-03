@@ -187,26 +187,28 @@ export function EnVocabStudyPage() {
     const signal = parseEnVocabTeacherPronouncePayload(raw);
     if (!signal) return;
 
+    // 先取出 at：避免部分 TS/Next 类型检查把 signal.at 收成 never
+    const signalAt = signal.at;
     const handled =
       pronounceHandledAtRef.current ?? readHandledEnVocabPronounceAt();
 
     if (!pronounceSeededRef.current) {
       pronounceSeededRef.current = true;
       if (!shouldHandleEnVocabPronounceSignal(signal, handled)) {
-        pronounceHandledAtRef.current = handled ?? signal.at;
+        pronounceHandledAtRef.current = handled ?? signalAt;
         return;
       }
       // 首次进页且本会话无已处理记录：吃掉当前信号，避免一进页就弹旧读音
       if (!handled) {
-        pronounceHandledAtRef.current = signal.at;
-        markHandledEnVocabPronounceAt(signal.at);
+        pronounceHandledAtRef.current = signalAt;
+        markHandledEnVocabPronounceAt(signalAt);
         return;
       }
     }
 
     if (!shouldHandleEnVocabPronounceSignal(signal, handled)) return;
-    pronounceHandledAtRef.current = signal.at;
-    markHandledEnVocabPronounceAt(signal.at);
+    pronounceHandledAtRef.current = signalAt;
+    markHandledEnVocabPronounceAt(signalAt);
     setPronounceToast(signal);
   }, []);
 
