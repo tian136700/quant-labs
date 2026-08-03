@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Regression: 日语新课可编辑学习内容/释义（编号换行 → 入库拆解）。"""
+"""Regression: 日语新课可编辑学习内容/释义（成对行 → 入库拆解）。"""
 
 from __future__ import annotations
 
-import re
 import sys
 from pathlib import Path
 
@@ -20,6 +19,9 @@ def main() -> int:
         "formatJpLessonMeaningsForEdit",
         "buildJpLessonContentMeaningsFromEdit",
         "parseJpLessonNumberedEditLines",
+        "buildJpLessonContentEditRows",
+        "buildJpLessonContentMeaningsFromRows",
+        "createEmptyJpLessonContentEditRow",
     ):
         if needle not in edit_lib:
             errors.append(f"missing {needle} in jp-lesson-content-edit.ts")
@@ -36,9 +38,20 @@ def main() -> int:
         encoding="utf-8"
     )
     if "学习内容" not in modal or "释义" not in modal:
-        errors.append("modal must have 学习内容 + 释义 textareas")
+        errors.append("modal must show 学习内容 + 释义")
     if "JpVocabSaveProgressBar" not in modal:
         errors.append("modal must use JpVocabSaveProgressBar")
+    if "buildJpLessonContentEditRows" not in modal:
+        errors.append("modal must open with paired rows")
+    if "buildJpLessonContentMeaningsFromRows" not in modal:
+        errors.append("modal must save from paired rows")
+    if "删除" not in modal or "window.confirm" not in modal:
+        errors.append("modal must allow per-row delete with confirm")
+    if "添加一项" not in modal:
+        errors.append("modal must allow adding a row")
+    # 禁止退回双大框靠行号对齐
+    if 'className="jp-lesson-content-edit-textarea"' in modal:
+        errors.append("modal must not use dual textareas for content/meanings")
 
     table = (ROOT / "src/components/jp-lesson-page/JpLessonStatusTable.tsx").read_text(
         encoding="utf-8"
@@ -48,7 +61,6 @@ def main() -> int:
     if "JpLessonContentEditIconButton" not in table:
         errors.append("StatusTable must show 编辑内容 button")
 
-    # smoke: numbered parse logic via node-less regex check of source comments
     if "join(\", \")" not in edit_lib and 'join(", ")' not in edit_lib:
         errors.append("content edit must join with comma for storage")
     if 'join("|")' not in edit_lib:
