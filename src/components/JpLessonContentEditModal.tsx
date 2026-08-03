@@ -8,6 +8,8 @@ import {
   buildJpLessonContentEditRows,
   buildJpLessonContentMeaningsFromRows,
   createEmptyJpLessonContentEditRow,
+  isJpLessonContentEditRowsDirty,
+  resolveJpLessonContentCompleteIndexes,
   type JpLessonContentEditRow,
 } from "@/lib/jp-lesson-content-edit";
 import { jpVocabSaveProgressLabel } from "@/lib/jp-vocab-save-progress";
@@ -20,6 +22,7 @@ type Props = {
   saving?: boolean;
   onClose: () => void;
   onSave: (content: string, meanings: string | null) => void | Promise<void>;
+  onCompleteItems?: (itemIndexes: number[]) => void | Promise<void>;
 };
 
 export function JpLessonContentEditModal({
@@ -28,6 +31,7 @@ export function JpLessonContentEditModal({
   saving = false,
   onClose,
   onSave,
+  onCompleteItems,
 }: Props) {
   const [mounted, setMounted] = useState(false);
   const [rows, setRows] = useState<JpLessonContentEditRow[]>([]);
@@ -121,6 +125,56 @@ export function JpLessonContentEditModal({
     setRows((prev) => [...prev, createEmptyJpLessonContentEditRow()]);
   };
 
+  const requestCompleteIndexes = (rowIds: string[]) => {
+    if (!lesson || !onCompleteItems || saveBusy) return;
+    if (lesson.completed) {
+      setLocalError("已完成的课请在列表里管理；此处不能再拆项标完成。");
+      return;
+    }
+    if (isJpLessonContentEditRowsDirty(lesson, rows)) {
+      setLocalError("有未保存的修改，请先点「保存」，再标完成。");
+      return;
+    }
+    const indexes = resolveJpLessonContentCompleteIndexes(
+      lesson,
+      rows,
+      rowIds
+    );
+    if (indexes == null) {
+      setLocalError("选中项与已保存内容不一致，请关闭弹窗后重开再试。");
+      return;
+    }
+    if (!indexes.length) {
+      setLocalError("请勾选有学习内容的项后再标完成。");
+      return;
+    }
+    const labels = indexes
+      .map((i) => (rows[i]?.content || "").trim() || `#${i + 1}`)
+      .slice(0, 5);
+    const more =
+      indexes.length > labels.length
+        ? `等 ${indexes.length} 项`
+        : `${indexes.length} 项`;
+    if (
+      !window.confirm(
+        `确定将「${labels.join("、")}」${indexes.length > 1 ? `（${more}）` : ""}标为已完成吗？\n` +
+          `每项会在「已完成」新建一条课（无教案），并同步到日语抽问；原课将去掉这些词。`
+      )
+    ) {
+      return;
+    }
+    setLocalError(null);
+    void onCompleteItems(indexes);
+  };
+
+  const completeSelected = () => {
+    requestCompleteIndexes(selectedIds);
+  };
+
+  const completeRow = (id: string) => {
+    requestCompleteIndexes([id]);
+  };
+
   const handleSave = () => {
     const parsed = buildJpLessonContentMeaningsFromRows(rows);
     if (!parsed.ok) {
@@ -151,7 +205,7 @@ export function JpLessonContentEditModal({
             课程 #{lesson.id}
             {lesson.course_label ? ` · ${lesson.course_label}` : ""}
             {" · "}
-            每行一词与释义对应；勾选后点上方「删除所选」。
+            每行一词与释义对应；勾选后点上方「删除所选」或「标所选完成」。
           </p>
           <div className="jp-lesson-content-edit-toolbar">
             <button
@@ -172,6 +226,18 @@ export function JpLessonContentEditModal({
               删除所选
               {someSelected ? `（${selectedIds.length}）` : ""}
             </button>
+            {onCompleteItems && !lesson.completed ? (
+              <button
+                type="button"
+                className="jp-lesson-action-btn jp-lesson-content-edit-batch-complete"
+                disabled={saveBusy || !someSelected}
+                onClick={completeSelected}
+                title="将勾选项拆成已完成课并同步日语抽问"
+              >
+                标所选完成
+                {someSelected ? `（${selectedIds.length}）` : ""}
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -242,16 +308,30 @@ export function JpLessonContentEditModal({
                     }
                   />
                 </label>
-                <button
-                  type="button"
-                  className="jp-lesson-content-edit-delete"
-                  disabled={saveBusy}
-                  title="删除这一项及其释义"
-                  aria-label={`删除第 ${index + 1} 项`}
-                  onClick={() => removeRow(row.id)}
-                >
-                  删除
-                </button>
+                <div className="jp-lesson-content-edit-row-actions">
+                  {onCompleteItems && !lesson.completed ? (
+                    <button
+                      type="button"
+                      className="jp-lesson-content-edit-complete"
+                      disabled={saveBusy || !(row.content || "").trim()}
+                      title="标完成：拆成已完成课并同步日语抽问"
+                      aria-label={`标完成第 ${index + 1} 项`}
+                      onClick={() => completeRow(row.id)}
+                    >
+                      标完成
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="jp-lesson-content-edit-delete"
+                    disabled={saveBusy}
+                    title="删除这一项及其释义"
+                    aria-label={`删除第 ${index + 1} 项`}
+                    onClick={() => removeRow(row.id)}
+                  >
+                    删除
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
@@ -352,6 +432,17 @@ export function JpLessonContentEditModal({
           opacity: 0.55;
           cursor: not-allowed;
         }
+        .jp-lesson-content-edit-batch-complete {
+          color: var(--accent);
+          border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+        }
+        .jp-lesson-content-edit-batch-complete:hover:not(:disabled) {
+          background: color-mix(in srgb, var(--accent) 14%, transparent);
+        }
+        .jp-lesson-content-edit-batch-complete:disabled {
+          opacity: 0.55;
+          cursor: not-allowed;
+        }
         .jp-lesson-content-edit-body {
           flex: 1;
           min-height: 0;
@@ -362,10 +453,6 @@ export function JpLessonContentEditModal({
           gap: 0.65rem;
         }
         .jp-lesson-content-edit-list-head {
-          display: grid;
-          grid-template-columns: 1.75rem 2rem minmax(0, 1fr) minmax(0, 1fr) 4.2rem;
-          gap: 0.45rem;
-          align-items: center;
           padding: 0 0.15rem;
           color: var(--muted);
           font-size: 0.78rem;
@@ -394,11 +481,14 @@ export function JpLessonContentEditModal({
           flex-direction: column;
           gap: 0.45rem;
         }
+        .jp-lesson-content-edit-list-head,
         .jp-lesson-content-edit-row {
           display: grid;
-          grid-template-columns: 1.75rem 2rem minmax(0, 1fr) minmax(0, 1fr) 4.2rem;
+          grid-template-columns: 1.75rem 2rem minmax(0, 1fr) minmax(0, 1fr) minmax(5.5rem, 7.5rem);
           gap: 0.45rem;
           align-items: center;
+        }
+        .jp-lesson-content-edit-row {
           padding: 0.4rem 0.35rem;
           border-radius: 8px;
           border: 1px solid var(--border);
@@ -437,6 +527,32 @@ export function JpLessonContentEditModal({
         .jp-lesson-content-edit-input:focus {
           outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
           outline-offset: 1px;
+        }
+        .jp-lesson-content-edit-row-actions {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          justify-content: flex-end;
+          gap: 0.3rem;
+        }
+        .jp-lesson-content-edit-complete {
+          min-height: 2.25rem;
+          padding: 0.35rem 0.4rem;
+          border-radius: 7px;
+          border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+          background: transparent;
+          color: var(--accent);
+          font: inherit;
+          font-size: 0.82rem;
+          font-weight: 600;
+          cursor: pointer;
+        }
+        .jp-lesson-content-edit-complete:hover:not(:disabled) {
+          background: color-mix(in srgb, var(--accent) 14%, transparent);
+        }
+        .jp-lesson-content-edit-complete:disabled {
+          opacity: 0.55;
+          cursor: not-allowed;
         }
         .jp-lesson-content-edit-delete {
           min-height: 2.25rem;
@@ -495,8 +611,8 @@ export function JpLessonContentEditModal({
           .jp-lesson-content-edit-row {
             grid-template-columns: 1.5rem 1.6rem minmax(0, 1fr) auto;
             grid-template-areas:
-              "check idx content del"
-              "check idx meaning del";
+              "check idx content actions"
+              "check idx meaning actions";
             align-items: stretch;
             gap: 0.35rem 0.4rem;
             padding: 0.55rem 0.45rem;
@@ -516,9 +632,16 @@ export function JpLessonContentEditModal({
           .jp-lesson-content-edit-cell--meaning {
             grid-area: meaning;
           }
-          .jp-lesson-content-edit-delete {
-            grid-area: del;
+          .jp-lesson-content-edit-row-actions {
+            grid-area: actions;
+            flex-direction: column;
+            align-items: stretch;
             align-self: center;
+            min-width: 3.6rem;
+          }
+          .jp-lesson-content-edit-complete,
+          .jp-lesson-content-edit-delete {
+            width: 100%;
             min-width: 3.2rem;
           }
           .jp-lesson-content-edit-cell-label {

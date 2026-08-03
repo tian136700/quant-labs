@@ -67,6 +67,10 @@ export type JpLessonPageModalsProps = {
     content: string,
     meanings: string | null
   ) => void | Promise<void>;
+  completeLessonContentItems: (
+    lessonId: number,
+    itemIndexes: number[]
+  ) => void | Promise<void>;
   handleRefUpdated: (...args: any[]) => void;
   openJpAuth: () => void;
   setAnnotatingLesson: (v: JpLessonPageModalsProps["annotatingLesson"]) => void;
@@ -116,6 +120,7 @@ export function JpLessonPageModals(props: JpLessonPageModalsProps) {
     setEditingContentLesson,
     setViewingWordsLesson,
     saveLessonContentMeanings,
+    completeLessonContentItems,
     handleRefUpdated,
     openJpAuth,
     setAnnotatingLesson,
@@ -188,6 +193,17 @@ export function JpLessonPageModals(props: JpLessonPageModalsProps) {
             meanings
           );
         }}
+        onCompleteItems={
+          canOperate
+            ? (itemIndexes) => {
+                if (!editingContentLesson) return;
+                void completeLessonContentItems(
+                  editingContentLesson.id,
+                  itemIndexes
+                );
+              }
+            : undefined
+        }
       />
 
       <JpLessonWordsViewModal

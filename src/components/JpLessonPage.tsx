@@ -55,6 +55,7 @@ import { JpLessonPageSections } from "@/components/jp-lesson-page/JpLessonPageSe
 import { JpLessonPageModals } from "@/components/jp-lesson-page/JpLessonPageModals";
 import { JpLessonApiUploadDocs } from "@/components/jp-lesson-page/JpLessonApiUploadDocs";
 import { useJpLessonCourseMergeCopy } from "@/components/jp-lesson-page/useJpLessonCourseMergeCopy";
+import { completeJpLessonContentItemsClient } from "@/components/jp-lesson-page/completeJpLessonContentItems";
 import { saveJpLessonContentMeanings } from "@/components/jp-lesson-page/saveJpLessonContentMeanings";
 import { CopyToast } from "@/components/CopyToast";
 import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
@@ -532,6 +533,33 @@ export function JpLessonPage() {
     ]
   );
 
+  const completeLessonContentItems = useCallback(
+    (lessonId: number, itemIndexes: number[]) =>
+      completeJpLessonContentItemsClient({
+        locale,
+        canOperate,
+        lessonId,
+        itemIndexes,
+        lessons,
+        refs,
+        noteCounts,
+        teachers,
+        setLessons,
+        setStatus,
+        setSavingContentId,
+        setEditingContentLesson,
+        setVocabSyncProgress,
+      }),
+    [
+      locale,
+      canOperate,
+      lessons,
+      refs,
+      noteCounts,
+      teachers,
+    ]
+  );
+
   const editingRef = editingLesson?.ref_key ? refs[editingLesson.ref_key] : undefined;
 
 
@@ -729,6 +757,7 @@ export function JpLessonPage() {
         setEditingContentLesson={setEditingContentLesson}
         setViewingWordsLesson={setViewingWordsLesson}
         saveLessonContentMeanings={saveLessonContentMeanings}
+        completeLessonContentItems={completeLessonContentItems}
         handleRefUpdated={handleRefUpdated}
         openJpAuth={openJpAuth}
         setAnnotatingLesson={setAnnotatingLesson}

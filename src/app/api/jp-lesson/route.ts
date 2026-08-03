@@ -8,6 +8,7 @@ import {
   updateJpLessonProgress,
   updateJpLessonTeacherAssignment,
 } from "@/lib/jp-lesson-db";
+import { completeJpLessonContentItems } from "@/lib/jp-lesson-complete-content-items";
 import { updateJpLessonContentMeanings } from "@/lib/jp-lesson-db-content";
 import { incrementJpLessonLinkCopyCount } from "@/lib/jp-lesson-db-link-copy";
 import { deleteJpLesson } from "@/lib/jp-lesson-db-delete";
@@ -138,6 +139,7 @@ export async function POST(request: Request) {
       class_duration_minutes?: number | null;
       content?: string;
       meanings?: string | null;
+      item_indexes?: number[];
       class_schedules?: Array<{
         class_at: string;
         duration_minutes: number | null;
@@ -218,6 +220,39 @@ export async function POST(request: Request) {
         return jsonResponse({ ok: false, error: result.error }, status);
       }
       return jsonResponse({ ok: true, lesson: result.lesson });
+    }
+
+    if (body.action === "complete_content_items") {
+      const lessonId = Number(body.lesson_id);
+      if (!Number.isInteger(lessonId) || lessonId <= 0) {
+        return jsonResponse({ ok: false, error: "lesson_id_invalid" }, 400);
+      }
+
+      const result = await completeJpLessonContentItems(
+        env.DB,
+        lessonId,
+        body.item_indexes,
+        user.username
+      );
+      if (!result.ok) {
+        const status =
+          result.error === "not_found"
+            ? 404
+            : result.error === "lesson_already_completed" ||
+                result.error === "item_indexes_invalid" ||
+                result.error === "item_indexes_empty" ||
+                result.error === "invalid_annotation"
+              ? 400
+              : 400;
+        return jsonResponse({ ok: false, error: result.error }, status);
+      }
+      return jsonResponse({
+        ok: true,
+        source_lesson: result.source_lesson,
+        source_deleted: result.source_deleted,
+        created_lessons: result.created_lessons,
+        vocab_syncs: result.vocab_syncs,
+      });
     }
 
     if (body.action === "sync_to_vocab") {

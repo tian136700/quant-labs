@@ -5,8 +5,10 @@
 
 import {
   alignLessonItemMeanings,
+  normalizeLessonMeaningsForStorage,
   parseLessonContent,
 } from "@/lib/jp-lesson-shared";
+import type { JpLessonRecord } from "@/lib/types";
 
 /** 去掉行首编号：1. / 1、 / 1) / （1） / 1． */
 const LINE_INDEX_PREFIX_RE =
@@ -149,4 +151,48 @@ export function buildJpLessonContentMeaningsFromRows(
       meaningCount: meaningItems.filter(Boolean).length,
     },
   };
+}
+
+/** 弹窗行相对已保存课内容是否有未保存改动（标完成须先保存） */
+export function isJpLessonContentEditRowsDirty(
+  lesson: Pick<JpLessonRecord, "content" | "meanings">,
+  rows: JpLessonContentEditRow[]
+): boolean {
+  const parsed = buildJpLessonContentMeaningsFromRows(rows);
+  const savedItems = parseLessonContent(lesson.content);
+  const savedContent = savedItems.join(", ");
+  const savedMeanings =
+    normalizeLessonMeaningsForStorage(lesson.content, lesson.meanings) || null;
+  if (!parsed.ok) {
+    return savedItems.length > 0;
+  }
+  return (
+    parsed.value.content !== savedContent ||
+    (parsed.value.meanings || null) !== savedMeanings
+  );
+}
+
+/**
+ * 勾选行 → 库内 content 0-based 下标。
+ * 要求行尚未脏改且下标落在已保存项内。
+ */
+export function resolveJpLessonContentCompleteIndexes(
+  lesson: Pick<JpLessonRecord, "content">,
+  rows: JpLessonContentEditRow[],
+  selectedIds: string[]
+): number[] | null {
+  if (!selectedIds.length) return [];
+  const savedCount = parseLessonContent(lesson.content).length;
+  const indexes: number[] = [];
+  const seen = new Set<number>();
+  for (const id of selectedIds) {
+    const index = rows.findIndex((row) => row.id === id);
+    if (index < 0 || index >= savedCount) return null;
+    if (!(rows[index]?.content || "").trim()) continue;
+    if (seen.has(index)) continue;
+    seen.add(index);
+    indexes.push(index);
+  }
+  indexes.sort((a, b) => a - b);
+  return indexes;
 }
