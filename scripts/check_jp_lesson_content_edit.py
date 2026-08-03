@@ -47,6 +47,10 @@ def main() -> int:
         errors.append("modal must save from paired rows")
     if "删除" not in modal or "window.confirm" not in modal:
         errors.append("modal must allow per-row delete with confirm")
+    if "删除所选" not in modal:
+        errors.append("modal must allow multi-select batch delete")
+    if 'type="checkbox"' not in modal and "type='checkbox'" not in modal:
+        errors.append("modal must have row checkboxes for multi-select")
     if "添加一项" not in modal:
         errors.append("modal must allow adding a row")
     # 禁止退回双大框靠行号对齐

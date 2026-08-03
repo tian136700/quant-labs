@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import { useSaveProgressBar } from "@/hooks/useSaveProgressBar";
@@ -31,6 +31,7 @@ export function JpLessonContentEditModal({
 }: Props) {
   const [mounted, setMounted] = useState(false);
   const [rows, setRows] = useState<JpLessonContentEditRow[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [localError, setLocalError] = useState<string | null>(null);
   const saveBusy = saving;
   const saveProgress = useSaveProgressBar(saveBusy);
@@ -47,8 +48,13 @@ export function JpLessonContentEditModal({
   useEffect(() => {
     if (!open || !lesson) return;
     setRows(buildJpLessonContentEditRows(lesson.content, lesson.meanings));
+    setSelectedIds([]);
     setLocalError(null);
   }, [open, lesson]);
+
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const allSelected = rows.length > 0 && selectedIds.length === rows.length;
+  const someSelected = selectedIds.length > 0;
 
   if (!mounted || !open || !lesson) return null;
 
@@ -61,6 +67,31 @@ export function JpLessonContentEditModal({
     );
   };
 
+  const toggleSelected = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedIds([]);
+      return;
+    }
+    setSelectedIds(rows.map((row) => row.id));
+  };
+
+  const removeRowsByIds = (ids: string[]) => {
+    if (!ids.length) return;
+    const idSet = new Set(ids);
+    setRows((prev) => {
+      const next = prev.filter((row) => !idSet.has(row.id));
+      return next.length ? next : [createEmptyJpLessonContentEditRow()];
+    });
+    setSelectedIds((prev) => prev.filter((id) => !idSet.has(id)));
+    setLocalError(null);
+  };
+
   const removeRow = (id: string) => {
     const target = rows.find((row) => row.id === id);
     const label = (target?.content || "").trim() || "这一项";
@@ -71,11 +102,19 @@ export function JpLessonContentEditModal({
     ) {
       return;
     }
-    setRows((prev) => {
-      const next = prev.filter((row) => row.id !== id);
-      return next.length ? next : [createEmptyJpLessonContentEditRow()];
-    });
-    setLocalError(null);
+    removeRowsByIds([id]);
+  };
+
+  const removeSelected = () => {
+    if (!selectedIds.length) return;
+    if (
+      !window.confirm(
+        `确定删除已选的 ${selectedIds.length} 项及其释义吗？保存后才会写回课程。`
+      )
+    ) {
+      return;
+    }
+    removeRowsByIds(selectedIds);
   };
 
   const addRow = () => {
@@ -112,12 +151,21 @@ export function JpLessonContentEditModal({
             课程 #{lesson.id}
             {lesson.course_label ? ` · ${lesson.course_label}` : ""}
             {" · "}
-            每行一词与释义对应；可单独删除。
+            每行一词与释义对应；可勾选后批量删除。
           </p>
         </div>
 
         <div className="jp-lesson-content-edit-body">
-          <div className="jp-lesson-content-edit-list-head" aria-hidden="true">
+          <div className="jp-lesson-content-edit-list-head">
+            <label className="jp-lesson-content-edit-check">
+              <input
+                type="checkbox"
+                checked={allSelected}
+                disabled={saveBusy || !rows.length}
+                aria-label="全选"
+                onChange={toggleSelectAll}
+              />
+            </label>
             <span className="jp-lesson-content-edit-idx">#</span>
             <span>学习内容</span>
             <span>释义</span>
@@ -127,6 +175,15 @@ export function JpLessonContentEditModal({
           <ul className="jp-lesson-content-edit-list">
             {rows.map((row, index) => (
               <li key={row.id} className="jp-lesson-content-edit-row">
+                <label className="jp-lesson-content-edit-check">
+                  <input
+                    type="checkbox"
+                    checked={selectedSet.has(row.id)}
+                    disabled={saveBusy}
+                    aria-label={`勾选第 ${index + 1} 项`}
+                    onChange={() => toggleSelected(row.id)}
+                  />
+                </label>
                 <span
                   className="jp-lesson-content-edit-idx"
                   aria-label={`第 ${index + 1} 项`}
@@ -188,6 +245,16 @@ export function JpLessonContentEditModal({
             >
               添加一项
             </button>
+            <button
+              type="button"
+              className="jp-lesson-action-btn jp-lesson-content-edit-batch-delete"
+              disabled={saveBusy || !someSelected}
+              onClick={removeSelected}
+              title="删除勾选的多项及其释义"
+            >
+              删除所选
+              {someSelected ? `（${selectedIds.length}）` : ""}
+            </button>
             <p className="jp-lesson-content-edit-hint">
               共 {rows.filter((r) => r.content.trim()).length} 项有效内容。保存后自动拆成词表用的逗号 /「|」格式；标注、例句按新条数对齐。
             </p>
@@ -242,7 +309,7 @@ export function JpLessonContentEditModal({
         .jp-lesson-content-edit-modal {
           display: flex;
           flex-direction: column;
-          width: min(860px, 100%);
+          width: min(900px, 100%);
           max-height: min(calc(100dvh - 2rem), 900px);
           overflow: hidden;
           border-radius: 12px;
@@ -276,7 +343,7 @@ export function JpLessonContentEditModal({
         }
         .jp-lesson-content-edit-list-head {
           display: grid;
-          grid-template-columns: 2rem minmax(0, 1fr) minmax(0, 1fr) 4.2rem;
+          grid-template-columns: 1.75rem 2rem minmax(0, 1fr) minmax(0, 1fr) 4.2rem;
           gap: 0.45rem;
           align-items: center;
           padding: 0 0.15rem;
@@ -286,6 +353,18 @@ export function JpLessonContentEditModal({
         }
         .jp-lesson-content-edit-del-head {
           text-align: center;
+        }
+        .jp-lesson-content-edit-check {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          margin: 0;
+          cursor: pointer;
+        }
+        .jp-lesson-content-edit-check input {
+          width: 1.05rem;
+          height: 1.05rem;
+          accent-color: var(--accent);
         }
         .jp-lesson-content-edit-list {
           list-style: none;
@@ -297,7 +376,7 @@ export function JpLessonContentEditModal({
         }
         .jp-lesson-content-edit-row {
           display: grid;
-          grid-template-columns: 2rem minmax(0, 1fr) minmax(0, 1fr) 4.2rem;
+          grid-template-columns: 1.75rem 2rem minmax(0, 1fr) minmax(0, 1fr) 4.2rem;
           gap: 0.45rem;
           align-items: center;
           padding: 0.4rem 0.35rem;
@@ -351,12 +430,17 @@ export function JpLessonContentEditModal({
           font-weight: 600;
           cursor: pointer;
         }
-        .jp-lesson-content-edit-delete:hover:not(:disabled) {
+        .jp-lesson-content-edit-delete:hover:not(:disabled),
+        .jp-lesson-content-edit-batch-delete:hover:not(:disabled) {
           background: color-mix(in srgb, #e85d6f 14%, transparent);
         }
         .jp-lesson-content-edit-delete:disabled {
           opacity: 0.55;
           cursor: not-allowed;
+        }
+        .jp-lesson-content-edit-batch-delete {
+          color: #e85d6f;
+          border-color: color-mix(in srgb, #e85d6f 45%, var(--border));
         }
         .jp-lesson-content-edit-toolbar {
           display: flex;
@@ -402,13 +486,18 @@ export function JpLessonContentEditModal({
             display: none;
           }
           .jp-lesson-content-edit-row {
-            grid-template-columns: 1.6rem minmax(0, 1fr) auto;
+            grid-template-columns: 1.5rem 1.6rem minmax(0, 1fr) auto;
             grid-template-areas:
-              "idx content del"
-              "idx meaning del";
+              "check idx content del"
+              "check idx meaning del";
             align-items: stretch;
             gap: 0.35rem 0.4rem;
             padding: 0.55rem 0.45rem;
+          }
+          .jp-lesson-content-edit-check {
+            grid-area: check;
+            align-self: start;
+            padding-top: 0.55rem;
           }
           .jp-lesson-content-edit-idx {
             grid-area: idx;
