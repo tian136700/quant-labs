@@ -8,6 +8,10 @@ import type { JpLessonRecord, JpLessonTeacher, JpVocabRef } from "@/lib/types";
 import { persistLessonCache } from "@/components/jp-lesson-page/jp-lesson-page-helpers";
 import type { Locale } from "@/i18n/messages";
 
+export type JpLessonContentSaveResult =
+  | { ok: true }
+  | { ok: false; error: string };
+
 type SaveArgs = {
   locale: Locale;
   canOperate: boolean;
@@ -22,9 +26,13 @@ type SaveArgs = {
   setStatus: Dispatch<SetStateAction<string>>;
   setSavingContentId: Dispatch<SetStateAction<number | null>>;
   setEditingContentLesson: Dispatch<SetStateAction<JpLessonRecord | null>>;
+  /** 删除后自动保存：保持弹窗打开并刷新当前课 */
+  keepOpen?: boolean;
 };
 
-export async function saveJpLessonContentMeanings(args: SaveArgs): Promise<void> {
+export async function saveJpLessonContentMeanings(
+  args: SaveArgs
+): Promise<JpLessonContentSaveResult> {
   const {
     locale,
     canOperate,
@@ -39,9 +47,12 @@ export async function saveJpLessonContentMeanings(args: SaveArgs): Promise<void>
     setStatus,
     setSavingContentId,
     setEditingContentLesson,
+    keepOpen = false,
   } = args;
 
-  if (!canOperate) return;
+  if (!canOperate) {
+    return { ok: false, error: "无操作权限" };
+  }
 
   const snapshot = lessons.find((l) => l.id === lessonId);
   setSavingContentId(lessonId);
@@ -91,18 +102,26 @@ export async function saveJpLessonContentMeanings(args: SaveArgs): Promise<void>
       persistLessonCache(next, refs, noteCounts, teachers);
       return next;
     });
-    blurActiveElementForLessonModalClose();
-    setEditingContentLesson(null);
-    scrollLessonListItemIntoView(lessonId);
-    setStatus(`学习内容与释义已更新（#${lessonId}）`);
+    if (keepOpen) {
+      setEditingContentLesson(data.lesson);
+      setStatus(`学习内容与释义已保存（#${lessonId}）`);
+    } else {
+      blurActiveElementForLessonModalClose();
+      setEditingContentLesson(null);
+      scrollLessonListItemIntoView(lessonId);
+      setStatus(`学习内容与释义已更新（#${lessonId}）`);
+    }
     window.setTimeout(() => setStatus(""), 2500);
+    return { ok: true };
   } catch (err) {
     if (snapshot) {
       setLessons((prev) =>
         prev.map((l) => (l.id === lessonId ? snapshot : l))
       );
     }
-    setStatus(err instanceof Error ? err.message : "保存失败");
+    const message = err instanceof Error ? err.message : "保存失败";
+    setStatus(message);
+    return { ok: false, error: message };
   } finally {
     setSavingContentId(null);
   }

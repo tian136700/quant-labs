@@ -507,7 +507,12 @@ export function JpLessonPage() {
   });
 
   const saveLessonContentMeanings = useCallback(
-    (lessonId: number, content: string, meanings: string | null) =>
+    (
+      lessonId: number,
+      content: string,
+      meanings: string | null,
+      options?: { keepOpen?: boolean }
+    ) =>
       saveJpLessonContentMeanings({
         locale,
         canOperate,
@@ -522,6 +527,7 @@ export function JpLessonPage() {
         setStatus,
         setSavingContentId,
         setEditingContentLesson,
+        keepOpen: options?.keepOpen,
       }),
     [
       locale,

@@ -49,6 +49,13 @@ def main() -> int:
         errors.append("modal must allow per-row delete with confirm")
     if "删除所选" not in modal:
         errors.append("modal must allow multi-select batch delete")
+    if "keepOpen" not in modal or "删除后会立即保存" not in modal:
+        errors.append("delete must auto-save with keepOpen (no manual save step)")
+    save_helper = (
+        ROOT / "src/components/jp-lesson-page/saveJpLessonContentMeanings.ts"
+    ).read_text(encoding="utf-8")
+    if "keepOpen" not in save_helper:
+        errors.append("saveJpLessonContentMeanings must support keepOpen")
     if 'type="checkbox"' not in modal and "type='checkbox'" not in modal:
         errors.append("modal must have row checkboxes for multi-select")
     if "添加一项" not in modal:

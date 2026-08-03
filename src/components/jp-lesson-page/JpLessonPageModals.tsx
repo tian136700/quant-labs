@@ -66,8 +66,9 @@ export type JpLessonPageModalsProps = {
   saveLessonContentMeanings: (
     lessonId: number,
     content: string,
-    meanings: string | null
-  ) => void | Promise<void>;
+    meanings: string | null,
+    options?: { keepOpen?: boolean }
+  ) => void | Promise<void> | Promise<{ ok: true } | { ok: false; error: string }>;
   completeLessonContentItems: (
     lessonId: number,
     itemIndexes: number[]
@@ -189,12 +190,18 @@ export function JpLessonPageModals(props: JpLessonPageModalsProps) {
         lesson={editingContentLesson}
         saving={savingContentId === editingContentLesson?.id}
         onClose={() => setEditingContentLesson(null)}
-        onSave={(content, meanings) => {
-          if (!editingContentLesson) return;
-          void saveLessonContentMeanings(
+        onSave={(content, meanings, options) => {
+          if (!editingContentLesson) {
+            return Promise.resolve({
+              ok: false as const,
+              error: "课程已关闭，请重新打开后再保存",
+            });
+          }
+          return saveLessonContentMeanings(
             editingContentLesson.id,
             content,
-            meanings
+            meanings,
+            options
           );
         }}
         onCompleteItems={

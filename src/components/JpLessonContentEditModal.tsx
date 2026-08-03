@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import type { JpLessonCompleteContentItemsResult } from "@/components/jp-lesson-page/completeJpLessonContentItems";
+import type { JpLessonContentSaveResult } from "@/components/jp-lesson-page/saveJpLessonContentMeanings";
 import { useSaveProgressBar } from "@/hooks/useSaveProgressBar";
 import {
   buildJpLessonContentEditRows,
@@ -22,7 +23,11 @@ type Props = {
   lesson: JpLessonRecord | null;
   saving?: boolean;
   onClose: () => void;
-  onSave: (content: string, meanings: string | null) => void | Promise<void>;
+  onSave: (
+    content: string,
+    meanings: string | null,
+    options?: { keepOpen?: boolean }
+  ) => void | Promise<void> | Promise<JpLessonContentSaveResult>;
   onCompleteItems?: (
     itemIndexes: number[]
   ) =>
@@ -98,40 +103,56 @@ export function JpLessonContentEditModal({
     setSelectedIds(rows.map((row) => row.id));
   };
 
-  const removeRowsByIds = (ids: string[]) => {
-    if (!ids.length) return;
+  const removeRowsByIds = async (ids: string[]) => {
+    if (!ids.length || saveBusy) return;
     const idSet = new Set(ids);
-    setRows((prev) => {
-      const next = prev.filter((row) => !idSet.has(row.id));
-      return next.length ? next : [createEmptyJpLessonContentEditRow()];
-    });
+    const prevRows = rows;
+    const nextRows = (() => {
+      const filtered = prevRows.filter((row) => !idSet.has(row.id));
+      return filtered.length ? filtered : [createEmptyJpLessonContentEditRow()];
+    })();
+    const parsed = buildJpLessonContentMeaningsFromRows(nextRows);
+    if (!parsed.ok) {
+      setLocalError("至少保留一项学习内容，不能全部删光。");
+      return;
+    }
+    setRows(nextRows);
     setSelectedIds((prev) => prev.filter((id) => !idSet.has(id)));
     setLocalError(null);
+    const result = await onSave(parsed.value.content, parsed.value.meanings, {
+      keepOpen: true,
+    });
+    if (
+      result &&
+      typeof result === "object" &&
+      "ok" in result &&
+      result.ok === false
+    ) {
+      setRows(prevRows);
+      setLocalError(result.error || "删除后保存失败，已恢复原内容");
+    }
   };
 
   const removeRow = (id: string) => {
+    if (saveBusy) return;
     const target = rows.find((row) => row.id === id);
     const label = (target?.content || "").trim() || "这一项";
-    if (
-      !window.confirm(
-        `确定删除「${label}」及其释义吗？保存后才会写回课程。`
-      )
-    ) {
+    if (!window.confirm(`确定删除「${label}」及其释义吗？删除后会立即保存。`)) {
       return;
     }
-    removeRowsByIds([id]);
+    void removeRowsByIds([id]);
   };
 
   const removeSelected = () => {
-    if (!selectedIds.length) return;
+    if (!selectedIds.length || saveBusy) return;
     if (
       !window.confirm(
-        `确定删除已选的 ${selectedIds.length} 项及其释义吗？保存后才会写回课程。`
+        `确定删除已选的 ${selectedIds.length} 项及其释义吗？删除后会立即保存。`
       )
     ) {
       return;
     }
-    removeRowsByIds(selectedIds);
+    void removeRowsByIds(selectedIds);
   };
 
   const addRow = () => {
@@ -376,8 +397,7 @@ export function JpLessonContentEditModal({
           <p className="jp-lesson-content-edit-hint">
             共 {rows.filter((r) => r.content.trim()).length} 项有效内容
             {someSelected ? ` · 已勾选 ${selectedIds.length} 项` : ""}
-            。保存后自动拆成词表用的逗号 /「|」格式；标注、例句按新条数对齐。
-            标完成前若改过内容，须先点「保存」。
+            。删除会立即保存；改文字后点「保存」。标完成前若改过文字，须先保存。
           </p>
 
           {saveProgress.visible ? (
