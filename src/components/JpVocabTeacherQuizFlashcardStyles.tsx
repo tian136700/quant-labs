@@ -785,6 +785,11 @@ export function JpVocabTeacherQuizFlashcardStyles() {
             border-radius: 12px;
             touch-action: manipulation;
           }
+          .en-vocab-send-pronounce__btn {
+            min-height: 3rem;
+            font-size: 1rem;
+            touch-action: manipulation;
+          }
           .en-vocab-flashcard-page .jp-vocab-teacher-quiz__actions-left {
             grid-template-columns: repeat(3, minmax(0, 1fr));
           }

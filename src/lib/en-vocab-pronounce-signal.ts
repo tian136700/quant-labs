@@ -57,7 +57,7 @@ export function markHandledEnVocabPronounceAt(at: string): void {
 export function shouldHandleEnVocabPronounceSignal(
   signal: EnVocabTeacherPronounceSignal | null | undefined,
   handledAt: string | null
-): signal is EnVocabTeacherPronounceSignal {
+): boolean {
   if (!signal?.at || !signal.text) return false;
   if (!handledAt) return true;
   return signal.at > handledAt;
