@@ -1,0 +1,87 @@
+日语新课 · 批量挂教案图片 API（勾选多课 → 同一张图）
+====================================================
+
+用途
+----
+管理员在「未完成」勾选多条课（多为单词课）后，把 ChatGPT 生成的教案图
+一次挂到所有勾选课上。每条课写入独立 ref_key=`lesson-{id}`（同一份图片字节），
+列表「查看 / 随手画 / 下载」走现有教案链路。
+
+页面入口：日语新课 → 未完成 → 勾选 →「做教案提示词」→ 右下粘贴/选图 →「挂到勾选课」
+
+
+线上地址
+--------
+POST https://japanese.info-quests.com/api/jp-lesson/ref/attach-batch
+
+说明：也可用 finance.info-quests.com 同路径（同一 Worker / 同一 D1）。
+
+
+本机开发（可选）
+---------------
+POST http://127.0.0.1:3002/api/jp-lesson/ref/attach-batch
+
+
+鉴权
+----
+须 **管理员** 登录（与未完成勾选「设置时间和老师」同权）。
+Cookie 会话即可。
+
+
+请求体
+------
+multipart/form-data
+
+必填：
+  file              教案图片（或 PDF）；最大 20MB
+  lesson_ids        JSON 数组，如 [82,85,90]；也可用重复字段 / 逗号分隔
+
+选填：
+  media_type        image | pdf（默认按文件 MIME 判断）
+  title             写入 ref 标题；默认用各课原 title
+
+
+成功响应
+--------
+{
+  "ok": true,
+  "lesson_ids": [82, 85, 90],
+  "count": 3,
+  "lessons": [ { "id", "ref_key", … }, … ],
+  "refs": {
+    "lesson-82": { "ref_key", "title", "media_type", "updated_at", … },
+    …
+  },
+  "storage": "r2" | "local"
+}
+
+
+失败
+----
+401  非管理员
+400  lesson_ids_required / lesson_ids_invalid / lesson_ids_too_many（>10）/ file_required / empty_file
+404  lesson_not_found（body 含 lesson_id）
+413  file_too_large
+500  update_failed 等
+
+
+curl 示例
+---------
+curl -sS -X POST "https://japanese.info-quests.com/api/jp-lesson/ref/attach-batch" \
+  -H "Cookie: …" \
+  -F "lesson_ids=[82,85,90]" \
+  -F "file=@plan.png;type=image/png"
+
+
+Python 最小例
+-------------
+import requests
+
+r = requests.post(
+    "https://japanese.info-quests.com/api/jp-lesson/ref/attach-batch",
+    cookies={"…": "…"},
+    files={"file": ("plan.png", open("plan.png", "rb"), "image/png")},
+    data={"lesson_ids": "[82,85,90]"},
+    timeout=120,
+)
+print(r.json())

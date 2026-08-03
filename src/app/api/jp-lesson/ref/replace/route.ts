@@ -1,23 +1,11 @@
-import { getCloudflareEnv, jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
-import {
-  getJpLessonById,
-  syncJpLessonTitleByRefKey,
-  updateJpLessonRefKey,
-} from "@/lib/jp-lesson-db";
-import {
-  parseLessonContent,
-  resolveJpLessonItemKinds,
-} from "@/lib/jp-lesson-shared";
+import { jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
+import { getJpLessonById } from "@/lib/jp-lesson-db";
 import { requireJpLessonOperate } from "@/lib/jp-lesson-auth";
 import {
-  saveJpVocabRefFileMeta,
-  updateJpVocabWordsRefKey,
-} from "@/lib/jp-vocab-db";
-import { putJpVocabRefFile } from "@/lib/jp-vocab-ref-server";
-import { jpLessonRefKey } from "@/lib/jp-vocab-ref-shared";
+  JP_LESSON_REF_ATTACH_MAX_BYTES,
+  attachJpLessonRefFile,
+} from "@/lib/jp-lesson-ref-attach";
 import type { JpVocabMediaType } from "@/lib/types";
-
-const MAX_BYTES = 20 * 1024 * 1024;
 
 const AUTH_MSG = {
   en: "Please log in to edit lesson plans.",
@@ -56,7 +44,7 @@ export async function POST(request: Request) {
     if (!(file instanceof File)) {
       return jsonResponse({ ok: false, error: "file_required" }, 400);
     }
-    if (file.size > MAX_BYTES) {
+    if (file.size > JP_LESSON_REF_ATTACH_MAX_BYTES) {
       return jsonResponse({ ok: false, error: "file_too_large" }, 413);
     }
 
@@ -71,74 +59,21 @@ export async function POST(request: Request) {
         : lesson.title;
 
     const bytes = await file.arrayBuffer();
-    if (!bytes.byteLength) {
-      return jsonResponse({ ok: false, error: "empty_file" }, 400);
-    }
-
-    const targetRefKey = jpLessonRefKey(lessonId);
-    const oldRefKey = lesson.ref_key;
-
-    const stored = await putJpVocabRefFile(env, targetRefKey, mediaType, bytes);
-    const ref = await saveJpVocabRefFileMeta(
-      env.DB,
-      targetRefKey,
-      title,
+    const result = await attachJpLessonRefFile(env, lesson, bytes, {
       mediaType,
-      stored.r2_key
-    );
-
-    let updatedLesson = lesson;
-    if (oldRefKey !== targetRefKey) {
-      const next = await updateJpLessonRefKey(env.DB, lessonId, targetRefKey);
-      if (!next) {
-        return jsonResponse({ ok: false, error: "update_failed" }, 500);
-      }
-      updatedLesson = next;
-
-      if (lesson.completed && oldRefKey) {
-        // updateJpVocabWordsRefKey 只认 JpVocabKind；合传课按项拆成 word/grammar
-        const items = parseLessonContent(lesson.content);
-        const itemKinds = resolveJpLessonItemKinds(
-          lesson.kind,
-          items.length,
-          lesson.grammar_item_count
-        );
-        const words: string[] = [];
-        const grammars: string[] = [];
-        items.forEach((word, index) => {
-          if (itemKinds[index] === "grammar") grammars.push(word);
-          else words.push(word);
-        });
-        if (words.length) {
-          await updateJpVocabWordsRefKey(
-            env.DB,
-            words,
-            "word",
-            oldRefKey,
-            targetRefKey
-          );
-        }
-        if (grammars.length) {
-          await updateJpVocabWordsRefKey(
-            env.DB,
-            grammars,
-            "grammar",
-            oldRefKey,
-            targetRefKey
-          );
-        }
-      }
-    } else if (title !== lesson.title) {
-      await syncJpLessonTitleByRefKey(env.DB, targetRefKey, title);
-      updatedLesson = { ...updatedLesson, title, updated_at: ref.updated_at };
+      title,
+    });
+    if (!result.ok) {
+      const status = result.error === "empty_file" ? 400 : 500;
+      return jsonResponse({ ok: false, error: result.error }, status);
     }
 
     return jsonResponse({
       ok: true,
-      ref,
-      lesson: updatedLesson,
-      storage: stored.storage,
-      view_path: `/api/jp-vocab/ref/${targetRefKey}`,
+      ref: result.ref,
+      lesson: result.lesson,
+      storage: result.storage,
+      view_path: result.view_path,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
