@@ -18,7 +18,7 @@ POISON_PATH = CONFIG_DIR / "jp-vocab-fill-online.poison.json"
 RATE_GATE_PATH = CONFIG_DIR / "jp-vocab-fill-online.last_paid_call"
 MAINTENANCE_WORD_RUN_URL = "http://127.0.0.1:17823/api/jp-vocab-fill/word-runs"
 
-DEFAULT_MIN_INTERVAL_SEC = 90
+DEFAULT_MIN_INTERVAL_SEC = 60
 DEFAULT_POISON_SEC = 6 * 3600
 
 

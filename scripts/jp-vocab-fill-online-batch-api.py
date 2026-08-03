@@ -18,29 +18,36 @@ import json
 import re
 import sys
 import time
-import urllib.error
-import urllib.request
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts" / "lib"))
 
-from jp_vocab_fill_common import call_api, load_env_file, resolve_token  # noqa: E402
+from jp_vocab_fill_common import call_api, resolve_token  # noqa: E402
 from jp_vocab_llm_backend import backend_label, is_online_backend  # noqa: E402
 from jp_vocab_online_batch_fixed import (  # noqa: E402
     GRAMMAR_CONJ_KEYS,
     GRAMMAR_PATTERN_KEYS,
     WORD_REQUIRED_KEYS,
     evaluate_online_batch_fixed,
+    full_refresh_needs as _full_refresh_needs,
     merge_needs_from_missing_flags,
     required_keys_from_needs,
+    still_missing_detail_from_rows,
+)
+from jp_vocab_online_batch_runtime import (  # noqa: E402
+    acquire_paid_rate_gate,
+    load_poison,
+    mark_paid_call,
+    mark_poison,
+    now_local_str,
+    report_word_run_to_maintenance_center,
+    resolve_min_interval_sec,
 )
 from paid_anthropic_client import (  # noqa: E402
     build_online_source_label,
     call_anthropic,
-    poison_seconds_for_generate_error,
 )
 from vocab_fill_circuit_breaker import (  # noqa: E402
     after_attempt,
@@ -60,12 +67,7 @@ MEANING_URL = f"{BASE}/api/jp-vocab/fill-meaning"
 USAGE_URL = f"{BASE}/api/jp-vocab/fill-usage"
 EXAMPLES_URL = f"{BASE}/api/jp-vocab/fill-example-sentences"
 
-DEFAULT_MIN_INTERVAL_SEC = 60
 HARD_ONLINE_LIMIT = 1
-POISON_PATH = Path.home() / ".config" / "info-quests" / "jp-vocab-fill-online.poison.json"
-RATE_GATE_PATH = Path.home() / ".config" / "info-quests" / "jp-vocab-fill-online.last_paid_call"
-DEFAULT_POISON_SEC = 6 * 3600
-MAINTENANCE_WORD_RUN_URL = "http://127.0.0.1:17823/api/jp-vocab-fill/word-runs"
 
 FENCE_RE = re.compile(r"^```(?:json)?\s*|\s*```$", re.MULTILINE | re.IGNORECASE)
 EXAMPLE_JLPT_TAIL_RE = re.compile(
@@ -140,108 +142,6 @@ def _load_helper_module(filename: str, alias: str):
     return mod
 
 
-def resolve_min_interval_sec() -> int:
-    raw = (
-        __import__("os").environ.get("JP_VOCAB_FILL_ONLINE_MIN_INTERVAL_SEC", "").strip()
-        or load_env_file("jp-vocab-fill.env").get(
-            "JP_VOCAB_FILL_ONLINE_MIN_INTERVAL_SEC", ""
-        )
-        or str(DEFAULT_MIN_INTERVAL_SEC)
-    )
-    try:
-        return max(30, int(raw))
-    except ValueError:
-        return DEFAULT_MIN_INTERVAL_SEC
-
-
-def resolve_poison_sec() -> int:
-    raw = (
-        __import__("os").environ.get("JP_VOCAB_FILL_ONLINE_POISON_SEC", "").strip()
-        or load_env_file("jp-vocab-fill.env").get(
-            "JP_VOCAB_FILL_ONLINE_POISON_SEC", ""
-        )
-        or str(DEFAULT_POISON_SEC)
-    )
-    try:
-        return max(300, int(raw))
-    except ValueError:
-        return DEFAULT_POISON_SEC
-
-
-def load_poison() -> dict[str, dict]:
-    if not POISON_PATH.is_file():
-        return {}
-    try:
-        raw = json.loads(POISON_PATH.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
-    if not isinstance(raw, dict):
-        return {}
-    now = time.time()
-    out: dict[str, dict] = {}
-    for key, val in raw.items():
-        if not isinstance(val, dict):
-            continue
-        try:
-            until = float(val.get("until"))
-        except (TypeError, ValueError):
-            continue
-        if until > now:
-            out[str(key)] = val
-    return out
-
-
-def save_poison(data: dict[str, dict]) -> None:
-    POISON_PATH.parent.mkdir(parents=True, exist_ok=True)
-    POISON_PATH.write_text(
-        json.dumps(data, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
-
-
-def mark_poison(word_id: int, word: str, reason: str) -> None:
-    data = load_poison()
-    sec = poison_seconds_for_generate_error(reason, default_sec=resolve_poison_sec())
-    data[str(word_id)] = {
-        "word": word,
-        "reason": reason,
-        "until": time.time() + sec,
-    }
-    save_poison(data)
-    print(
-        f"    poison id={word_id} for {sec}s (reason={reason})",
-        flush=True,
-    )
-
-
-def acquire_paid_rate_gate(*, allow_burst: bool) -> bool:
-    if allow_burst:
-        return True
-    min_sec = resolve_min_interval_sec()
-    now = time.time()
-    RATE_GATE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    if RATE_GATE_PATH.is_file():
-        try:
-            last = float(RATE_GATE_PATH.read_text(encoding="utf-8").strip() or "0")
-        except (OSError, ValueError):
-            last = 0.0
-        elapsed = now - last
-        if elapsed < min_sec:
-            wait = int(min_sec - elapsed)
-            print(
-                f"[jp-vocab-fill-online] rate-gate: 距上次付费仅 {elapsed:.0f}s "
-                f"< {min_sec}s，skip（约 {wait}s 后再试）",
-                flush=True,
-            )
-            return False
-    return True
-
-
-def mark_paid_call() -> None:
-    RATE_GATE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    RATE_GATE_PATH.write_text(f"{time.time():.3f}\n", encoding="utf-8")
-
-
 def is_conjugation_word(word: str) -> bool:
     grammar_mod = _load_helper_module(
         "jp-vocab-fill-grammar-usage-examples-api.py", "_jp_grammar_helpers"
@@ -250,58 +150,9 @@ def is_conjugation_word(word: str) -> bool:
 
 
 def full_refresh_needs(kind: str, word: str) -> dict[str, bool]:
-    if kind == "grammar":
-        if is_conjugation_word(word):
-            return {
-                "reading": False,
-                "meaning": False,
-                "pos": False,
-                "usage": False,
-                # 变形课有例句+接续表才算完成（usage 空是故意的）
-                "connection": True,
-                "example_sentences": True,
-                "related_compounds": False,
-            }
-        return {
-            "reading": False,
-            "meaning": False,
-            "pos": False,
-            "usage": True,
-            "connection": True,
-            "example_sentences": True,
-            "related_compounds": False,
-        }
-    return {
-        "reading": True,
-        "meaning": True,
-        "pos": True,
-        "usage": False,
-        "connection": False,
-        "example_sentences": True,
-        "related_compounds": True,
-    }
-
-
-def now_local_str() -> str:
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-
-def report_word_run_to_maintenance_center(payload: dict[str, Any]) -> None:
-    """维护中心「最近词条」；维护中心未开时静默跳过。"""
-    try:
-        body_obj = dict(payload)
-        if not str(body_obj.get("fill_task") or "").strip():
-            body_obj["fill_task"] = "jp-vocab-fill-unified"
-        body = json.dumps(body_obj, ensure_ascii=False).encode("utf-8")
-        req = urllib.request.Request(
-            MAINTENANCE_WORD_RUN_URL,
-            data=body,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        urllib.request.urlopen(req, timeout=2)
-    except (urllib.error.URLError, TimeoutError, OSError, ValueError):
-        pass
+    return _full_refresh_needs(
+        kind, word, is_conjugation=is_conjugation_word
+    )
 
 
 GLOSS_LABEL_RE = re.compile(r"^(译文|翻譯|翻译|译|譯|訳文|訳)\s*[:：]\s*")
@@ -708,17 +559,9 @@ def grammar_still_missing_after_apply(
         {"mode": "list_missing", "limit": 1, "word_id": int(word_id)},
         user_agent="jp-vocab-fill-online-batch/1.0",
     )
-    for row in list(data.get("missing") or []):
-        if int(row.get("id") or 0) != int(word_id):
-            continue
-        detail = (
-            "apply_ok_but_still_missing:"
-            f"need_usage={row.get('need_usage')} "
-            f"need_examples={row.get('need_examples')} "
-            f"need_connection={row.get('need_connection')}"
-        )
-        return True, detail
-    return False, ""
+    return still_missing_detail_from_rows(
+        word_id, list(data.get("missing") or [])
+    )
 
 
 def extract_bundle(data: dict[str, Any], row: dict[str, Any]) -> dict[str, Any]:
