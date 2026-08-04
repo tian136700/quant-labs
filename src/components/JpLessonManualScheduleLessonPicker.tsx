@@ -34,22 +34,26 @@ function toOptions(
   subject: ManualScheduleLinkedLessonSubject,
   lessons: Array<JpLessonRecord | EnLessonRecord>
 ): ManualScheduleLessonOption[] {
-  return lessons.map((lesson) => ({
-    subject,
-    id: lesson.id,
-    kind:
-      lesson.kind === "grammar"
+  return lessons.map((lesson) => {
+    const rawKind = lesson.kind;
+    const kind: ManualScheduleLessonOption["kind"] =
+      rawKind === "grammar"
         ? "grammar"
-        : lesson.kind === "word_grammar"
+        : rawKind === "word_grammar"
           ? "word_grammar"
-          : "word",
-    content: lesson.content,
-    title: lesson.title,
-    course_label: lesson.course_label,
-    uploaded_at: lesson.uploaded_at || lesson.created_at || "",
-    completed: lesson.completed,
-    learning: lesson.learning,
-  }));
+          : "word";
+    return {
+      subject,
+      id: lesson.id,
+      kind,
+      content: lesson.content,
+      title: lesson.title,
+      course_label: lesson.course_label,
+      uploaded_at: lesson.uploaded_at || lesson.created_at || "",
+      completed: lesson.completed,
+      learning: lesson.learning,
+    };
+  });
 }
 
 function resolveOptionsForSubject(

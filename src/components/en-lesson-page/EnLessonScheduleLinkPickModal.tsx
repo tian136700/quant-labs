@@ -47,7 +47,6 @@ type Props = {
 
 function kindShort(kind: EnLessonRecord["kind"]): string {
   if (kind === "grammar") return "法";
-  if (kind === "word_grammar") return "词+法";
   return "词";
 }
 

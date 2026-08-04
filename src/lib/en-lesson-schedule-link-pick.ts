@@ -34,12 +34,7 @@ export function enLessonToManualScheduleOption(
   return {
     subject: "en",
     id: lesson.id,
-    kind:
-      lesson.kind === "grammar"
-        ? "grammar"
-        : lesson.kind === "word_grammar"
-          ? "word_grammar"
-          : "word",
+    kind: lesson.kind === "grammar" ? "grammar" : "word",
     content: lesson.content,
     title: lesson.title,
     course_label: lesson.course_label,
