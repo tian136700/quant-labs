@@ -227,6 +227,24 @@ def main() -> int:
             "buildJpLessonSchedulePageAllEvents must drop manual when teacher+time+duration match lesson"
         )
 
+    page = PAGE.read_text(encoding="utf-8")
+    # 只检查 teacherNameById 这一段（到下一个 const），勿误伤 teacherDisplayNameById
+    name_by_id_block = page.split("const teacherNameById", 1)[-1].split(
+        "const teacherDisplayNameById", 1
+    )[0]
+    if "formatTeacherLessonDisplayLabel" in name_by_id_block:
+        errors.append(
+            "teacherNameById (merge) must use teacher.name, not formatTeacherLessonDisplayLabel"
+        )
+    if "teacherDisplayNameById" not in page:
+        errors.append(
+            "schedule page must keep teacherDisplayNameById for card rate labels after merge"
+        )
+    if "loadManualSchedules({ force: true })" not in page:
+        errors.append(
+            "schedule page must force-refresh manual schedules on mount (stale cache shows deleted dups)"
+        )
+
     schema = SCHEMA.read_text(encoding="utf-8")
     if not re.search(r"jp_lesson_manual_schedule[\s\S]*linked_lessons", schema):
         errors.append("schema.sql must define linked_lessons on manual schedule")

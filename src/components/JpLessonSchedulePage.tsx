@@ -85,6 +85,7 @@ import {
   weekStartDate,
   monthGrid,
   exportScheduleText,
+  formatLessonTeacherNames,
   lessonPayloadNeedsTeacherRefresh,
   readEnLessonCache,
   scheduleEventMatchesSelectionKey,
@@ -209,7 +210,8 @@ export function JpLessonSchedulePage() {
   }, []);
 
   useEffect(() => {
-    if (!checking && isAdmin) void loadManualSchedules();
+    // 与新课列表一致：进页强制拉网，避免本地缓存仍含已合并/已删的手动条
+    if (!checking && isAdmin) void loadManualSchedules({ force: true });
   }, [checking, isAdmin, loadManualSchedules]);
 
   const loadLessons = useCallback(async (opts?: { force?: boolean }) => {
@@ -349,13 +351,21 @@ export function JpLessonSchedulePage() {
     return map;
   }, [enLessons]);
 
+  // 同堂合并用本名比对；勿塞 formatTeacherLessonDisplayLabel（「玉老师 · 60 / 1h」）
+  // 否则手动条「玉老师」匹配失败，同老师同时段会出两条。
   const teacherNameById = useMemo(() => {
     const map = new Map<number, string>();
     for (const teacher of teachers) {
-      map.set(
-        teacher.id,
-        formatTeacherLessonDisplayLabel(teacher, "zh")
-      );
+      map.set(teacher.id, teacher.name);
+    }
+    return map;
+  }, [teachers]);
+
+  /** 仅用于卡片展示（含费率）；不参与同堂合并比对 */
+  const teacherDisplayNameById = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const teacher of teachers) {
+      map.set(teacher.id, formatTeacherLessonDisplayLabel(teacher, "zh"));
     }
     return map;
   }, [teachers]);
@@ -376,18 +386,8 @@ export function JpLessonSchedulePage() {
     return map;
   }, [lessons]);
 
-  const allEvents = useMemo(
-    () =>
-      buildJpLessonSchedulePageAllEvents({
-        lessons,
-        enLessons,
-        lessonById,
-        enLessonById,
-        teacherNameById,
-        enTeacherNameById,
-        manualSchedules,
-      }),
-    [
+  const allEvents = useMemo(() => {
+    const events = buildJpLessonSchedulePageAllEvents({
       lessons,
       enLessons,
       lessonById,
@@ -395,8 +395,27 @@ export function JpLessonSchedulePage() {
       teacherNameById,
       enTeacherNameById,
       manualSchedules,
-    ]
-  );
+    });
+    // 合并已用本名完成；展示层再套费率文案（玉老师 · 60 / 1h）
+    return events.map((event) => {
+      if (event.subject !== "jp" || event.lessonId == null) return event;
+      const lesson = lessonById.get(event.lessonId);
+      if (!lesson) return event;
+      return {
+        ...event,
+        teachers: formatLessonTeacherNames(lesson, teacherDisplayNameById),
+      };
+    });
+  }, [
+    lessons,
+    enLessons,
+    lessonById,
+    enLessonById,
+    teacherNameById,
+    teacherDisplayNameById,
+    enTeacherNameById,
+    manualSchedules,
+  ]);
 
   const weekDates = useMemo(() => {
     const start = weekStartDate(selectedDate);

@@ -92,9 +92,28 @@ def run_css_comment_guard() -> int:
     return subprocess.call([sys.executable, str(script)], cwd=str(ROOT))
 
 
+def write_app_deploy_version() -> int:
+    """Bake a unique deploy stamp into the Worker + client bundle."""
+    script = ROOT / "scripts" / "write_app_deploy_version.py"
+    if not script.is_file():
+        print("predeploy: 缺少 write_app_deploy_version.py，跳过版本戳", flush=True)
+        return 0
+    print("predeploy: 写入 app-deploy-version…", flush=True)
+    return subprocess.call([sys.executable, str(script)], cwd=str(ROOT))
+
+
 def main() -> int:
     clean_next = "--clean-next" in sys.argv[1:]
     local_dev = bool(dev_server_pids())
+
+    version_rc = write_app_deploy_version()
+    if version_rc != 0:
+        print(
+            "predeploy 中止：写入 app-deploy-version 失败",
+            file=sys.stderr,
+            flush=True,
+        )
+        return version_rc
 
     css_rc = run_css_comment_guard()
     if css_rc != 0:
