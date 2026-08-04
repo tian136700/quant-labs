@@ -78,13 +78,18 @@ export function connectionHasAcademicVerbClassTerms(
 export function rewriteJpVocabConnectionSchoolVerbClassTerms(
   raw: string
 ): string {
-  return String(raw ?? "")
-    .replace(/五段动词/g, "一类动词")
-    .replace(/五段/g, "一类动词")
-    .replace(/一段动词/g, "二类动词")
-    .replace(/一段(?=去|词|动|「)/g, "二类动词")
-    .replace(/カ行変格|カ变动词|カ变/g, "三类动词")
-    .replace(/サ行変格|サ变动词|サ变/g, "三类动词");
+  return (
+    String(raw ?? "")
+      // 先整词（含繁体「動詞」），再剥残留「五段／一段」
+      .replace(/五段動詞|五段动词/g, "一类动词")
+      .replace(/一段動詞|一段动词/g, "二类动词")
+      .replace(/五段/g, "一类动词")
+      .replace(/一段(?=去|词|动|「|）|\))/g, "二类动词")
+      .replace(/カ行変格|カ変動詞|カ变动词|カ变/g, "三类动词")
+      .replace(/サ行変格|サ変動詞|サ变动词|サ变/g, "三类动词")
+      // 「一类动词（一类动词）」/「一类动词（五段…）」改写后的同义括注
+      .replace(/(一类动词|二类动词|三类动词)（\1）/g, "$1")
+  );
 }
 
 
@@ -711,6 +716,8 @@ export function normalizeJpVocabConnectionText(
     .filter(Boolean)
     .filter((line) => line !== JP_VOCAB_CONNECTION_SECTION_MARKER)
     .filter((line) => !FENCE_RE.test(line))
+    // Claude 常在接序下再写「例：書く→書かない」——有假名括注会误拒 looks_like_examples
+    .filter((line) => !/^例\s*[：:]/.test(line))
     .map((line) => formatJpVocabDongciJishokeiLabel(line))
     .map((line) => {
       // 否定形「～X」表示「Y」。→ 否定形: ～X（Y）
@@ -805,10 +812,6 @@ export function validateJpVocabConnectionAiOutput(
   if (bareHits >= 2) {
     return { ok: false, reason: "bare_numbered_lines" };
   }
-  // 写回拒专业术语：学生教材用一类/二类/三类，听不懂五段/カ变
-  if (connectionHasAcademicVerbClassTerms(preCheckBody)) {
-    return { ok: false, reason: "academic_verb_class_terms" };
-  }
   // 写回拒括号嵌套词类散文（须分行才能上表）；normalize 仍会改写存量展示
   if (connectionHasNestedClassColonProse(preCheckBody)) {
     return { ok: false, reason: "nested_class_colon_prose" };
@@ -830,6 +833,10 @@ export function validateJpVocabConnectionAiOutput(
     text = normalizeJpVocabConnectionText(text) ?? "";
   }
   if (!text) return { ok: false, reason: "empty" };
+  // 先 normalize（五段→一类、剥「例：」、繁体词类→简体）再拒残留专业术语
+  if (connectionHasAcademicVerbClassTerms(text)) {
+    return { ok: false, reason: "academic_verb_class_terms" };
+  }
   const lines = text.split("\n").filter(Boolean);
   if (lines.length < 1) return { ok: false, reason: "too_short" };
   // 误把整段例句当成接序

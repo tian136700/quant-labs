@@ -151,6 +151,10 @@ def main() -> int:
         errors.append("usage-ai て形接续表须含一类形容词「去掉い加くて」")
     if "二类形容词去掉「だ」加「で」" not in usage_ai and "名词加「で」" not in usage_ai:
         errors.append("usage-ai て形接续表须含二类形容词／名词「で」")
+    if "ない形课示例" not in usage_ai and "去掉「く」加「かない」" not in usage_ai:
+        errors.append("usage-ai 须含ない形课接续表示例（防五段散文复发）")
+    if "ない形示例" not in script and "去掉「く」加「かない」" not in script:
+        errors.append("Mac CONJ_PAIR_SYSTEM 须含ない形表样例")
 
     table = (
         ROOT / "src/components/JpVocabContrastDistinctionTable.tsx"

@@ -183,6 +183,26 @@ def main() -> None:
         fail("接序示例禁止再写「一类动词（五段）」")
     if "禁止「五段" not in src and "❌禁止「五段" not in src and "❌ 禁止「五段" not in src:
         fail("接序 prompt 须禁止五段/一段/カ变术语")
+    if "五段動詞" not in src:
+        fail("school rewrite 须同时处理繁体「五段動詞」")
+    if r"^例\s*[：:]" not in src:
+        fail("normalize 须剥接序下「例：」行（防 looks_like_examples）")
+    # 学术用语先改写再验：一類動詞（五段動詞）→ 一类动词
+    sample_academic = "一類動詞（五段動詞）：词尾う段改あ段＋ない"
+    rewritten = sample_academic
+    for a, b in (
+        ("五段動詞", "一类动词"),
+        ("五段动词", "一类动词"),
+        ("五段", "一类动词"),
+        ("一類", "一类"),
+        ("動詞", "动词"),
+    ):
+        rewritten = rewritten.replace(a, b)
+    rewritten = rewritten.replace("一类动词（一类动词）", "一类动词")
+    if "五段" in rewritten or "一類" in rewritten or "動詞" in rewritten:
+        fail(f"学术用语改写链路须清掉五段/繁体，得到 {rewritten!r}")
+    if not rewritten.startswith("一类动词"):
+        fail(f"学术用语改写后须以一类动词开头，得到 {rewritten!r}")
     if (
         "卡片会自动排表" not in src
         and "卡片自动排表" not in src
@@ -190,7 +210,11 @@ def main() -> None:
         and "卡片三列" not in src
     ):
         fail("接序 prompt 须要求「；」或多行词类格式以便上表")
-    if "禁止散文" not in src:
+    if (
+        "禁止散文" not in src
+        and "禁止写成散文" not in src
+        and "❌禁止散文" not in src
+    ):
         fail("接序 prompt 须禁止散文罗列词类")
 
 

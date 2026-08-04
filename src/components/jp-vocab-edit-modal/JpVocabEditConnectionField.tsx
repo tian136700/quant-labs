@@ -33,7 +33,7 @@ export function JpVocabEditConnectionField({
         placeholder={
           word.kind === "grammar"
             ? "例：\n动词辞书形（动词原形）＋「～前に」\n名词＋の＋「前に」"
-            : "例：\n一类动词（五段）／辞书形（动词原形）：「書く」；ます形：「書きます」；て形：「書いて」"
+            : "例：\n一类动词／辞书形（动词原形）：「書く」；ます形：「書きます」；て形：「書いて」"
         }
         onChange={(e) => {
           onConnectionChange(e.target.value);
