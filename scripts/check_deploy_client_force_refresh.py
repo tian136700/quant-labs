@@ -67,6 +67,8 @@ def main() -> int:
     wait = FILES["wait"].read_text(encoding="utf-8")
     if "app-deploy-version" not in wait and "verify_app_deploy_version" not in wait:
         errors.append("wait_deploy_result.py must verify live /api/app-deploy-version after success")
+    if "User-Agent" not in wait or "Mozilla" not in wait:
+        errors.append("wait_deploy verify must send browser User-Agent (CF blocks Python-urllib → 403/1010)")
 
     rule = FILES["rule"].read_text(encoding="utf-8")
     if "DeployVersionWatcher" not in rule or "alwaysApply: true" not in rule:

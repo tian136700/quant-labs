@@ -24,6 +24,8 @@ STATE_DIR = ROOT / ".cursor" / "hooks" / ".state"
 FAILURE_FILE = STATE_DIR / "last_deploy_failure.txt"
 PENDING_FILE = STATE_DIR / "pending_deploy_followup.json"
 BASE = "http://127.0.0.1:17823"
+# 部署成功后探活：客户端靠此戳强制刷新；404 = 机制未上线
+LIVE_VERSION_URL = "https://finance.info-quests.com/api/app-deploy-version"
 
 
 def _get_json(path: str, timeout: float = 8.0) -> dict:
@@ -31,6 +33,59 @@ def _get_json(path: str, timeout: float = 8.0) -> dict:
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         raw = resp.read().decode("utf-8", errors="replace")
     return json.loads(raw) if raw else {}
+
+
+def verify_app_deploy_version(*, attempts: int = 8, delay_sec: float = 5.0) -> bool:
+    """确认线上 version API 可用；失败只告警不改部署 exit（构建已成功）。"""
+    last_err = ""
+    # CF 对默认 Python-urllib UA 会 403/1010；探活须伪装浏览器
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36"
+        ),
+        "Accept": "application/json",
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+    }
+    for i in range(1, attempts + 1):
+        try:
+            req = urllib.request.Request(
+                LIVE_VERSION_URL,
+                method="GET",
+                headers=headers,
+            )
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                raw = resp.read().decode("utf-8", errors="replace")
+                status = getattr(resp, "status", 200)
+            if status != 200:
+                last_err = f"HTTP {status}"
+            else:
+                data = json.loads(raw) if raw else {}
+                version = str(data.get("version") or "").strip()
+                if data.get("ok") and version:
+                    print(
+                        f"[wait-deploy] app-deploy-version ok version={version}",
+                        flush=True,
+                    )
+                    return True
+                last_err = f"bad body: {raw[:200]}"
+        except Exception as exc:
+            last_err = str(exc)
+        print(
+            f"[wait-deploy] app-deploy-version 探活 {i}/{attempts} 未通过（{last_err}）",
+            flush=True,
+        )
+        if i < attempts:
+            time.sleep(delay_sec)
+    print(
+        f"[wait-deploy] 警告：线上 {LIVE_VERSION_URL} 仍不可用（{last_err}）；"
+        "开着的标签页无法自动强制刷新",
+        file=sys.stderr,
+        flush=True,
+    )
+    return False
 
 
 def _latest_rows(limit: int = 5) -> list[dict]:
@@ -130,6 +185,7 @@ def main() -> int:
                             FAILURE_FILE.unlink(missing_ok=True)
                         if PENDING_FILE.is_file():
                             PENDING_FILE.unlink(missing_ok=True)
+                        verify_app_deploy_version()
                         return 0
                     # failure
                     tail = details[-8000:] if details else summary
