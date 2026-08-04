@@ -487,9 +487,26 @@ def main() -> int:
     if not rule.is_file():
         raise SystemExit("FAIL: missing .cursor/rules/vocab-fill-applied-column.mdc")
     rule_text = rule.read_text(encoding="utf-8")
-    if "空结果" not in rule_text or "related_compounds" not in rule_text:
+    for needle in (
+        "单独任务",
+        "组合任务",
+        "追加",
+        "空结果",
+        "related_compounds",
+        "applied",
+    ):
+        if needle not in rule_text:
+            raise SystemExit(
+                f"FAIL: vocab-fill-applied-column.mdc must document {needle!r} "
+                "(standalone new row / bundled append / empty still shown)"
+            )
+    hook = ROOT / ".cursor/hooks/remind-vocab-fill-applied-after-edit.py"
+    if not hook.is_file():
+        raise SystemExit("FAIL: missing remind-vocab-fill-applied-after-edit.py")
+    hook_text = hook.read_text(encoding="utf-8")
+    if "单独任务" not in hook_text or "组合任务" not in hook_text:
         raise SystemExit(
-            "FAIL: vocab-fill-applied-column.mdc must require empty related still in applied"
+            "FAIL: applied after-edit hook must mention 单独任务 / 组合任务"
         )
     feed_py = (ROOT / "scripts/maintenance_center/jp_vocab_fill_feed.py").read_text(
         encoding="utf-8"
