@@ -67,9 +67,16 @@ export function extractJpVocabCitedGrammarForms(
   return [...new Set(found)];
 }
 
+/** 用法「それで？」与例句「それで、…」：尾部语气标点不要求字面一致 */
+const CITED_FORM_TRAILING_PUNCT_RE = /[？?！!。．\.、,，…⋯]+$/u;
+
 function exampleHasForm(plain: string, form: string): boolean {
   if (!form) return true;
   if (plain.includes(form)) return true;
+  const stripped = form.replace(CITED_FORM_TRAILING_PUNCT_RE, "");
+  if (stripped && stripped !== form && plain.includes(stripped)) {
+    return true;
+  }
   // ないはずだ ↔ ないはずです
   if (form.endsWith("だ") && plain.includes(form.slice(0, -1) + "です")) {
     return true;

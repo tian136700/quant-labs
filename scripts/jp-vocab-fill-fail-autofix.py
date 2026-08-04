@@ -131,21 +131,22 @@ def _format_fail_block(row: dict[str, Any]) -> str:
 
 
 def _build_prompt(fails: list[dict[str, Any]]) -> str:
+    """与维护中心「一键复制失败日志」AI 提示词口径一致（app.js formatVocabFillFailAgentPrompt）。"""
     blocks = [_format_fail_block(r) for r in fails]
     joined = "\n\n----------\n\n".join(blocks)
     ids = ", ".join(
         f"{r.get('word_id')}:{r.get('word')}" for r in fails if r.get("word_id")
     )
-    return f"""请检测并处理维护中心「日语词条补全」未处理失败（已处理/已删除勿再动）。
+    return f"""请帮忙手动更新维护中心「日语词条补全」这些未处理失败（已处理/已删除勿再动）。
 
 未处理词条：{ids or '见下方日志'}
 
 任务（按顺序）：
-1) 读失败日志，判断根因（模型 JSON / apply 校验 / 假名 / 用法条数等）。
-2) **手动补上**该词条缺的字段（用法/接序/例句等）：走现有 apply API；source 用「Agent现写」，禁止 source=手动。
-3) 写回成功后立刻：
+1) 读下方失败日志，判断根因（模型 JSON / apply 校验 / 假名 / 用法条数等）。
+2) **手动更新线上**该词条缺/错的字段（用法/接序/例句等）：走现有 apply API；source 用「Agent现写」，禁止 source=手动。
+3) 写回成功后立刻在维护中心标记为已处理：
    `python3 scripts/lib/vocab_fill_mark_resolved.py --lang jp --word-id … --word '…' --kind … --source 'Agent现写'`
-4) **改代码/校验/prompt**，避免同类失败再复发（规则 bug-once-prevent；相关 jp-vocab-* / fill 规则）。
+4) **排查并修好防复发**：检查发给付费接口的 AI 提示词、apply 校验/检测逻辑、或相关程序代码，避免下次再发生同样错误（规则 bug-once-prevent）。
 5) 本地先验证（对应 check_*.py）；写 `.cursor/hooks/.state/agent_feature_remark.txt`。
 6) 不要 git commit，除非我明确要求。
 

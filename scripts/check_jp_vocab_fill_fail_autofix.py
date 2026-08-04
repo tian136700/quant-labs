@@ -122,10 +122,19 @@ def main() -> None:
         }
     ]
     prompt = m._build_prompt(sample)
-    if "请检测并处理" not in prompt or "mark_resolved" not in prompt:
-        raise SystemExit("FAIL: prompt must ask diagnose + fill + mark_resolved + prevent")
+    if "请帮忙手动更新" not in prompt or "mark_resolved" not in prompt:
+        raise SystemExit("FAIL: prompt must ask manual online fix + mark_resolved")
+    if "付费接口的 AI 提示词" not in prompt or "避免下次再发生同样错误" not in prompt:
+        raise SystemExit("FAIL: prompt must ask check paid AI prompts / code to prevent recurrence")
     if "～でしょう" not in prompt:
         raise SystemExit("FAIL: prompt must include fail word")
+
+    # 与维护中心一键复制 AI 提示口径一致
+    app_js = (ROOT / "scripts/maintenance_center/static/app.js").read_text(encoding="utf-8")
+    if "formatVocabFillFailAgentPrompt" not in app_js:
+        raise SystemExit("FAIL: maintenance one-click must share AI prompt helper")
+    if "付费接口的 AI 提示词" not in app_js:
+        raise SystemExit("FAIL: app.js one-click prompt must mention 付费接口的 AI 提示词")
 
     print("[check_jp_vocab_fill_fail_autofix] OK")
 

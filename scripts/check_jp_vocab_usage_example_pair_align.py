@@ -90,8 +90,14 @@ def extract_cited(usage_body: str, word: str) -> list[str]:
     return list(dict.fromkeys(found))
 
 
+CITED_FORM_TRAILING_PUNCT_RE = re.compile(r"[？?！!。．\.、,，…⋯]+$")
+
+
 def example_has_form(plain: str, form: str) -> bool:
     if form in plain:
+        return True
+    stripped = CITED_FORM_TRAILING_PUNCT_RE.sub("", form)
+    if stripped and stripped != form and stripped in plain:
         return True
     if form.endswith("だ") and (form[:-1] + "です") in plain:
         return True
@@ -218,6 +224,21 @@ def main() -> int:
     ok2, reason2 = align_ok("～はずだ", GOOD_USAGE, GOOD_EXAMPLES)
     if not ok2:
         errors.append(f"纠正后 ～はずだ 应通过，却拒: {reason2}")
+
+    # 「それで？」用法 vs 例句「それで、」——尾部？不得误拒
+    sorede_usage = (
+        "1. [口语8|考试7] 表示顺接因果：后句用「それで」引出结果。(N4)\n"
+        "2. [口语9|考试5] 对话中用「それで？」追问「然后呢？」。(N4)"
+    )
+    sorede_examples = (
+        "昨日(きのう)は雨(あめ)が降(ふ)っていました。それで、家(いえ)にいました。\n"
+        "译文：昨天下雨了，所以我待在家里。\n"
+        "A：財布(さいふ)をなくしたんです。B：それで、見(み)つかりましたか。\n"
+        "译文：A：我把钱包弄丢了。B：那后来找到了吗？"
+    )
+    ok3, reason3 = align_ok("～それで", sorede_usage, sorede_examples)
+    if not ok3:
+        errors.append(f"～それで「それで？」尾标点应对齐通过，却拒: {reason3}")
 
     if errors:
         for e in errors:

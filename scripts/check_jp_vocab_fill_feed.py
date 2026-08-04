@@ -187,6 +187,14 @@ def main() -> int:
         raise SystemExit("FAIL: missing #jp/#en-fill-copy-all-fails buttons in index.html")
     if "一键复制失败日志" not in index_html:
         raise SystemExit("FAIL: copy-all-fails button label missing")
+    if "formatVocabFillFailAgentPrompt" not in app_js:
+        raise SystemExit("FAIL: one-click must prepend AI agent prompt")
+    if "手动更新线上" not in app_js or "付费接口的 AI 提示词" not in app_js:
+        raise SystemExit("FAIL: AI prompt must ask manual online fix + check paid prompts")
+    if "维护中心标记为已处理" not in app_js:
+        raise SystemExit("FAIL: AI prompt must ask mark resolved in maintenance center")
+    if "含 AI 提示" not in app_js:
+        raise SystemExit("FAIL: one-click toast/title must mention 含 AI 提示")
     if "copyAllFails" not in app_js or "syncVocabFillCopyAllFailsBtn" not in app_js:
         raise SystemExit("FAIL: copyAllFails must be wired in VOCAB_FILL_LANGS + synced on render")
     if "未处理失败" not in app_js:
