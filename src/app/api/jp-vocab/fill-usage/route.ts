@@ -4,15 +4,17 @@ import {
   clearAllJpVocabGrammarExampleSentences,
   clearJpVocabGrammarPairById,
   scanJpVocabGrammarMissingConnection,
+  scanJpVocabGrammarMissingSingleUsageExamples,
   scanJpVocabGrammarMissingUsage,
 } from "@/lib/jp-vocab-fill-usage";
 import { verifyUploadAuth } from "@/lib/jp-review";
 import { enforceVocabFillRouteRateLimit } from "@/lib/worker-api-rate-limit";
 
 type FillUsageBody = {
-  /** list_missing | list_missing_connection | apply | clear_grammar_examples | clear_pair */
+  /** list_missing | list_missing_single_usage_examples | list_missing_connection | apply | clear_grammar_examples | clear_pair */
   mode?:
     | "list_missing"
+    | "list_missing_single_usage_examples"
     | "list_missing_connection"
     | "apply"
     | "clear_grammar_examples"
@@ -143,6 +145,21 @@ export async function POST(request: Request) {
         missing: result.missing,
         total_missing: result.total_missing,
         upload_spec: result.upload_spec,
+      });
+    }
+
+    if (body.mode === "list_missing_single_usage_examples") {
+      const result = await scanJpVocabGrammarMissingSingleUsageExamples(env.DB, {
+        limit,
+        wordId,
+      });
+      return jsonResponse({
+        ok: true,
+        mode: "list_missing_single_usage_examples",
+        limit,
+        word_id: wordId ?? null,
+        missing: result.missing,
+        total_missing: result.total_missing,
       });
     }
 

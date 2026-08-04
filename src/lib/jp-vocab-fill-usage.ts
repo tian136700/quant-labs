@@ -10,9 +10,11 @@ import {
 } from "@/lib/jp-vocab-connection-ai";
 import { ensureJpVocabWordSchema } from "@/lib/jp-vocab-db";
 import { clampJpVocabFrequency } from "@/lib/jp-vocab-frequency";
+import { parseJpVocabExampleSentenceItems } from "@/lib/jp-vocab-example-sentences";
 import { validateJpVocabExampleSentencesAiOutput, normalizeJpVocabExampleSentencesForOnlineApply } from "@/lib/jp-vocab-example-sentences-ai";
 import {
   buildJpVocabUsageAiPrompt,
+  countJpVocabUsagePoints,
   isJpVocabConjugationGrammar,
   isJpVocabGrammarUsageExamplesPairComplete,
   JP_VOCAB_USAGE_UPLOAD_SPEC,
@@ -20,6 +22,14 @@ import {
   normalizeJpVocabUsageText,
   validateJpVocabUsageAiOutput,
 } from "@/lib/jp-vocab-usage-ai";
+
+export {
+  buildJpVocabSingleUsageExamplesTopUpPrompt,
+  countJpVocabGrammarMissingSingleUsageExamples,
+  listJpVocabGrammarMissingSingleUsageExamples,
+  scanJpVocabGrammarMissingSingleUsageExamples,
+  type JpVocabMissingSingleUsageExamplesRow,
+} from "@/lib/jp-vocab-fill-usage-single-examples";
 
 export type JpVocabMissingUsageRow = {
   id: number;
@@ -68,7 +78,7 @@ export type ListJpVocabMissingUsageOptions = {
   wordId?: number;
 };
 
-/** 缺用法或缺例句（成对一次补）；活用变形课须例句+接续表 */
+/** 缺用法或缺例句（成对一次补）；活用变形课须例句+接续表；单用法须 ≥3 例句 */
 export async function countJpVocabGrammarMissingUsage(
   db: D1Database
 ): Promise<number> {
@@ -95,15 +105,10 @@ export async function listJpVocabGrammarMissingUsage(
       ? options.wordId
       : null;
 
-  // 先宽查，再在内存过滤「活用变形已有例句+接续表」；LIMIT 必须过滤后再裁，否则会被变形课占满
+  // 宽查全部语法，再在内存用「成对完成」判定；否则「单用法只有 1 句」会被 SQL 漏掉
   let sql = `SELECT id, word, kind, reading, meaning, usage, example_sentences, connection, course_label
        FROM jp_vocab_word
-       WHERE kind = 'grammar'
-         AND (
-           (usage IS NULL OR usage = '')
-           OR (example_sentences IS NULL OR example_sentences = '')
-           OR (connection IS NULL OR connection = '')
-         )`;
+       WHERE kind = 'grammar'`;
   const binds: number[] = [];
   if (wordId != null) {
     sql += ` AND id = ?${binds.length + 1}`;
@@ -156,8 +161,15 @@ export async function listJpVocabGrammarMissingUsage(
         return null;
       }
       const isConj = isJpVocabConjugationGrammar(word);
+      const usageN = countJpVocabUsagePoints(usage);
+      const exN = examples
+        ? parseJpVocabExampleSentenceItems(examples).length
+        : 0;
       const need_usage = isConj ? false : !usage;
-      const need_examples = !examples;
+      const need_examples = isConj
+        ? !examples
+        : !examples ||
+          (usageN === 1 ? exN < 3 : usageN > 1 && exN < usageN);
       const need_connection = isConj
         ? !parseJpVocabConnectionTableRows(connection)
         : !hasJpVocabConnection(connection);
