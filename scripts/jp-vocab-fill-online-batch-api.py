@@ -135,6 +135,9 @@ GRAMMAR_SYSTEM = (
     "每条编号后必须带出现分：[口语n|考试m]（各 1～10），例："
     "1. [口语9|考试8] 表示……。(N4)；❌禁止漏掉口语/考试分。"
     "用法正文禁止大段日语、禁止写成接续说明（接在…／构成…放到 connection）。"
+    "❌用法行禁止 漢字(かな) 假名括注（会被拒 usage_not_chinese）："
+    "❌「用(も)于列举」→ ✅「用于列举」；「」内也不要假名括注。"
+    "假名括注只允许出现在 example_sentences 的日语行。"
     "【接序·必守】必须含「＋」公式或「用法N:」分行；写清词类："
     "一类动词／二类动词／三类动词／一类形容词／二类形容词／名词；"
     "动词辞书形须写成「动词辞书形（动词原形）」；"
@@ -633,6 +636,25 @@ def grammar_connection_has_formula(text: str) -> bool:
     return False
 
 
+# 与 Worker jpVocabUsageLineLooksNonChinese 对齐：用法「」外禁止 漢字(かな)
+USAGE_FURIGANA_PAREN_RE = re.compile(r"\([\u3040-\u309Fー]+\)")
+
+
+def grammar_usage_looks_chinese(text: str) -> bool:
+    """用法须中文；「」外出现假名括注或假名过多 → 会触发 usage_not_chinese。"""
+    t = str(text or "").strip()
+    if not t:
+        return False
+    no_quotes = re.sub(r"「[^」]*」", "", t)
+    no_quotes = re.sub(r'"[^"]*"', "", no_quotes)
+    if USAGE_FURIGANA_PAREN_RE.search(no_quotes):
+        return False
+    kana = re.findall(r"[\u3040-\u30FFー]", no_quotes)
+    if len(kana) >= 8:
+        return False
+    return True
+
+
 def salvage_connection_from_examples(ex: str) -> str:
     """模型偶把【接序】塞进例句字段；写库前拆出。"""
     text = str(ex or "").replace("\r\n", "\n")
@@ -740,6 +762,10 @@ def bundle_missing_keys(payload: dict[str, Any], row: dict[str, Any]) -> list[st
                 str(payload.get("connection") or "")
             ):
                 missing.append(key)
+        elif key == "usage":
+            usage_text = str(payload.get("usage") or "").strip()
+            if not usage_text or not grammar_usage_looks_chinese(usage_text):
+                missing.append(key)
         elif not str(payload.get(key) or "").strip():
             missing.append(key)
     if payload.get("reading") or payload.get("meaning") or payload.get("pos"):
@@ -818,6 +844,8 @@ def generate_bundle(row: dict[str, Any], needs: dict[str, bool]) -> dict[str, An
                 "connection 必须含「＋」公式（句首接续词如 しかし 也要："
                 "前句（动词句／一类形容词句／二类形容词句／名词句）＋しかし｜后句句首，表示转折）；"
                 "禁止空 connection、禁止无「＋」散文。"
+                "usage 必须纯中文：❌禁止 漢字(かな) 假名括注（如「用(も)于」）；"
+                "假名括注只写在 example_sentences。"
             )
         payload = _call(retry_hint)
         missing = bundle_missing_keys(payload, row)

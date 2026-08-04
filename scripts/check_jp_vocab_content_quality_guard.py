@@ -56,6 +56,8 @@ def main() -> int:
         "なに／なん",
         "no_plus_formula",
         "しかし",
+        "usage_not_chinese",
+        "用(も)",
     ):
         if needle not in rule_text:
             fail(f"rule missing {needle!r}")
@@ -120,6 +122,22 @@ def main() -> int:
         fail(
             "sentence-connector check failed: "
             f"{sent_run.stderr or sent_run.stdout}"
+        )
+
+    usage_cn = ROOT / "scripts/check_jp_vocab_usage_not_chinese_guard.py"
+    if not usage_cn.is_file():
+        fail("missing check_jp_vocab_usage_not_chinese_guard.py")
+    usage_run = subprocess.run(
+        [sys.executable, str(usage_cn)],
+        capture_output=True,
+        text=True,
+        timeout=20,
+        cwd=ROOT,
+    )
+    if usage_run.returncode != 0:
+        fail(
+            "usage_not_chinese guard check failed: "
+            f"{usage_run.stderr or usage_run.stdout}"
         )
 
     notes = (ROOT / "src/lib/jp-vocab-db/notes_fields.ts").read_text(encoding="utf-8")
