@@ -13,7 +13,10 @@ import {
 } from "@/lib/jp-lesson-shared";
 import { resolveManualScheduleDurationMinutes } from "@/lib/jp-lesson-manual-schedule";
 import { listJpLessonManualSchedules } from "@/lib/jp-lesson-manual-schedule-db";
-import { manualScheduleHasLinkedLessonOnSameSlot, manualScheduleCoveredByLessonTeacherSlot } from "@/lib/jp-lesson-manual-schedule-linked";
+import {
+  manualScheduleCoveredByLessonTeacherSlot,
+  manualScheduleHasLinkedLessonOnSameSlot,
+} from "@/lib/jp-lesson-manual-schedule-linked";
 import { listJpLessonTeachers } from "@/lib/jp-lesson-teacher-db";
 
 export const SCHEDULE_CALDAV_UID_DOMAIN = "info-quests.schedule";
@@ -312,6 +315,27 @@ export async function listScheduleCalDavEvents(
     if (manualScheduleHasLinkedLessonOnSameSlot(manual, lessonSlots)) {
       continue;
     }
+    const durationMinutes = resolveManualScheduleDurationMinutes(
+      manual.title,
+      manual.duration_minutes
+    );
+    // 同老师 + 同时段 + 同时长（即使未关联教材）→ 只保留新课条
+    if (
+      manualScheduleCoveredByLessonTeacherSlot(
+        {
+          class_at: manual.class_at,
+          teacher: manual.teacher,
+          durationMinutes,
+        },
+        events.map((event) => ({
+          classAt: event.class_at,
+          durationMinutes: event.duration_minutes,
+          teachers: event.teachers,
+        }))
+      )
+    ) {
+      continue;
+    }
     const title = manual.title.trim() || `手动日程 #${manual.id}`;
     const teachers = manual.teacher.trim() || "未指定";
     events.push({
@@ -325,10 +349,7 @@ export async function listScheduleCalDavEvents(
         manual.note.trim() || null,
       ]),
       class_at: manual.class_at,
-      duration_minutes: resolveManualScheduleDurationMinutes(
-        manual.title,
-        manual.duration_minutes
-      ),
+      duration_minutes: durationMinutes,
       teachers,
       title,
       manual_id: manual.id,

@@ -41,6 +41,16 @@ def main() -> int:
         errors.append("linked helper must expose findDedupedLessonEventForManualLinkedCover")
     if "normalizeClassAtForCompare" not in linked:
         errors.append("linked same-slot cover must compare via normalizeClassAtForCompare")
+    if "findDedupedLessonEventForManualTeacherSlotCover" not in linked:
+        errors.append(
+            "linked helper must expose findDedupedLessonEventForManualTeacherSlotCover"
+        )
+    if "manualScheduleCoveredByLessonTeacherSlot" not in linked:
+        errors.append(
+            "linked helper must expose manualScheduleCoveredByLessonTeacherSlot"
+        )
+    if "scheduleTeacherNamesEqual" not in linked:
+        errors.append("linked helper must expose scheduleTeacherNamesEqual")
 
     db = DB.read_text(encoding="utf-8")
     if "linked_lessons" not in db:
@@ -167,6 +177,10 @@ def main() -> int:
         errors.append(
             "CalDAV must skip manual events already covered by linked lesson same slot"
         )
+    if "manualScheduleCoveredByLessonTeacherSlot" not in caldav:
+        errors.append(
+            "CalDAV must skip manual events matching lesson teacher+time+duration"
+        )
 
     merge = (
         ROOT
@@ -175,6 +189,10 @@ def main() -> int:
     if "findDedupedLessonEventForManualLinkedCover" not in merge:
         errors.append(
             "buildJpLessonSchedulePageAllEvents must merge linked manual into same-slot lesson"
+        )
+    if "findDedupedLessonEventForManualTeacherSlotCover" not in merge:
+        errors.append(
+            "buildJpLessonSchedulePageAllEvents must drop manual when teacher+time+duration match lesson"
         )
 
     schema = SCHEMA.read_text(encoding="utf-8")
