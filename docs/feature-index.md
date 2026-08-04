@@ -211,7 +211,7 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 | `/jp-lesson` | 日语新课 | `src/app/jp-lesson/page.tsx` | `JpLessonPageClient.tsx`（`ssr:false` 壳）→ `JpLessonPage.tsx` + `jp-lesson-page/`（Styles / StatusTable / helpers） |
 | `/jp-lesson/notes` | 课堂笔记（按知识点；**支持粘贴/上传图片**；已完成新课保存后同步到日语抽问 `class_notes`，文字+图片） | `src/app/jp-lesson/notes/page.tsx` | `JpLessonNotesPage.tsx` |
 | `/jp-lesson/schedule` | **日程管理（顶栏一级模块）**（统一日语 + 英语新课 + 手动日程；**不挂在「日语」二级下**） | `src/app/jp-lesson/schedule/page.tsx` | `JpLessonSchedulePage.tsx` + `jp-lesson-schedule-page/` |
-| `/admin/jp-lesson-teachers` | **人员管理 / 上课老师管理（顶栏一级模块）**（默认日语；`?subject=en` 英语；`?subject=ko` 韩语可建登录账号；**搜索跨日语+英语+韩语模糊匹配**；**不挂在「日语」二级下**） | `src/app/admin/jp-lesson-teachers/page.tsx` | `AdminJpLessonTeachersPage.tsx`；搜索 `lesson-teacher-search.ts` |
+| `/admin/jp-lesson-teachers` | **人员管理 / 上课老师管理（顶栏一级模块）**（下拉 **全部**/日语/英语/韩语；`?subject=all` 跨科列表+名字模糊搜无需先选类型；默认日语；`en`/`ko` 可建登录账号；**不挂在「日语」二级下**） | `src/app/admin/jp-lesson-teachers/page.tsx` | `AdminJpLessonTeachersPage.tsx`；搜索 `lesson-teacher-search.ts` |
 
 日程详情右侧「老师」名称可点击，跳转 `/admin/jp-lesson-teachers?teacher={id}`（英语课加 `&subject=en`）并自动滚动定位。路径常量：`adminJpLessonTeachersPath()`、`jpLessonSchedulePath()` in `locale-path.ts`。导航：`nav.jpLessonSchedule`＝「日程管理」、`nav.adminJpLessonTeachers`＝「人员管理」→ **管理员顶栏一级**（`NAV_TOP_LEVEL_CROSS_SUBJECT_IDS`，不进「日语」二级）。
 
@@ -256,7 +256,7 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 | **开课前 Bark 推送（线上 Cron）**（Worker 每分钟；Mac 关机也能推；北京时间触发；10/5/1 持续铃响；通知泰国时间；本机 launchd 默认关） | `cloudflare-worker.ts` + `POST /api/admin/schedule-class-bark-remind`；`src/lib/schedule-class-bark-remind.ts`；Secret `BARK_DEVICE_KEY`；规则 `.cursor/rules/bark-deploy-failure-notify.mdc` |
 | **部署成功/失败通知**（本机维护中心：成功 **Mac 优先**，已弹桌面则不推 Bark；失败 Bark + Mac 双推；成功有提示音；**标题=成功/失败**；正文：项目 → 状态 → 改动 → 文件） | `scripts/maintenance_center/bark_notify.py`、`mac_notify.py`；`hub._finish`；密钥 `~/.config/bark/env`；跨项目说明 `docs/bark-cross-project-howto.txt`；开关见 `.env.deploy.local.example`；规则同上 |
 | 英语老师管理 / 评价（合并）；**可建登录账号**（`en_vocab`；开课前 30min / 抽完 +1h）；**闲鱼英语抽查**自动建老师并绑 user 48；**Telegram `T老师名` 查评分/备注** | `AdminJpLessonTeachersPage.tsx`；`?subject=en`；`/admin/en-lesson-teachers` 重定向至此；`POST /api/admin/en-lesson-teachers` `create_user`；`GET /api/admin/en-lesson-teachers/lookup`（Bearer）；`en-lesson-teacher-telegram-lookup.ts`；docs `en-lesson-teacher-lookup-api.txt`；`ensureXianyuEnQuizTeacherBound`；规则 `en-vocab-teacher-account-lifecycle.mdc` |
-| **人员管理模糊搜索**（日语/英语一起搜；候选标科目；点选或仅另一科命中时自动切 `?subject=`） | `AdminJpLessonTeachersPage.tsx` → `loadOtherSubjectTeachers` / `searchSuggestions` / `applySearch`；`lesson-teacher-search.ts` → `lessonTeacherSubjectSearchLabels`；规则 `.cursor/rules/admin-teacher-cross-search.mdc` |
+| **人员管理模糊搜索**（下拉「全部」直接跨科搜+列表过滤；单科时候选标科目并可自动切 `?subject=`；行 key 用 `subject:id`） | `AdminJpLessonTeachersPage.tsx`；`admin-jpl-teachers-by-subject.ts`；`AdminJpLessonTeachersList.tsx`；规则 `.cursor/rules/admin-teacher-cross-search.mdc`；回归 `scripts/check_admin_teacher_cross_search.py` |
 
 ---
 

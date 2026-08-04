@@ -1,6 +1,6 @@
 /**
- * 部署版本变更时 DeployVersionWatcher 会整页 reload。
- * 抽查卡打开等「不能打断」场景须 hold：检测到新版本先挂起，hold 放掉后再 reload。
+ * 部署版本变更时 DeployVersionWatcher 只出「点击刷新」条。
+ * 抽查卡打开等场景须 hold：点刷新也不硬刷，松 hold 后再出条。
  */
 
 let holdCount = 0;

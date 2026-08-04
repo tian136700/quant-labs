@@ -10,6 +10,7 @@ import { KoPronEditModal } from "@/components/KoPronEditModal";
 import { KoPronLetterCopyButton } from "@/components/KoPronLetterCopyButton";
 import { KoPronSpeakButton } from "@/components/KoPronSpeakButton";
 import { KoPronTeacherQuizFlashcardModal } from "@/components/KoPronTeacherQuizFlashcardModal";
+import { useHoldAppDeployReloadWhile } from "@/hooks/useHoldAppDeployReloadWhile";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import {
   computeKoPronDailyQuizProgress,
@@ -102,6 +103,8 @@ export function KoPronPage({ variant }: Props) {
     useState<KoPronCategoryFilter>("all");
   const completeShownRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useHoldAppDeployReloadWhile(showFlashcard || previewLetter != null);
   const sinceRef = useRef("");
 
   useEffect(() => {

@@ -169,8 +169,21 @@ export function AdminJpLessonTeachersPageStyles() {
           font-variant-numeric: tabular-nums;
         }
 
-        :global(.col-tencent-meeting) {
+        .col-tencent-meeting {
           min-width: 7.5rem;
+        }
+
+        .admin-jpl-subject-badge {
+          display: inline-block;
+          padding: 0.12rem 0.45rem;
+          border-radius: 999px;
+          border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+          background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+          color: var(--muted);
+          font-size: 0.6875rem;
+          font-weight: 600;
+          line-height: 1.35;
+          white-space: nowrap;
         }
       
       `}</style>

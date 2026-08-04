@@ -52,21 +52,27 @@ def main() -> int:
 
     watcher = FILES["watcher"].read_text(encoding="utf-8")
     if "location.reload" not in watcher:
-        errors.append("DeployVersionWatcher must location.reload on version mismatch")
+        errors.append("DeployVersionWatcher must location.reload when user clicks 点击刷新")
     if "APP_DEPLOY_CLIENT_CACHE_PREFIXES" not in watcher:
         errors.append("watcher must clear jp-api:/en-api: caches before reload")
     if "visibilitychange" not in watcher:
         errors.append("watcher must recheck on visibilitychange")
     if "isAppDeployReloadHeld" not in watcher:
-        errors.append("watcher must defer reload while app-deploy-reload-hold is active")
+        errors.append("watcher must respect app-deploy-reload-hold (quiz)")
     if "subscribeAppDeployReloadHold" not in watcher:
-        errors.append("watcher must flush pending reload when hold releases")
-    if "document.hidden" not in watcher:
-        errors.append("watcher must branch on document.hidden (visible banner vs hidden auto-reload)")
+        errors.append("watcher must re-show banner when hold releases")
+    if "offerManualReload" not in watcher and "点击刷新" not in watcher:
+        errors.append("watcher must offer manual reload only")
+    # 禁止隐藏态 / 切后台自动 reload（曾导致抽查外频繁硬刷）
+    if re.search(
+        r"if\s*\(\s*document\.hidden\s*\)[\s\S]{0,400}?reloadNow\(",
+        watcher,
+    ):
+        errors.append("watcher must NOT auto-reload when document.hidden")
     if "iq-deploy-reload-banner" not in watcher:
-        errors.append("watcher must show iq-deploy-reload-banner when tab is visible")
+        errors.append("watcher must show iq-deploy-reload-banner")
     if "点击刷新" not in watcher:
-        errors.append("visible banner must offer 点击刷新 button")
+        errors.append("banner must offer 点击刷新 button")
     if "60_000" not in FILES["version_lib"].read_text(encoding="utf-8"):
         errors.append("poll interval must be >= 60s (Workers daily quota)")
 
@@ -81,6 +87,7 @@ def main() -> int:
     for hook_name in (
         "src/hooks/useJpVocabTeacherQuiz.ts",
         "src/hooks/useEnVocabTeacherQuiz.ts",
+        "src/components/KoPronPage.tsx",
     ):
         hook = (ROOT / hook_name).read_text(encoding="utf-8")
         if "useHoldAppDeployReloadWhile" not in hook:
@@ -99,8 +106,10 @@ def main() -> int:
     rule = FILES["rule"].read_text(encoding="utf-8")
     if "DeployVersionWatcher" not in rule or "alwaysApply: true" not in rule:
         errors.append("deploy-client-force-refresh.mdc must alwaysApply and name DeployVersionWatcher")
-    if "可见态" not in rule or "点击刷新" not in rule:
-        errors.append("rule must document visible banner (点击刷新) vs hidden auto-reload")
+    if "点击刷新" not in rule:
+        errors.append("rule must document 点击刷新 manual reload")
+    if "禁止自动刷" not in rule and "绝不自动" not in rule and "只有用户点" not in rule:
+        errors.append("rule must forbid auto reload (manual banner only)")
     if "可见标签页检测到新版立刻 location.reload" not in rule:
         errors.append("rule must forbid hard reload while tab is visible")
 

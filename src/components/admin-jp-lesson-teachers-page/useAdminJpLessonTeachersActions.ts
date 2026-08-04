@@ -11,11 +11,15 @@ import {
   resolveLessonMinutesForSave,
 } from "@/components/admin-jp-lesson-teachers-page/admin-jp-lesson-teachers-page-helpers";
 import {
+  removeTeacherFromSubjectMap,
+  upsertTeacherInSubjectMap,
+  type TeachersBySubject,
+} from "@/components/admin-jp-lesson-teachers-page/admin-jpl-teachers-by-subject";
+import {
   normalizeJpLessonTeacher,
   resolveLessonTeacherRateFields,
 } from "@/lib/jp-lesson-teacher-rate";
 import {
-  mergeJpLessonTeachersCache,
   removeJpLessonTeacherCache,
   upsertJpLessonTeacherCache,
 } from "@/lib/jp-lesson-teachers-cache";
@@ -26,8 +30,10 @@ import type { Locale } from "@/i18n/messages";
 
 export type UseAdminJpLessonTeachersActionsOptions = {
   locale: Locale;
-  teacherSubject: LessonTeacherSubject;
-  teachers: JpLessonTeacher[];
+  /** 添加老师时写入的科目（「全部」下由弹窗选择） */
+  addSubject: LessonTeacherSubject;
+  editingSubject: LessonTeacherSubject | null;
+  teachersBySubject: TeachersBySubject;
   saving: boolean;
   editingId: number | null;
   editName: string;
@@ -42,13 +48,14 @@ export type UseAdminJpLessonTeachersActionsOptions = {
   setSaving: Dispatch<SetStateAction<boolean>>;
   setStatus: Dispatch<SetStateAction<string>>;
   setStatusErr: Dispatch<SetStateAction<boolean>>;
-  setTeachers: Dispatch<SetStateAction<JpLessonTeacher[]>>;
+  setTeachersBySubject: Dispatch<SetStateAction<TeachersBySubject>>;
   setNewName: Dispatch<SetStateAction<string>>;
   setNewHourlyRate: Dispatch<SetStateAction<string>>;
   setNewLessonMinutes: Dispatch<SetStateAction<string>>;
   setNewTencentMeetingId: Dispatch<SetStateAction<string>>;
   setAddModalOpen: Dispatch<SetStateAction<boolean>>;
   setEditingId: Dispatch<SetStateAction<number | null>>;
+  setEditingSubject: Dispatch<SetStateAction<LessonTeacherSubject | null>>;
   setEditName: Dispatch<SetStateAction<string>>;
   setEditHourlyRate: Dispatch<SetStateAction<string>>;
   setEditLessonMinutes: Dispatch<SetStateAction<string>>;
@@ -57,13 +64,37 @@ export type UseAdminJpLessonTeachersActionsOptions = {
   setCreatingUserTeacherId: Dispatch<SetStateAction<number | null>>;
 };
 
+function createUserConfirmMessage(
+  locale: Locale,
+  subject: LessonTeacherSubject,
+  name: string
+): string {
+  if (locale === "zh") {
+    if (subject === "ko") {
+      return `为「${name}」一键创建韩语教师账号？\n用户名将按老师名拼音生成，密码为易记的英文词组组合。\n开课前 30 分钟自动启用；抽完最后一个字母后 20 分钟自动禁用。`;
+    }
+    if (subject === "en") {
+      return `为「${name}」一键创建英语教师账号？\n用户名将按老师名生成，密码为易记的英文词组组合。\n开课前 30 分钟自动启用；抽完后约 1 小时自动禁用。`;
+    }
+    return `为「${name}」一键创建日语教师账号？\n用户名将按老师名拼音生成（如李老师 → LiLaoshi），密码为易记的英文词组组合。`;
+  }
+  if (subject === "ko") {
+    return `Create a Korean-teacher account for "${name}"?\nUsername will be pinyin; password is a memorable word combo.\nAuto-enable 30min before class; disable 20min after last letter.`;
+  }
+  if (subject === "en") {
+    return `Create an English-teacher account for "${name}"?\nUsername from teacher name; password is a memorable word combo.\nAuto-enable 30min before class; disable ~1h after quiz.`;
+  }
+  return `Create a Japanese-teacher account for "${name}"?\nUsername will be pinyin (e.g. LiLaoshi); password is a memorable word combo.`;
+}
+
 export function useAdminJpLessonTeachersActions(
   options: UseAdminJpLessonTeachersActionsOptions
 ) {
   const {
     locale,
-    teacherSubject,
-    teachers,
+    addSubject,
+    editingSubject,
+    teachersBySubject,
     saving,
     editingId,
     editName,
@@ -78,13 +109,14 @@ export function useAdminJpLessonTeachersActions(
     setSaving,
     setStatus,
     setStatusErr,
-    setTeachers,
+    setTeachersBySubject,
     setNewName,
     setNewHourlyRate,
     setNewLessonMinutes,
     setNewTencentMeetingId,
     setAddModalOpen,
     setEditingId,
+    setEditingSubject,
     setEditName,
     setEditHourlyRate,
     setEditLessonMinutes,
@@ -98,7 +130,7 @@ export function useAdminJpLessonTeachersActions(
     setStatus("");
     setStatusErr(false);
     try {
-      const res = await fetch(teachersApiBase(teacherSubject), {
+      const res = await fetch(teachersApiBase(addSubject), {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -110,7 +142,7 @@ export function useAdminJpLessonTeachersActions(
             newLessonMinutes,
             null
           ),
-          ...(teacherSubject === "en"
+          ...(addSubject === "en"
             ? { tencent_meeting_id: newTencentMeetingId.trim() || null }
             : {}),
         }),
@@ -136,15 +168,25 @@ export function useAdminJpLessonTeachersActions(
       }
       if (data.teacher) {
         const teacher = normalizeJpLessonTeacher(data.teacher);
-        if (teacherSubject === "jp") {
+        if (addSubject === "jp") {
           for (const item of data.renamed_teachers ?? []) {
             upsertJpLessonTeacherCache(normalizeJpLessonTeacher(item));
           }
           upsertJpLessonTeacherCache(teacher);
-          setTeachers((prev) => mergeJpLessonTeachersCache(prev, [teacher]));
-        } else {
-          setTeachers((prev) => [...prev.filter((item) => item.id !== teacher.id), teacher]);
         }
+        setTeachersBySubject((prev) => {
+          let next = prev;
+          if (addSubject === "jp") {
+            for (const item of data.renamed_teachers ?? []) {
+              next = upsertTeacherInSubjectMap(
+                next,
+                "jp",
+                normalizeJpLessonTeacher(item)
+              );
+            }
+          }
+          return upsertTeacherInSubjectMap(next, addSubject, teacher);
+        });
       }
       setNewName("");
       setNewHourlyRate("");
@@ -180,8 +222,9 @@ export function useAdminJpLessonTeachersActions(
     }
   };
 
-  const startEdit = (teacher: JpLessonTeacher) => {
+  const startEdit = (teacher: JpLessonTeacher, subject: LessonTeacherSubject) => {
     const resolved = resolveLessonTeacherRateFields(teacher);
+    setEditingSubject(subject);
     setEditingId(teacher.id);
     setEditName(resolved.name);
     setEditHourlyRate(
@@ -200,6 +243,7 @@ export function useAdminJpLessonTeachersActions(
 
   const cancelEdit = () => {
     setEditingId(null);
+    setEditingSubject(null);
     setEditName("");
     setEditHourlyRate("");
     setEditLessonMinutes("");
@@ -208,15 +252,17 @@ export function useAdminJpLessonTeachersActions(
   };
 
   const saveEdit = async () => {
-    if (editingId == null) return;
-    const original = teachers.find((t) => t.id === editingId);
+    if (editingId == null || editingSubject == null) return;
+    const original = (teachersBySubject[editingSubject] ?? []).find(
+      (t) => t.id === editingId
+    );
     if (!original) return;
     const baseline = resolveLessonTeacherRateFields(original);
     setSaving(true);
     setStatus("");
     setStatusErr(false);
     try {
-      const res = await fetch(teachersApiBase(teacherSubject), {
+      const res = await fetch(teachersApiBase(editingSubject), {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -233,7 +279,7 @@ export function useAdminJpLessonTeachersActions(
             baseline.lesson_minutes
           ),
           sort_order: editSortOrder,
-          ...(teacherSubject === "en"
+          ...(editingSubject === "en"
             ? { tencent_meeting_id: editTencentMeetingId.trim() || null }
             : {}),
         }),
@@ -252,12 +298,12 @@ export function useAdminJpLessonTeachersActions(
       }
       if (data.teacher) {
         const teacher = normalizeJpLessonTeacher(data.teacher);
-        if (teacherSubject === "jp") {
+        if (editingSubject === "jp") {
           upsertJpLessonTeacherCache(teacher);
-          setTeachers((prev) => mergeJpLessonTeachersCache(prev, [teacher]));
-        } else {
-          setTeachers((prev) => prev.map((item) => (item.id === teacher.id ? teacher : item)));
         }
+        setTeachersBySubject((prev) =>
+          upsertTeacherInSubjectMap(prev, editingSubject, teacher)
+        );
       }
       cancelEdit();
       setStatus("已保存");
@@ -270,10 +316,14 @@ export function useAdminJpLessonTeachersActions(
     }
   };
 
-  const deleteTeacher = async (id: number, name: string) => {
+  const deleteTeacher = async (
+    id: number,
+    name: string,
+    subject: LessonTeacherSubject
+  ) => {
     if (!confirm(`确定删除「${name}」？已关联的新课将变为未指定。`)) return;
     try {
-      const res = await fetch(`${teachersApiBase(teacherSubject)}?id=${id}`, {
+      const res = await fetch(`${teachersApiBase(subject)}?id=${id}`, {
         method: "DELETE",
         credentials: "include",
       });
@@ -283,11 +333,11 @@ export function useAdminJpLessonTeachersActions(
         setStatusErr(true);
         return;
       }
-      if (editingId === id) cancelEdit();
-      if (teacherSubject === "jp") {
+      if (editingId === id && editingSubject === subject) cancelEdit();
+      if (subject === "jp") {
         removeJpLessonTeacherCache(id);
       }
-      setTeachers((prev) => prev.filter((teacher) => teacher.id !== id));
+      setTeachersBySubject((prev) => removeTeacherFromSubjectMap(prev, subject, id));
       setStatus("已删除");
       setStatusErr(false);
     } catch {
@@ -296,19 +346,12 @@ export function useAdminJpLessonTeachersActions(
     }
   };
 
-
-
-  const createTeacherUser = async (teacher: JpLessonTeacher) => {
-    if (teacherSubject === "en") return;
-    const isKo = teacherSubject === "ko";
+  const createTeacherUser = async (
+    teacher: JpLessonTeacher,
+    subject: LessonTeacherSubject
+  ) => {
     const ok = window.confirm(
-      locale === "zh"
-        ? isKo
-          ? `为「${teacher.name}」一键创建韩语教师账号？\n用户名将按老师名拼音生成，密码为易记的英文词组组合。\n开课前 30 分钟自动启用；抽完最后一个字母后 20 分钟自动禁用。`
-          : `为「${teacher.name}」一键创建日语教师账号？\n用户名将按老师名拼音生成（如李老师 → LiLaoshi），密码为易记的英文词组组合。`
-        : isKo
-          ? `Create a Korean-teacher account for "${teacher.name}"?\nUsername will be pinyin; password is a memorable word combo.\nAuto-enable 30min before class; disable 20min after last letter.`
-          : `Create a Japanese-teacher account for "${teacher.name}"?\nUsername will be pinyin (e.g. LiLaoshi); password is a memorable word combo.`
+      createUserConfirmMessage(locale, subject, teacher.name)
     );
     if (!ok) return;
 
@@ -316,7 +359,7 @@ export function useAdminJpLessonTeachersActions(
     setStatus("");
     setStatusErr(false);
     try {
-      const apiBase = teachersApiBase(teacherSubject);
+      const apiBase = teachersApiBase(subject);
       const res = await fetch(apiBase, {
         method: "POST",
         credentials: "include",
@@ -338,10 +381,11 @@ export function useAdminJpLessonTeachersActions(
       }
 
       const linkedUser = { id: data.user.id, username: data.user.username };
-      setTeachers((prev) =>
-        prev.map((item) =>
-          item.id === teacher.id ? { ...item, linked_user: linkedUser } : item
-        )
+      setTeachersBySubject((prev) =>
+        upsertTeacherInSubjectMap(prev, subject, {
+          ...teacher,
+          linked_user: linkedUser,
+        })
       );
       if (data.password) {
         rememberAdminUserPassword(data.user.id, data.password);

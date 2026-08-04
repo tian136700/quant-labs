@@ -78,10 +78,9 @@ function reloadNow(serverVersion: string): void {
 }
 
 /**
- * 部署上线后：开着的标签页检测到新 version → 清 API 本地缓存并拉新。
- * 可见态：顶部提示条，用户点「刷新」才 reload（避免看东西时被硬刷打断）。
- * 隐藏态：自动 reload（切回时已是新代码）。
- * 轮询 60s（隐藏 5min）+ 切回前台立刻查一次；抽查卡 hold 期间不刷。
+ * 部署上线后：开着的标签页检测到新 version → 顶部提示「有新版本 / 点击刷新」。
+ * **只**在用户点「点击刷新」时清 API 缓存并 reload；可见/隐藏/抽查 hold 均不自动刷。
+ * 轮询 60s（隐藏 5min）+ 切回前台立刻查一次；hold 期间只记 pending，松手后仍只出条。
  */
 export function DeployVersionWatcher() {
   const bakedVersion = APP_DEPLOY_VERSION;
@@ -116,30 +115,23 @@ export function DeployVersionWatcher() {
       }, ms);
     };
 
-    const applyNewDeployVersion = (serverVersion: string) => {
+    /** 有新版本：只挂提示条，绝不自动 location.reload */
+    const offerManualReload = (serverVersion: string) => {
       if (alreadyReloadedFor(serverVersion)) return;
-      if (isAppDeployReloadHeld()) {
-        pendingReloadVersionRef.current = serverVersion;
-        scheduleNext();
-        return;
-      }
-      // 正在看：只出提示条；后台标签：自动刷
-      if (!document.hidden) {
-        pendingReloadVersionRef.current = serverVersion;
+      pendingReloadVersionRef.current = serverVersion;
+      // 抽查 hold 时也不自动刷；条可以先出，点刷新时若仍 hold 则继续等
+      if (!isAppDeployReloadHeld()) {
         showBannerRef.current(serverVersion);
-        scheduleNext();
-        return;
       }
-      pendingReloadVersionRef.current = null;
-      setBannerVersion(null);
-      reloadNow(serverVersion);
+      scheduleNext();
     };
 
-    const flushPendingReload = () => {
+    const flushPendingBanner = () => {
       if (cancelled) return;
       const pending = pendingReloadVersionRef.current;
       if (!pending || isAppDeployReloadHeld()) return;
-      applyNewDeployVersion(pending);
+      if (alreadyReloadedFor(pending)) return;
+      showBannerRef.current(pending);
     };
 
     const check = async () => {
@@ -150,7 +142,7 @@ export function DeployVersionWatcher() {
       const serverVersion = await fetchServerVersion(ac.signal);
       if (cancelled || ac.signal.aborted) return;
       if (serverVersion && serverVersion !== bakedVersion) {
-        applyNewDeployVersion(serverVersion);
+        offerManualReload(serverVersion);
         return;
       }
       scheduleNext();
@@ -158,16 +150,11 @@ export function DeployVersionWatcher() {
 
     const onVisibility = () => {
       if (document.hidden) {
-        const pending = pendingReloadVersionRef.current;
-        if (pending && !isAppDeployReloadHeld() && !alreadyReloadedFor(pending)) {
-          pendingReloadVersionRef.current = null;
-          setBannerVersion(null);
-          reloadNow(pending);
-          return;
-        }
         scheduleNext();
         return;
       }
+      // 回前台：若有挂起的新版本，只出提示条，不自动刷
+      flushPendingBanner();
       void check();
     };
 
@@ -179,7 +166,7 @@ export function DeployVersionWatcher() {
 
     void check();
     document.addEventListener("visibilitychange", onVisibility);
-    const unsubHold = subscribeAppDeployReloadHold(flushPendingReload);
+    const unsubHold = subscribeAppDeployReloadHold(flushPendingBanner);
 
     return () => {
       cancelled = true;
@@ -255,6 +242,12 @@ export function DeployVersionWatcher() {
           onClick={() => {
             const version = bannerVersion;
             if (!version) return;
+            // 抽查卡开着：只收起条，等松 hold 后再出条；禁止硬刷打断抽查
+            if (isAppDeployReloadHeld()) {
+              pendingReloadVersionRef.current = version;
+              setBannerVersion(null);
+              return;
+            }
             pendingReloadVersionRef.current = null;
             setBannerVersion(null);
             reloadNow(version);

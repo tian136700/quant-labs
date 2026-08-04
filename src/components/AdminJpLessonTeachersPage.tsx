@@ -6,15 +6,9 @@ import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { AdminAuthGate } from "@/components/AdminAuthGate";
 import {
-  adminPath,
-  adminRbacPath,
-  adminToolCodesPath,
-  adminTrendsPath,
-  adminUsersPath,
-  enLessonPath,
-  jpLessonPath,
-  parseLessonTeacherSubject,
+  parseLessonTeacherSubjectFilter,
   type LessonTeacherSubject,
+  type LessonTeacherSubjectFilter,
 } from "@/lib/locale-path";
 import type { JpLessonTeacher, JpLessonTeacherReviewSummary } from "@/lib/types";
 import {
@@ -35,18 +29,20 @@ import {
   syncJpLessonTeacherReviewCache,
 } from "@/lib/jp-lesson-teacher-review-cache";
 import {
-  filterLessonTeachersBySearch,
-  lessonTeacherSubjectSearchLabels,
-} from "@/lib/lesson-teacher-search";
-import {
-  lessonTeacherSubjectLabel,
+  LESSON_TEACHER_SUBJECTS,
+  isLessonTeacherSubject,
   lessonTeacherSubjectSearchParam,
-  lessonTeacherSubjectSkipsUserAccount,
-  otherLessonTeacherSubjects,
+  lessonTeacherSubjectsToLoad,
   teacherReviewApiBase,
   teachersApiBase,
 } from "@/lib/lesson-teacher-subject";
-import { JP_LESSON_CLASS_DURATION_MINUTES } from "@/lib/jp-lesson-shared";
+import {
+  buildTeacherSearchFieldsByRowKey,
+  filterTeacherHitsBySearch,
+  flattenTeachersBySubject,
+  teacherRowKey,
+  type TeachersBySubject,
+} from "@/components/admin-jp-lesson-teachers-page/admin-jpl-teachers-by-subject";
 import {
   calcEquivalentHourlyRate,
   compareNullableNumber,
@@ -70,70 +66,73 @@ export function AdminJpLessonTeachersPageContent() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const teacherSubject = useMemo(
-    () => parseLessonTeacherSubject(searchParams.get("subject")),
+  const teacherSubjectFilter = useMemo(
+    () => parseLessonTeacherSubjectFilter(searchParams.get("subject")),
     [searchParams]
   );
+  /** 单科模式的具体科目；「全部」时为 null（行操作带自己的 subject） */
+  const concreteSubject: LessonTeacherSubject | null = isLessonTeacherSubject(
+    teacherSubjectFilter
+  )
+    ? teacherSubjectFilter
+    : null;
   const focusTeacherId = useMemo(() => {
     const raw = searchParams.get("teacher");
     if (!raw) return null;
     const id = Number(raw);
     return Number.isInteger(id) && id > 0 ? id : null;
   }, [searchParams]);
-  const rowRefs = useRef<Map<number, HTMLTableRowElement>>(new Map());
-  const [highlightTeacherId, setHighlightTeacherId] = useState<number | null>(null);
+  const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
+  const [highlightTeacherKey, setHighlightTeacherKey] = useState<string | null>(null);
   const nav = t("nav");
   const addNameInputRef = useRef<HTMLInputElement | null>(null);
 
-  const [teachers, setTeachers] = useState<JpLessonTeacher[]>(() => readJpLessonTeachersCache());
-  /** 其它科目老师（仅供跨类型模糊搜索；列表仍按当前 subject 展示） */
-  const [crossSubjectTeachers, setCrossSubjectTeachers] = useState<
-    Partial<Record<LessonTeacherSubject, JpLessonTeacher[]>>
-  >({});
+  const [teachersBySubject, setTeachersBySubject] = useState<TeachersBySubject>(() => {
+    const cached = readJpLessonTeachersCache();
+    return cached.length ? { jp: cached } : {};
+  });
   const [loading, setLoading] = useState(() => readJpLessonTeachersCache().length === 0);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [status, setStatus] = useState("");
   const [statusErr, setStatusErr] = useState(false);
-  /** 搜索框输入草稿；点「搜索」或从候选选中后才写入 appliedSearchQuery */
   const [searchDraft, setSearchDraft] = useState("");
   const [appliedSearchQuery, setAppliedSearchQuery] = useState("");
-  /** 从候选点选时精确定位该老师；文本搜索时为 null */
-  const [selectedSearchTeacherId, setSelectedSearchTeacherId] = useState<number | null>(
-    null
-  );
+  const [selectedSearchHit, setSelectedSearchHit] = useState<TeacherSearchHit | null>(null);
   const [searchSuggestOpen, setSearchSuggestOpen] = useState(false);
   const searchFieldRef = useRef<HTMLDivElement | null>(null);
-  /** 因搜索命中另一科目而切 subject 时，保留搜索态（避免 effect 清空） */
   const pendingSearchFocusRef = useRef<PendingSearchFocus | null>(null);
   const [addModalOpen, setAddModalOpen] = useState(false);
+  const [addSubject, setAddSubject] = useState<LessonTeacherSubject>("jp");
   const [newName, setNewName] = useState("");
   const [newHourlyRate, setNewHourlyRate] = useState("");
   const [newLessonMinutes, setNewLessonMinutes] = useState("");
   const [newTencentMeetingId, setNewTencentMeetingId] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingSubject, setEditingSubject] = useState<LessonTeacherSubject | null>(null);
   const [editName, setEditName] = useState("");
   const [editHourlyRate, setEditHourlyRate] = useState("");
   const [editLessonMinutes, setEditLessonMinutes] = useState("");
   const [editSortOrder, setEditSortOrder] = useState(0);
   const [editTencentMeetingId, setEditTencentMeetingId] = useState("");
-  const [reviewSummaries, setReviewSummaries] = useState<
-    Map<number, JpLessonTeacherReviewSummary>
-  >(() => readJpLessonTeacherReviewCache());
+  const [reviewSummariesByKey, setReviewSummariesByKey] = useState<
+    Map<string, JpLessonTeacherReviewSummary>
+  >(new Map());
   const [reviewTeacher, setReviewTeacher] = useState<JpLessonTeacher | null>(null);
+  const [reviewTeacherSubject, setReviewTeacherSubject] =
+    useState<LessonTeacherSubject>("jp");
   const [creatingUserTeacherId, setCreatingUserTeacherId] = useState<number | null>(null);
   const [sortKey, setSortKey] = useState<TeacherSortKey>("lessonCount");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
 
   const switchTeacherSubject = useCallback(
-    (next: LessonTeacherSubject, opts?: { teacherId?: number | null }) => {
-      if (next === teacherSubject) return;
+    (next: LessonTeacherSubjectFilter, opts?: { teacherId?: number | null }) => {
+      if (next === teacherSubjectFilter) return;
       const params = new URLSearchParams(searchParams.toString());
       const subjectParam = lessonTeacherSubjectSearchParam(next);
       if (subjectParam) params.set("subject", subjectParam);
       else params.delete("subject");
-      // jp/en/ko 老师表 id 各自独立，跨科目保留旧 teacher= 会指到别人，并导致搜索被清掉
       const nextTeacherId = opts?.teacherId;
       if (
         nextTeacherId != null &&
@@ -147,7 +146,7 @@ export function AdminJpLessonTeachersPageContent() {
       const query = params.toString();
       router.replace(query ? `${pathname}?${query}` : pathname);
     },
-    [pathname, router, searchParams, teacherSubject]
+    [pathname, router, searchParams, teacherSubjectFilter]
   );
 
   useEffect(() => {
@@ -167,7 +166,10 @@ export function AdminJpLessonTeachersPageContent() {
   }, [addModalOpen]);
 
   const loadReviewSummaries = useCallback(async (opts?: { force?: boolean }) => {
-    if (teacherSubject === "jp") {
+    const subjects = LESSON_TEACHER_SUBJECTS;
+    const nextMap = new Map<string, JpLessonTeacherReviewSummary>();
+
+    if (subjects.includes("jp")) {
       const cached = readJpLessonTeacherReviewCache();
       const cacheAge = readClientCacheAge(JP_LESSON_TEACHER_REVIEW_CACHE_KEY);
       const cacheFresh =
@@ -175,201 +177,258 @@ export function AdminJpLessonTeachersPageContent() {
         cached.size > 0 &&
         cacheAge != null &&
         cacheAge < JP_LESSON_TEACHER_REVIEW_TTL_MS;
-
       if (cached.size > 0) {
-        setReviewSummaries(cached);
+        for (const [id, summary] of cached) {
+          nextMap.set(teacherRowKey("jp", id), summary);
+        }
       }
-      if (cacheFresh) return;
-    } else {
-      setReviewSummaries(new Map());
+      if (!cacheFresh) {
+        try {
+          const res = await fetch(`${teacherReviewApiBase("jp")}?summary=1`, {
+            credentials: "include",
+          });
+          const data = (await res.json()) as {
+            ok?: boolean;
+            summaries?: JpLessonTeacherReviewSummary[];
+          };
+          if (data.ok) {
+            for (const item of data.summaries ?? []) {
+              nextMap.set(teacherRowKey("jp", item.teacher_id), item);
+            }
+            syncJpLessonTeacherReviewCache(data.summaries ?? []);
+          }
+        } catch {
+          /* optional */
+        }
+      }
     }
 
-    try {
-      const res = await fetch(`${teacherReviewApiBase(teacherSubject)}?summary=1`, {
-        credentials: "include",
-      });
-      const data = (await res.json()) as {
-        ok?: boolean;
-        summaries?: JpLessonTeacherReviewSummary[];
-      };
-      if (!data.ok) return;
-      const map = new Map<number, JpLessonTeacherReviewSummary>();
-      for (const item of data.summaries ?? []) {
-        map.set(item.teacher_id, item);
+    for (const subject of subjects) {
+      if (subject === "jp") continue;
+      try {
+        const res = await fetch(`${teacherReviewApiBase(subject)}?summary=1`, {
+          credentials: "include",
+        });
+        const data = (await res.json()) as {
+          ok?: boolean;
+          summaries?: JpLessonTeacherReviewSummary[];
+        };
+        if (!data.ok) continue;
+        for (const item of data.summaries ?? []) {
+          nextMap.set(teacherRowKey(subject, item.teacher_id), item);
+        }
+      } catch {
+        /* optional */
       }
-      setReviewSummaries(map);
-      if (teacherSubject === "jp") {
-        syncJpLessonTeacherReviewCache(data.summaries ?? []);
-      }
-    } catch {
-      /* summary is optional; ignore load errors */
     }
-  }, [teacherSubject]);
+
+    setReviewSummariesByKey(nextMap);
+  }, []);
 
   const loadTeachers = useCallback(async (opts?: { force?: boolean }) => {
-    const cached = teacherSubject === "jp" ? readJpLessonTeachersCache() : [];
-    const hasCache = cached.length > 0;
-    const cacheAge = readClientCacheAge(JP_LESSON_CACHE_KEY);
-    const cacheFresh =
-      teacherSubject === "jp" &&
+    const subjects = LESSON_TEACHER_SUBJECTS;
+    const jpCached = readJpLessonTeachersCache();
+    const canUseJpCache =
+      subjects.includes("jp") &&
       !opts?.force &&
-      hasCache &&
-      cacheAge != null &&
-      cacheAge < JP_LESSON_REFRESH_TTL_MS;
+      jpCached.length > 0 &&
+      (() => {
+        const age = readClientCacheAge(JP_LESSON_CACHE_KEY);
+        return age != null && age < JP_LESSON_REFRESH_TTL_MS;
+      })();
 
-    if (hasCache) {
-      setTeachers(cached);
-      setLoading(false);
-      if (!cacheFresh) setRefreshing(true);
-    } else {
-      setTeachers([]);
-      setLoading(true);
+    if (jpCached.length > 0 && subjects.includes("jp")) {
+      setTeachersBySubject((prev) => ({
+        ...prev,
+        jp: mergeJpLessonTeachersCache(prev.jp ?? [], jpCached),
+      }));
+    }
+
+    const needNetwork = subjects.some((subject) => {
+      if (subject === "jp" && canUseJpCache) return false;
+      return true;
+    });
+
+    if (needNetwork) {
+      const hasAny = subjects.some((s) => (teachersBySubject[s]?.length ?? 0) > 0);
+      if (!hasAny && jpCached.length === 0) setLoading(true);
+      else setRefreshing(true);
     }
 
     try {
-      const tasks: Promise<void>[] = [loadReviewSummaries(opts)];
-
-      if (!cacheFresh) {
-        tasks.push(
-          (async () => {
-            const res = await fetch(teachersApiBase(teacherSubject), {
-              credentials: "include",
-            });
-            const data = (await res.json()) as {
-              ok?: boolean;
-              teachers?: JpLessonTeacher[];
-              error?: string;
-            };
-            if (!data.ok) {
-              if (!hasCache) {
-                setStatus(data.error || "加载失败");
-                setStatusErr(true);
-              }
-              return;
-            }
-            const list = (data.teachers ?? []).map((teacher) =>
-              normalizeJpLessonTeacher(teacher)
-            );
-            setTeachers(list);
-            if (teacherSubject === "jp") {
-              syncJpLessonTeachersCache(list);
-            }
-          })()
-        );
-      }
-
-      await Promise.all(tasks);
-    } catch {
-      if (!hasCache) {
-        setStatus("加载失败");
-        setStatusErr(true);
-      }
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [loadReviewSummaries, teacherSubject]);
-
-  const loadCrossSubjectTeachers = useCallback(async () => {
-    const subjects = otherLessonTeacherSubjects(teacherSubject);
-    const entries = await Promise.all(
-      subjects.map(async (subject) => {
-        try {
+      await loadReviewSummaries(opts);
+      const results = await Promise.all(
+        subjects.map(async (subject) => {
+          if (subject === "jp" && canUseJpCache) {
+            return [subject, jpCached] as const;
+          }
           const res = await fetch(teachersApiBase(subject), {
             credentials: "include",
           });
           const data = (await res.json()) as {
             ok?: boolean;
             teachers?: JpLessonTeacher[];
+            error?: string;
           };
-          if (!data.ok) return [subject, []] as const;
-          return [
-            subject,
-            (data.teachers ?? []).map((teacher) => normalizeJpLessonTeacher(teacher)),
-          ] as const;
-        } catch {
-          return [subject, []] as const;
+          if (!data.ok) {
+            return [subject, teachersBySubject[subject] ?? []] as const;
+          }
+          const list = (data.teachers ?? []).map((teacher) =>
+            normalizeJpLessonTeacher(teacher)
+          );
+          if (subject === "jp") {
+            syncJpLessonTeachersCache(list);
+          }
+          return [subject, list] as const;
+        })
+      );
+      setTeachersBySubject((prev) => {
+        const next = { ...prev };
+        for (const [subject, list] of results) {
+          next[subject] = list;
         }
-      })
-    );
-    setCrossSubjectTeachers(Object.fromEntries(entries));
-  }, [teacherSubject]);
+        return next;
+      });
+    } catch {
+      setStatus("加载失败");
+      setStatusErr(true);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadReviewSummaries]);
 
   useEffect(() => {
     setEditingId(null);
+    setEditingSubject(null);
     setEditName("");
     setEditHourlyRate("");
     setEditLessonMinutes("");
     setEditSortOrder(0);
     setEditTencentMeetingId("");
     setReviewTeacher(null);
-    setCrossSubjectTeachers({});
     setSearchSuggestOpen(false);
+    setAddSubject(concreteSubject ?? "jp");
     const pending = pendingSearchFocusRef.current;
     if (pending) {
       pendingSearchFocusRef.current = null;
       setSearchDraft(pending.draft);
       setAppliedSearchQuery(pending.applied);
-      setSelectedSearchTeacherId(pending.teacherId);
+      if (pending.teacherId != null && pending.subject) {
+        setSelectedSearchHit({
+          teacher: { id: pending.teacherId } as JpLessonTeacher,
+          subject: pending.subject,
+        });
+      } else {
+        setSelectedSearchHit(null);
+      }
     } else {
       setSearchDraft("");
       setAppliedSearchQuery("");
-      setSelectedSearchTeacherId(null);
+      setSelectedSearchHit(null);
     }
+  }, [teacherSubjectFilter, concreteSubject]);
+
+  useEffect(() => {
     if (!checking && isAdmin) {
       void loadTeachers({ force: true });
-      void loadCrossSubjectTeachers();
     }
-  }, [checking, isAdmin, teacherSubject, loadTeachers, loadCrossSubjectTeachers]);
+  }, [checking, isAdmin, loadTeachers]);
 
-  /** 与日语新课页共用 localStorage 老师缓存；切回此页时合并新课页刚保存的数据 */
   useEffect(() => {
-    if (teacherSubject !== "jp") return;
+    if (teacherSubjectFilter !== "jp" && teacherSubjectFilter !== "all") return;
     const refreshFromSharedCache = () => {
       const cached = readJpLessonTeachersCache();
       if (!cached.length) return;
-      setTeachers((prev) => mergeJpLessonTeachersCache(prev, cached));
+      setTeachersBySubject((prev) => ({
+        ...prev,
+        jp: mergeJpLessonTeachersCache(prev.jp ?? [], cached),
+      }));
     };
-
     refreshFromSharedCache();
-
     const onVisible = () => {
       if (document.visibilityState === "visible") refreshFromSharedCache();
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [teacherSubject]);
+  }, [teacherSubjectFilter]);
 
-  const sortedTeachers = useMemo(() => {
-    const getScore = (teacherId: number): number | null => {
-      const summary = reviewSummaries.get(teacherId);
-      if (!summary || summary.review_count <= 0 || summary.avg_score == null) return null;
+  const displaySubjects = useMemo(
+    () => lessonTeacherSubjectsToLoad(teacherSubjectFilter),
+    [teacherSubjectFilter]
+  );
+
+  const allHits = useMemo(
+    () => flattenTeachersBySubject(teachersBySubject, displaySubjects),
+    [teachersBySubject, displaySubjects]
+  );
+
+  const crossHits = useMemo(() => {
+    if (teacherSubjectFilter === "all") return [] as TeacherSearchHit[];
+    const others = LESSON_TEACHER_SUBJECTS.filter((s) => s !== teacherSubjectFilter);
+    return flattenTeachersBySubject(teachersBySubject, others);
+  }, [teachersBySubject, teacherSubjectFilter]);
+
+  const searchFieldsByRowKey = useMemo(() => {
+    const remarkMap = new Map<string, string>();
+    for (const [key, summary] of reviewSummariesByKey) {
+      remarkMap.set(key, summary.latest_remark ?? "");
+    }
+    return buildTeacherSearchFieldsByRowKey(
+      [...allHits, ...crossHits],
+      remarkMap
+    );
+  }, [allHits, crossHits, reviewSummariesByKey]);
+
+  const sortedHits = useMemo(() => {
+    const getScore = (hit: TeacherSearchHit): number | null => {
+      const summary = reviewSummariesByKey.get(
+        teacherRowKey(hit.subject, hit.teacher.id)
+      );
+      if (!summary || summary.review_count <= 0 || summary.avg_score == null) {
+        return null;
+      }
       return summary.avg_score;
     };
 
-    return [...teachers].sort((a, b) => {
-      const resolvedA = resolveLessonTeacherRateFields(a);
-      const resolvedB = resolveLessonTeacherRateFields(b);
-      const remarkA = reviewSummaries.get(a.id)?.latest_remark?.trim() ?? "";
-      const remarkB = reviewSummaries.get(b.id)?.latest_remark?.trim() ?? "";
-      const dateA = new Date(a.updated_at).getTime();
-      const dateB = new Date(b.updated_at).getTime();
+    return [...allHits].sort((a, b) => {
+      const resolvedA = resolveLessonTeacherRateFields(a.teacher);
+      const resolvedB = resolveLessonTeacherRateFields(b.teacher);
+      const remarkA =
+        reviewSummariesByKey
+          .get(teacherRowKey(a.subject, a.teacher.id))
+          ?.latest_remark?.trim() ?? "";
+      const remarkB =
+        reviewSummariesByKey
+          .get(teacherRowKey(b.subject, b.teacher.id))
+          ?.latest_remark?.trim() ?? "";
+      const dateA = new Date(a.teacher.updated_at).getTime();
+      const dateB = new Date(b.teacher.updated_at).getTime();
       const comparableDateA = Number.isFinite(dateA) ? dateA : null;
       const comparableDateB = Number.isFinite(dateB) ? dateB : null;
 
       let result = 0;
       switch (sortKey) {
         case "id":
-          result = compareNullableNumber(a.id, b.id, sortOrder);
+          result = compareNullableNumber(a.teacher.id, b.teacher.id, sortOrder);
           break;
         case "name":
           result = compareString(resolvedA.name, resolvedB.name, sortOrder);
           break;
         case "lessonCount":
-          result = compareNullableNumber(a.lesson_count ?? 0, b.lesson_count ?? 0, sortOrder);
+          result = compareNullableNumber(
+            a.teacher.lesson_count ?? 0,
+            b.teacher.lesson_count ?? 0,
+            sortOrder
+          );
           break;
         case "rate":
-          result = compareNullableNumber(resolvedA.hourly_rate, resolvedB.hourly_rate, sortOrder);
+          result = compareNullableNumber(
+            resolvedA.hourly_rate,
+            resolvedB.hourly_rate,
+            sortOrder
+          );
           break;
         case "minutes":
           result = compareNullableNumber(
@@ -380,13 +439,13 @@ export function AdminJpLessonTeachersPageContent() {
           break;
         case "hourlyEquiv":
           result = compareNullableNumber(
-            calcEquivalentHourlyRate(a),
-            calcEquivalentHourlyRate(b),
+            calcEquivalentHourlyRate(a.teacher),
+            calcEquivalentHourlyRate(b.teacher),
             sortOrder
           );
           break;
         case "score":
-          result = compareNullableNumber(getScore(a.id), getScore(b.id), sortOrder);
+          result = compareNullableNumber(getScore(a), getScore(b), sortOrder);
           break;
         case "remark":
           result = compareString(remarkA, remarkB, sortOrder);
@@ -396,96 +455,43 @@ export function AdminJpLessonTeachersPageContent() {
           break;
       }
       if (result !== 0) return result;
-      return a.sort_order - b.sort_order || a.id - b.id;
+      if (a.subject !== b.subject) return a.subject.localeCompare(b.subject);
+      return a.teacher.sort_order - b.teacher.sort_order || a.teacher.id - b.teacher.id;
     });
-  }, [reviewSummaries, sortKey, sortOrder, teachers]);
-
-  const searchRemarksById = useMemo(
-    () =>
-      new Map(
-        teachers.map((teacher) => [
-          teacher.id,
-          {
-            remark: reviewSummaries.get(teacher.id)?.latest_remark ?? "",
-            subjectLabels: lessonTeacherSubjectSearchLabels(teacherSubject),
-          },
-        ])
-      ),
-    [reviewSummaries, teacherSubject, teachers]
-  );
-
-  const crossSubjectSearchFieldsById = useMemo(() => {
-    const map = new Map<number, { subjectLabels?: string }>();
-    for (const [subject, list] of Object.entries(crossSubjectTeachers) as Array<
-      [LessonTeacherSubject, JpLessonTeacher[]]
-    >) {
-      if (!list?.length) continue;
-      for (const teacher of list) {
-        map.set(teacher.id, {
-          subjectLabels: lessonTeacherSubjectSearchLabels(subject),
-        });
-      }
-    }
-    return map;
-  }, [crossSubjectTeachers]);
-
-  const crossSubjectTeacherHits = useMemo((): TeacherSearchHit[] => {
-    const hits: TeacherSearchHit[] = [];
-    for (const [subject, list] of Object.entries(crossSubjectTeachers) as Array<
-      [LessonTeacherSubject, JpLessonTeacher[]]
-    >) {
-      if (!list?.length) continue;
-      for (const teacher of list) {
-        hits.push({ teacher, subject });
-      }
-    }
-    return hits;
-  }, [crossSubjectTeachers]);
+  }, [allHits, reviewSummariesByKey, sortKey, sortOrder]);
 
   const searchSuggestions = useMemo((): TeacherSearchHit[] => {
     const q = searchDraft.trim();
     if (!q) return [];
-    const currentHits = filterLessonTeachersBySearch(
-      sortedTeachers,
+    const currentHits = filterTeacherHitsBySearch(
+      sortedHits,
       q,
-      searchRemarksById
-    ).map((teacher) => ({ teacher, subject: teacherSubject }));
-    const otherHits: TeacherSearchHit[] = [];
-    for (const hit of crossSubjectTeacherHits) {
-      const haystackFields = crossSubjectSearchFieldsById.get(hit.teacher.id);
-      if (
-        filterLessonTeachersBySearch([hit.teacher], q, haystackFields ? new Map([[hit.teacher.id, haystackFields]]) : undefined).length
-      ) {
-        otherHits.push(hit);
-      }
-    }
-    return [...currentHits, ...otherHits].slice(0, 12);
-  }, [
-    crossSubjectSearchFieldsById,
-    crossSubjectTeacherHits,
-    searchDraft,
-    searchRemarksById,
-    sortedTeachers,
-    teacherSubject,
-  ]);
-
-  const filteredTeachers = useMemo(() => {
-    if (selectedSearchTeacherId != null) {
-      return sortedTeachers.filter((teacher) => teacher.id === selectedSearchTeacherId);
-    }
-    // 边输入边过滤；勿只等点「搜索」（否则列表一直是全员，像「匹配失败」）
-    return filterLessonTeachersBySearch(
-      sortedTeachers,
-      searchDraft,
-      searchRemarksById
+      searchFieldsByRowKey
     );
-  }, [searchDraft, searchRemarksById, selectedSearchTeacherId, sortedTeachers]);
+    const otherHits = filterTeacherHitsBySearch(
+      crossHits,
+      q,
+      searchFieldsByRowKey
+    );
+    return [...currentHits, ...otherHits].slice(0, 12);
+  }, [crossHits, searchDraft, searchFieldsByRowKey, sortedHits]);
+
+  const filteredHits = useMemo(() => {
+    if (selectedSearchHit != null) {
+      return sortedHits.filter(
+        (hit) =>
+          hit.subject === selectedSearchHit.subject &&
+          hit.teacher.id === selectedSearchHit.teacher.id
+      );
+    }
+    return filterTeacherHitsBySearch(sortedHits, searchDraft, searchFieldsByRowKey);
+  }, [searchDraft, searchFieldsByRowKey, selectedSearchHit, sortedHits]);
 
   const applySearch = useCallback(
     (query: string) => {
       const trimmed = query.trim();
       setSearchDraft(query);
-      setSelectedSearchTeacherId(null);
+      setSelectedSearchHit(null);
       setSearchSuggestOpen(false);
 
       if (!trimmed) {
@@ -493,64 +499,68 @@ export function AdminJpLessonTeachersPageContent() {
         return;
       }
 
-      const currentHits = filterLessonTeachersBySearch(
-        teachers,
+      const currentHits = filterTeacherHitsBySearch(
+        flattenTeachersBySubject(teachersBySubject, displaySubjects),
         trimmed,
-        searchRemarksById
+        searchFieldsByRowKey
       );
       if (currentHits.length > 0) {
         setAppliedSearchQuery(trimmed);
         return;
       }
 
-      const otherHits = crossSubjectTeacherHits.filter((hit) =>
-        filterLessonTeachersBySearch(
-          [hit.teacher],
+      if (teacherSubjectFilter !== "all") {
+        const otherHits = filterTeacherHitsBySearch(
+          crossHits,
           trimmed,
-          crossSubjectSearchFieldsById.has(hit.teacher.id)
-            ? new Map([[hit.teacher.id, crossSubjectSearchFieldsById.get(hit.teacher.id)!]])
-            : undefined
-        ).length > 0
-      );
-      if (otherHits.length > 0) {
-        pendingSearchFocusRef.current = {
-          draft: query,
-          applied: trimmed,
-          teacherId: null,
-        };
-        switchTeacherSubject(otherHits[0].subject);
-        return;
+          searchFieldsByRowKey
+        );
+        if (otherHits.length > 0) {
+          pendingSearchFocusRef.current = {
+            draft: query,
+            applied: trimmed,
+            teacherId: null,
+            subject: otherHits[0].subject,
+          };
+          switchTeacherSubject(otherHits[0].subject);
+          return;
+        }
       }
 
       setAppliedSearchQuery(trimmed);
     },
     [
-      crossSubjectSearchFieldsById,
-      crossSubjectTeacherHits,
-      searchRemarksById,
+      crossHits,
+      displaySubjects,
+      searchFieldsByRowKey,
       switchTeacherSubject,
-      teachers,
+      teacherSubjectFilter,
+      teachersBySubject,
     ]
   );
 
   const selectSearchTeacher = useCallback(
     (hit: TeacherSearchHit) => {
       const name = resolveLessonTeacherRateFields(hit.teacher).name;
-      if (hit.subject !== teacherSubject) {
+      if (
+        teacherSubjectFilter !== "all" &&
+        hit.subject !== teacherSubjectFilter
+      ) {
         pendingSearchFocusRef.current = {
           draft: name,
           applied: name,
           teacherId: hit.teacher.id,
+          subject: hit.subject,
         };
         switchTeacherSubject(hit.subject, { teacherId: hit.teacher.id });
         return;
       }
       setSearchDraft(name);
       setAppliedSearchQuery(name);
-      setSelectedSearchTeacherId(hit.teacher.id);
+      setSelectedSearchHit(hit);
       setSearchSuggestOpen(false);
     },
-    [switchTeacherSubject, teacherSubject]
+    [switchTeacherSubject, teacherSubjectFilter]
   );
 
   useEffect(() => {
@@ -565,37 +575,57 @@ export function AdminJpLessonTeachersPageContent() {
   }, [searchSuggestOpen]);
 
   useEffect(() => {
-    if (focusTeacherId == null || loading) return;
-    if (!teachers.some((teacher) => teacher.id === focusTeacherId)) return;
-    if (filteredTeachers.some((teacher) => teacher.id === focusTeacherId)) return;
-    // 用户正在搜索时不要清空搜索框（旧逻辑会清掉 → 又变回全员列表）
-    // 深链 teacher= 与当前过滤冲突时，丢掉 URL 里的 teacher，让搜索结果保留
+    if (focusTeacherId == null || loading || concreteSubject == null) return;
+    const focusKey = teacherRowKey(concreteSubject, focusTeacherId);
+    const inList = allHits.some(
+      (hit) => hit.subject === concreteSubject && hit.teacher.id === focusTeacherId
+    );
+    if (!inList) return;
+    const inFiltered = filteredHits.some(
+      (hit) => hit.subject === concreteSubject && hit.teacher.id === focusTeacherId
+    );
+    if (inFiltered) return;
     if (!searchParams.get("teacher")) return;
     const params = new URLSearchParams(searchParams.toString());
     params.delete("teacher");
     const query = params.toString();
     router.replace(query ? `${pathname}?${query}` : pathname);
+    void focusKey;
   }, [
     focusTeacherId,
-    filteredTeachers,
+    filteredHits,
     loading,
-    teachers,
+    allHits,
+    concreteSubject,
     searchParams,
     pathname,
     router,
   ]);
 
   useEffect(() => {
-    if (focusTeacherId == null || loading || teachers.length === 0) return;
-    const row = rowRefs.current.get(focusTeacherId);
+    if (focusTeacherId == null || loading || concreteSubject == null) return;
+    if (allHits.length === 0) return;
+    const key = teacherRowKey(concreteSubject, focusTeacherId);
+    const row = rowRefs.current.get(key);
     if (!row) return;
-    setHighlightTeacherId(focusTeacherId);
+    setHighlightTeacherKey(key);
     window.requestAnimationFrame(() => {
       row.scrollIntoView({ block: "center", behavior: "smooth" });
     });
-    const timer = window.setTimeout(() => setHighlightTeacherId(null), 4000);
+    const timer = window.setTimeout(() => setHighlightTeacherKey(null), 4000);
     return () => window.clearTimeout(timer);
-  }, [focusTeacherId, filteredTeachers, loading, teachers]);
+  }, [focusTeacherId, filteredHits, loading, allHits, concreteSubject]);
+
+  // Resolve pending selected hit to real teacher object after load
+  useEffect(() => {
+    if (!selectedSearchHit) return;
+    if (selectedSearchHit.teacher.name) return;
+    const list = teachersBySubject[selectedSearchHit.subject] ?? [];
+    const found = list.find((t) => t.id === selectedSearchHit.teacher.id);
+    if (found) {
+      setSelectedSearchHit({ teacher: found, subject: selectedSearchHit.subject });
+    }
+  }, [selectedSearchHit, teachersBySubject]);
 
   const toggleSort = useCallback((key: TeacherSortKey) => {
     setSortOrder((prevOrder) => nextSortOrder(sortKey, key, prevOrder));
@@ -607,6 +637,7 @@ export function AdminJpLessonTeachersPageContent() {
       ? {
           id: "ID",
           name: "名称",
+          subject: "类型",
           lessonCount: "上课频次",
           rate: "课时费",
           minutes: "课时时长",
@@ -620,6 +651,7 @@ export function AdminJpLessonTeachersPageContent() {
       : {
           id: "ID",
           name: "Name",
+          subject: "Type",
           lessonCount: "Lessons",
           rate: "Rate (RMB)",
           minutes: "Duration",
@@ -641,8 +673,9 @@ export function AdminJpLessonTeachersPageContent() {
     closeAddModal,
   } = useAdminJpLessonTeachersActions({
     locale,
-    teacherSubject,
-    teachers,
+    addSubject,
+    editingSubject,
+    teachersBySubject,
     saving,
     editingId,
     editName,
@@ -657,13 +690,14 @@ export function AdminJpLessonTeachersPageContent() {
     setSaving,
     setStatus,
     setStatusErr,
-    setTeachers,
+    setTeachersBySubject,
     setNewName,
     setNewHourlyRate,
     setNewLessonMinutes,
     setNewTencentMeetingId,
     setAddModalOpen,
     setEditingId,
+    setEditingSubject,
     setEditName,
     setEditHourlyRate,
     setEditLessonMinutes,
@@ -671,6 +705,16 @@ export function AdminJpLessonTeachersPageContent() {
     setEditTencentMeetingId,
     setCreatingUserTeacherId,
   });
+
+  const openAddModal = () => {
+    setAddSubject(concreteSubject ?? "jp");
+    setAddModalOpen(true);
+  };
+
+  const openReview = (hit: TeacherSearchHit) => {
+    setReviewTeacherSubject(hit.subject);
+    setReviewTeacher(hit.teacher);
+  };
 
   if (checking || !isAdmin) {
     return (
@@ -685,8 +729,11 @@ export function AdminJpLessonTeachersPageContent() {
 
   return (
     <div className="admin-page">
-      <AdminJpLessonTeachersHero locale={locale} teacherSubject={teacherSubject} navTitle={nav.adminJpLessonTeachers} />
-
+      <AdminJpLessonTeachersHero
+        locale={locale}
+        teacherSubjectFilter={teacherSubjectFilter}
+        navTitle={nav.adminJpLessonTeachers}
+      />
 
       {status ? (
         <p className={statusErr ? "telegram-push-result telegram-push-result--err" : "hint"}>
@@ -696,34 +743,35 @@ export function AdminJpLessonTeachersPageContent() {
 
       <AdminJpLessonTeachersList
         locale={locale}
-        teacherSubject={teacherSubject}
+        teacherSubjectFilter={teacherSubjectFilter}
         loading={loading}
         refreshing={refreshing}
         saving={saving}
-        teachers={teachers}
-        filteredTeachers={filteredTeachers}
+        teachersCount={allHits.length}
+        filteredHits={filteredHits}
         searchDraft={searchDraft}
         appliedSearchQuery={appliedSearchQuery}
         searchSuggestOpen={searchSuggestOpen}
         searchSuggestions={searchSuggestions}
         searchFieldRef={searchFieldRef}
         rowRefs={rowRefs}
-        highlightTeacherId={highlightTeacherId}
+        highlightTeacherKey={highlightTeacherKey}
         editingId={editingId}
+        editingSubject={editingSubject}
         editName={editName}
         editHourlyRate={editHourlyRate}
         editLessonMinutes={editLessonMinutes}
         editTencentMeetingId={editTencentMeetingId}
-        reviewSummaries={reviewSummaries}
+        reviewSummariesByKey={reviewSummariesByKey}
         creatingUserTeacherId={creatingUserTeacherId}
         sortKey={sortKey}
         sortOrder={sortOrder}
         fieldLabels={fieldLabels}
-        selectedSearchTeacherId={selectedSearchTeacherId}
-        onOpenAddModal={() => setAddModalOpen(true)}
+        selectedSearchHit={selectedSearchHit}
+        onOpenAddModal={openAddModal}
         switchTeacherSubject={switchTeacherSubject}
         setSearchDraft={setSearchDraft}
-        setSelectedSearchTeacherId={setSelectedSearchTeacherId}
+        setSelectedSearchHit={setSelectedSearchHit}
         setSearchSuggestOpen={setSearchSuggestOpen}
         applySearch={applySearch}
         selectSearchTeacher={selectSearchTeacher}
@@ -737,7 +785,7 @@ export function AdminJpLessonTeachersPageContent() {
         saveEdit={saveEdit}
         deleteTeacher={deleteTeacher}
         createTeacherUser={createTeacherUser}
-        setReviewTeacher={setReviewTeacher}
+        setReviewTeacher={openReview}
       />
 
       <AdminJpLessonTeachersAddModal
@@ -755,12 +803,15 @@ export function AdminJpLessonTeachersPageContent() {
         onHourlyRateChange={setNewHourlyRate}
         onLessonMinutesChange={setNewLessonMinutes}
         onTencentMeetingIdChange={setNewTencentMeetingId}
-        showTencentMeeting={teacherSubject === "en"}
+        showTencentMeeting={addSubject === "en"}
+        showSubjectSelect={teacherSubjectFilter === "all"}
+        addSubject={addSubject}
+        onAddSubjectChange={setAddSubject}
         onSubmit={() => void createTeacher()}
       />
 
       <AdminJpLessonTeachersReviewModals
-        teacherSubject={teacherSubject}
+        teacherSubject={reviewTeacherSubject}
         reviewTeacher={reviewTeacher}
         locale={locale}
         onClose={() => setReviewTeacher(null)}

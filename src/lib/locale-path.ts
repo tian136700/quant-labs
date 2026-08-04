@@ -167,21 +167,33 @@ export function adminToolCodesPath(locale: Locale): string {
 }
 
 export type LessonTeacherSubject = "jp" | "en" | "ko";
+/** 人员管理下拉：含「全部」跨科浏览/搜索 */
+export type LessonTeacherSubjectFilter = LessonTeacherSubject | "all";
 
-export function parseLessonTeacherSubject(raw: string | null | undefined): LessonTeacherSubject {
+export function parseLessonTeacherSubjectFilter(
+  raw: string | null | undefined
+): LessonTeacherSubjectFilter {
+  if (raw === "all") return "all";
   if (raw === "en") return "en";
   if (raw === "ko") return "ko";
   return "jp";
 }
 
+export function parseLessonTeacherSubject(raw: string | null | undefined): LessonTeacherSubject {
+  const filter = parseLessonTeacherSubjectFilter(raw);
+  return filter === "all" ? "jp" : filter;
+}
+
 export function adminJpLessonTeachersPath(
   locale: Locale,
   teacherId?: number,
-  subject: LessonTeacherSubject = "jp"
+  subject: LessonTeacherSubjectFilter = "jp"
 ): string {
   const base = locale === "zh" ? "/zh/admin/jp-lesson-teachers" : "/admin/jp-lesson-teachers";
   const params = new URLSearchParams();
-  if (subject === "en" || subject === "ko") params.set("subject", subject);
+  if (subject === "en" || subject === "ko" || subject === "all") {
+    params.set("subject", subject);
+  }
   if (teacherId != null && Number.isInteger(teacherId) && teacherId > 0) {
     params.set("teacher", String(teacherId));
   }

@@ -14,6 +14,7 @@ export type PendingSearchFocus = {
   draft: string;
   applied: string;
   teacherId: number | null;
+  subject?: LessonTeacherSubject;
 };
 
 export function scoreClass(score: number): string {
