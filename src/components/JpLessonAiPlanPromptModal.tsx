@@ -64,12 +64,16 @@ export function JpLessonAiPlanPromptModal({
   const [localError, setLocalError] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [zoomOpen, setZoomOpen] = useState(false);
   const [attachBusy, setAttachBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pasteZoneRef = useRef<HTMLDivElement>(null);
   const busy = attaching || attachBusy;
   const saveProgress = useSaveProgressBar(busy);
   const { prompt, setPrompt, flushPrompt } = useJpLessonAiPlanPromptTemplate(open);
+  const canZoomImage = Boolean(
+    previewUrl && imageFile && imageFile.type.startsWith("image/")
+  );
 
   useEffect(() => {
     setMounted(true);
@@ -85,6 +89,7 @@ export function JpLessonAiPlanPromptModal({
   useEffect(() => {
     if (!open) return;
     setLocalError(null);
+    setZoomOpen(false);
     setImageFile(null);
     setPreviewUrl((prev) => {
       if (prev) URL.revokeObjectURL(prev);
@@ -97,6 +102,15 @@ export function JpLessonAiPlanPromptModal({
       if (previewUrl) URL.revokeObjectURL(previewUrl);
     };
   }, [previewUrl]);
+
+  useEffect(() => {
+    if (!zoomOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setZoomOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [zoomOpen]);
 
   const groups = useMemo(() => buildGroups(lessons), [lessons]);
   const wordCount = groups.reduce((n, g) => n + g.words.length, 0);
@@ -116,6 +130,7 @@ export function JpLessonAiPlanPromptModal({
 
   const setImageFromFile = (file: File | null) => {
     setImageFile(file);
+    setZoomOpen(false);
     setPreviewUrl((prev) => {
       if (prev) URL.revokeObjectURL(prev);
       return file ? URL.createObjectURL(file) : null;
@@ -282,12 +297,33 @@ export function JpLessonAiPlanPromptModal({
                   aria-label="粘贴教案图片区域"
                 >
                   {previewUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={previewUrl}
-                      alt="教案预览"
-                      className="jp-lesson-ai-plan-preview"
-                    />
+                    canZoomImage ? (
+                      <button
+                        type="button"
+                        className="jp-lesson-ai-plan-thumb"
+                        disabled={busy}
+                        title="点击放大预览"
+                        aria-label="点击放大预览教案图"
+                        onClick={() => setZoomOpen(true)}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={previewUrl}
+                          alt="教案预览"
+                          className="jp-lesson-ai-plan-preview"
+                        />
+                        <span className="jp-lesson-ai-plan-zoom-hint">
+                          点击放大预览
+                        </span>
+                      </button>
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={previewUrl}
+                        alt="教案预览"
+                        className="jp-lesson-ai-plan-preview"
+                      />
+                    )
                   ) : (
                     <p>
                       在此点击后粘贴图片（Ctrl/⌘+V），或下方选择文件。同一张图会挂到全部勾选课。
@@ -371,7 +407,41 @@ export function JpLessonAiPlanPromptModal({
         className="copy-toast--above-modal"
       />
 
-      <style jsx>{`
+      {zoomOpen &&
+        canZoomImage &&
+        previewUrl &&
+        createPortal(
+          <div
+            className="jp-lesson-ai-plan-zoom"
+            role="dialog"
+            aria-modal="true"
+            aria-label="教案大图预览"
+            onClick={() => setZoomOpen(false)}
+          >
+            <div className="jp-lesson-ai-plan-zoom-bar">
+              <span>教案图 · 点击空白处或按 Esc 关闭</span>
+              <button
+                type="button"
+                className="jp-lesson-ai-plan-zoom-close"
+                onClick={() => setZoomOpen(false)}
+                aria-label="关闭大图预览"
+              >
+                ×
+              </button>
+            </div>
+            <div className="jp-lesson-ai-plan-zoom-stage">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={previewUrl}
+                alt="教案大图预览"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+          </div>,
+          document.body
+        )}
+
+      <style jsx global>{`
         .jp-lesson-ai-plan-overlay {
           position: fixed;
           inset: 0;
@@ -524,6 +594,24 @@ export function JpLessonAiPlanPromptModal({
           font-size: 0.85rem;
           line-height: 1.45;
         }
+        .jp-lesson-ai-plan-thumb {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 0.35rem;
+          width: 100%;
+          margin: 0;
+          padding: 0;
+          border: none;
+          background: transparent;
+          cursor: zoom-in;
+          color: inherit;
+          font: inherit;
+        }
+        .jp-lesson-ai-plan-thumb:disabled {
+          cursor: not-allowed;
+          opacity: 0.7;
+        }
         .jp-lesson-ai-plan-preview {
           display: block;
           max-width: 100%;
@@ -531,6 +619,57 @@ export function JpLessonAiPlanPromptModal({
           margin: 0 auto;
           object-fit: contain;
           border-radius: 6px;
+        }
+        .jp-lesson-ai-plan-zoom-hint {
+          color: var(--muted);
+          font-size: 0.78rem;
+        }
+        .jp-lesson-ai-plan-zoom {
+          position: fixed;
+          inset: 0;
+          z-index: 1300;
+          display: flex;
+          flex-direction: column;
+          background: rgba(0, 0, 0, 0.78);
+          padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0)
+            env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0);
+        }
+        .jp-lesson-ai-plan-zoom-bar {
+          flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.75rem;
+          padding: 0.75rem 1rem;
+          color: #f3f5f8;
+          font-size: 0.9rem;
+        }
+        .jp-lesson-ai-plan-zoom-close {
+          width: 2.2rem;
+          height: 2.2rem;
+          border: 1px solid rgba(255, 255, 255, 0.35);
+          border-radius: 8px;
+          background: rgba(255, 255, 255, 0.08);
+          color: #fff;
+          font-size: 1.35rem;
+          line-height: 1;
+          cursor: pointer;
+        }
+        .jp-lesson-ai-plan-zoom-stage {
+          flex: 1;
+          min-height: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 0.5rem 1rem 1rem;
+          overflow: auto;
+        }
+        .jp-lesson-ai-plan-zoom-stage img {
+          max-width: min(96vw, 1100px);
+          max-height: min(88dvh, 920px);
+          object-fit: contain;
+          border-radius: 8px;
+          box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
         }
         .jp-lesson-ai-plan-paste-actions {
           display: flex;

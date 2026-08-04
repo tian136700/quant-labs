@@ -85,6 +85,10 @@ def main() -> int:
         "onBlur",
         "numberedGroups",
         "jp-lesson-ai-plan-word-num",
+        "点击放大预览",
+        "jp-lesson-ai-plan-zoom",
+        "canZoomImage",
+        "setZoomOpen",
     ):
         if needle not in modal:
             errors.append(f"modal missing {needle}")
