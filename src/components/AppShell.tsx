@@ -40,6 +40,7 @@ import { COMPARE_ADMIN_ONLY } from "@/lib/feature-flags";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { SubjectTeacherRouteGuard } from "./SubjectTeacherRouteGuard";
 import { MaintenanceRouteGuard } from "./MaintenanceRouteGuard";
+import { DeployCacheRefreshButton } from "./DeployCacheRefreshButton";
 import { LangSwitch } from "./LangSwitch";
 import { NavDrawer } from "./NavDrawer";
 import { SiteAuthBar } from "./SiteAuthBar";
@@ -156,6 +157,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
         <SiteNav drawerOpen={drawerOpen} onToggleDrawer={toggleDrawer} />
         <div className="page-header-tools page-header-tools--desktop">
+          <DeployCacheRefreshButton />
           <SiteAuthBar />
           {onLearningModule ? null : <LangSwitch />}
         </div>

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
+import { DeployCacheRefreshButton } from "@/components/DeployCacheRefreshButton";
 import { LangSwitch } from "@/components/LangSwitch";
 import { SiteAuthBar } from "@/components/SiteAuthBar";
 import { useNavPreferences } from "@/contexts/NavPreferencesProvider";
@@ -283,6 +284,7 @@ export function NavDrawer({
 
         {showTools ? (
           <div className="nav-drawer-tools">
+            <DeployCacheRefreshButton fullWidth />
             <SiteAuthBar />
             {onJpModule ? null : <LangSwitch />}
           </div>

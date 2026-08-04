@@ -88,6 +88,41 @@ body {
   gap: 0.5rem;
 }
 
+/* 顶栏「刷新缓存」：有新部署版本亮，无更新暗 */
+.iq-deploy-cache-refresh--lit {
+  border-color: #f0a060;
+  color: #1a1208;
+  background: #f0a060;
+  font-weight: 600;
+  opacity: 1;
+  cursor: pointer;
+}
+
+.iq-deploy-cache-refresh--lit:hover {
+  filter: brightness(1.05);
+}
+
+.iq-deploy-cache-refresh--lit:active {
+  filter: brightness(0.95);
+}
+
+.iq-deploy-cache-refresh--dim {
+  border-color: color-mix(in srgb, var(--border) 80%, transparent);
+  color: color-mix(in srgb, var(--muted) 70%, transparent);
+  background: color-mix(in srgb, var(--panel) 55%, transparent);
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.iq-deploy-cache-refresh--dim:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.iq-deploy-cache-refresh--block {
+  width: 100%;
+}
+
 .site-auth-user {
   @apply text-muted;
   font-size: 0.8125rem;

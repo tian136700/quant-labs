@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { AppDeployVersionProvider } from "@/contexts/AppDeployVersionProvider";
 import { EtrAuthProvider } from "@/contexts/EtrAuthProvider";
 import { NavPreferencesProvider } from "@/contexts/NavPreferencesProvider";
 import { I18nProvider } from "@/i18n/I18nProvider";
@@ -21,10 +22,12 @@ export function Providers({
     <I18nProvider serverLocale={serverLocale}>
       <EtrAuthProvider>
         <NavPreferencesProvider>
-          <ActivityTracker />
-          <DeployVersionWatcher />
-          <Worker1102ClientGuard />
-          <AppShell>{children}</AppShell>
+          <AppDeployVersionProvider>
+            <ActivityTracker />
+            <DeployVersionWatcher />
+            <Worker1102ClientGuard />
+            <AppShell>{children}</AppShell>
+          </AppDeployVersionProvider>
         </NavPreferencesProvider>
       </EtrAuthProvider>
     </I18nProvider>
