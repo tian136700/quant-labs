@@ -61,6 +61,12 @@ def main() -> int:
         errors.append("watcher must defer reload while app-deploy-reload-hold is active")
     if "subscribeAppDeployReloadHold" not in watcher:
         errors.append("watcher must flush pending reload when hold releases")
+    if "document.hidden" not in watcher:
+        errors.append("watcher must branch on document.hidden (visible banner vs hidden auto-reload)")
+    if "iq-deploy-reload-banner" not in watcher:
+        errors.append("watcher must show iq-deploy-reload-banner when tab is visible")
+    if "点击刷新" not in watcher:
+        errors.append("visible banner must offer 点击刷新 button")
     if "60_000" not in FILES["version_lib"].read_text(encoding="utf-8"):
         errors.append("poll interval must be >= 60s (Workers daily quota)")
 
@@ -93,6 +99,10 @@ def main() -> int:
     rule = FILES["rule"].read_text(encoding="utf-8")
     if "DeployVersionWatcher" not in rule or "alwaysApply: true" not in rule:
         errors.append("deploy-client-force-refresh.mdc must alwaysApply and name DeployVersionWatcher")
+    if "可见态" not in rule or "点击刷新" not in rule:
+        errors.append("rule must document visible banner (点击刷新) vs hidden auto-reload")
+    if "可见标签页检测到新版立刻 location.reload" not in rule:
+        errors.append("rule must forbid hard reload while tab is visible")
 
     hooks_json = FILES["hooks_json"].read_text(encoding="utf-8")
     if "deploy-client-refresh-session.py" not in hooks_json:

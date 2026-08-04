@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   isAppDeployReloadHeld,
   subscribeAppDeployReloadHold,
@@ -78,15 +78,22 @@ function reloadNow(serverVersion: string): void {
 }
 
 /**
- * 部署上线后：开着的标签页检测到新 version → 清 API 本地缓存并强制刷新。
- * 轮询 60s（隐藏 5min）+ 切回前台立刻查一次，避免顶 Workers 日请求。
- * 抽查卡等 hold 期间不 reload，等放锁后再刷。
+ * 部署上线后：开着的标签页检测到新 version → 清 API 本地缓存并拉新。
+ * 可见态：顶部提示条，用户点「刷新」才 reload（避免看东西时被硬刷打断）。
+ * 隐藏态：自动 reload（切回时已是新代码）。
+ * 轮询 60s（隐藏 5min）+ 切回前台立刻查一次；抽查卡 hold 期间不刷。
  */
 export function DeployVersionWatcher() {
   const bakedVersion = APP_DEPLOY_VERSION;
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const pendingReloadVersionRef = useRef<string | null>(null);
+  const showBannerRef = useRef<(version: string) => void>(() => {});
+  const [bannerVersion, setBannerVersion] = useState<string | null>(null);
+
+  showBannerRef.current = (version: string) => {
+    setBannerVersion(version);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -109,14 +116,22 @@ export function DeployVersionWatcher() {
       }, ms);
     };
 
-    const requestReloadForNewDeploy = (serverVersion: string) => {
+    const applyNewDeployVersion = (serverVersion: string) => {
       if (alreadyReloadedFor(serverVersion)) return;
       if (isAppDeployReloadHeld()) {
         pendingReloadVersionRef.current = serverVersion;
         scheduleNext();
         return;
       }
+      // 正在看：只出提示条；后台标签：自动刷
+      if (!document.hidden) {
+        pendingReloadVersionRef.current = serverVersion;
+        showBannerRef.current(serverVersion);
+        scheduleNext();
+        return;
+      }
       pendingReloadVersionRef.current = null;
+      setBannerVersion(null);
       reloadNow(serverVersion);
     };
 
@@ -124,8 +139,7 @@ export function DeployVersionWatcher() {
       if (cancelled) return;
       const pending = pendingReloadVersionRef.current;
       if (!pending || isAppDeployReloadHeld()) return;
-      pendingReloadVersionRef.current = null;
-      reloadNow(pending);
+      applyNewDeployVersion(pending);
     };
 
     const check = async () => {
@@ -136,7 +150,7 @@ export function DeployVersionWatcher() {
       const serverVersion = await fetchServerVersion(ac.signal);
       if (cancelled || ac.signal.aborted) return;
       if (serverVersion && serverVersion !== bakedVersion) {
-        requestReloadForNewDeploy(serverVersion);
+        applyNewDeployVersion(serverVersion);
         return;
       }
       scheduleNext();
@@ -144,6 +158,13 @@ export function DeployVersionWatcher() {
 
     const onVisibility = () => {
       if (document.hidden) {
+        const pending = pendingReloadVersionRef.current;
+        if (pending && !isAppDeployReloadHeld() && !alreadyReloadedFor(pending)) {
+          pendingReloadVersionRef.current = null;
+          setBannerVersion(null);
+          reloadNow(pending);
+          return;
+        }
         scheduleNext();
         return;
       }
@@ -169,5 +190,79 @@ export function DeployVersionWatcher() {
     };
   }, [bakedVersion]);
 
-  return null;
+  if (!bannerVersion) return null;
+
+  return (
+    <>
+      <style jsx global>{`
+        .iq-deploy-reload-banner {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          z-index: 12000;
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          justify-content: center;
+          gap: 0.65rem 0.85rem;
+          padding: max(0.55rem, env(safe-area-inset-top, 0px)) 0.85rem 0.55rem;
+          background: #1a2332;
+          color: #f5f7fa;
+          font-size: 0.92rem;
+          line-height: 1.35;
+          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.22);
+        }
+        .iq-deploy-reload-banner__text {
+          margin: 0;
+          text-align: center;
+        }
+        .iq-deploy-reload-banner__btn {
+          appearance: none;
+          border: none;
+          border-radius: 6px;
+          padding: 0.45rem 0.9rem;
+          min-height: 2.25rem;
+          background: #f0a060;
+          color: #1a1208;
+          font-size: 0.92rem;
+          font-weight: 600;
+          cursor: pointer;
+        }
+        .iq-deploy-reload-banner__btn:active {
+          filter: brightness(0.95);
+        }
+        @media (max-width: 767px) {
+          .iq-deploy-reload-banner {
+            font-size: 0.88rem;
+            gap: 0.5rem;
+          }
+          .iq-deploy-reload-banner__btn {
+            min-height: 2.5rem;
+            padding: 0.5rem 1rem;
+          }
+        }
+      `}</style>
+      <div
+        className="iq-deploy-reload-banner"
+        role="status"
+        aria-live="polite"
+      >
+        <p className="iq-deploy-reload-banner__text">有新版本可用</p>
+        <button
+          type="button"
+          className="iq-deploy-reload-banner__btn"
+          onClick={() => {
+            const version = bannerVersion;
+            if (!version) return;
+            pendingReloadVersionRef.current = null;
+            setBannerVersion(null);
+            reloadNow(version);
+          }}
+        >
+          点击刷新
+        </button>
+      </div>
+    </>
+  );
 }
