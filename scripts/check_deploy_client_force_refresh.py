@@ -57,8 +57,28 @@ def main() -> int:
         errors.append("watcher must clear jp-api:/en-api: caches before reload")
     if "visibilitychange" not in watcher:
         errors.append("watcher must recheck on visibilitychange")
+    if "isAppDeployReloadHeld" not in watcher:
+        errors.append("watcher must defer reload while app-deploy-reload-hold is active")
+    if "subscribeAppDeployReloadHold" not in watcher:
+        errors.append("watcher must flush pending reload when hold releases")
     if "60_000" not in FILES["version_lib"].read_text(encoding="utf-8"):
         errors.append("poll interval must be >= 60s (Workers daily quota)")
+
+    hold = ROOT / "src/lib/app-deploy-reload-hold.ts"
+    if not hold.is_file():
+        errors.append("missing app-deploy-reload-hold.ts")
+    else:
+        hold_txt = hold.read_text(encoding="utf-8")
+        if "holdAppDeployReload" not in hold_txt or "isAppDeployReloadHeld" not in hold_txt:
+            errors.append("hold lib must export holdAppDeployReload + isAppDeployReloadHeld")
+
+    for hook_name in (
+        "src/hooks/useJpVocabTeacherQuiz.ts",
+        "src/hooks/useEnVocabTeacherQuiz.ts",
+    ):
+        hook = (ROOT / hook_name).read_text(encoding="utf-8")
+        if "useHoldAppDeployReloadWhile" not in hook:
+            errors.append(f"{hook_name} must hold deploy reload while quiz/preview card open")
 
     providers = FILES["providers"].read_text(encoding="utf-8")
     if "DeployVersionWatcher" not in providers:

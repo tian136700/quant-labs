@@ -5,6 +5,7 @@ import { JpVocabPageSearch } from "@/components/jp-vocab-page/JpVocabPageSearch"
 import { JpVocabPagination } from "@/components/jp-vocab-page/JpVocabPagination";
 import { JpVocabTeacherQuizResumePanel } from "@/components/jp-vocab-page/JpVocabTeacherQuizResumePanel";
 import { JpVocabWordTable } from "@/components/jp-vocab-page/JpVocabWordTable";
+import { VocabTeacherDailyQuizDonePanel } from "@/components/VocabTeacherDailyQuizDonePanel";
 import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
 import type { JpVocabTeacherQuizSession } from "@/lib/jp-vocab-teacher-quiz";
 import type { JpVocabQuizPriorityBoost } from "@/lib/jp-vocab-quiz-priority-boost";
@@ -59,6 +60,13 @@ export type JpVocabPageWordListProps = {
   isWordReviewLocked: (word: JpVocabWord, sessionReviewAtMs?: number) => boolean;
   onToggleVocabHelp: () => void;
   onResumeTeacherQuiz: () => void;
+  /** 今日抽完：回看最后一个词 */
+  onViewLastCheckedWord?: () => void;
+  coachAction?: {
+    busy: boolean;
+    coachCount: number;
+    onClick: () => void;
+  };
   onSearchChange: (value: string) => void;
   onKindFilterChange: (value: JpVocabKindFilter) => void;
   onClearSearch: () => void;
@@ -118,6 +126,17 @@ export function JpVocabPageWordList(props: JpVocabPageWordListProps) {
   return (
     <>
       {help}
+      {!props.isAdminMode &&
+      props.canOperate &&
+      props.dailyQuizComplete &&
+      props.onViewLastCheckedWord ? (
+        <VocabTeacherDailyQuizDonePanel
+          title="今日抽单词已抽查完成"
+          onViewLastWord={props.onViewLastCheckedWord}
+          viewLastDisabled={props.filteredDisplayedWords.length === 0}
+          coachAction={props.coachAction}
+        />
+      ) : null}
       <JpVocabPageSearch
         locale={props.locale}
         loading={props.loading}

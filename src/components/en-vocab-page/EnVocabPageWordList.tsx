@@ -5,6 +5,7 @@ import { EnVocabPageSearch } from "@/components/en-vocab-page/EnVocabPageSearch"
 import { EnVocabPagination } from "@/components/en-vocab-page/EnVocabPagination";
 import { EnVocabTeacherQuizResumePanel } from "@/components/en-vocab-page/EnVocabTeacherQuizResumePanel";
 import { EnVocabWordTable } from "@/components/en-vocab-page/EnVocabWordTable";
+import { VocabTeacherDailyQuizDonePanel } from "@/components/VocabTeacherDailyQuizDonePanel";
 import type { EnVocabDailyDisplayOrder } from "@/lib/en-vocab-daily-order";
 import type { EnVocabKindFilter } from "@/lib/en-vocab-search";
 import type { EnVocabStatSortKey } from "@/lib/en-vocab-shared";
@@ -50,12 +51,14 @@ export type EnVocabPageWordListProps = {
   teacherQuizLocksTable: boolean;
   isWordInQuizTarget: (wordId: number) => boolean;
   quizSession: EnVocabTeacherQuizSession | null;
+  dailyQuizComplete?: boolean;
   selectedDeleteIds: Set<number>;
   allPageDeleteSelected: boolean;
   somePageDeleteSelected: boolean;
   pagedDeleteIds: number[];
   onToggleVocabHelp: () => void;
   onResumeTeacherQuiz: () => void;
+  onViewLastCheckedWord?: () => void;
   onSearchChange: (value: string) => void;
   onKindFilterChange: (value: EnVocabKindFilter) => void;
   onClearSearch: () => void;
@@ -171,6 +174,16 @@ export function EnVocabPageWordList(props: EnVocabPageWordListProps) {
         />
       ) : (
         <>
+          {!isAdminMode &&
+          canOperate &&
+          props.dailyQuizComplete &&
+          props.onViewLastCheckedWord ? (
+            <VocabTeacherDailyQuizDonePanel
+              title="本轮单词已抽查完成"
+              onViewLastWord={props.onViewLastCheckedWord}
+              viewLastDisabled={filteredDisplayedWords.length === 0}
+            />
+          ) : null}
           <EnVocabPageSearch
             loading={loading}
             searchQuery={searchQuery}

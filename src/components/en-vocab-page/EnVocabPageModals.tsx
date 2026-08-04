@@ -75,6 +75,7 @@ type EnVocabPageModalsProps = {
   onRiskChartClose: () => void;
   onDailyIntroClose: () => void;
   onDailyCompleteClose: () => void;
+  onDailyCompleteViewLastWord?: () => void;
   onTeacherQuizIntroConfirm: () => void;
   onTeacherQuizIntroClose: () => void;
   onQuizFlashcardClose: () => void;
@@ -93,6 +94,7 @@ type EnVocabPageModalsProps = {
   onWordSaveFailed: (wordId: number, snapshot: EnVocabWord, message: string) => void;
   onNeedAuth: () => void;
   onCloseQuizPreview: () => void;
+  onNavigateQuizPreview: (index: number) => void;
   onCloseViewingRemarks: () => void;
   onCloseViewingMnemonic: () => void;
   onCloseViewingUsage: () => void;
@@ -146,6 +148,7 @@ export function EnVocabPageModals(props: EnVocabPageModalsProps) {
       {!props.isAdminMode ? (
         <EnVocabDailyQuizCompleteModal
           open={props.showDailyComplete}
+          onViewLastWord={props.onDailyCompleteViewLastWord}
           onClose={props.onDailyCompleteClose}
         />
       ) : null}
@@ -198,9 +201,9 @@ export function EnVocabPageModals(props: EnVocabPageModalsProps) {
         nestedModalOpen={nestedModalOpen}
       />
 
-      {props.isAdminMode ? (
+      {props.quizCardPreviewSession != null ? (
         <EnVocabTeacherQuizFlashcardModal
-          open={props.quizCardPreviewSession != null}
+          open
           session={props.quizCardPreviewSession}
           wordsById={props.wordsById}
           refs={props.refs}
@@ -223,9 +226,7 @@ export function EnVocabPageModals(props: EnVocabPageModalsProps) {
           onSelectUsageLevels={() => {
             /* 预览只读 */
           }}
-          onNavigate={() => {
-            /* 单条预览 */
-          }}
+          onNavigate={props.onNavigateQuizPreview}
           onOpenRef={props.onOpenRef}
           onViewRemarks={props.onOpenRemarks}
           onEditRemarks={props.onEditRemarks}

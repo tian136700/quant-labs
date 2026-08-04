@@ -6,13 +6,13 @@
   "queue": [
     {
       "path": "src/components/EnVocabPage.tsx",
-      "lines": 1042,
+      "lines": 1062,
       "status": 0,
       "note": ""
     },
     {
       "path": "src/components/JpVocabPage.tsx",
-      "lines": 1032,
+      "lines": 1061,
       "status": 0,
       "note": ""
     },

@@ -6,11 +6,16 @@ import { lockBodyScroll } from "@/lib/body-scroll-lock";
 
 type Props = {
   open: boolean;
+  onViewLastWord?: () => void;
   onClose: () => void;
 };
 
 /** 老师端本轮抽查完成提示（对齐日语完成弹窗；不展示数量） */
-export function EnVocabDailyQuizCompleteModal({ open, onClose }: Props) {
+export function EnVocabDailyQuizCompleteModal({
+  open,
+  onViewLastWord,
+  onClose,
+}: Props) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -56,9 +61,20 @@ export function EnVocabDailyQuizCompleteModal({ open, onClose }: Props) {
           本轮单词已抽查完成
         </h2>
         <div className="en-vocab-complete-modal-actions">
+          {onViewLastWord ? (
+            <button
+              type="button"
+              className="btn-rsi-filter btn-rsi-filter--primary en-vocab-complete-modal-btn"
+              onClick={onViewLastWord}
+            >
+              查看上一个单词
+            </button>
+          ) : null}
           <button
             type="button"
-            className="btn-rsi-filter btn-rsi-filter--primary en-vocab-complete-modal-btn"
+            className={`btn-rsi-filter en-vocab-complete-modal-btn${
+              onViewLastWord ? "" : " btn-rsi-filter--primary"
+            }`}
             onClick={onClose}
           >
             好的

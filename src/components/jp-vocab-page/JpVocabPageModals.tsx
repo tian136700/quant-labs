@@ -102,6 +102,7 @@ type JpVocabPageModalsProps = {
   onRiskChartClose: () => void;
   onDailyIntroClose: () => void;
   onDailyCompleteClose: () => void;
+  onDailyCompleteViewLastWord?: () => void;
   onGoToCoach: (() => void) | undefined;
   onDismissShareRequests: () => void;
   onTeacherQuizIntroConfirm: () => void;
@@ -123,6 +124,7 @@ type JpVocabPageModalsProps = {
   onNeedAuth: () => void;
   onSharedToStudy: (wordId: number) => void;
   onCloseQuizPreview: () => void;
+  onNavigateQuizPreview: (index: number) => void;
   onCloseViewingRemarks: () => void;
   onCloseViewingMnemonic: () => void;
   onClosePreviewRef: () => void;
@@ -192,6 +194,7 @@ export function JpVocabPageModals(props: JpVocabPageModalsProps) {
           variant="teacher"
           levelCounts={props.dailyCoachLevelCounts}
           onGoToCoach={props.onGoToCoach}
+          onViewLastWord={props.onDailyCompleteViewLastWord}
           onClose={props.onDailyCompleteClose}
         />
       ) : null}
@@ -304,9 +307,9 @@ export function JpVocabPageModals(props: JpVocabPageModalsProps) {
         canManualFillExamples={props.isAdmin}
       />
 
-      {props.isAdminMode ? (
+      {props.quizCardPreviewSession != null ? (
         <JpVocabTeacherQuizFlashcardModal
-          open={props.quizCardPreviewSession != null}
+          open
           session={props.quizCardPreviewSession}
           wordsById={props.wordsById}
           refs={props.refs}
@@ -327,9 +330,7 @@ export function JpVocabPageModals(props: JpVocabPageModalsProps) {
           onSelectLevel={() => {
             /* 预览只读 */
           }}
-          onNavigate={() => {
-            /* 单条预览 */
-          }}
+          onNavigate={props.onNavigateQuizPreview}
           onOpenRef={props.onOpenRef}
           onViewRemarks={props.onOpenRemarks}
           onEditRemarks={props.onEditRemarks}

@@ -373,7 +373,9 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     quizCardPreviewWordId,
     setQuizCardPreviewWordId,
     quizCardPreviewSession,
+    navigateQuizCardPreview,
     closeQuizCardPreview,
+    openPostCompleteLastWord,
     quizWordHasLevel,
     startTeacherQuizWithRandomMode,
     resumeTeacherQuizFlashcard,
@@ -870,6 +872,22 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
           isWordReviewLocked={isWordReviewLocked}
           onToggleVocabHelp={() => setShowVocabHelp((v) => !v)}
           onResumeTeacherQuiz={() => resumeTeacherQuizFlashcard()}
+          onViewLastCheckedWord={() => {
+            setShowDailyComplete(false);
+            openPostCompleteLastWord();
+          }}
+          coachAction={
+            showTeacherCoachEntry
+              ? {
+                  busy: exporting,
+                  coachCount:
+                    dailyCoachLevelCounts.normal + dailyCoachLevelCounts.weak,
+                  onClick: () => {
+                    window.location.assign(jpVocabCoachPath());
+                  },
+                }
+              : undefined
+          }
           onSearchChange={(value) => {
             setSearchQuery(value);
             setPage(1);
@@ -984,6 +1002,16 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
           }
           setShowDailyComplete(false);
         }}
+        onDailyCompleteViewLastWord={() => {
+          if (user) {
+            markJpVocabTeacherDailyCompleteDismissed(
+              user.id,
+              dailyQuizProgress.total
+            );
+          }
+          setShowDailyComplete(false);
+          openPostCompleteLastWord();
+        }}
         onGoToCoach={
           showTeacherCoachEntry
             ? () => {
@@ -1017,6 +1045,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
           setSharedTodayWordIds((prev) => new Set([...prev, wordId]));
         }}
         onCloseQuizPreview={closeQuizCardPreview}
+        onNavigateQuizPreview={navigateQuizCardPreview}
         onCloseViewingRemarks={() => setViewingRemarksWord(null)}
         onCloseViewingMnemonic={() => setViewingMnemonicWord(null)}
         onClosePreviewRef={() => setPreviewRef(null)}

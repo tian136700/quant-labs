@@ -541,6 +541,10 @@ export function EnVocabTeacherQuizFlashcardModal({
 
   const tryGoNext = () => {
     if (previewMode || isStudy) {
+      if (previewMode && session.currentIndex < session.wordIds.length - 1) {
+        onNavigate(session.currentIndex + 1);
+        return;
+      }
       onComplete();
       return;
     }
@@ -709,7 +713,9 @@ export function EnVocabTeacherQuizFlashcardModal({
               {isStudy
                 ? "关闭"
                 : previewMode
-                  ? "关闭预览"
+                  ? isLast
+                    ? "关闭预览"
+                    : "下一个"
                   : saveBusy
                     ? "同步中…"
                     : sessionComplete

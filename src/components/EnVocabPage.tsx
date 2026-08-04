@@ -410,7 +410,9 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     quizCardPreviewWordId,
     setQuizCardPreviewWordId,
     quizCardPreviewSession,
+    navigateQuizCardPreview,
     closeQuizCardPreview,
+    openPostCompleteLastWord,
     quizWordHasLevel,
     startTeacherQuizWithRandomMode,
     resumeTeacherQuizFlashcard,
@@ -916,6 +918,13 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
           pagedDeleteIds={pagedDeleteIds}
           onToggleVocabHelp={() => setShowVocabHelp((v) => !v)}
           onResumeTeacherQuiz={() => resumeTeacherQuizFlashcard()}
+          dailyQuizComplete={
+            dailyQuizProgress.complete || displayQuizProgress.complete
+          }
+          onViewLastCheckedWord={() => {
+            setShowDailyComplete(false);
+            openPostCompleteLastWord();
+          }}
           onSearchChange={setSearchQuery}
           onKindFilterChange={setKindFilter}
           onClearSearch={() => {
@@ -1001,6 +1010,16 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
           }
           setShowDailyComplete(false);
         }}
+        onDailyCompleteViewLastWord={() => {
+          if (user) {
+            markEnVocabTeacherDailyCompleteDismissed(
+              user.id,
+              dailyQuizProgress.total
+            );
+          }
+          setShowDailyComplete(false);
+          openPostCompleteLastWord();
+        }}
         onTeacherQuizIntroConfirm={handleTeacherQuizIntroConfirm}
         onTeacherQuizIntroClose={handleTeacherQuizIntroClose}
         onQuizFlashcardClose={() => setShowQuizFlashcard(false)}
@@ -1020,6 +1039,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
         onWordSaveFailed={handleWordSaveFailed}
         onNeedAuth={openEnAuth}
         onCloseQuizPreview={closeQuizCardPreview}
+        onNavigateQuizPreview={navigateQuizCardPreview}
         onSharedToStudy={(wordId) => {
           setSharedTodayWordIds((prev) => {
             if (prev.has(wordId)) return prev;

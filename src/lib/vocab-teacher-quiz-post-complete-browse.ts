@@ -3,7 +3,7 @@
  */
 
 export type VocabTeacherQuizBrowseSession = {
-  mode: "random";
+  mode: "random" | "sequential";
   wordIds: number[];
   currentIndex: number;
 };
@@ -22,10 +22,9 @@ export function buildVocabTeacherQuizPostCompleteBrowseSession(
   return { mode: "random", wordIds: ids, currentIndex };
 }
 
-export function clampVocabTeacherQuizBrowseIndex(
-  session: VocabTeacherQuizBrowseSession,
-  index: number
-): VocabTeacherQuizBrowseSession {
+export function clampVocabTeacherQuizBrowseIndex<
+  T extends { wordIds: number[]; currentIndex: number },
+>(session: T, index: number): T {
   if (!session.wordIds.length) return session;
   const currentIndex = Math.max(
     0,

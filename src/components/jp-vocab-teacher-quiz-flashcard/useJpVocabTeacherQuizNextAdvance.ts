@@ -107,6 +107,10 @@ export function useJpVocabTeacherQuizNextAdvance(args: Args) {
 
   const tryGoNext = () => {
     if (previewMode || isStudy) {
+      if (previewMode && canGoNext) {
+        onNavigate(session.currentIndex + 1);
+        return;
+      }
       onComplete();
       return;
     }

@@ -912,7 +912,9 @@ export function JpVocabTeacherQuizFlashcardModal({
               {isStudy
                 ? "关闭"
                 : previewMode
-                ? "关闭预览"
+                ? isLast
+                  ? "关闭预览"
+                  : "下一个"
                 : !isCoach && sessionComplete
                 ? "完成抽查"
                 : isLast
