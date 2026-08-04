@@ -536,6 +536,7 @@ def run_one(
     )
 
     related_applied = False
+    related_attempted = bool(need_related)
     if need_related and related_text is not None and not dry_run:
         if related_text.strip():
             related_update: dict[str, Any] = {
@@ -570,15 +571,15 @@ def run_one(
                 flush=True,
             )
 
-    applied_keys = (
-        "['usage']"
-        if kind == "grammar"
-        else (
-            "['oral_frequency','exam_frequency','related_compounds']"
-            if related_applied
-            else "['oral_frequency','exam_frequency']"
-        )
-    )
+    # 维护中心读 payload["applied"]（不是误用的 applied_keys 字段名）；
+    # 只要本轮尝试过相关构词（含空结果 mark checked），就写进 applied，表上能看见。
+    if kind == "grammar":
+        applied = "['usage']"
+    elif related_attempted and (related_applied or related_text is not None):
+        # 生成成功（含空串）即算「跑过相关构词」；apply 失败仍标 attempted 便于排查
+        applied = "['oral_frequency','exam_frequency','related_compounds']"
+    else:
+        applied = "['oral_frequency','exam_frequency']"
     report_word_run(
         {
             "word_id": wid,
@@ -586,7 +587,8 @@ def run_one(
             "kind": "frequency",
             "status": "success",
             "preview": preview,
-            "applied_keys": applied_keys,
+            "applied": applied,
+            "source": source if not dry_run else "",
         }
     )
     write_status(
@@ -596,12 +598,14 @@ def run_one(
             "word": word,
             "kind": kind,
             "preview": preview,
+            "related_attempted": related_attempted,
             "related_applied": related_applied,
             "total_missing": max(0, total - 1),
         }
     )
     print(
-        f"apply updated={updated} id={wid} word={word!r} preview={preview!r}",
+        f"apply updated={updated} id={wid} word={word!r} preview={preview!r} "
+        f"applied={applied}",
         flush=True,
     )
     return "ok"

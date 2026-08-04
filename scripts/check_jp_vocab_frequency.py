@@ -310,6 +310,29 @@ def main() -> int:
                 "frequency-online-api WORD_SYSTEM should mention multi-kanji decomp "
                 "(会社員/店員)"
             )
+        # 维护中心读 applied，不读 applied_keys → 否则「补全内容」只剩任务名
+        if "applied_keys" in op.split("report_word_run")[-1][:400]:
+            errors.append(
+                "frequency-online-api must report applied= (not applied_keys=) "
+                "so 补全内容 shows 口语频率/相关构词"
+            )
+        if 'report_word_run' in op:
+            # success 终态须带 applied 字段
+            success_chunk = op
+            if '"applied": applied' not in success_chunk and '"applied":applied' not in success_chunk:
+                # also accept "applied": applied_keys renamed — must be key name applied
+                if not any(
+                    x in success_chunk
+                    for x in ('"applied": applied', '"applied":applied', '"applied": (')
+                ):
+                    errors.append(
+                        "frequency-online-api success report_word_run must include applied="
+                    )
+        if "related_attempted" not in op:
+            errors.append(
+                "frequency-online-api must track related_attempted so empty related "
+                "still shows 相关构词 in 补全内容"
+            )
 
     py_lib = ROOT / "scripts/lib/jp_vocab_frequency.py"
     if not py_lib.is_file():
