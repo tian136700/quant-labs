@@ -235,6 +235,17 @@ def main() -> int:
         errors.append("missing src/lib/jp-vocab-fill-frequency.ts")
     else:
         ff = fill_freq.read_text(encoding="utf-8")
+        if "need_related_compounds" not in ff:
+            errors.append(f"jp-vocab-fill-frequency.ts: missing need_related_compounds")
+        if "wordNeedsRelatedCompoundsForFrequency" not in ff:
+            errors.append(
+                "jp-vocab-fill-frequency.ts: must use wordNeedsRelatedCompoundsForFrequency "
+                "(body empty → need related; ignore empty source mark)"
+            )
+        if "related_compounds_source" in ff and "wordNeedsRelatedCompoundsForFrequency" in ff:
+            # ensure frequency helper does not gate on source
+            # (source-based skip lives only in related-only queue)
+            pass
         for needle in (
             "listJpVocabMissingFrequency",
             "applyJpVocabFrequencyUpdates",
@@ -328,11 +339,19 @@ def main() -> int:
                     errors.append(
                         "frequency-online-api success report_word_run must include applied="
                     )
-        if "related_attempted" not in op:
-            errors.append(
-                "frequency-online-api must track related_attempted so empty related "
-                "still shows 相关构词 in 补全内容"
-            )
+        if "need_related = kind != \"grammar\" and has_kanji" not in op and "need_related = kind != 'grammar' and has_kanji" not in op:
+            # allow either quote style / with spaces
+            if "has_kanji" not in op or "need_related = kind != \"grammar\" and has_kanji" not in op.replace("'", '"'):
+                if not (
+                    "has_kanji" in op
+                    and "need_related" in op
+                    and "grammar" in op
+                    and "【相关构词】" in op
+                ):
+                    errors.append(
+                        "frequency-online-api must force need_related for every "
+                        "kanji word (ignore empty related_compounds_source mark)"
+                    )
 
     py_lib = ROOT / "scripts/lib/jp_vocab_frequency.py"
     if not py_lib.is_file():

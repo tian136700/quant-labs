@@ -383,7 +383,18 @@ def run_one(
     word = str(row.get("word") or "")
     kind = str(row.get("kind") or "")
     prompt = str(row.get("prompt") or "")
-    need_related = bool(row.get("need_related_compounds")) and kind != "grammar"
+    # 频率任务硬规则：单词含汉字 → 必须同一次跑相关构词（不看 API 的
+    # need_related_compounds；曾因 source=空查过误跳过「研修生」）。
+    has_kanji = bool(re.search(r"[\u4E00-\u9FFF々]", word))
+    need_related = kind != "grammar" and has_kanji
+    if need_related and "【相关构词】" not in prompt:
+        prompt = (
+            prompt
+            + "\n\n本词请在频率块后另起【相关构词】（可空）："
+            + "每行 漢字(かな)：中文。"
+            + "多字词先拆部件再举同旁词（研修生→研修/学生；会社員→会社/店員）。"
+            + "禁止把词条本身写入；没有自然相关词则【相关构词】下留空。"
+        )
     print(
         f"  [1/1] id={wid} kind={kind} word={word!r} "
         f"need_oral={row.get('need_oral_frequency')} "
@@ -571,12 +582,11 @@ def run_one(
                 flush=True,
             )
 
-    # 维护中心读 payload["applied"]（不是误用的 applied_keys 字段名）；
-    # 只要本轮尝试过相关构词（含空结果 mark checked），就写进 applied，表上能看见。
+    # 维护中心只读 payload["applied"]。只要本轮尝试过相关构词（有内容/空结果/
+    # mark checked/apply 失败），都必须带上 related_compounds，用户才能确认跑过。
     if kind == "grammar":
         applied = "['usage']"
-    elif related_attempted and (related_applied or related_text is not None):
-        # 生成成功（含空串）即算「跑过相关构词」；apply 失败仍标 attempted 便于排查
+    elif related_attempted:
         applied = "['oral_frequency','exam_frequency','related_compounds']"
     else:
         applied = "['oral_frequency','exam_frequency']"

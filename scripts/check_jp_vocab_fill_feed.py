@@ -447,6 +447,50 @@ def main() -> int:
     )
     if "临时相关构词" not in rc_label or "相关构词" not in rc_label:
         raise SystemExit(f"FAIL: related compounds fill content label bad: {rc_label!r}")
+    # 频率同次跑构词（含空结果）→ 补全内容必须能看出「相关构词」
+    freq_rc_label = format_fill_content_label(
+        lang="jp",
+        applied="['oral_frequency','exam_frequency','related_compounds']",
+        fill_task="jp-vocab-fill-frequency-online",
+    )
+    if (
+        "临时口语/考试频率" not in freq_rc_label
+        or "口语频率" not in freq_rc_label
+        or "考试频率" not in freq_rc_label
+        or "相关构词" not in freq_rc_label
+    ):
+        raise SystemExit(
+            f"FAIL: frequency+related fill content label must show 相关构词: {freq_rc_label!r}"
+        )
+    freq_api = (
+        ROOT / "scripts/jp-vocab-fill-frequency-online-api.py"
+    ).read_text(encoding="utf-8")
+    if '"applied_keys"' in freq_api or "'applied_keys'" in freq_api:
+        # 注释里提 applied_keys 可以；禁止往 report 里传该键
+        after_reports = freq_api.split("report_word_run")
+        for chunk in after_reports[1:]:
+            head = chunk[:500]
+            if "applied_keys" in head and '"applied"' not in head:
+                raise SystemExit(
+                    "FAIL: frequency-online must report applied= not applied_keys="
+                )
+    if "related_attempted" not in freq_api:
+        raise SystemExit(
+            "FAIL: frequency-online must set related_attempted so empty related "
+            "still lands in applied"
+        )
+    if "['oral_frequency','exam_frequency','related_compounds']" not in freq_api:
+        raise SystemExit(
+            "FAIL: frequency-online applied must include related_compounds when attempted"
+        )
+    rule = ROOT / ".cursor/rules/vocab-fill-applied-column.mdc"
+    if not rule.is_file():
+        raise SystemExit("FAIL: missing .cursor/rules/vocab-fill-applied-column.mdc")
+    rule_text = rule.read_text(encoding="utf-8")
+    if "空结果" not in rule_text or "related_compounds" not in rule_text:
+        raise SystemExit(
+            "FAIL: vocab-fill-applied-column.mdc must require empty related still in applied"
+        )
     feed_py = (ROOT / "scripts/maintenance_center/jp_vocab_fill_feed.py").read_text(
         encoding="utf-8"
     )

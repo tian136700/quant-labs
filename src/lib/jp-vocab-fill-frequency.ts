@@ -70,16 +70,18 @@ export type ListJpVocabMissingFrequencyOptions = {
   wordId?: number;
 };
 
-function wordNeedsRelatedCompoundsFill(row: {
+/**
+ * 频率任务顺带相关构词：正文空就补，**不看 source**。
+ * 曾误标 source=空查过（如研修生）会导致频率也跳过；频率是存量末班车，须再试一次。
+ * （独立相关构词队列仍用「空正文 + 无 source」以免真无构词死循环。）
+ */
+function wordNeedsRelatedCompoundsForFrequency(row: {
   word: string;
   related_compounds: string | null;
-  related_compounds_source: string | null;
 }): boolean {
   const word = String(row.word || "").trim();
   if (!/[\u4E00-\u9FFF々]/.test(word)) return false;
-  if (hasJpVocabRelatedCompounds(row.related_compounds)) return false;
-  const src = String(row.related_compounds_source || "").trim();
-  return !src;
+  return !hasJpVocabRelatedCompounds(row.related_compounds);
 }
 
 /** 频率 + 可选相关构词同一次输出 */
@@ -163,7 +165,7 @@ export async function listJpVocabMissingFrequency(
       const needOral = clampJpVocabFrequency(row.oral_frequency) == null;
       const needExam = clampJpVocabFrequency(row.exam_frequency) == null;
       if (!needOral && !needExam) continue;
-      const needRelated = wordNeedsRelatedCompoundsFill(row);
+      const needRelated = wordNeedsRelatedCompoundsForFrequency(row);
       const promptInput = {
         word: String(row.word),
         reading: row.reading,
