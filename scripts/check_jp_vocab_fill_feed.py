@@ -199,6 +199,21 @@ def main() -> int:
         raise SystemExit("FAIL: copyAllFails must be wired in VOCAB_FILL_LANGS + synced on render")
     if "未处理失败" not in app_js:
         raise SystemExit("FAIL: copy-all toast/title must say 未处理失败")
+    # 最近词条分页：默认每页 50；底栏对齐「上一页 · 每页 · 摘要 · 下一页」
+    if "VOCAB_FILL_DEFAULT_PAGE_SIZE = 50" not in app_js:
+        raise SystemExit("FAIL: vocab fill pager default page size must be 50")
+    if "VOCAB_FILL_RECENT_FETCH_LIMIT = 200" not in app_js:
+        raise SystemExit("FAIL: vocab fill must fetch enough rows for multi-page")
+    if "renderVocabFillPager" not in app_js or "vocabFillPageSlice" not in app_js:
+        raise SystemExit("FAIL: missing vocab fill client pagination helpers")
+    if "第 ${meta.page} / ${meta.totalPages} 页" not in app_js:
+        raise SystemExit("FAIL: pager summary must match list-pagination-standard")
+    if "jp-fill-pager" not in index_html or "en-fill-pager" not in index_html:
+        raise SystemExit("FAIL: missing #jp/#en-fill-pager nav in index.html")
+    if "jp-fill-pager" not in (
+        ROOT / "scripts/maintenance_center/static/app.css"
+    ).read_text(encoding="utf-8"):
+        raise SystemExit("FAIL: jp-fill-pager CSS missing")
     if "resolved_later" not in app_js or "jp-fill-badge--resolved" not in app_js:
         raise SystemExit("FAIL: failed-row must show green 已处理 when resolved_later")
     if "已处理" not in app_js:
