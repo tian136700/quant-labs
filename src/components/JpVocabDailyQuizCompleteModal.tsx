@@ -14,6 +14,8 @@ type Props = {
   levelCounts?: JpVocabCoachLevelCounts;
   coachBusy?: boolean;
   onGoToCoach?: () => void;
+  /** 抽完后回看最后一个词；可再点卡片内「上一个」 */
+  onViewLastWord?: () => void;
   onClose: () => void;
 };
 
@@ -43,6 +45,7 @@ export function JpVocabDailyQuizCompleteModal({
   levelCounts,
   coachBusy = false,
   onGoToCoach,
+  onViewLastWord,
   onClose,
 }: Props) {
   const [mounted, setMounted] = useState(false);
@@ -52,6 +55,7 @@ export function JpVocabDailyQuizCompleteModal({
       ? levelCounts.normal + levelCounts.weak
       : 0;
   const showCoachAction = variant === "teacher" && onGoToCoach;
+  const showViewLast = variant === "teacher" && onViewLastWord;
 
   useEffect(() => {
     setMounted(true);
@@ -103,10 +107,20 @@ export function JpVocabDailyQuizCompleteModal({
         </div>
 
         <div className="jp-vocab-complete-modal-actions">
-          {showCoachAction ? (
+          {showViewLast ? (
             <button
               type="button"
               className="btn-rsi-filter btn-rsi-filter--primary jp-vocab-complete-modal-btn"
+              disabled={coachBusy}
+              onClick={() => onViewLastWord?.()}
+            >
+              查看上一个单词
+            </button>
+          ) : null}
+          {showCoachAction ? (
+            <button
+              type="button"
+              className="btn-rsi-filter jp-vocab-complete-modal-btn"
               disabled={coachBusy}
               onClick={() => onGoToCoach?.()}
             >
@@ -120,7 +134,7 @@ export function JpVocabDailyQuizCompleteModal({
           <button
             type="button"
             className={`btn-rsi-filter jp-vocab-complete-modal-btn${
-              showCoachAction ? "" : " btn-rsi-filter--primary"
+              showViewLast || showCoachAction ? "" : " btn-rsi-filter--primary"
             }`}
             disabled={coachBusy}
             onClick={onClose}

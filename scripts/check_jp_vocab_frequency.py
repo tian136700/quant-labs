@@ -12,6 +12,27 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 def main() -> int:
     errors: list[str] = []
 
+    # 解析须接受模型常写的「8/10」、短标签、同行、JSON（曾导致 word_ai_incomplete）
+    sys.path.insert(0, str(ROOT / "scripts" / "lib"))
+    from jp_vocab_frequency import extract_jp_vocab_frequencies  # noqa: E402
+
+    parse_cases = [
+        ("【出现频率】\n口语频率：8\n考试频率：6", 8, 6),
+        ("【出现频率】\n口语频率：8/10\n考试频率：6/10", 8, 6),
+        ("口语：8\n考试：7", 8, 7),
+        ("口语频率：8 考试频率：6", 8, 6),
+        ('{"oral_frequency": 9, "exam_frequency": 5}', 9, 5),
+        ("- 口语频率：8\n- 考试频率：6", 8, 6),
+        ("口语频率 8\n考试频率 6", 8, 6),
+    ]
+    for raw, want_o, want_e in parse_cases:
+        _, got_o, got_e = extract_jp_vocab_frequencies(raw)
+        if got_o != want_o or got_e != want_e:
+            errors.append(
+                f"extract_jp_vocab_frequencies failed for {raw!r}: "
+                f"got oral={got_o} exam={got_e}, want {want_o}/{want_e}"
+            )
+
     freq_lib = ROOT / "src/lib/jp-vocab-frequency.ts"
     if not freq_lib.is_file():
         errors.append("missing src/lib/jp-vocab-frequency.ts")
@@ -23,13 +44,28 @@ def main() -> int:
             "jpVocabFrequencyPromptAppendix",
             "口语频率",
             "考试频率",
+            "/\\s*10",  # 须接受 8/10
+            "SAME_LINE_RE",
+            "frequenciesFromJsonBlob",
+            "禁止写成 8/10",
         ):
             if needle not in text:
                 errors.append(f"jp-vocab-frequency.ts: missing {needle}")
 
+    online_py = (ROOT / "scripts/jp-vocab-fill-frequency-online-api.py").read_text(
+        encoding="utf-8"
+    )
+    if "freq-parse-retry" not in online_py and "attempt == 0" not in online_py:
+        errors.append(
+            "frequency-online-api generate_word_freq must retry once on incomplete parse"
+        )
+    if "禁止写成 n/10" not in online_py and "不要带 /10" not in online_py:
+        errors.append("frequency-online-api WORD_SYSTEM must forbid /10 suffix")
+
     types = (ROOT / "src/lib/types.ts").read_text(encoding="utf-8")
     if "oral_frequency" not in types or "exam_frequency" not in types:
         errors.append("types.ts: JpVocabWord must include oral_frequency / exam_frequency")
+
 
     helpers = (ROOT / "src/lib/jp-vocab-db/helpers.ts").read_text(encoding="utf-8")
     if "ADD COLUMN oral_frequency" not in helpers or "ADD COLUMN exam_frequency" not in helpers:

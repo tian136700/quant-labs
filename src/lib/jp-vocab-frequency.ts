@@ -13,10 +13,63 @@ export const JP_VOCAB_COURSE_LABEL_DISPLAY = "课数";
 /** AI 输出末尾频率块标题（剥掉后再解析用法/例句） */
 export const JP_VOCAB_FREQUENCY_BLOCK_MARKER = "【出现频率】";
 
-const ORAL_LINE_RE =
-  /^(?:口语频率|口语出现频率|oral(?:[_\s-]?freq(?:uency)?)?)\s*[:：]\s*(\d{1,2})\s*$/i;
-const EXAM_LINE_RE =
-  /^(?:考试频率|考试出现频率|exam(?:[_\s-]?freq(?:uency)?)?)\s*[:：]\s*(\d{1,2})\s*$/i;
+/** 行首可有列表前缀；分值后可有 /10（模型常抄 UI 文案） */
+const _LINE_PREFIX = String.raw`^(?:[-*•]|\d{1,2}[.)、])?\s*`;
+const _SCORE = String.raw`(\d{1,2})(?:\s*/\s*10)?(?:\s*[分点])?`;
+const ORAL_LINE_RE = new RegExp(
+  _LINE_PREFIX +
+    String.raw`(?:口语(?:出现)?频率|oral(?:[_\s-]?freq(?:uency)?)?|口语)\s*[:：\s]\s*` +
+    _SCORE +
+    String.raw`\s*$`,
+  "i"
+);
+const EXAM_LINE_RE = new RegExp(
+  _LINE_PREFIX +
+    String.raw`(?:考试(?:出现)?频率|exam(?:[_\s-]?freq(?:uency)?)?|考试)\s*[:：\s]\s*` +
+    _SCORE +
+    String.raw`\s*$`,
+  "i"
+);
+const SAME_LINE_RE = new RegExp(
+  String.raw`(?:口语(?:出现)?频率|oral(?:[_\s-]?freq(?:uency)?)?|口语)\s*[:：\s]\s*` +
+    _SCORE +
+    String.raw`\s*(?:[·|,，/\s]+)\s*` +
+    String.raw`(?:考试(?:出现)?频率|exam(?:[_\s-]?freq(?:uency)?)?|考试)\s*[:：\s]\s*` +
+    _SCORE,
+  "i"
+);
+const JSON_ORAL_KEYS = ["oral_frequency", "oral", "oralFreq", "oral_freq"] as const;
+const JSON_EXAM_KEYS = ["exam_frequency", "exam", "examFreq", "exam_freq"] as const;
+
+function frequenciesFromJsonBlob(text: string): {
+  oral: number | null;
+  exam: number | null;
+} {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start < 0 || end <= start) return { oral: null, exam: null };
+  try {
+    const data = JSON.parse(text.slice(start, end + 1)) as Record<string, unknown>;
+    if (!data || typeof data !== "object") return { oral: null, exam: null };
+    let oral: number | null = null;
+    let exam: number | null = null;
+    for (const k of JSON_ORAL_KEYS) {
+      if (k in data) {
+        oral = clampJpVocabFrequency(data[k]);
+        if (oral != null) break;
+      }
+    }
+    for (const k of JSON_EXAM_KEYS) {
+      if (k in data) {
+        exam = clampJpVocabFrequency(data[k]);
+        if (exam != null) break;
+      }
+    }
+    return { oral, exam };
+  } catch {
+    return { oral: null, exam: null };
+  }
+}
 
 export function clampJpVocabFrequency(
   raw: number | string | null | undefined | unknown
@@ -72,7 +125,8 @@ export function buildJpVocabWordFrequencyOnlyAiPrompt(input: {
 
 硬规则：
 - 只输出下面频率块，不要释义、例句、解释。
-- 分必须是 1～10 整数。
+- 分必须是 1～10 整数；禁止写成 8/10、附单位或解释。
+- 口语与考试各占一行，标签用「口语频率」「考试频率」。
 
 ${JP_VOCAB_FREQUENCY_BLOCK_MARKER}
 ${JP_VOCAB_ORAL_FREQUENCY_LABEL}：8
@@ -108,6 +162,13 @@ export function extractJpVocabFrequencyFromAiText(raw: string): JpVocabFrequency
       inFreqBlock = true;
       continue;
     }
+    const sameM = SAME_LINE_RE.exec(trimmed);
+    if (sameM) {
+      oral = clampJpVocabFrequency(sameM[1]) ?? oral;
+      exam = clampJpVocabFrequency(sameM[2]) ?? exam;
+      inFreqBlock = true;
+      continue;
+    }
     const oralM = ORAL_LINE_RE.exec(trimmed);
     if (oralM) {
       oral = clampJpVocabFrequency(oralM[1]) ?? oral;
@@ -125,6 +186,12 @@ export function extractJpVocabFrequencyFromAiText(raw: string): JpVocabFrequency
       inFreqBlock = false;
     }
     kept.push(line);
+  }
+
+  if (oral == null || exam == null) {
+    const fromJson = frequenciesFromJsonBlob(text);
+    if (oral == null) oral = fromJson.oral;
+    if (exam == null) exam = fromJson.exam;
   }
 
   return {

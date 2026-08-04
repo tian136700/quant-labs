@@ -2,6 +2,10 @@
 
 import { useEffect, useRef } from "react";
 import {
+  isAppDeployReloadHeld,
+  subscribeAppDeployReloadHold,
+} from "@/lib/app-deploy-reload-hold";
+import {
   APP_DEPLOY_CLIENT_CACHE_PREFIXES,
   APP_DEPLOY_RELOAD_GUARD_KEY,
   APP_DEPLOY_VERSION,
@@ -65,7 +69,7 @@ async function fetchServerVersion(signal?: AbortSignal): Promise<string | null> 
   }
 }
 
-function reloadForNewDeploy(serverVersion: string): void {
+function reloadNow(serverVersion: string): void {
   if (alreadyReloadedFor(serverVersion)) return;
   markReloadGuard(serverVersion);
   clearClientApiCaches();
@@ -76,11 +80,13 @@ function reloadForNewDeploy(serverVersion: string): void {
 /**
  * 部署上线后：开着的标签页检测到新 version → 清 API 本地缓存并强制刷新。
  * 轮询 60s（隐藏 5min）+ 切回前台立刻查一次，避免顶 Workers 日请求。
+ * 抽查卡等 hold 期间不 reload，等放锁后再刷。
  */
 export function DeployVersionWatcher() {
   const bakedVersion = APP_DEPLOY_VERSION;
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const pendingReloadVersionRef = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -103,6 +109,25 @@ export function DeployVersionWatcher() {
       }, ms);
     };
 
+    const requestReloadForNewDeploy = (serverVersion: string) => {
+      if (alreadyReloadedFor(serverVersion)) return;
+      if (isAppDeployReloadHeld()) {
+        pendingReloadVersionRef.current = serverVersion;
+        scheduleNext();
+        return;
+      }
+      pendingReloadVersionRef.current = null;
+      reloadNow(serverVersion);
+    };
+
+    const flushPendingReload = () => {
+      if (cancelled) return;
+      const pending = pendingReloadVersionRef.current;
+      if (!pending || isAppDeployReloadHeld()) return;
+      pendingReloadVersionRef.current = null;
+      reloadNow(pending);
+    };
+
     const check = async () => {
       if (cancelled) return;
       abortRef.current?.abort();
@@ -111,7 +136,7 @@ export function DeployVersionWatcher() {
       const serverVersion = await fetchServerVersion(ac.signal);
       if (cancelled || ac.signal.aborted) return;
       if (serverVersion && serverVersion !== bakedVersion) {
-        reloadForNewDeploy(serverVersion);
+        requestReloadForNewDeploy(serverVersion);
         return;
       }
       scheduleNext();
@@ -133,12 +158,14 @@ export function DeployVersionWatcher() {
 
     void check();
     document.addEventListener("visibilitychange", onVisibility);
+    const unsubHold = subscribeAppDeployReloadHold(flushPendingReload);
 
     return () => {
       cancelled = true;
       clearTimer();
       abortRef.current?.abort();
       document.removeEventListener("visibilitychange", onVisibility);
+      unsubHold();
     };
   }, [bakedVersion]);
 

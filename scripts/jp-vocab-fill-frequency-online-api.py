@@ -72,8 +72,11 @@ FILL_TASK_ID = "jp-vocab-fill-frequency-online"
 
 WORD_SYSTEM = (
     "你为日语 N5/N4 初学者评估单词出现频率。"
-    "只输出【出现频率】块：口语频率与考试频率各 1～10 整数。"
-    "口语=日常会话；考试=JLPT。可打不同分。禁止其它内容。"
+    "只输出【出现频率】块，两行："
+    "口语频率：n"
+    "考试频率：m"
+    "n/m 为 1～10 整数；禁止写成 n/10、附单位、JSON、解释或其它内容。"
+    "口语=日常会话；考试=JLPT。可打不同分。"
 )
 
 GRAMMAR_SYSTEM = (
@@ -218,14 +221,33 @@ def pick_candidate(missing: list[dict[str, Any]]) -> dict[str, Any] | None:
 
 
 def generate_word_freq(prompt: str) -> tuple[int | None, int | None]:
-    raw = call_anthropic(
-        prompt,
-        system=WORD_SYSTEM,
-        max_tokens=128,
-        temperature=0.1,
-        timeout=180,
-    )
-    _, oral, exam = extract_jp_vocab_frequencies(raw)
+    """付费生成词级频率；解析不全时立刻再试一次（常见：模型写成 8/10）。"""
+    last_raw = ""
+    for attempt in range(2):
+        raw = call_anthropic(
+            prompt
+            if attempt == 0
+            else (
+                prompt
+                + "\n\n上次格式不对。请严格只输出：\n"
+                "【出现频率】\n口语频率：8\n考试频率：6\n"
+                "数字不要带 /10。"
+            ),
+            system=WORD_SYSTEM,
+            max_tokens=128,
+            temperature=0.1 if attempt == 0 else 0.0,
+            timeout=180,
+        )
+        last_raw = str(raw or "")
+        _, oral, exam = extract_jp_vocab_frequencies(last_raw)
+        if oral is not None and exam is not None:
+            return oral, exam
+        print(
+            f"  [freq-parse-retry] attempt={attempt + 1} "
+            f"oral={oral} exam={exam} raw={last_raw[:120]!r}",
+            flush=True,
+        )
+    _, oral, exam = extract_jp_vocab_frequencies(last_raw)
     return oral, exam
 
 

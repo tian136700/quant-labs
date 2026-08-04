@@ -40,6 +40,11 @@ import {
   writeEnVocabTeacherQuizSession,
 } from "@/lib/en-vocab-teacher-quiz-storage";
 import { shouldShowEnVocabTeacherQuizIntro } from "@/components/EnVocabTeacherQuizIntroModal";
+import { useHoldAppDeployReloadWhile } from "@/hooks/useHoldAppDeployReloadWhile";
+import {
+  buildVocabTeacherQuizPostCompleteBrowseSession,
+  clampVocabTeacherQuizBrowseIndex,
+} from "@/lib/vocab-teacher-quiz-post-complete-browse";
 import type { EnVocabLevel, EnVocabWord } from "@/lib/types";
 import type { Locale } from "@/i18n/messages";
 
@@ -103,9 +108,10 @@ export function useEnVocabTeacherQuiz(options: {
   const [showTeacherQuizIntro, setShowTeacherQuizIntro] = useState(false);
   const [pendingTeacherQuizSession, setPendingTeacherQuizSession] =
     useState<EnVocabTeacherQuizSession | null>(null);
-  const [quizCardPreviewWordId, setQuizCardPreviewWordId] = useState<
-    number | null
-  >(null);
+  const [quizCardPreviewSession, setQuizCardPreviewSession] =
+    useState<EnVocabTeacherQuizSession | null>(null);
+  /** 本轮抽完时记下的词序，供「查看上一个单词」回看 */
+  const lastCompletedQuizWordIdsRef = useRef<number[] | null>(null);
 
   /** 已成功写入 D1 的 live word_id；失败时保持 undefined 以便重试 */
   const teacherQuizLiveSyncedIdRef = useRef<number | null | undefined>(undefined);
@@ -246,19 +252,57 @@ export function useEnVocabTeacherQuiz(options: {
     });
   }, [quizTarget, quizTargetWords, dailySeqByWordId, quizWordHasLevel, quizSession]);
 
-  const quizCardPreviewSession = useMemo((): EnVocabTeacherQuizSession | null => {
-    if (quizCardPreviewWordId == null) return null;
-    if (!wordsById.has(quizCardPreviewWordId)) return null;
-    return {
-      mode: "sequential",
-      wordIds: [quizCardPreviewWordId],
-      currentIndex: 0,
-    };
-  }, [quizCardPreviewWordId, wordsById]);
-
   const closeQuizCardPreview = useCallback(() => {
-    setQuizCardPreviewWordId(null);
+    setQuizCardPreviewSession(null);
   }, []);
+
+  const setQuizCardPreviewWordId = useCallback(
+    (wordId: number | null) => {
+      if (wordId == null) {
+        setQuizCardPreviewSession(null);
+        return;
+      }
+      if (!wordsById.has(wordId)) return;
+      setQuizCardPreviewSession({
+        mode: "random",
+        wordIds: [wordId],
+        currentIndex: 0,
+      });
+    },
+    [wordsById]
+  );
+
+  const navigateQuizCardPreview = useCallback((index: number) => {
+    setQuizCardPreviewSession((prev) =>
+      prev ? clampVocabTeacherQuizBrowseIndex(prev, index) : prev
+    );
+  }, []);
+
+  const rememberCompletedQuizWordIds = useCallback((wordIds: number[]) => {
+    if (!wordIds.length) return;
+    lastCompletedQuizWordIdsRef.current = [...wordIds];
+  }, []);
+
+  const openPostCompleteLastWord = useCallback(
+    (preferredWordId?: number) => {
+      const fromSession = lastCompletedQuizWordIdsRef.current;
+      const fallbackIds = quizTargetWords
+        .filter((w) => quizWordHasLevel(w.id))
+        .map((w) => w.id);
+      const wordIds =
+        fromSession && fromSession.length > 0 ? fromSession : fallbackIds;
+      const browse = buildVocabTeacherQuizPostCompleteBrowseSession(
+        wordIds,
+        preferredWordId
+      );
+      if (!browse) {
+        setStatus("暂无已抽查词条可回看。");
+        return;
+      }
+      setQuizCardPreviewSession(browse);
+    },
+    [quizTargetWords, quizWordHasLevel, setStatus]
+  );
 
   const launchTeacherQuizSession = useCallback((session: EnVocabTeacherQuizSession) => {
     setQuizSession(session);
@@ -373,6 +417,9 @@ export function useEnVocabTeacherQuiz(options: {
         setShowQuizFlashcard(true);
         return;
       }
+      rememberCompletedQuizWordIds(expanded.wordIds);
+    } else {
+      rememberCompletedQuizWordIds(quizSession.wordIds);
     }
     setShowQuizFlashcard(false);
     setQuizSession(null);
@@ -383,6 +430,7 @@ export function useEnVocabTeacherQuiz(options: {
     quizTargetWords,
     dailySeqByWordId,
     quizWordHasLevel,
+    rememberCompletedQuizWordIds,
     user?.id,
     onTeacherQuizSessionFinished,
   ]);
@@ -510,6 +558,18 @@ export function useEnVocabTeacherQuiz(options: {
     };
   }, [canOperate, user, showQuizFlashcard, quizFlashcardWordId, setSharedTodayWordIds, teacherQuizPollIdle]);
 
+  useHoldAppDeployReloadWhile(
+    showQuizFlashcard || quizCardPreviewSession != null
+  );
+
+  useEffect(() => {
+    if (!quizSession?.wordIds.length) return;
+    if (!isEnVocabTeacherQuizSessionComplete(quizSession, quizWordHasLevel)) {
+      return;
+    }
+    rememberCompletedQuizWordIds(quizSession.wordIds);
+  }, [quizSession, quizWordHasLevel, rememberCompletedQuizWordIds]);
+
   return {
     quizSession,
     setQuizSession,
@@ -521,10 +581,14 @@ export function useEnVocabTeacherQuiz(options: {
     pendingTeacherQuizSession,
     handleTeacherQuizIntroConfirm,
     handleTeacherQuizIntroClose,
-    quizCardPreviewWordId,
+    quizCardPreviewWordId: quizCardPreviewSession?.wordIds[
+      quizCardPreviewSession.currentIndex
+    ] ?? null,
     setQuizCardPreviewWordId,
     quizCardPreviewSession,
+    navigateQuizCardPreview,
     closeQuizCardPreview,
+    openPostCompleteLastWord,
     quizWordHasLevel,
     startTeacherQuizWithRandomMode,
     resumeTeacherQuizFlashcard,
