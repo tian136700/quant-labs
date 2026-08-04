@@ -54,6 +54,8 @@ def main() -> int:
         "lemma_placeholder",
         "contrast_missing_distinction",
         "なに／なん",
+        "no_plus_formula",
+        "しかし",
     ):
         if needle not in rule_text:
             fail(f"rule missing {needle!r}")
@@ -78,6 +80,10 @@ def main() -> int:
         fail("connection 须拒 bare_numbered_lines")
     if "connection_has_usage" not in conn:
         fail("connection 须拒 connection_has_usage")
+    if "no_plus_formula" not in conn:
+        fail("connection 须拒 no_plus_formula（しかし等句首接续）")
+    if "connectionHasFormulaShape" not in conn:
+        fail("connection 须有 connectionHasFormulaShape")
     if "rewriteJpVocabConnectionPosToSimplifiedChinese" not in conn:
         fail("connection 须有词类简体/剥假名 rewrite")
     if "rejoinJpVocabConnectionMorphologySlashChunks" not in conn:
@@ -98,6 +104,22 @@ def main() -> int:
     if slash_run.returncode != 0:
         fail(
             f"slash morphology check failed: {slash_run.stderr or slash_run.stdout}"
+        )
+
+    sent_conn = ROOT / "scripts/check_jp_vocab_connection_sentence_connector.py"
+    if not sent_conn.is_file():
+        fail("missing check_jp_vocab_connection_sentence_connector.py")
+    sent_run = subprocess.run(
+        [sys.executable, str(sent_conn)],
+        capture_output=True,
+        text=True,
+        timeout=20,
+        cwd=ROOT,
+    )
+    if sent_run.returncode != 0:
+        fail(
+            "sentence-connector check failed: "
+            f"{sent_run.stderr or sent_run.stdout}"
         )
 
     notes = (ROOT / "src/lib/jp-vocab-db/notes_fields.ts").read_text(encoding="utf-8")

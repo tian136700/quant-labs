@@ -8,7 +8,7 @@ import { connectionHasRepeatedIdenticalNotes } from "@/lib/jp-vocab-connection-n
 export const JP_VOCAB_CONNECTION_SECTION_MARKER = "【接序】";
 
 export const JP_VOCAB_CONNECTION_UPLOAD_SPEC = {
-  version: 10,
+  version: 11,
   label: "接序",
   /** 标准标本：jp_vocab_word id=521「～かもしれない」接序；词类／形态＋接什么｜说明 */
   format_example_grammar:
@@ -30,6 +30,7 @@ export const JP_VOCAB_CONNECTION_UPLOAD_SPEC = {
     "多种动词形态都能接时：优先写成「动词辞书形（动词原形）＋X；动词た形＋X；动词ている形＋X」（每段都带「＋」），❌ 不要写成「动词原形／动词た形／动词ている形＋X」只在最后加一次「＋」",
     "标准：每段公式后用全角「｜」加短「说明」列，写清「该形态」差别（时间／肯定否定／词类义／句法角色），标本 id=521：辞书形｜推测将要发生或一般可能、た形｜推测已经发生的事；样态类用「好像（状态）」如「好像（已经发生）」；❌禁止多段都抄同一句用法大意（如每行「好像……、看起来……」）；说明宜短；说明内勿用「／」，改用「、」或「·」",
     "❌ 禁止写成散文「接在动词、一类形容词、名词后面」——无法上表，学生难扫读；须改成「词类＋接什么｜短说明」表行",
+    "句首接续词（しかし／でも／ところが等）：❌禁止散文「置于后句句首独立使用」→ ✅「前句（动词句／一类形容词句／二类形容词句／名词句）＋しかし｜后句句首，表示转折」",
     "涉及多种动词接续时优先分行：一类动词: …／二类动词: …／三类动词: …（「来る」「する」）",
     "❌ 禁止把一类／二类／三类塞进同一行括号散文（如「动词意志形（一类动词：く→こう；二类动词：る→よう）＋と思う」）——卡片无法上表；须改成多行「一类动词：…」「二类动词：…」",
     "变形课（て形／ない形等）：❌禁止「う段改为あ段＋ない」散文 → ✅改成「一类动词去掉「く」加「かない」＋かない｜如「書く→書かない」」；❌禁止接序下另写「例：書く→…」行 → ✅说明写在「｜」后「如「…→…」」",
@@ -51,6 +52,7 @@ export const JP_VOCAB_CONNECTION_UPLOAD_SPEC = {
     "nested_class_colon_prose",
     "connection_has_usage",
     "repeated_identical_notes",
+    "no_plus_formula",
   ],
 } as const;
 
@@ -791,6 +793,18 @@ export {
   JP_VOCAB_CONJUGATION_CONNECTION_STYLE_PROMPT,
 } from "@/lib/jp-vocab-connection-prompt";
 
+export function connectionHasFormulaShape(
+  raw: string | null | undefined
+): boolean {
+  const t = String(raw ?? "").trim();
+  if (!t) return false;
+  if (/[＋+]/.test(t)) return true;
+  if (/用法\s*\d+\s*[:：]/.test(t)) return true;
+  if (/^(?:一类|二类|三类)/m.test(t)) return true;
+  if (/^(?:否定形|肯定形|疑问形|注意)\s*[:：]/m.test(t)) return true;
+  return false;
+}
+
 export function validateJpVocabConnectionAiOutput(
   raw: string,
   _input?: JpVocabConnectionAiInput
@@ -826,6 +840,10 @@ export function validateJpVocabConnectionAiOutput(
   // 写回拒：同一用法下多段「｜说明」全文相同（无形态区分；标本 id=521 各形说明不同）
   if (connectionHasRepeatedIdenticalNotes(preCheckBody)) {
     return { ok: false, reason: "repeated_identical_notes" };
+  }
+  // 句首接续词（しかし）等常写成无「＋」散文 → normalize 会剥空；先点名拒
+  if (!connectionHasFormulaShape(preCheckBody)) {
+    return { ok: false, reason: "no_plus_formula" };
   }
   if (text.includes(JP_VOCAB_CONNECTION_SECTION_MARKER)) {
     text =

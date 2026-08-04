@@ -145,6 +145,9 @@ GRAMMAR_SYSTEM = (
     "❌禁止「一类动词（五段）」括注同义；词类用简体不要「一類動詞」；"
     "❌禁止无「＋」的长散文（会被剥空导致 connection_invalid:empty）→ ✅改成「词类＋接什么｜短说明」；"
     "感叹词/独立表达也须公式：感叹词独立使用＋あっ｜突然想起时放在句首。"
+    "句首接续词（しかし／でも／ところが等）也须公式，禁止只写散文「置于后句句首」："
+    "前句（动词句／一类形容词句／二类形容词句／名词句）＋しかし｜后句句首，表示转折；"
+    "JSON 的 connection 字段禁止省略、禁止空串。"
     "【译文标签·必守】例句下一行只用「译文：」；禁止「訳文：」「訳：」或叠标签。"
     "组数=真实常用用法数；禁止多造例句；例句接续须对应该条用法（た形／原形／て形勿张冠李戴）。"
     "例句只用简单词；句中每个汉字须半角括号假名；译文行禁止写成无标签的中文句（否则会被当成日语漏标）。"
@@ -285,7 +288,9 @@ def build_prompt(row: dict[str, Any], *, full_bundle: bool = True) -> str:
             "usage 每条必须：数字. [口语n|考试m] 中文说明。(Nn)；"
             "仅 1 种用法时 example_sentences 须恰好 3 句（按接续不同类型）；多用法则 1:1；"
             "有课次时勿超纲；"
-            "connection 必须含「＋」或「用法N:」，禁止五段/一段/カ变/サ变，禁止无公式长散文。"
+            "connection 必须含「＋」或「用法N:」，禁止五段/一段/カ变/サ变，禁止无公式长散文；"
+            "句首接续词（しかし／でも／ところが）示例："
+            "前句（动词句／一类形容词句／二类形容词句／名词句）＋しかし｜后句句首，表示转折。"
         )
 
     return f"""词条：{word}
@@ -612,6 +617,33 @@ def grammar_still_missing_after_apply(
     )
 
 
+def grammar_connection_has_formula(text: str) -> bool:
+    """接序须有「＋」公式或「用法N:」/词类分行；散文会被线上 normalize 剥空。"""
+    t = str(text or "").strip()
+    if not t:
+        return False
+    if "＋" in t or "+" in t:
+        return True
+    if re.search(r"用法\s*\d+\s*[:：]", t):
+        return True
+    if re.search(r"^(?:一类|二类|三类)", t, flags=re.M):
+        return True
+    if re.search(r"^(?:否定形|肯定形|疑问形|注意)\s*[:：]", t, flags=re.M):
+        return True
+    return False
+
+
+def salvage_connection_from_examples(ex: str) -> str:
+    """模型偶把【接序】塞进例句字段；写库前拆出。"""
+    text = str(ex or "").replace("\r\n", "\n")
+    marker = "【接序】"
+    idx = text.find(marker)
+    if idx < 0:
+        return ""
+    after = text[idx + len(marker) :].strip()
+    return after if grammar_connection_has_formula(after) else ""
+
+
 def extract_bundle(data: dict[str, Any], row: dict[str, Any]) -> dict[str, Any]:
     kind = str(row.get("kind") or "word")
     word = str(row.get("word") or "")
@@ -647,6 +679,12 @@ def extract_bundle(data: dict[str, Any], row: dict[str, Any]) -> dict[str, Any]:
         out["usage"] = ""
         # 变形课必须保留接续表；禁止再强制 connection=""（假成功根因）
         connection = str(data.get("connection") or "").strip()
+        if not connection and ex:
+            connection = salvage_connection_from_examples(ex)
+            if connection:
+                # 例句字段里的【接序】勿原样入库
+                body, _, _ = ex.partition("【接序】")
+                out["example_sentences"] = body.strip()
         if connection:
             out["connection"] = connection
         return out
@@ -654,6 +692,12 @@ def extract_bundle(data: dict[str, Any], row: dict[str, Any]) -> dict[str, Any]:
     usage = str(data.get("usage") or "").strip()
     connection = str(data.get("connection") or "").strip()
     ex = normalize_example_sentences_block(data.get("example_sentences"))
+    if not connection and ex:
+        salvaged = salvage_connection_from_examples(ex)
+        if salvaged:
+            connection = salvaged
+            body, _, _ = ex.partition("【接序】")
+            ex = body.strip()
     if usage:
         out["usage"] = usage
     if connection:
@@ -681,12 +725,22 @@ def bundle_missing_keys(payload: dict[str, Any], row: dict[str, Any]) -> list[st
 
     if is_conjugation_word(word):
         for key in required_keys_for_row(row):
-            if not str(payload.get(key) or "").strip():
+            if key == "connection":
+                if not grammar_connection_has_formula(
+                    str(payload.get("connection") or "")
+                ):
+                    missing.append(key)
+            elif not str(payload.get(key) or "").strip():
                 missing.append(key)
         return missing
 
     for key in ("usage", "connection", "example_sentences"):
-        if not str(payload.get(key) or "").strip():
+        if key == "connection":
+            if not grammar_connection_has_formula(
+                str(payload.get("connection") or "")
+            ):
+                missing.append(key)
+        elif not str(payload.get(key) or "").strip():
             missing.append(key)
     if payload.get("reading") or payload.get("meaning") or payload.get("pos"):
         missing.append("forbidden_grammar_reading_meaning_pos")
@@ -761,6 +815,9 @@ def generate_bundle(row: dict[str, Any], needs: dict[str, bool]) -> dict[str, An
             retry_hint += (
                 "语法必须一次性给出 usage、example_sentences、connection；"
                 "禁止 reading、meaning、pos。"
+                "connection 必须含「＋」公式（句首接续词如 しかし 也要："
+                "前句（动词句／一类形容词句／二类形容词句／名词句）＋しかし｜后句句首，表示转折）；"
+                "禁止空 connection、禁止无「＋」散文。"
             )
         payload = _call(retry_hint)
         missing = bundle_missing_keys(payload, row)
