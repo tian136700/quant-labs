@@ -64,6 +64,7 @@ export type EnLessonStatusTableProps = {
   onOpenTeacherEdit: (lesson: EnLessonRecord) => void;
   onOpenNextClassEdit: (lesson: EnLessonRecord) => void;
   onDeleteLesson: (lesson: EnLessonRecord) => void;
+  onImportSchedule: (lesson: EnLessonRecord) => void;
   onLessonLinkCopied: (lessonId: number) => void;
   onLessonLinkCopyError: () => void;
   onCopyFeedback: (message: string) => void;
@@ -93,6 +94,7 @@ export function EnLessonStatusTable({
   onOpenTeacherEdit,
   onOpenNextClassEdit,
   onDeleteLesson,
+  onImportSchedule,
   onLessonLinkCopied,
   onLessonLinkCopyError,
   onCopyFeedback,
@@ -157,6 +159,16 @@ export function EnLessonStatusTable({
                 <EnLessonMobileIcon name="copy" />
               </span>
               会议号
+            </button>
+          ) : null}
+          {canOperate ? (
+            <button
+              type="button"
+              className="jp-lesson-action-btn"
+              title="引入英语手动日程"
+              onClick={() => onImportSchedule(lesson)}
+            >
+              引入日程
             </button>
           ) : null}
           {renderLessonDeleteButton(lesson)}
@@ -250,6 +262,17 @@ export function EnLessonStatusTable({
     }
     if (canOperate) {
       actionItems.push(
+        <button
+          key="import-schedule"
+          type="button"
+          className="jp-lesson-action-btn"
+          title="引入英语手动日程"
+          onClick={() => onImportSchedule(lesson)}
+        >
+          引入日程
+        </button>
+      );
+      actionItems.push(
         <EnEditIconButton
           key="edit"
           title="编辑教案（弹窗）"
@@ -266,6 +289,19 @@ export function EnLessonStatusTable({
     const rows = groupLessons.flatMap((lesson) => {
       const buttons: ReactNode[] = [];
       if (canOperate) {
+        buttons.push(
+          <button
+            key={`import-schedule-${lesson.id}`}
+            type="button"
+            className="jp-lesson-mobile-footer-btn"
+            onClick={() => onImportSchedule(lesson)}
+          >
+            <EnLessonMobileIcon name="clock" />
+            <span>
+              {groupLessons.length > 1 ? `#${lesson.id} ` : ""}引入日程
+            </span>
+          </button>
+        );
         buttons.push(
           <button
             key={`edit-${lesson.id}`}

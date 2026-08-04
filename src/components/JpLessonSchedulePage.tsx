@@ -892,6 +892,7 @@ export function JpLessonSchedulePage() {
         linkLessonPickOpen={linkLessonPickOpen}
         selectedManualSchedule={selectedManualSchedule}
         linkingManualLesson={linkingManualLesson}
+        linkLessonProgressPercent={linkLessonProgressPercent}
         closeLinkLessonPick={closeLinkLessonPick}
         handleLinkLessonFromDetail={handleLinkLessonFromDetail}
         addLessonTeacher={addLessonTeacher}

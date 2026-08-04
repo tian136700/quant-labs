@@ -119,6 +119,10 @@ def main() -> int:
         errors.append("picker must enforce max linked lessons")
     if "JpLessonManualScheduleLessonPickModal" not in picker:
         errors.append("picker must open JpLessonManualScheduleLessonPickModal")
+    if "EnLessonScheduleLinkPickModal" not in picker:
+        errors.append(
+            "picker must open EnLessonScheduleLinkPickModal for English title"
+        )
     if "jp-lesson-manual-lesson-dropdown" in picker:
         errors.append("picker must not keep old inline dropdown for lesson select")
 

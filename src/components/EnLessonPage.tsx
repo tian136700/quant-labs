@@ -1,20 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { EnEditIconButton } from "@/components/EnEditIconButton";
-import { EnLessonCopyMenu } from "@/components/EnLessonCopyMenu";
 import { EnLessonNextClassEditModal } from "@/components/EnLessonNextClassEditModal";
 import {
   EnLessonTeacherEditModal,
   type EnLessonTeacherUpdateInput,
 } from "@/components/EnLessonTeacherEditModal";
 import { CopyToast } from "@/components/CopyToast";
-import { EnVocabRefDownloadMenu } from "@/components/EnVocabRefDownloadMenu";
 import { EnVocabRefEditModal } from "@/components/EnVocabRefEditModal";
+import {
+  EnLessonImportScheduleBridge,
+  type EnLessonImportScheduleApi,
+} from "@/components/en-lesson-page/EnLessonImportScheduleBridge";
+import { EnLessonApiUploadHelp } from "@/components/en-lesson-page/EnLessonApiUploadHelp";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
-import { formatBeijingDateTime, formatBeijingDateTimeCompact } from "@/lib/format-datetime";
 import {
   blurActiveElementForLessonModalClose,
   scrollLessonListItemIntoView,
@@ -34,15 +35,8 @@ import {
 import {
   buildEnLessonDisplayGroups,
   buildLearningClassDayToneMap,
-  formatClassDurationLabel,
-  formatClassDurationLabelCompact,
   formatLessonContentLines,
-  parseLessonContent,
-  formatNextClassAtLabel,
-  formatNextClassAtLabelCompact,
   getEnLessonProgressStatus,
-  getLessonClassDate,
-  getLessonClassSchedules,
   enLessonProgressToFields,
   normalizeClassDurationMinutes,
   type EnLessonDisplayGroup,
@@ -54,12 +48,7 @@ import {
   adminJpLessonTeachersPath,
   enLessonSchedulePath,
 } from "@/lib/locale-path";
-import {
-  enLessonRefDownloadFilename,
-  enVocabRefApiPath,
-  enVocabRefViewerPath,
-} from "@/lib/en-vocab-ref-shared";
-import { SITE_URL } from "@/lib/site";
+import { enVocabRefApiPath } from "@/lib/en-vocab-ref-shared";
 import type {
   EnLessonClassScheduleInput,
   EnLessonNote,
@@ -76,15 +65,6 @@ import {
   refViewUrl,
   LESSON_STATUS_SECTIONS,
   groupLessonsForDisplay,
-  refFilename,
-  EnLessonContentPreview,
-  EnLessonMobileIcon,
-  EnLessonMobileFieldValue,
-  renderLessonDateTime,
-  renderNextClassLabel,
-  renderClassDurationLabel,
-  formatLessonTeacherNames,
-  formatLessonTeacherNamesForCopy,
   mergeEnLessonTeachers,
 } from "@/components/en-lesson-page/en-lesson-page-helpers";
 import { saveEnLessonNextClassWithMeta } from "@/components/en-lesson-page/save-en-lesson-next-class";
@@ -131,6 +111,7 @@ export function EnLessonPage() {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [copyToast, setCopyToast] = useState<string | null>(null);
+  const importScheduleApiRef = useRef<EnLessonImportScheduleApi | null>(null);
   const [mobileStatusFilter, setMobileStatusFilterState] =
     useState<EnLessonProgressStatus>(() =>
       readStoredLessonMobileStatusFilter(EN_LESSON_MOBILE_STATUS_FILTER_KEY)
@@ -280,6 +261,24 @@ export function EnLessonPage() {
 
   const handleLessonCopyError = useCallback(() => {
     setStatus("复制失败，请手动选择复制");
+  }, []);
+
+  const handleImportScheduleLessonSynced = useCallback(
+    (lesson: EnLessonRecord) => {
+      setLessons((prev) => {
+        const next = prev.map((row) => (row.id === lesson.id ? lesson : row));
+        persistLessonCache(next, refs, notes, teachers);
+        return next;
+      });
+      setMobileStatusFilter("learning");
+      scrollLessonListItemIntoView(lesson.id);
+    },
+    [notes, refs, setMobileStatusFilter, teachers]
+  );
+
+  const handleImportScheduleStatus = useCallback((message: string) => {
+    setStatus(message);
+    window.setTimeout(() => setStatus(""), 3500);
   }, []);
 
   const setLessonProgress = async (
@@ -854,6 +853,9 @@ export function EnLessonPage() {
                     onOpenTeacherEdit={setEditingTeacherLesson}
                     onOpenNextClassEdit={setEditingNextClassLesson}
                     onDeleteLesson={deleteLesson}
+                    onImportSchedule={(lesson) => {
+                      void importScheduleApiRef.current?.openImportSchedule(lesson);
+                    }}
                     onLessonLinkCopied={handleLessonCopied}
                     onLessonLinkCopyError={handleLessonCopyError}
                     onCopyFeedback={setCopyToast}
@@ -956,43 +958,18 @@ export function EnLessonPage() {
         onNeedAuth={openEnAuth}
       />
 
-      <details style={{ marginTop: "1.5rem", color: "var(--muted)", fontSize: "0.875rem" }}>
-        <summary style={{ cursor: "pointer", marginBottom: "0.5rem" }}>API 上传说明</summary>
-        <p style={{ marginTop: "0.5rem" }}>
-          固定链接：<code>{SITE_URL}/en-lesson</code>
-        </p>
-        <p>
-          上传接口：<code>POST /api/en-lesson/upload</code>，Header{" "}
-          <code>Authorization: Bearer &lt;JP_REVIEW_UPLOAD_TOKEN&gt;</code>
-        </p>
-        <pre
-          style={{
-            overflow: "auto",
-            padding: "0.75rem",
-            background: "var(--panel)",
-            borderRadius: "6px",
-            border: "1px solid var(--border)",
-            fontSize: "0.8125rem",
-          }}
-        >
-{`curl -X POST "${SITE_URL}/api/en-lesson/upload" \\
-  -H "Authorization: Bearer <TOKEN>" \\
-  -F "kind=grammar" \\
-  -F "content=～ばかり, ～ようになる, ～に来る" \\
-  -F "media_type=image" \\
-  -F "file=@lesson02.png"`}
-        </pre>
-        <p>
-          <code>content</code> 中多个单词/语法用英文或中文逗号分隔。
-          相同学习类型与内容已存在时将返回 <code>content_duplicate</code>（HTTP 409）。
-          上传带 <code>file</code> 时，系统会自动生成教案标识（如 <code>lesson-4</code>）并绑定到该条新课，无需传 <code>ref_key</code>。
-          上传后默认「未完成」；改为「上课完」后会同步写入
-          英语单词抽问并带上教案链接。
-        </p>
-      </details>
+      <EnLessonApiUploadHelp />
         </>
       )}
 
+      <EnLessonImportScheduleBridge
+        locale={locale}
+        teachers={teachers}
+        canOperate={canOperate}
+        apiRef={importScheduleApiRef}
+        onLessonSynced={handleImportScheduleLessonSynced}
+        onStatus={handleImportScheduleStatus}
+      />
       <EnLessonPageStyles />
       <CopyToast message={copyToast} onDismiss={() => setCopyToast(null)} />
     </main>

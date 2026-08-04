@@ -1,12 +1,17 @@
 /**
- * 日程关联教材 → 新课「学习中」+ 上课时间/老师一一对应。
+ * 日程关联教材 → 新课「学习中」+ 上课时间/老师。
  * 日语 / 英语 POST 形状相同，仅 API 路径不同。
+ * 上课时间默认与已有时段合并去重（追加），避免覆盖多时段。
  */
 
 import type { Locale } from "@/i18n/messages";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import { findLessonTeacherByPickerName } from "@/lib/lesson-teacher-search";
 import type { ManualScheduleLinkedLessonSubject } from "@/lib/jp-lesson-manual-schedule-linked";
+import {
+  mergeLessonClassSchedulesAppend,
+  type LessonClassScheduleInput,
+} from "@/lib/en-lesson-import-schedule";
 import type { EnLessonRecord, JpLessonRecord, JpLessonTeacher } from "@/lib/types";
 
 export type SyncManualScheduleLinkedLessonInput = {
@@ -17,6 +22,15 @@ export type SyncManualScheduleLinkedLessonInput = {
   teacherName: string;
   teachers: JpLessonTeacher[];
   locale: Locale;
+  /** 教案已有上课时间；与新时段合并去重后写入 */
+  existingSchedules?: LessonClassScheduleInput[];
+  /**
+   * 教案已有老师时不覆盖。
+   * 日程详情「关联教材」默认 false（仍写入日程老师）；
+   * 英语新课「引入日程」传 true。
+   */
+  preserveExistingTeachers?: boolean;
+  lessonHasTeachers?: boolean;
 };
 
 type SyncOk = {
@@ -55,7 +69,7 @@ async function postLessonJson(
 }
 
 /**
- * 顺序：上课时间 → 老师 → 学习中（与新课批量设置一致；凑齐后可触发开课前启用）。
+ * 顺序：上课时间（合并追加）→ 老师（可选保留）→ 学习中。
  */
 export async function syncManualScheduleLinkedLessonToLearning(
   input: SyncManualScheduleLinkedLessonInput
@@ -65,15 +79,18 @@ export async function syncManualScheduleLinkedLessonToLearning(
     return { ok: false, error: "class_at_required" };
   }
 
+  const classSchedules = mergeLessonClassSchedulesAppend(
+    input.existingSchedules ?? [],
+    {
+      class_at: classAt,
+      duration_minutes: input.durationMinutes,
+    }
+  );
+
   const scheduleRes = await postLessonJson(input.subject, input.locale, {
     action: "set_class_schedules",
     lesson_id: input.lessonId,
-    class_schedules: [
-      {
-        class_at: classAt,
-        duration_minutes: input.durationMinutes,
-      },
-    ],
+    class_schedules: classSchedules,
   });
   if (!scheduleRes.ok || !scheduleRes.lesson) {
     return {
@@ -84,7 +101,9 @@ export async function syncManualScheduleLinkedLessonToLearning(
 
   const teacherName = input.teacherName.trim();
   let latest = scheduleRes.lesson;
-  if (teacherName) {
+  const skipTeacher =
+    Boolean(input.preserveExistingTeachers) && Boolean(input.lessonHasTeachers);
+  if (teacherName && !skipTeacher) {
     const matched = findLessonTeacherByPickerName(input.teachers, teacherName);
     const teacherRes = await postLessonJson(input.subject, input.locale, {
       action: "set_teacher",

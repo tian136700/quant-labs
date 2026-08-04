@@ -30,6 +30,7 @@ export type JpLessonScheduleModalsProps = {
   linkLessonPickOpen: boolean;
   selectedManualSchedule: JpLessonManualSchedule | null;
   linkingManualLesson: boolean;
+  linkLessonProgressPercent: number | null;
   closeLinkLessonPick: () => void;
   handleLinkLessonFromDetail: (option: ManualScheduleLessonOption) => void | Promise<void>;
   addLessonTeacher: (...args: any[]) => any;
@@ -61,6 +62,7 @@ export function JpLessonScheduleModals(props: JpLessonScheduleModalsProps) {
     linkLessonPickOpen,
     selectedManualSchedule,
     linkingManualLesson,
+    linkLessonProgressPercent,
     closeLinkLessonPick,
     handleLinkLessonFromDetail,
     addLessonTeacher,
@@ -99,7 +101,9 @@ export function JpLessonScheduleModals(props: JpLessonScheduleModalsProps) {
         manual={selectedManualSchedule}
         jpLessons={jpLessons}
         enLessons={enLessons}
+        enTeachers={enTeachers}
         syncing={linkingManualLesson}
+        progressPercent={linkLessonProgressPercent}
         onClose={closeLinkLessonPick}
         onPick={handleLinkLessonFromDetail}
       />

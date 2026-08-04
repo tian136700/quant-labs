@@ -257,6 +257,16 @@ export function useJpLessonSchedulePageActions(options: UseJpLessonSchedulePageA
 
     try {
       const teachersForSubject = option.subject === "en" ? enTeachers : teachers;
+      const linkedLesson =
+        option.subject === "en"
+          ? enLessonById.get(option.id)
+          : lessonById.get(option.id);
+      const existingSchedules = (linkedLesson?.class_schedules ?? []).map(
+        (row) => ({
+          class_at: row.class_at,
+          duration_minutes: row.duration_minutes,
+        })
+      );
       const syncResult = await syncManualScheduleLinkedLessonToLearning({
         subject: option.subject,
         lessonId: option.id,
@@ -265,6 +275,7 @@ export function useJpLessonSchedulePageActions(options: UseJpLessonSchedulePageA
         teacherName: manual.teacher,
         teachers: teachersForSubject,
         locale,
+        existingSchedules,
       });
       if (!syncResult.ok) {
         throw new Error(syncManualScheduleLinkedLessonErrorMessage(syncResult.error));
@@ -345,6 +356,16 @@ export function useJpLessonSchedulePageActions(options: UseJpLessonSchedulePageA
         for (const link of linked) {
           const teachersForSubject =
             link.subject === "en" ? enTeachers : teachers;
+          const linkedLesson =
+            link.subject === "en"
+              ? enLessonById.get(link.lesson_id)
+              : lessonById.get(link.lesson_id);
+          const existingSchedules = (linkedLesson?.class_schedules ?? []).map(
+            (row) => ({
+              class_at: row.class_at,
+              duration_minutes: row.duration_minutes,
+            })
+          );
           const result = await syncManualScheduleLinkedLessonToLearning({
             subject: link.subject,
             lessonId: link.lesson_id,
@@ -353,6 +374,7 @@ export function useJpLessonSchedulePageActions(options: UseJpLessonSchedulePageA
             teacherName: saved.teacher,
             teachers: teachersForSubject,
             locale,
+            existingSchedules,
           });
           if (!result.ok) {
             syncFailed = syncManualScheduleLinkedLessonErrorMessage(result.error);

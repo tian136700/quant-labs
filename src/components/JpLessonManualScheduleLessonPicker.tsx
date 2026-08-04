@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { EnLessonScheduleLinkPickModal } from "@/components/en-lesson-page/EnLessonScheduleLinkPickModal";
 import { JpLessonManualScheduleLessonPickModal } from "@/components/JpLessonManualScheduleLessonPickModal";
 import {
   formatManualScheduleLessonOptionLabel,
@@ -11,8 +12,9 @@ import {
   type ManualScheduleLinkedLessonSubject,
   type ManualScheduleLessonOption,
 } from "@/lib/jp-lesson-manual-schedule-linked";
+import { filterEnLessonsForScheduleLink } from "@/lib/en-lesson-schedule-link-pick";
 import type { ScheduleTeacherSubjectFromTitle } from "@/lib/jp-lesson-teacher-rate";
-import type { EnLessonRecord, JpLessonRecord } from "@/lib/types";
+import type { EnLessonRecord, EnLessonTeacher, JpLessonRecord } from "@/lib/types";
 
 type Props = {
   value: ManualScheduleLinkedLesson[];
@@ -22,6 +24,7 @@ type Props = {
   titleSubject: ScheduleTeacherSubjectFromTitle;
   jpLessons: JpLessonRecord[];
   enLessons: EnLessonRecord[];
+  enTeachers?: EnLessonTeacher[];
   disabled?: boolean;
   /** 正在同步到新课时禁用再选 */
   syncing?: boolean;
@@ -73,20 +76,25 @@ function resolveOptionsForSubject(
     };
   }
   if (titleSubject === "en") {
+    const linkable = filterEnLessonsForScheduleLink(enLessons);
     return {
-      options: sortManualScheduleLessonOptions(toOptions("en", enLessons)),
-      fieldLabel: "教材（可选，最多 2 个 · 英语新课）",
-      emptyHint: enLessons.length ? null : "英语新课列表为空，请先在「英语新课」上传教材。",
+      options: sortManualScheduleLessonOptions(toOptions("en", linkable)),
+      fieldLabel: "教材（可选，最多 2 个 · 英语新课 · 未完成/上课中）",
+      emptyHint: linkable.length
+        ? null
+        : enLessons.length
+          ? "暂无未完成或上课中的英语新课可关联（已上课完的不显示）。"
+          : "英语新课列表为空，请先在「英语新课」上传教材。",
     };
   }
   return {
     options: sortManualScheduleLessonOptions([
       ...toOptions("jp", jpLessons),
-      ...toOptions("en", enLessons),
+      ...toOptions("en", filterEnLessonsForScheduleLink(enLessons)),
     ]),
     fieldLabel: "教材（可选，最多 2 个）",
     emptyHint:
-      "选标题「日语」可从日语新课关联；选「英语」从英语新课关联。",
+      "选标题「日语」可从日语新课关联；选「英语」从英语新课关联（仅未完成/上课中）。",
   };
 }
 
@@ -106,6 +114,7 @@ export function JpLessonManualScheduleLessonPicker({
   titleSubject,
   jpLessons,
   enLessons,
+  enTeachers = [],
   disabled = false,
   syncing = false,
 }: Props) {
@@ -209,7 +218,12 @@ export function JpLessonManualScheduleLessonPicker({
         <button
           type="button"
           className="jp-lesson-action-btn jp-lesson-manual-lesson-open"
-          disabled={busy || options.length === 0}
+          disabled={
+            busy ||
+            (titleSubject === "en"
+              ? filterEnLessonsForScheduleLink(enLessons).length === 0
+              : options.length === 0)
+          }
           onClick={() => setPickOpen(true)}
         >
           {value.length ? "再选一本教材…" : "选择教材…"}
@@ -228,8 +242,20 @@ export function JpLessonManualScheduleLessonPicker({
         <p className="jp-lesson-manual-lesson-hint">{emptyHint}</p>
       ) : null}
 
+      <EnLessonScheduleLinkPickModal
+        open={pickOpen && titleSubject === "en"}
+        lessons={enLessons}
+        teachers={enTeachers}
+        selectedKeys={selectedKeys}
+        emptyHint={emptyHint}
+        fieldLabel={fieldLabel}
+        disabled={busy}
+        onClose={() => setPickOpen(false)}
+        onPick={handlePick}
+      />
+
       <JpLessonManualScheduleLessonPickModal
-        open={pickOpen}
+        open={pickOpen && titleSubject !== "en"}
         options={options}
         selectedKeys={selectedKeys}
         emptyHint={emptyHint}
