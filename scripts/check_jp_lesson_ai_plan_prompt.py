@@ -83,6 +83,8 @@ def main() -> int:
         "useJpLessonAiPlanPromptTemplate",
         "改后自动保存",
         "onBlur",
+        "numberedGroups",
+        "jp-lesson-ai-plan-word-num",
     ):
         if needle not in modal:
             errors.append(f"modal missing {needle}")

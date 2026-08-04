@@ -5,12 +5,6 @@
   "threshold": 1000,
   "queue": [
     {
-      "path": "src/lib/jp-vocab-fill-usage.ts",
-      "lines": 1054,
-      "status": 0,
-      "note": ""
-    },
-    {
       "path": "src/components/EnVocabPage.tsx",
       "lines": 1031,
       "status": 0,
@@ -29,7 +23,14 @@
       "note": ""
     }
   ],
-  "completed_since_last_refresh": [],
+  "completed_since_last_refresh": [
+    {
+      "path": "src/lib/jp-vocab-fill-usage.ts",
+      "lines": 878,
+      "status": 1,
+      "note": ""
+    }
+  ],
   "excluded_over_threshold": [
     {
       "path": "src/components/JpVocabTeacherQuizFlashcardStyles.tsx",

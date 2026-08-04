@@ -57,6 +57,11 @@ FILL_TASKS: tuple[dict[str, str], ...] = (
         "title": "临时口语/考试频率补全（线上）",
     },
     {
+        "label": "com.infoquests.jp-vocab-fill-single-usage-examples-online",
+        "id": "jp-vocab-fill-single-usage-examples-online",
+        "title": "临时单用法例句补到3条（线上）",
+    },
+    {
         "label": "com.infoquests.jp-vocab-fill-grammar",
         "id": "jp-vocab-fill-grammar",
         "title": "日语语法用法+例句补全",

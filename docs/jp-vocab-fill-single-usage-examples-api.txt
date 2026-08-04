@@ -1,0 +1,97 @@
+日语语法 · 单用法例句补到 3 条 API（临时回填）
+==============================================
+
+用途
+----
+给「恰好 1 种用法、但例句不足 3 条」的语法补例句。
+- 多用法（≥2）不进队
+- 变形课 / 对比课不进队
+- 保留已有 usage / connection，只写回 example_sentences
+- 3 句尽量覆盖【接序】里不同词类/形态；接续不足则换场景
+
+常规定时仍走 fill-usage list_missing（已会把「单用法不足 3 句」算缺失）。
+本 API + 临时 Mac 任务主要用于存量快速回填；队列空自动卸 launchd。
+
+线上 URL
+--------
+POST https://finance.info-quests.com/api/jp-vocab/fill-usage
+（japanese / english 子域同一 Worker 亦可）
+
+鉴权
+----
+Authorization: Bearer $JP_REVIEW_UPLOAD_TOKEN
+（与其它 jp-vocab fill-* 同 token；本机常见 ~/.config/info-quests/jp-review-sync.env）
+
+modes
+-----
+1) list_missing_single_usage_examples
+   body 例：
+   { "mode": "list_missing_single_usage_examples", "limit": 1 }
+
+   limit: 1～20（定时建议拉 20 跳毒丸）
+   可选 word_id：只扫这一条
+
+   成功：
+   {
+     "ok": true,
+     "mode": "list_missing_single_usage_examples",
+     "missing": [
+       {
+         "id": 551,
+         "word": "～かどうか",
+         "kind": "grammar",
+         "usage": "1. …(N4)",
+         "connection": "动词辞书形…",
+         "example_sentences": "…",
+         "example_count": 1,
+         "prompt": "…"
+       }
+     ],
+     "total_missing": 7
+   }
+
+2) apply（与普通语法用法补全相同）
+   body 例：
+   {
+     "mode": "apply",
+     "source": "Qwen本地",
+     "updates": [{
+       "word_id": 551,
+       "usage": "（原样保留）",
+       "example_sentences": "日语1\n译文：…\n日语2\n译文：…\n日语3\n译文：…",
+       "connection": "（原样保留）"
+     }]
+   }
+
+   单用法 apply 会拒 pair_semantic_mismatch:single_usage_need_three（不足 3 句）。
+
+抽查门禁
+--------
+临时 stage 开头调用 vocab_fill_assert_quiz_gate_ok：
+老师开始日语/英语抽查 → 立刻跳过；抽完后再等 30 分钟才跑。
+见 POST /api/jp-vocab/fill-schedule-gate、.cursor/rules/vocab-fill-quiz-gate.mdc。
+
+Mac 临时定时
+------------
+安装：
+  bash scripts/setup-jp-vocab-fill-single-usage-examples-online-mac.sh
+
+试跑 2 条：
+  MAX_ROUNDS=2 bash scripts/jp-vocab-fill-single-usage-examples-online-stage.sh
+
+重跑（清 DONE）：
+  FORCE=1 bash scripts/setup-jp-vocab-fill-single-usage-examples-online-mac.sh
+
+维护中心 id：jp-vocab-fill-single-usage-examples-online
+脚本：scripts/jp-vocab-fill-single-usage-examples-online-api.py
+
+curl 例
+-------
+curl -sS -X POST "https://finance.info-quests.com/api/jp-vocab/fill-usage" \
+  -H "Authorization: Bearer $JP_REVIEW_UPLOAD_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"list_missing_single_usage_examples","limit":5}'
+
+Python 最小例
+-------------
+见 scripts/jp-vocab-fill-single-usage-examples-online-api.py

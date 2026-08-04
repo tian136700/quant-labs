@@ -100,6 +100,19 @@ export function JpLessonAiPlanPromptModal({
 
   const groups = useMemo(() => buildGroups(lessons), [lessons]);
   const wordCount = groups.reduce((n, g) => n + g.words.length, 0);
+  /** 与复制文案同一套全局序号（overflow 父级会裁掉 ol ::marker，故文案写死 1. 2. …） */
+  const numberedGroups = useMemo(() => {
+    let wordIndex = 0;
+    return groups.map((group) => ({
+      lessonId: group.lessonId,
+      courseLabel: group.courseLabel,
+      kindLabel: group.kindLabel,
+      items: group.words.map((w) => {
+        wordIndex += 1;
+        return { n: wordIndex, word: w };
+      }),
+    }));
+  }, [groups]);
 
   const setImageFromFile = (file: File | null) => {
     setImageFile(file);
@@ -205,16 +218,21 @@ export function JpLessonAiPlanPromptModal({
             <section className="jp-lesson-ai-plan-col" aria-label="勾选单词">
               <h3>单词（勾选课）</h3>
               <div className="jp-lesson-ai-plan-words">
-                {groups.map((group) => (
+                {numberedGroups.map((group) => (
                   <div key={group.lessonId} className="jp-lesson-ai-plan-group">
                     <div className="jp-lesson-ai-plan-group-head">
                       #{group.lessonId} · {group.kindLabel}
                       {group.courseLabel ? ` · ${group.courseLabel}` : ""}
                     </div>
-                    <ol>
-                      {group.words.length ? (
-                        group.words.map((w) => (
-                          <li key={`${group.lessonId}-${w}`}>{w}</li>
+                    <ol className="jp-lesson-ai-plan-word-list">
+                      {group.items.length ? (
+                        group.items.map((item) => (
+                          <li key={`${group.lessonId}-${item.n}-${item.word}`}>
+                            <span className="jp-lesson-ai-plan-word-num" aria-hidden="true">
+                              {item.n}.
+                            </span>
+                            <span>{item.word}</span>
+                          </li>
                         ))
                       ) : (
                         <li className="is-empty">（无学习内容）</li>
@@ -428,11 +446,25 @@ export function JpLessonAiPlanPromptModal({
           font-weight: 600;
           margin-bottom: 0.35rem;
         }
-        .jp-lesson-ai-plan-group ol {
+        /* 序号写在文案里：overflow 父级会裁掉 ol 外侧 ::marker */
+        .jp-lesson-ai-plan-word-list {
           margin: 0;
-          padding-left: 1.2rem;
+          padding: 0;
+          list-style: none;
           font-size: 0.92rem;
           line-height: 1.5;
+        }
+        .jp-lesson-ai-plan-word-list > li {
+          display: flex;
+          gap: 0.35rem;
+          align-items: baseline;
+        }
+        .jp-lesson-ai-plan-word-num {
+          flex: 0 0 auto;
+          min-width: 1.6em;
+          color: var(--muted);
+          font-variant-numeric: tabular-nums;
+          text-align: right;
         }
         .jp-lesson-ai-plan-group .is-empty {
           color: var(--muted);
