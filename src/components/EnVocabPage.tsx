@@ -18,6 +18,7 @@ import {
 import {
   JP_VOCAB_DEFAULT_STAT_SORT,
   enVocabPriorityLabel,
+  enVocabTotalReviews,
   sortEnVocabWordsForDisplay,
   type EnVocabStatSortKey,
 } from "@/lib/en-vocab-shared";
@@ -565,6 +566,12 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     [quizTargetWords, sessionLevel, displayOrder]
   );
 
+  const neverQuizzedCount = useMemo(
+    () =>
+      isAdminMode ? words.filter((w) => enVocabTotalReviews(w) === 0).length : 0,
+    [isAdminMode, words]
+  );
+
   const wordsById = useMemo(
     () => new Map(words.map((w) => [w.id, w])),
     [words]
@@ -834,6 +841,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
           loading={loading}
           refreshing={refreshing}
           wordsCount={words.length}
+          neverQuizzedCount={neverQuizzedCount}
           unmarkedCount={unmarkedCount}
           todayCheckStats={todayCheckStats}
           quizTarget={quizTarget}

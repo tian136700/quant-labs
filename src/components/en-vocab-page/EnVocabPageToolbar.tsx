@@ -13,6 +13,7 @@ type EnVocabPageToolbarProps = {
   loading: boolean;
   refreshing: boolean;
   wordsCount: number;
+  neverQuizzedCount: number;
   unmarkedCount: number;
   todayCheckStats: { wordCount: number; totalActions: number };
   quizTarget: number;
@@ -39,6 +40,7 @@ export function EnVocabPageToolbar({
   loading,
   refreshing,
   wordsCount,
+  neverQuizzedCount,
   unmarkedCount,
   todayCheckStats,
   quizTarget,
@@ -83,6 +85,18 @@ export function EnVocabPageToolbar({
               共 {wordsCount} 条
               {wordsCount ? (
                 <>
+                  {" "}
+                  · 从未抽查{" "}
+                  <span
+                    className={
+                      neverQuizzedCount > 0
+                        ? "jp-vocab-today-summary-value jp-vocab-today-summary-value--never"
+                        : "jp-vocab-today-summary-value"
+                    }
+                    title="复习合计为 0：历史上从未勾选过熟悉程度的词条数"
+                  >
+                    {neverQuizzedCount}
+                  </span>
                   {" "}
                   · 今日抽查{" "}
                   <span

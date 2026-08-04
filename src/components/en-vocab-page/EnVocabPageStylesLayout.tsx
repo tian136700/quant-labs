@@ -21,6 +21,10 @@ export function EnVocabPageStylesLayout() {
           color: var(--accent);
           font-weight: 700;
         }
+        .jp-vocab-today-summary-value--never {
+          color: color-mix(in srgb, var(--rise) 75%, var(--text));
+          font-weight: 700;
+        }
         .jp-vocab-help {
           margin-bottom: 0.75rem;
         }
