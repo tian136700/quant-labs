@@ -16,18 +16,26 @@ export const JP_VOCAB_RELATED_COMPOUNDS_EMPTY_CHECKED =
   "已通过AI获取，但暂无相关词汇";
 
 export const JP_VOCAB_RELATED_COMPOUNDS_PROMPT_HINT = `相关构词（仅单词；与读音/释义/例句同一次输出；语法填 ""）：
-- 目的：用含本字、且读音相同的简单词帮记本词（例：口(くち) → 入口(いりぐち)：入口）。
-- 读音必须一致：构词里本字的读法须与本词读音相同（允许连浊：くち→ぐち、こと→ごと）；禁止不同音读（事=こと 勿写 食事/大事 的「じ」）。
-- 条数：没有自然同读相关词 → 填 ""（禁止硬凑）；只有 1～2 个就写 1～2；多则最多 4～5 条。
+- 目的：拆部件 / 同读构词，帮记本词读音与汉字。
+- 【单汉字】用含本字、且读音相同的简单词（例：口(くち) → 入口(いりぐち)：入口）。读音必须一致（允许连浊：くち→ぐち、こと→ごと）；禁止不同音读（事=こと 勿写 食事/大事 的「じ」）。
+- 【多字词·拆分助记】先拆成自然部件词，再给能产字旁举 1 个常见词。例：会社員(かいしゃいん) →
+  会社(かいしゃ)：公司
+  店員(てんいん)：店员
+  （会＋社＝会社；员旁同读「いん」→店員。学生已知かいしゃ/促音，就易记かいしゃいん。）
+  部件词读音须是本词读音的一段；同旁其它词须该字读音与本词一致（員=いん，勿配读「いん」以外的员）。
+- 条数：没有自然相关词 → 填 ""（禁止硬凑）；只有 1～2 个就写 1～2；多则最多 4～5 条。
 - 须含本词汉字；优先 N5～N4 日常词，禁止商务/难词。
 - 【禁止本词】不要把词条本身写进相关构词（研修生≠再写研修生；企業≠再写企業）。相关=别的词。
 - 每行格式：漢字(かな)：简短中文释义；假名须正确（入口≠いりくち）。
 - 【整词假名·必守】假名括号包住整词，禁止词中拆标：✅決まり(きまり)：规定　❌決(き)まり：规定；✅知らせ(しらせ)：通知　❌知(し)らせ：通知。
 - 一词多义：同一构词的多个中文义用中文逗号「，」连接（例：目上(めうえ)：上级，长辈）。禁止在释义里用分号「；」（分号只用于区分不同日语词）。
-- 例：
+- 例（单汉字）：
 入口(いりぐち)：入口
 出口(でぐち)：出口
-目上(めうえ)：上级，长辈`;
+目上(めうえ)：上级，长辈
+- 例（多字词）：
+会社(かいしゃ)：公司
+店員(てんいん)：店员`;
 
 const LINE_RE =
   /^([\u4E00-\u9FFF々〆ヶぁ-んァ-ンー]+)[（(]([ぁ-んァ-ンヴヵヶー]+)[）)]\s*[:：]\s*(.+)$/;
@@ -159,8 +167,10 @@ function lemmaKanjiChars(lemma: string): string[] {
 }
 
 /**
- * 构词须含本词汉字，且构词假名里能找到本词读音（或连浊变体）。
- * 事(こと) + 食事(しょくじ) → false；口(くち) + 入口(いりぐち) → true。
+ * 构词须含本词汉字，且读音可助记对齐：
+ * - 单汉字同读：口(くち)+入口(いりぐち) → true；事(こと)+食事(しょくじ) → false
+ * - 多字拆分：会社員+会社（部件读音是本词读音一段）→ true
+ * - 同旁词：会社員+店員（共「員」、读音同尾「いん」）→ true
  */
 export function compoundSharesLemmaSameReading(
   surface: string,
@@ -168,17 +178,46 @@ export function compoundSharesLemmaSameReading(
   lemma: string,
   lemmaReading: string | null | undefined
 ): boolean {
-  const kanjis = lemmaKanjiChars(lemma);
+  const lemmaTrim = String(lemma || "").trim();
+  const surfaceTrim = String(surface || "").trim();
+  if (!lemmaTrim || !surfaceTrim || surfaceTrim === lemmaTrim) return false;
+
+  const kanjis = lemmaKanjiChars(lemmaTrim);
   if (kanjis.length === 0) return false;
-  if (!kanjis.some((k) => surface.includes(k))) return false;
+  if (!kanjis.some((k) => surfaceTrim.includes(k))) return false;
   const base = toHiragana(lemmaReading || "");
   if (!base) {
     // 无本词读音时无法验同读，只要求含汉字
     return true;
   }
   const compound = toHiragana(compoundReading);
+  if (!compound) return false;
+
+  // 1) 经典同读：本词读音（或连浊变体）出现在构词读音里
   const variants = jpVocabReadingVoiceVariants(base);
-  return variants.some((v) => v.length > 0 && compound.includes(v));
+  if (variants.some((v) => v.length > 0 && compound.includes(v))) {
+    return true;
+  }
+
+  // 2) 多字词部件：汉字与读音都是本词的连续子串（会社 ⊂ 会社員）
+  if (
+    lemmaTrim.length >= 2 &&
+    lemmaTrim.includes(surfaceTrim) &&
+    compound.length >= 2 &&
+    base.includes(compound)
+  ) {
+    return true;
+  }
+
+  // 3) 同旁助记：共汉字，且读音有 ≥2 假名的共同词头或词尾（員→いん）
+  const surfaceKanjis = lemmaKanjiChars(surfaceTrim);
+  if (!surfaceKanjis.some((k) => kanjis.includes(k))) return false;
+  const edge = Math.min(base.length, compound.length);
+  for (let n = edge; n >= 2; n--) {
+    if (base.slice(-n) === compound.slice(-n)) return true;
+    if (base.slice(0, n) === compound.slice(0, n)) return true;
+  }
+  return false;
 }
 
 export type JpVocabRelatedCompoundsValidateResult =

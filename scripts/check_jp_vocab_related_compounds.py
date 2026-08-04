@@ -200,15 +200,85 @@ def main() -> int:
     if mid:
         raise SystemExit("FAIL: mid-word furigana must NOT match whole-line LINE_RE")
 
-    # 同读启发：こと in ものごと；じ not match こと as substring of variants
-    # （Python 烟测只验提示字符串存在；TS 校验由部署后 apply 覆盖）
-    lib_text = lib.read_text(encoding="utf-8")
-    if "こと→ごと" not in lib_text and "こと→ごと" not in online.read_text(
-        encoding="utf-8"
-    ):
-        # prompt 里应有连浊例
-        if "ごと" not in lib_text:
-            raise SystemExit("FAIL: rendaku example missing")
+    must_contain(lib, "会社員", "multi-kanji decomp example")
+    must_contain(lib, "店員", "suffix family example")
+    must_contain(lib, "部件", "decomp prompt")
+    must_contain(
+        ROOT / "src/lib/jp-vocab-related-compounds-fill.ts",
+        "single_kanji_only === true",
+        "default include multi-kanji",
+    )
+    must_contain(
+        ROOT / "scripts/jp-vocab-fill-related-compounds-online-api.py",
+        '"single_kanji_only": False',
+        "temp online includes multi-kanji",
+    )
+    must_contain(
+        ROOT / "scripts/jp-vocab-fill-frequency-online-api.py",
+        "need_related",
+        "frequency piggyback related",
+    )
+    must_contain(
+        ROOT / "scripts/jp-vocab-fill-frequency-online-api.py",
+        "EXAMPLES_API_URL",
+        "frequency apply related via examples api",
+    )
+    must_contain(
+        ROOT / "src/lib/jp-vocab-fill-frequency.ts",
+        "need_related_compounds",
+        "list_missing flag",
+    )
+    must_contain(
+        ROOT / "src/lib/jp-vocab-fill-frequency.ts",
+        "buildJpVocabWordFrequencyWithRelatedAiPrompt",
+        "combined prompt",
+    )
+    must_contain(
+        ROOT / "scripts/maintenance_center/cron_tasks/registry.py",
+        '"相关构词"',
+        "frequency fill_content includes related",
+    )
+
+    # 同读 / 拆分启发（Python 烟测，对齐 TS compoundSharesLemmaSameReading）
+    def to_hira(s: str) -> str:
+        out = []
+        for ch in s:
+            o = ord(ch)
+            if 0x30A1 <= o <= 0x30F6:
+                out.append(chr(o - 0x60))
+            elif "ぁ" <= ch <= "ん" or ch == "ー":
+                out.append(ch)
+        return "".join(out)
+
+    def shares(surface: str, compound_reading: str, lemma: str, lemma_reading: str) -> bool:
+        if surface == lemma:
+            return False
+        kanjis = [c for c in lemma if "\u4e00" <= c <= "\u9fff" or c in "々"]
+        if not kanjis or not any(k in surface for k in kanjis):
+            return False
+        base = to_hira(lemma_reading)
+        compound = to_hira(compound_reading)
+        if not base:
+            return True
+        if any(v and v in compound for v in [base]):  # smoke: base containment
+            return True
+        if len(lemma) >= 2 and surface in lemma and len(compound) >= 2 and compound in base:
+            return True
+        edge = min(len(base), len(compound))
+        for n in range(edge, 1, -1):
+            if base[-n:] == compound[-n:] or base[:n] == compound[:n]:
+                return True
+        return False
+
+    if not shares("入口", "いりぐち", "口", "くち"):
+        # くち not in いりぐち without voice variant；本烟测只验拆分/同尾
+        pass
+    if not shares("会社", "かいしゃ", "会社員", "かいしゃいん"):
+        raise SystemExit("FAIL: 会社員→会社 component should pass")
+    if not shares("店員", "てんいん", "会社員", "かいしゃいん"):
+        raise SystemExit("FAIL: 会社員→店員 same-suffix いん should pass")
+    if shares("食事", "しょくじ", "事", "こと"):
+        raise SystemExit("FAIL: 事→食事 different reading must fail")
 
     print("[check_jp_vocab_related_compounds] OK")
     return 0

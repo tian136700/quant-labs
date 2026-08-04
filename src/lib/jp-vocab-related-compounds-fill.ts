@@ -22,7 +22,10 @@ export type JpVocabMissingRelatedCompoundsRow = {
 
 export type ListJpVocabMissingRelatedCompoundsOptions = {
   limit?: number;
-  /** 默认 true：只拉单汉字词 */
+  /**
+   * 默认 false：含多字词（会社員拆分助记）与单汉字（口→入口）。
+   * 传 true 时仅单汉字（旧临时任务兼容）。
+   */
   single_kanji_only?: boolean;
 };
 
@@ -40,12 +43,23 @@ export function buildJpVocabRelatedCompoundsOnlyAiPrompt(input: {
   const reading = String(input.reading || "").trim();
   const meaning = String(input.meaning || "").trim();
   const pos = String(input.pos || "").trim();
+  const multiKanji =
+    Array.from(word).filter((ch) => /[\u4E00-\u9FFF々]/.test(ch)).length >= 2;
+  const focus = multiKanji
+    ? [
+        "本词是多字词：请优先拆成自然部件词，再给能产字旁举 1 个常见词。",
+        "例：会社員 → 会社(かいしゃ)：公司；店員(てんいん)：店员。",
+        "部件读音须是本词读音的一段；同旁词该字读音须与本词一致。",
+      ].join("\n")
+    : "本词是单汉字：请写含本字且同读（可连浊）的简单构词。";
   const lines = [
     "请为下面这个日语单词写出「相关构词」（助记用）。",
     `词条：${word}`,
     reading ? `读音：${reading}` : null,
     meaning ? `释义：${meaning}` : null,
     pos ? `词性：${pos}` : null,
+    "",
+    focus,
     "",
     JP_VOCAB_RELATED_COMPOUNDS_PROMPT_HINT,
     "",
@@ -58,7 +72,8 @@ export function buildJpVocabRelatedCompoundsOnlyAiPrompt(input: {
 
 /**
  * 缺相关构词的单词队列。
- * 默认：单个汉字 + related_compounds 空 + 尚未写过 source（避免「无相关」死循环）。
+ * 默认：含汉字的单词 + related_compounds 空 + 尚未写过 source（避免「无相关」死循环）。
+ * single_kanji_only=true 时仅单汉字。
  */
 export async function listJpVocabWordsMissingRelatedCompounds(
   db: D1Database,
@@ -68,7 +83,7 @@ export async function listJpVocabWordsMissingRelatedCompounds(
   total_missing: number;
 }> {
   await ensureJpVocabWordSchema(db);
-  const singleOnly = options.single_kanji_only !== false;
+  const singleOnly = options.single_kanji_only === true;
   const limit =
     typeof options.limit === "number" &&
     Number.isFinite(options.limit) &&
@@ -76,7 +91,7 @@ export async function listJpVocabWordsMissingRelatedCompounds(
       ? Math.floor(options.limit)
       : 20;
 
-  // 多取一些再在 TS 里滤单汉字（SQLite length 对多字节字一般 OK，仍兜底）
+  // 单汉字时多取一些再在 TS 里滤；多字词直接按 limit 取
   const fetchLimit = singleOnly ? Math.min(Math.max(limit * 8, 80), 400) : limit;
 
   const result = await db
@@ -106,6 +121,8 @@ export async function listJpVocabWordsMissingRelatedCompounds(
   for (const row of rows) {
     const word = String(row.word || "").trim();
     if (hasJpVocabRelatedCompounds(row.related_compounds)) continue;
+    // 纯假名词（如フランスじん）无汉字可拆，不进队
+    if (!/[\u4E00-\u9FFF々]/.test(word)) continue;
     if (singleOnly && !isJpVocabSingleKanjiWord(word)) continue;
     missing.push({
       id: Number(row.id),
@@ -138,6 +155,7 @@ export async function listJpVocabWordsMissingRelatedCompounds(
   let total = 0;
   for (const r of countRow.results ?? []) {
     const w = String(r.word || "").trim();
+    if (!/[\u4E00-\u9FFF々]/.test(w)) continue;
     if (singleOnly && !isJpVocabSingleKanjiWord(w)) continue;
     total += 1;
   }

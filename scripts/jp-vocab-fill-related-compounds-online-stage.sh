@@ -1,5 +1,5 @@
 #!/bin/bash
-# 临时：线上日语单汉字「相关构词」补全（每分钟 1 条；队列空自动卸 launchd）
+# 临时：线上日语「相关构词」补全（每分钟 1 条；含多字拆分；队列空自动卸 launchd）
 #
 #   bash scripts/jp-vocab-fill-related-compounds-online-stage.sh
 #   FORCE=1 bash scripts/jp-vocab-fill-related-compounds-online-stage.sh

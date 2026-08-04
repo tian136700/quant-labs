@@ -239,6 +239,8 @@ def main() -> int:
             "listJpVocabMissingFrequency",
             "applyJpVocabFrequencyUpdates",
             "need_usage_frequency",
+            "need_related_compounds",
+            "buildJpVocabWordFrequencyWithRelatedAiPrompt",
         ):
             if needle not in ff:
                 errors.append(f"jp-vocab-fill-frequency.ts: missing {needle}")
@@ -296,6 +298,18 @@ def main() -> int:
                 errors.append(
                     "frequency-online-api must not pass ok=/reason= to after_attempt"
                 )
+        if "EXAMPLES_API_URL" not in op or "need_related" not in op:
+            errors.append(
+                "frequency-online-api must piggyback related_compounds "
+                "(EXAMPLES_API_URL + need_related)"
+            )
+        if "【相关构词】" not in op:
+            errors.append("frequency-online-api must ask for 【相关构词】 block when needed")
+        if "会社員" not in op and "店員" not in op:
+            errors.append(
+                "frequency-online-api WORD_SYSTEM should mention multi-kanji decomp "
+                "(会社員/店員)"
+            )
 
     py_lib = ROOT / "scripts/lib/jp_vocab_frequency.py"
     if not py_lib.is_file():

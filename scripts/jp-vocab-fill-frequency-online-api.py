@@ -40,6 +40,9 @@ from vocab_fill_circuit_breaker import after_attempt, assert_not_killed  # noqa:
 from worker_api_guard import skip_if_worker_unavailable  # noqa: E402
 
 API_URL = "https://finance.info-quests.com/api/jp-vocab/fill-frequency"
+EXAMPLES_API_URL = (
+    "https://finance.info-quests.com/api/jp-vocab/fill-example-sentences"
+)
 HTTP_USER_AGENT = "jp-vocab-fill-frequency-online/1.0"
 RATE_GATE_PATH = (
     Path.home() / ".config" / "info-quests" / "jp-vocab-fill-online.last_paid_call"
@@ -72,11 +75,14 @@ FILL_TASK_ID = "jp-vocab-fill-frequency-online"
 
 WORD_SYSTEM = (
     "你为日语 N5/N4 初学者评估单词出现频率。"
-    "只输出【出现频率】块，两行："
+    "必须先输出【出现频率】块，两行："
     "口语频率：n"
     "考试频率：m"
-    "n/m 为 1～10 整数；禁止写成 n/10、附单位、JSON、解释或其它内容。"
+    "n/m 为 1～10 整数；禁止写成 n/10、附单位、JSON。"
     "口语=日常会话；考试=JLPT。可打不同分。"
+    "若用户要求相关构词：在频率块后另起【相关构词】，每行 漢字(かな)：中文；"
+    "多字词先拆部件再举同旁词（会社員→会社/店員）；没有则留空。"
+    "禁止把构词写进频率行；禁止 markdown/解释段落。"
 )
 
 GRAMMAR_SYSTEM = (
@@ -87,6 +93,13 @@ GRAMMAR_SYSTEM = (
 
 USAGE_FREQ_RE = re.compile(
     r"\[\s*口语\s*[：:]?\s*(\d{1,2})\s*[|｜]\s*考试\s*[：:]?\s*(\d{1,2})\s*\]"
+)
+RELATED_BLOCK_RE = re.compile(
+    r"【相关构词】\s*\n(.*?)(?=\n【|\Z)",
+    re.DOTALL,
+)
+RELATED_LINE_RE = re.compile(
+    r"^([\u4E00-\u9FFF々〆ヶぁ-んァ-ンー]+)[（(]([ぁ-んァ-ンヴヵヶー]+)[）)]\s*[:：]\s*(.+)$"
 )
 
 
@@ -220,35 +233,81 @@ def pick_candidate(missing: list[dict[str, Any]]) -> dict[str, Any] | None:
     return None
 
 
-def generate_word_freq(prompt: str) -> tuple[int | None, int | None]:
-    """付费生成词级频率；解析不全时立刻再试一次（常见：模型写成 8/10）。"""
+def generate_word_freq(
+    prompt: str, *, need_related: bool
+) -> tuple[int | None, int | None, str | None]:
+    """付费生成词级频率；若 need_related 则同一次解析相关构词。
+
+    返回 (oral, exam, related_text_or_None)。
+    related 为 None 表示本轮不写相关构词；"" 表示查过为空须 mark checked。
+    """
     last_raw = ""
     for attempt in range(2):
-        raw = call_anthropic(
-            prompt
-            if attempt == 0
-            else (
-                prompt
-                + "\n\n上次格式不对。请严格只输出：\n"
+        extra = ""
+        if attempt > 0:
+            extra = (
+                "\n\n上次格式不对。请严格先输出：\n"
                 "【出现频率】\n口语频率：8\n考试频率：6\n"
                 "数字不要带 /10。"
-            ),
+            )
+            if need_related:
+                extra += (
+                    "\n若需相关构词，再输出：\n【相关构词】\n"
+                    "漢字(かな)：中文\n（可空）"
+                )
+        raw = call_anthropic(
+            prompt + extra,
             system=WORD_SYSTEM,
-            max_tokens=128,
+            max_tokens=512 if need_related else 128,
             temperature=0.1 if attempt == 0 else 0.0,
             timeout=180,
         )
         last_raw = str(raw or "")
         _, oral, exam = extract_jp_vocab_frequencies(last_raw)
         if oral is not None and exam is not None:
-            return oral, exam
+            related: str | None = None
+            if need_related:
+                related = extract_related_compounds_block(last_raw)
+            return oral, exam, related
         print(
             f"  [freq-parse-retry] attempt={attempt + 1} "
             f"oral={oral} exam={exam} raw={last_raw[:120]!r}",
             flush=True,
         )
     _, oral, exam = extract_jp_vocab_frequencies(last_raw)
-    return oral, exam
+    related = extract_related_compounds_block(last_raw) if need_related else None
+    return oral, exam, related
+
+
+def extract_related_compounds_block(raw: str) -> str:
+    """从整段输出抽出【相关构词】正文；无块 → ""（视为查过为空）。"""
+    text = str(raw or "").replace("\r\n", "\n").strip()
+    if not text:
+        return ""
+    m = RELATED_BLOCK_RE.search(text)
+    body = m.group(1) if m else ""
+    if not body.strip() and "【相关构词】" not in text:
+        # 模型可能直接输出行、无标题：从频率块后扫合法行
+        lines_out: list[str] = []
+        past_freq = False
+        for line in text.split("\n"):
+            t = line.strip()
+            if t in ("【出现频率】", "【频率】"):
+                past_freq = True
+                continue
+            if past_freq and RELATED_LINE_RE.match(t):
+                lines_out.append(t)
+        return "\n".join(lines_out).strip()
+    lines_out = []
+    for line in body.split("\n"):
+        t = line.strip()
+        if not t:
+            continue
+        if t.startswith("（") and "中文" in t:
+            continue
+        if RELATED_LINE_RE.match(t):
+            lines_out.append(t)
+    return "\n".join(lines_out).strip()
 
 
 def generate_grammar_usage(prompt: str) -> str:
@@ -324,11 +383,13 @@ def run_one(
     word = str(row.get("word") or "")
     kind = str(row.get("kind") or "")
     prompt = str(row.get("prompt") or "")
+    need_related = bool(row.get("need_related_compounds")) and kind != "grammar"
     print(
         f"  [1/1] id={wid} kind={kind} word={word!r} "
         f"need_oral={row.get('need_oral_frequency')} "
         f"need_exam={row.get('need_exam_frequency')} "
         f"need_usage={row.get('need_usage_frequency')} "
+        f"need_related={need_related} "
         f"total_missing={total}",
         flush=True,
     )
@@ -338,6 +399,7 @@ def run_one(
             "word_id": wid,
             "word": word,
             "kind": kind,
+            "need_related_compounds": need_related,
             "total_missing": total,
         }
     )
@@ -352,6 +414,7 @@ def run_one(
     )
 
     wait_rate_gate(allow_burst=allow_burst)
+    related_text: str | None = None
     try:
         if kind == "grammar":
             usage_ai = generate_grammar_usage(prompt)
@@ -360,7 +423,9 @@ def run_one(
             update: dict[str, Any] = {"word_id": wid, "usage": usage_ai}
             preview = usage_ai[:120].replace("\n", " / ")
         else:
-            oral, exam = generate_word_freq(prompt)
+            oral, exam, related_text = generate_word_freq(
+                prompt, need_related=need_related
+            )
             if oral is None or exam is None:
                 raise ValueError(f"word_ai_incomplete oral={oral} exam={exam}")
             update = {
@@ -369,6 +434,11 @@ def run_one(
                 "exam_frequency": exam,
             }
             preview = f"口语 {oral}/10 · 考试 {exam}/10"
+            if need_related:
+                if related_text:
+                    preview += f" · 构词 {related_text.splitlines()[0]}"
+                else:
+                    preview += " · 构词(空)"
     except Exception as exc:
         reason = f"generate:{exc}"
         sec = poison_seconds_for_generate_error(
@@ -464,6 +534,51 @@ def run_one(
         fixed=True,
         detail="applied",
     )
+
+    related_applied = False
+    if need_related and related_text is not None and not dry_run:
+        if related_text.strip():
+            related_update: dict[str, Any] = {
+                "word_id": wid,
+                "related_compounds": related_text.strip(),
+            }
+        else:
+            related_update = {
+                "word_id": wid,
+                "mark_related_compounds_checked": True,
+            }
+        related_apply = call_api(
+            EXAMPLES_API_URL,
+            token,
+            {
+                "mode": "apply",
+                "source": source,
+                "updates": [related_update],
+            },
+            user_agent=HTTP_USER_AGENT,
+        )
+        if related_apply.get("ok") and int(related_apply.get("updated") or 0) > 0:
+            related_applied = True
+            print(
+                f"  related_compounds applied id={wid} "
+                f"preview={(related_text.splitlines()[0] if related_text else '(empty)')!r}",
+                flush=True,
+            )
+        else:
+            print(
+                f"  related_compounds apply skipped/fail: {related_apply}",
+                flush=True,
+            )
+
+    applied_keys = (
+        "['usage']"
+        if kind == "grammar"
+        else (
+            "['oral_frequency','exam_frequency','related_compounds']"
+            if related_applied
+            else "['oral_frequency','exam_frequency']"
+        )
+    )
     report_word_run(
         {
             "word_id": wid,
@@ -471,9 +586,7 @@ def run_one(
             "kind": "frequency",
             "status": "success",
             "preview": preview,
-            "applied_keys": (
-                "['usage']" if kind == "grammar" else "['oral_frequency','exam_frequency']"
-            ),
+            "applied_keys": applied_keys,
         }
     )
     write_status(
@@ -483,6 +596,7 @@ def run_one(
             "word": word,
             "kind": kind,
             "preview": preview,
+            "related_applied": related_applied,
             "total_missing": max(0, total - 1),
         }
     )

@@ -16,6 +16,11 @@
 本 API + 临时 Mac 定时（jp-vocab-fill-frequency-online）主要用于
 **存量回填**（其它字段已齐、只缺频率）。队列空会自动卸 launchd。
 
+单词若同条仍缺「相关构词」（正文空且未写 source），list_missing 会带
+need_related_compounds=true，prompt 要求同一次输出【出现频率】+【相关构词】；
+Mac 脚本写回频率后，再经 fill-example-sentences apply 写相关构词
+（多字词例：会社員 → 会社 / 店員）。语法不补相关构词。
+
 线上 URL
 --------
 POST https://finance.info-quests.com/api/jp-vocab/fill-frequency
@@ -47,6 +52,7 @@ modes
          "need_oral_frequency": true,
          "need_exam_frequency": true,
          "need_usage_frequency": false,
+         "need_related_compounds": true,
          "prompt": "…"
        },
        {
@@ -54,6 +60,7 @@ modes
          "word": "～なら",
          "kind": "grammar",
          "need_usage_frequency": true,
+         "need_related_compounds": false,
          "usage": "1. …",
          "prompt": "…"
        }

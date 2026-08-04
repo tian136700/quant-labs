@@ -6,6 +6,10 @@ import {
   clampJpVocabFrequency,
 } from "@/lib/jp-vocab-frequency";
 import {
+  buildJpVocabRelatedCompoundsOnlyAiPrompt,
+} from "@/lib/jp-vocab-related-compounds-fill";
+import { hasJpVocabRelatedCompounds } from "@/lib/jp-vocab-related-compounds";
+import {
   jpVocabGrammarNeedsPerUsageFrequency,
 } from "@/lib/jp-vocab-usage-ai";
 import {
@@ -25,6 +29,8 @@ export type JpVocabMissingFrequencyRow = {
   need_oral_frequency: boolean;
   need_exam_frequency: boolean;
   need_usage_frequency: boolean;
+  /** 单词且相关构词未查过时：频率任务可同一次顺带补 */
+  need_related_compounds: boolean;
   prompt: string;
 };
 
@@ -64,6 +70,38 @@ export type ListJpVocabMissingFrequencyOptions = {
   wordId?: number;
 };
 
+function wordNeedsRelatedCompoundsFill(row: {
+  word: string;
+  related_compounds: string | null;
+  related_compounds_source: string | null;
+}): boolean {
+  const word = String(row.word || "").trim();
+  if (!/[\u4E00-\u9FFF々]/.test(word)) return false;
+  if (hasJpVocabRelatedCompounds(row.related_compounds)) return false;
+  const src = String(row.related_compounds_source || "").trim();
+  return !src;
+}
+
+/** 频率 + 可选相关构词同一次输出 */
+export function buildJpVocabWordFrequencyWithRelatedAiPrompt(input: {
+  word: string;
+  reading?: string | null;
+  meaning?: string | null;
+  pos?: string | null;
+}): string {
+  const freq = buildJpVocabWordFrequencyOnlyAiPrompt(input);
+  const relatedFull = buildJpVocabRelatedCompoundsOnlyAiPrompt(input);
+  return `${freq}
+
+本词仍缺「相关构词」。请在频率块之后另起一块写出（可空）：
+【相关构词】
+（多行：漢字(かな)：中文；没有自然相关词则本块留空）
+
+${relatedFull}
+
+禁止把相关构词写进频率数字行；频率仍须是 1～10 整数、不要写成 n/10。`;
+}
+
 function resolveLimit(raw: number | undefined): number | null {
   if (typeof raw !== "number" || !Number.isFinite(raw) || raw <= 0) return null;
   return Math.min(Math.floor(raw), 20);
@@ -90,7 +128,8 @@ export async function listJpVocabMissingFrequency(
 
   if (kindFilter === "word" || kindFilter === "any") {
     let sql = `SELECT id, word, kind, reading, meaning, pos, usage,
-                      oral_frequency, exam_frequency
+                      oral_frequency, exam_frequency,
+                      related_compounds, related_compounds_source
                FROM jp_vocab_word
                WHERE kind != 'grammar'
                  AND (
@@ -116,12 +155,21 @@ export async function listJpVocabMissingFrequency(
       usage: string | null;
       oral_frequency: number | null;
       exam_frequency: number | null;
+      related_compounds: string | null;
+      related_compounds_source: string | null;
     }>();
 
     for (const row of result.results ?? []) {
       const needOral = clampJpVocabFrequency(row.oral_frequency) == null;
       const needExam = clampJpVocabFrequency(row.exam_frequency) == null;
       if (!needOral && !needExam) continue;
+      const needRelated = wordNeedsRelatedCompoundsFill(row);
+      const promptInput = {
+        word: String(row.word),
+        reading: row.reading,
+        meaning: row.meaning,
+        pos: row.pos,
+      };
       out.push({
         id: row.id,
         word: String(row.word),
@@ -133,12 +181,10 @@ export async function listJpVocabMissingFrequency(
         need_oral_frequency: needOral,
         need_exam_frequency: needExam,
         need_usage_frequency: false,
-        prompt: buildJpVocabWordFrequencyOnlyAiPrompt({
-          word: String(row.word),
-          reading: row.reading,
-          meaning: row.meaning,
-          pos: row.pos,
-        }),
+        need_related_compounds: needRelated,
+        prompt: needRelated
+          ? buildJpVocabWordFrequencyWithRelatedAiPrompt(promptInput)
+          : buildJpVocabWordFrequencyOnlyAiPrompt(promptInput),
       });
     }
   }
@@ -185,6 +231,7 @@ export async function listJpVocabMissingFrequency(
         need_oral_frequency: false,
         need_exam_frequency: false,
         need_usage_frequency: true,
+        need_related_compounds: false,
         prompt: buildJpVocabUsageFrequencyOnlyAiPrompt({
           word,
           reading: row.reading,

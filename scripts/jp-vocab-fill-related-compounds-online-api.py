@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""临时：线上补日语「单汉字」缺相关构词（tokken Anthropic → fill-example-sentences）。
+"""临时：线上补日语缺相关构词（tokken Anthropic → fill-example-sentences）。
 
+覆盖单汉字（口→入口）与多字拆分助记（会社員→会社/店員）。
 每轮 1 条；付费间隔与 jp-vocab-fill-online 共用门禁（防并行烧钱）。
 队列空 → exit 10，由 stage.sh 卸掉临时 launchd。
 
@@ -68,11 +69,14 @@ FILL_TASK_ID = "jp-vocab-fill-related-compounds-online"
 SYSTEM = (
     "你为日语 N5/N4 初学者写「相关构词」（助记用）。"
     "只输出相关构词正文：每行 漢字(かな)：简短中文。"
-    "必须含本词汉字，且构词里本字读音与本词读音一致（允许连浊：くち→ぐち、こと→ごと）；"
+    "【单汉字】须含本词汉字，且构词里本字读音与本词读音一致（允许连浊：くち→ぐち、こと→ごと）；"
     "禁止不同音读（事=こと 时不要写 食事/大事 等读「じ」的词）。"
+    "【多字词】先拆自然部件词，再给能产字旁举 1 个常见词："
+    "例 会社員 → 会社(かいしゃ)：公司 / 店員(てんいん)：店员。"
+    "部件读音须是本词读音的一段；同旁词该字读音须与本词一致（員=いん）。"
     "【禁止本词】不要把词条本身再写进相关构词（研修生≠再写研修生）。"
     "一词多义用中文逗号「，」连接（例：目上(めうえ)：上级，长辈）；释义里不要用分号「；」。"
-    "没有自然同读相关词则输出空。"
+    "没有自然相关词则输出空。"
     "禁止编号、禁止 markdown、禁止解释段落。"
 )
 
@@ -263,7 +267,7 @@ def run_once(*, dry_run: bool, allow_burst: bool) -> int:
         {
             "mode": "list_missing_related_compounds",
             "limit": LIST_CANDIDATE_LIMIT,
-            "single_kanji_only": True,
+            "single_kanji_only": False,
         },
         user_agent=HTTP_USER_AGENT,
     )
@@ -457,7 +461,7 @@ def run_once(*, dry_run: bool, allow_burst: bool) -> int:
             {
                 "mode": "list_missing_related_compounds",
                 "limit": LIST_CANDIDATE_LIMIT,
-                "single_kanji_only": True,
+                "single_kanji_only": False,
             },
             user_agent=HTTP_USER_AGENT,
         )
