@@ -8,7 +8,6 @@ import { I18nProvider } from "@/i18n/I18nProvider";
 import type { Locale } from "@/i18n/messages";
 import { ActivityTracker } from "./ActivityTracker";
 import { AppShell } from "./AppShell";
-import { DeployVersionWatcher } from "./DeployVersionWatcher";
 import { Worker1102ClientGuard } from "./Worker1102ClientGuard";
 
 export function Providers({
@@ -24,7 +23,6 @@ export function Providers({
         <NavPreferencesProvider>
           <AppDeployVersionProvider>
             <ActivityTracker />
-            <DeployVersionWatcher />
             <Worker1102ClientGuard />
             <AppShell>{children}</AppShell>
           </AppDeployVersionProvider>

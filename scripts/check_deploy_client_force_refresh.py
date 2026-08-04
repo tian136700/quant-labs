@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""回归：部署后客户端强制拉新代码（version API + provider + 顶栏刷新 + predeploy 写戳）。"""
+"""回归：部署后客户端靠顶栏「刷新缓存」拉新（version API + provider；禁止顶部横幅自动刷）。"""
 
 from __future__ import annotations
 
@@ -18,7 +18,6 @@ FILES = {
     "writer": ROOT / "scripts/write_app_deploy_version.py",
     "predeploy": ROOT / "scripts/predeploy-clean.py",
     "api": ROOT / "src/app/api/app-deploy-version/route.ts",
-    "watcher": ROOT / "src/components/DeployVersionWatcher.tsx",
     "appshell": ROOT / "src/components/AppShell.tsx",
     "globals_base": ROOT / "src/app/globals/globals-base.css",
     "providers": ROOT / "src/components/Providers.tsx",
@@ -67,10 +66,9 @@ def main() -> int:
     if "isAppDeployReloadHeld" not in provider:
         errors.append("provider must respect app-deploy-reload-hold (quiz)")
     if "subscribeAppDeployReloadHold" not in provider:
-        errors.append("provider must re-show banner when hold releases")
+        errors.append("provider must reassert pending when hold releases")
     if "offerManualReload" not in provider:
         errors.append("provider must offer manual reload only (no auto reload)")
-    # 禁止隐藏态 / 切后台自动 reload
     if re.search(
         r"if\s*\(\s*document\.hidden\s*\)[\s\S]{0,400}?reloadForAppDeployVersion\(",
         provider,
@@ -78,14 +76,15 @@ def main() -> int:
         errors.append("provider must NOT auto-reload when document.hidden")
     if "location.reload" in provider or "reloadNow(" in provider:
         errors.append("provider must not call location.reload directly (use reload client on click)")
+    # 禁止恢复顶部横幅状态机
+    for banned in ("bannerVisible", "dismissBanner", "showBanner", "iq-deploy-reload-banner"):
+        if banned in provider:
+            errors.append(f"provider must not keep top banner API ({banned}); only top-right 刷新缓存")
 
-    watcher = FILES["watcher"].read_text(encoding="utf-8")
-    if "iq-deploy-reload-banner" not in watcher:
-        errors.append("watcher must show iq-deploy-reload-banner")
-    if "点击刷新" not in watcher:
-        errors.append("banner must offer 点击刷新 button")
-    if "applyPendingReload" not in watcher:
-        errors.append("banner click must call applyPendingReload")
+    # 顶部「有新版本 / 点击刷新」横幅组件须已删除
+    watcher_path = ROOT / "src/components/DeployVersionWatcher.tsx"
+    if watcher_path.is_file():
+        errors.append("DeployVersionWatcher.tsx must be removed (top banner cancelled; use 刷新缓存 only)")
 
     cache_btn = FILES["cache_btn"].read_text(encoding="utf-8")
     if "刷新缓存" not in cache_btn:
@@ -100,7 +99,6 @@ def main() -> int:
     appshell = FILES["appshell"].read_text(encoding="utf-8")
     if "DeployCacheRefreshButton" not in appshell:
         errors.append("AppShell must mount DeployCacheRefreshButton in desktop tools")
-    # 右上角：按钮应在 SiteAuthBar 之后（最右）
     auth_i = appshell.find("<SiteAuthBar")
     btn_i = appshell.find("<DeployCacheRefreshButton")
     if auth_i < 0 or btn_i < 0 or btn_i < auth_i:
@@ -113,7 +111,6 @@ def main() -> int:
         errors.append("globals-base.css must style lit cache refresh button")
     if "iq-deploy-cache-refresh--dim" not in globals_base:
         errors.append("globals-base.css must style dim cache refresh button")
-    # 暗态勿叠到看不见（曾 opacity 0.45 + disabled 0.6）
     if re.search(
         r"iq-deploy-cache-refresh--dim[^{]*\{[^}]*opacity:\s*0\.[0-4]\d*",
         globals_base,
@@ -141,8 +138,8 @@ def main() -> int:
             errors.append(f"{hook_name} must hold deploy reload while quiz/preview card open")
 
     providers = FILES["providers"].read_text(encoding="utf-8")
-    if "DeployVersionWatcher" not in providers:
-        errors.append("Providers must mount DeployVersionWatcher")
+    if "DeployVersionWatcher" in providers:
+        errors.append("Providers must NOT mount DeployVersionWatcher (banner cancelled)")
     if "AppDeployVersionProvider" not in providers:
         errors.append("Providers must wrap with AppDeployVersionProvider")
 
@@ -153,16 +150,17 @@ def main() -> int:
         errors.append("wait_deploy verify must send browser User-Agent (CF blocks Python-urllib → 403/1010)")
 
     rule = FILES["rule"].read_text(encoding="utf-8")
-    if "DeployVersionWatcher" not in rule or "alwaysApply: true" not in rule:
-        errors.append("deploy-client-force-refresh.mdc must alwaysApply and name DeployVersionWatcher")
-    if "点击刷新" not in rule:
-        errors.append("rule must document 点击刷新 manual reload")
-    if "禁止自动刷" not in rule and "绝不自动" not in rule and "只有用户点" not in rule:
-        errors.append("rule must forbid auto reload (manual banner only)")
-    if "可见标签页检测到新版立刻 location.reload" not in rule:
-        errors.append("rule must forbid hard reload while tab is visible")
+    if "alwaysApply: true" not in rule:
+        errors.append("deploy-client-force-refresh.mdc must alwaysApply")
     if "刷新缓存" not in rule:
         errors.append("rule must document top-right 刷新缓存 button (lit/dim)")
+    if "禁止自动刷" not in rule and "绝不自动" not in rule and "只有用户点" not in rule:
+        errors.append("rule must forbid auto reload (manual only)")
+    if "可见标签页检测到新版立刻 location.reload" not in rule:
+        errors.append("rule must forbid hard reload while tab is visible")
+    if "有新版本" not in rule or "点击刷新" not in rule:
+        # 规则里须写明禁止恢复横幅（用 ❌ 举例）
+        errors.append("rule must document that top 有新版本/点击刷新 banner is cancelled")
 
     hooks_json = FILES["hooks_json"].read_text(encoding="utf-8")
     if "deploy-client-refresh-session.py" not in hooks_json:
@@ -173,7 +171,7 @@ def main() -> int:
             print(f"FAIL: {e}", file=sys.stderr)
         return 1
 
-    print("ok: deploy client force-refresh (version stamp + provider + cache btn + predeploy + hook)")
+    print("ok: deploy client force-refresh (version stamp + provider + 刷新缓存 only + predeploy + hook)")
     return 0
 
 
