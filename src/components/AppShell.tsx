@@ -157,9 +157,10 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
         <SiteNav drawerOpen={drawerOpen} onToggleDrawer={toggleDrawer} />
         <div className="page-header-tools page-header-tools--desktop">
-          <DeployCacheRefreshButton />
           <SiteAuthBar />
           {onLearningModule ? null : <LangSwitch />}
+          {/* 最右：有新版本亮、无更新暗（须始终可见，勿过暗） */}
+          <DeployCacheRefreshButton />
         </div>
         <NavDrawer
           id="site-nav-drawer"

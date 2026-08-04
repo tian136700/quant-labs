@@ -284,9 +284,9 @@ export function NavDrawer({
 
         {showTools ? (
           <div className="nav-drawer-tools">
-            <DeployCacheRefreshButton fullWidth />
             <SiteAuthBar />
             {onJpModule ? null : <LangSwitch />}
+            <DeployCacheRefreshButton fullWidth />
           </div>
         ) : null}
 

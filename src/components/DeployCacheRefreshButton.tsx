@@ -8,9 +8,9 @@ type DeployCacheRefreshButtonProps = {
 };
 
 /**
- * 顶栏右上角「刷新缓存」：
+ * 顶栏最右侧「刷新缓存」：
  * - 有新部署版本 → 亮（可点，清本地 API 缓存并整页重载）
- * - 无更新 → 暗（不可点）
+ * - 无更新 → 暗但仍可读（不可点；勿叠 opacity 到看不见）
  */
 export function DeployCacheRefreshButton({
   fullWidth = false,
