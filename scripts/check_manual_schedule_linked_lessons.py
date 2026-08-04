@@ -51,6 +51,38 @@ def main() -> int:
         )
     if "scheduleTeacherNamesEqual" not in linked:
         errors.append("linked helper must expose scheduleTeacherNamesEqual")
+    if "stripScheduleTeacherDisplayExtras" not in linked:
+        errors.append(
+            "teacher compare must strip display extras (玉老师 · 60 / 1h → 玉老师)"
+        )
+    if 'indexOf(" · ")' not in linked and "indexOf(' · ')" not in linked:
+        errors.append(
+            "stripScheduleTeacherDisplayExtras must cut on middle-dot fee suffix"
+        )
+
+    # 行为：展示名带费率时须与手动纯称呼相等（否则同堂两条）
+    def strip_extras(token: str) -> str:
+        text = token.strip()
+        cut = text.find(" · ")
+        if cut <= 0:
+            return text
+        return text[:cut].strip()
+
+    def names_equal(a: str, b: str) -> bool:
+        left = sorted(
+            x for x in (strip_extras(t) for t in re.split(r"[、,，]", a)) if x
+        )
+        right = sorted(
+            x for x in (strip_extras(t) for t in re.split(r"[、,，]", b)) if x
+        )
+        return bool(left) and left == right
+
+    if not names_equal("玉老师 · 60 / 1h", "玉老师"):
+        errors.append(
+            "behavior: lesson display label must equal plain manual teacher name"
+        )
+    if names_equal("玉老师 · 60 / 1h", "李老师"):
+        errors.append("behavior: different teachers must not match after strip")
 
     db = DB.read_text(encoding="utf-8")
     if "linked_lessons" not in db:

@@ -194,7 +194,19 @@ export function findDedupedLessonEventForManualLinkedCover<
 const PLACEHOLDER_TEACHER_NAMES = new Set(["未指定", "手动日程"]);
 
 /**
- * 老师展示名规范化（顿号/逗号拆分、去空白），用于同堂比对。
+ * 日程页老师展示常带费率后缀：`玉老师 · 60 / 1h`（formatTeacherLessonDisplayLabel）。
+ * 同堂比对只认称呼，剥掉 ` · …` 后缀，否则手动「玉老师」对新课展示名永远匹配不上。
+ */
+export function stripScheduleTeacherDisplayExtras(token: string): string {
+  const text = token.trim();
+  if (!text) return "";
+  const cut = text.indexOf(" · ");
+  if (cut <= 0) return text;
+  return text.slice(0, cut).trim();
+}
+
+/**
+ * 老师展示名规范化（顿号/逗号拆分、去空白、剥费率后缀），用于同堂比对。
  * 禁止用空名或「未指定」参与匹配。
  */
 export function normalizeScheduleTeacherNamesForCompare(
@@ -202,7 +214,7 @@ export function normalizeScheduleTeacherNamesForCompare(
 ): string[] {
   const names = teachers
     .split(/[、,，]/)
-    .map((token) => token.trim())
+    .map((token) => stripScheduleTeacherDisplayExtras(token))
     .filter(Boolean)
     .sort((a, b) => a.localeCompare(b, "zh"));
   if (!names.length) return [];
