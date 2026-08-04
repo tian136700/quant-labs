@@ -248,10 +248,18 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     if (!isTeacherMode && !isAdminMode) return;
     if (!isVocabTeacherAccountActiveForRefresh(user)) return;
     const timer = window.setInterval(() => {
+      // 抽查进行中（以及抽完后 30 分钟 grace 冷却）禁止软刷新，避免重建抽查卡状态
+      if (teacherQuizPollActive) return;
       handleRefreshWords();
     }, VOCAB_TEACHER_SOFT_REFRESH_MS);
     return () => window.clearInterval(timer);
-  }, [isTeacherMode, isAdminMode, user, handleRefreshWords]);
+  }, [
+    isTeacherMode,
+    isAdminMode,
+    user,
+    handleRefreshWords,
+    teacherQuizPollActive,
+  ]);
 
   const { shareRequests, showShareRequestModal, dismissShareRequests } =
     useJpVocabShareRequests({

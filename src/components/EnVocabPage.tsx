@@ -212,7 +212,10 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     showQuizFlashcard: false,
     quizComplete: false,
   });
-  const { idle: teacherQuizPollIdle } =
+  const {
+    active: teacherQuizPollActive,
+    idle: teacherQuizPollIdle,
+  } =
     useVocabTeacherQuizSyncPollActive({
       enabled: isTeacherMode,
       showQuizFlashcard: teacherQuizPollGate.showQuizFlashcard,
@@ -265,10 +268,18 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     if (!isTeacherMode && !isAdminMode) return;
     if (!isVocabTeacherAccountActiveForRefresh(user)) return;
     const timer = window.setInterval(() => {
+      // 抽查过程中（以及抽完后 30 分钟 grace 冷却）禁止软刷新重建页面状态
+      if (teacherQuizPollActive) return;
       handleRefreshWords();
     }, VOCAB_TEACHER_SOFT_REFRESH_MS);
     return () => window.clearInterval(timer);
-  }, [isTeacherMode, isAdminMode, user, handleRefreshWords]);
+  }, [
+    isTeacherMode,
+    isAdminMode,
+    user,
+    handleRefreshWords,
+    teacherQuizPollActive,
+  ]);
 
   useEffect(() => {
     editingRemarksIdRef.current = editingRemarksWord?.id ?? null;
