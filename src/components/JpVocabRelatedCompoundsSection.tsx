@@ -113,6 +113,14 @@ export function JpVocabRelatedCompoundsSection({
             <span className="jp-vocab-teacher-quiz__related-compounds-zh">
               {item.gloss}
             </span>
+            {item.pos ? (
+              <span
+                className="jp-vocab-teacher-quiz__related-compounds-pos"
+                title="词性"
+              >
+                {item.pos}
+              </span>
+            ) : null}
             <span className="jp-vocab-teacher-quiz__related-compounds-semi">
               ；
             </span>

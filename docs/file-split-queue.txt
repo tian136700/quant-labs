@@ -10,4 +10,4 @@
 03. [status=0]  1006  src/components/JpLessonTeacherEditModal.tsx
 
 # --- 不计入队列（样式/文案/备份，仅供参考）---
-     (skip)  2006  src/components/JpVocabTeacherQuizFlashcardStyles.tsx  # style_or_data
+     (skip)  2019  src/components/JpVocabTeacherQuizFlashcardStyles.tsx  # style_or_data

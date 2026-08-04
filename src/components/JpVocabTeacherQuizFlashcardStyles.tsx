@@ -1601,6 +1601,19 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           font-size: 1em;
           line-height: 1.2;
         }
+        .jp-vocab-teacher-quiz__related-compounds-pos {
+          margin-left: 0.35em;
+          margin-top: 0.08em;
+          padding: 0.05em 0.35em;
+          border-radius: 4px;
+          border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+          background: color-mix(in srgb, var(--panel) 80%, var(--bg));
+          color: color-mix(in srgb, var(--accent) 55%, var(--muted));
+          font-size: 0.78em;
+          font-weight: 600;
+          line-height: 1.25;
+          white-space: nowrap;
+        }
         .jp-vocab-teacher-quiz__related-compounds-semi {
           color: color-mix(in srgb, var(--muted) 70%, var(--text));
           margin-left: 0.05em;

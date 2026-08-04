@@ -3,7 +3,7 @@ import { JP_VOCAB_JUKUGO_READING } from "@/lib/jp-vocab-jukugo-furigana";
 /**
  * 相关构词：含本词汉字、且读音与本词一致（含连浊）的简单词，助记用。
  * 例：口(くち)→入口(いりぐち)；事(こと)勿配食事(しょくじ)（じ≠こと）。
- * 存库多行：每行「漢字(かな)：中文」。
+ * 存库多行：每行「漢字(かな)：中文｜词性」（词性可缺，旧数据兼容）。
  */
 
 export const JP_VOCAB_RELATED_COMPOUNDS_LABEL = "相关构词";
@@ -15,32 +15,58 @@ export const JP_VOCAB_RELATED_COMPOUNDS_LABEL = "相关构词";
 export const JP_VOCAB_RELATED_COMPOUNDS_EMPTY_CHECKED =
   "已通过AI获取，但暂无相关词汇";
 
+/** 相关构词行尾词性（与词条 pos 用同一套中文标签） */
+const RELATED_POS_ALLOWED = new Set([
+  "名词",
+  "他动词",
+  "自动词",
+  "动词",
+  "い形容词",
+  "な形容词",
+  "形容词",
+  "副词",
+  "助词",
+  "接続词",
+  "接续词",
+  "感叹词",
+  "数词",
+  "连体词",
+  "代词",
+  "接尾词",
+  "接头词",
+  "连语",
+  "专有名词",
+]);
+
 export const JP_VOCAB_RELATED_COMPOUNDS_PROMPT_HINT = `相关构词（仅单词；与读音/释义/例句同一次输出；语法填 ""）：
 - 目的：拆部件 / 同读构词，帮记本词读音与汉字。
-- 【单汉字】用含本字、且读音相同的简单词（例：口(くち) → 入口(いりぐち)：入口）。读音必须一致（允许连浊：くち→ぐち、こと→ごと）；禁止不同音读（事=こと 勿写 食事/大事 的「じ」）。
+- 【单汉字】用含本字、且读音相同的简单词（例：口(くち) → 入口(いりぐち)：入口｜名词）。读音必须一致（允许连浊：くち→ぐち、こと→ごと）；禁止不同音读（事=こと 勿写 食事/大事 的「じ」）。
 - 【多字词·拆分助记】先拆成自然部件词，再给能产字旁举 1 个常见词。例：会社員(かいしゃいん) →
-  会社(かいしゃ)：公司
-  店員(てんいん)：店员
+  会社(かいしゃ)：公司｜名词
+  店員(てんいん)：店员｜名词
   （会＋社＝会社；员旁同读「いん」→店員。学生已知かいしゃ/促音，就易记かいしゃいん。）
   部件词读音须是本词读音的一段；同旁其它词须该字读音与本词一致（員=いん，勿配读「いん」以外的员）。
 - 条数：没有自然相关词 → 填 ""（禁止硬凑）；只有 1～2 个就写 1～2；多则最多 4～5 条。
 - 须含本词汉字；优先 N5～N4 日常词，禁止商务/难词。
 - 【禁止本词】不要把词条本身写进相关构词（研修生≠再写研修生；企業≠再写企業）。相关=别的词。
-- 每行格式：漢字(かな)：简短中文释义；假名须正确（入口≠いりくち）。
-- 【整词假名·必守】假名括号包住整词，禁止词中拆标：✅決まり(きまり)：规定　❌決(き)まり：规定；✅知らせ(しらせ)：通知　❌知(し)らせ：通知。
-- 一词多义：同一构词的多个中文义用中文逗号「，」连接（例：目上(めうえ)：上级，长辈）。禁止在释义里用分号「；」（分号只用于区分不同日语词）。
+- 每行格式：漢字(かな)：简短中文释义｜词性；假名须正确（入口≠いりくち）。
+- 【词性·必填】行末用全角「｜」接词性（名词/动词/他动词/自动词/い形容词/な形容词/副词…）；多词性用半角「/」（名词/副词）。
+- 【整词假名·必守】假名括号包住整词，禁止词中拆标：✅決まり(きまり)：规定｜名词　❌決(き)まり：规定。
+- 一词多义：同一构词的多个中文义用中文逗号「，」连接（例：目上(めうえ)：上级，长辈｜名词）。禁止在释义里用分号「；」（分号只用于区分不同日语词）。
 - 例（单汉字）：
-入口(いりぐち)：入口
-出口(でぐち)：出口
-目上(めうえ)：上级，长辈
+入口(いりぐち)：入口｜名词
+出口(でぐち)：出口｜名词
+目上(めうえ)：上级，长辈｜名词
+迎え(むかえ)：迎接｜名词
+出迎える(でむかえる)：出去迎接｜他动词
 - 例（多字词）：
-会社(かいしゃ)：公司
-店員(てんいん)：店员`;
+会社(かいしゃ)：公司｜名词
+店員(てんいん)：店员｜名词`;
 
 const LINE_RE =
   /^([\u4E00-\u9FFF々〆ヶぁ-んァ-ンー]+)[（(]([ぁ-んァ-ンヴヵヶー]+)[）)]\s*[:：]\s*(.+)$/;
 
-/** 一词多义：把释义里的分号/斜杠等规范成中文逗号「，」 */
+/** 一词多义：把释义里的分号/斜杠等规范成中文逗号「，」（勿动词性段） */
 export function normalizeJpVocabRelatedCompoundGloss(gloss: string): string {
   return String(gloss || "")
     .trim()
@@ -50,6 +76,79 @@ export function normalizeJpVocabRelatedCompoundGloss(gloss: string): string {
     .replace(/\s*，\s*/g, "，")
     .replace(/^，+|，+$/g, "")
     .trim();
+}
+
+export function normalizeJpVocabRelatedCompoundPos(
+  raw: string | null | undefined
+): string | null {
+  const text = String(raw || "")
+    .trim()
+    .replace(/^词性\s*[:：]\s*/i, "");
+  if (!text) return null;
+  const parts = text
+    .split(/[／/]/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (parts.length === 0) return null;
+  const out: string[] = [];
+  for (const p of parts) {
+    if (!RELATED_POS_ALLOWED.has(p)) return null;
+    if (!out.includes(p)) out.push(p);
+  }
+  return out.length ? out.join("/") : null;
+}
+
+/** 从「中文｜名词」或旧「中文」拆出释义与词性 */
+export function splitJpVocabRelatedCompoundGlossPos(rest: string): {
+  gloss: string;
+  pos: string | null;
+} {
+  const raw = String(rest || "").trim();
+  if (!raw) return { gloss: "", pos: null };
+
+  // 优先：释义｜词性（全角/半角竖线）
+  const pipeIdx = Math.max(raw.lastIndexOf("｜"), raw.lastIndexOf("|"));
+  if (pipeIdx > 0) {
+    const left = raw.slice(0, pipeIdx).trim();
+    const right = raw.slice(pipeIdx + 1).trim();
+    const pos = normalizeJpVocabRelatedCompoundPos(right);
+    if (pos) {
+      return {
+        gloss: normalizeJpVocabRelatedCompoundGloss(left),
+        pos,
+      };
+    }
+  }
+
+  // 兼容：释义〔名词〕/【名词】/（名词）
+  const br = raw.match(
+    /^(.+?)\s*[〔【(（]\s*([^〕】)）]+)\s*[〕】)）]\s*$/
+  );
+  if (br) {
+    const pos = normalizeJpVocabRelatedCompoundPos(br[2]);
+    if (pos) {
+      return {
+        gloss: normalizeJpVocabRelatedCompoundGloss(br[1]!),
+        pos,
+      };
+    }
+  }
+
+  return { gloss: normalizeJpVocabRelatedCompoundGloss(raw), pos: null };
+}
+
+export function formatJpVocabRelatedCompoundLine(input: {
+  surface: string;
+  reading: string;
+  gloss: string;
+  pos?: string | null;
+}): string {
+  const surface = String(input.surface || "").trim();
+  const reading = toHiragana(input.reading || "");
+  const gloss = normalizeJpVocabRelatedCompoundGloss(input.gloss);
+  const pos = normalizeJpVocabRelatedCompoundPos(input.pos);
+  const base = `${surface}(${reading})：${gloss}`;
+  return pos ? `${base}｜${pos}` : base;
 }
 
 const VOICE_PAIRS: Array<[string, string]> = [
@@ -109,7 +208,9 @@ export type JpVocabRelatedCompoundItem = {
   surface: string;
   reading: string;
   gloss: string;
-  /** 存库行：漢字(かな)：中文 */
+  /** 词性：名词 / 他动词…；旧数据可空 */
+  pos: string | null;
+  /** 存库行：漢字(かな)：中文｜词性 */
   line: string;
 };
 
@@ -126,13 +227,19 @@ export function parseJpVocabRelatedCompounds(
     if (!m) continue;
     const surface = m[1]!;
     const reading = toHiragana(m[2]!);
-    const gloss = normalizeJpVocabRelatedCompoundGloss(m[3]!);
+    const { gloss, pos } = splitJpVocabRelatedCompoundGlossPos(m[3]!);
     if (!surface || !reading || !gloss) continue;
     out.push({
       surface,
       reading,
       gloss,
-      line: `${surface}(${reading})：${gloss}`,
+      pos,
+      line: formatJpVocabRelatedCompoundLine({
+        surface,
+        reading,
+        gloss,
+        pos,
+      }),
     });
   }
   return out;
@@ -144,12 +251,19 @@ export function hasJpVocabRelatedCompounds(
   return parseJpVocabRelatedCompounds(raw).length > 0;
 }
 
-/** 复制用：漢字(かな) 中文；…； */
+/** 复制用：漢字(かな) 中文｜词性；…； */
 export function jpVocabRelatedCompoundsCopyText(
   items: readonly JpVocabRelatedCompoundItem[]
 ): string {
   if (!items.length) return "";
-  return items.map((i) => `${i.surface}(${i.reading}) ${i.gloss}`).join("；") + "；";
+  return (
+    items
+      .map((i) => {
+        const base = `${i.surface}(${i.reading}) ${i.gloss}`;
+        return i.pos ? `${base}｜${i.pos}` : base;
+      })
+      .join("；") + "；"
+  );
 }
 
 export function normalizeJpVocabRelatedCompoundsText(
@@ -258,7 +372,7 @@ export function validateJpVocabRelatedCompoundsAiOutput(
     }
     const surface = m[1]!;
     const reading = toHiragana(m[2]!);
-    const gloss = normalizeJpVocabRelatedCompoundGloss(m[3]!);
+    const { gloss, pos } = splitJpVocabRelatedCompoundGlossPos(m[3]!);
     if (!surface || !reading || !gloss) {
       continue;
     }
@@ -287,7 +401,13 @@ export function validateJpVocabRelatedCompoundsAiOutput(
       surface,
       reading,
       gloss,
-      line: `${surface}(${reading})：${gloss}`,
+      pos,
+      line: formatJpVocabRelatedCompoundLine({
+        surface,
+        reading,
+        gloss,
+        pos,
+      }),
     });
   }
 
