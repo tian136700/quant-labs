@@ -179,14 +179,45 @@ def main() -> None:
     ):
         if needle not in src:
             fail(f"connection-ai missing school verb-class guard {needle!r}")
-    if "一类动词（五段）" in src:
-        fail("接序示例禁止再写「一类动词（五段）」")
-    if "禁止「五段" not in src and "❌禁止「五段" not in src and "❌ 禁止「五段" not in src:
-        fail("接序 prompt 须禁止五段/一段/カ变术语")
+    # 允许在「禁止…」规则里点名坏写法；禁止当正确示例推销
+    for i, line in enumerate(src.splitlines(), 1):
+        if "一类动词（五段）" not in line:
+            continue
+        if "禁止" in line or "❌" in line or "括注同义" in line:
+            continue
+        fail(
+            f"接序示例禁止再写「一类动词（五段）」当正确格式（约 L{i}）；"
+            "仅可在「禁止…」规则里点名"
+        )
+    if (
+        "禁止「五段" not in src
+        and "❌禁止「五段" not in src
+        and "❌ 禁止「五段" not in src
+        and "五段／五段动词" not in src
+        and "禁止左边" not in src
+    ):
+        fail("接序 prompt 须禁止五段/一段/カ变术语（或写明左右对照）")
     if "五段動詞" not in src:
         fail("school rewrite 须同时处理繁体「五段動詞」")
     if r"^例\s*[：:]" not in src:
         fail("normalize 须剥接序下「例：」行（防 looks_like_examples）")
+    prompt = (ROOT / "src/lib/jp-vocab-connection-prompt.ts").read_text(
+        encoding="utf-8"
+    )
+    if "JP_VOCAB_SCHOOL_VERB_CLASS_PROMPT" not in prompt:
+        fail("connection-prompt 须导出动词分类对照常量")
+    if "禁止左边" not in prompt or "必须写右边" not in prompt:
+        fail("动词分类须写明 ❌禁止左边 → ✅必须写右边（不能只写禁止五段）")
+    if "五段" not in prompt or "→ 一类动词" not in prompt:
+        fail("对照须含：五段 → 一类动词")
+    if "一段" not in prompt or "→ 二类动词" not in prompt:
+        fail("对照须含：一段 → 二类动词")
+    if "カ变" not in prompt or "→ 三类动词" not in prompt:
+        fail("对照须含：カ变 → 三类动词")
+    if "JP_VOCAB_CONJUGATION_CONNECTION_STYLE_PROMPT" not in prompt:
+        fail("connection-prompt 须导出变形课写法对照常量")
+    if "う段改为あ段" not in prompt or "去掉「く」加「かない」" not in prompt:
+        fail("变形课须写明：禁止う段散文 → 改成去掉…加…表行")
     # 学术用语先改写再验：一類動詞（五段動詞）→ 一类动词
     sample_academic = "一類動詞（五段動詞）：词尾う段改あ段＋ない"
     rewritten = sample_academic

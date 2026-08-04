@@ -787,6 +787,8 @@ export function splitJpVocabAiOutputConnectionSection(raw: string): {
 export {
   jpVocabConnectionPromptAppendix,
   buildJpVocabConnectionOnlyAiPrompt,
+  JP_VOCAB_SCHOOL_VERB_CLASS_PROMPT,
+  JP_VOCAB_CONJUGATION_CONNECTION_STYLE_PROMPT,
 } from "@/lib/jp-vocab-connection-prompt";
 
 export function validateJpVocabConnectionAiOutput(
