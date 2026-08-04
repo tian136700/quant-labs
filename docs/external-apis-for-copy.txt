@@ -99,11 +99,15 @@
    文件：docs/jp-vocab-fill-schedule-gate-api.txt
    调用：POST https://finance.info-quests.com/api/jp-vocab/fill-schedule-gate
 
-24. 日语抽问 · 今日共享列表 API（学生端 /jp-vocab/study）
+24. 日语语法 · 单用法例句补到 3 条 API（临时回填）
+   文件：docs/jp-vocab-fill-single-usage-examples-api.txt
+   调用：POST https://finance.info-quests.com/api/jp-vocab/fill-usage
+
+25. 日语抽问 · 今日共享列表 API（学生端 /jp-vocab/study）
    文件：docs/jp-vocab-shared-api.txt
    调用：GET https://japanese.info-quests.com/api/jp-vocab/shared
 
-25. 日语抽问 · 今日抽查数量 / 老师可见池 API
+26. 日语抽问 · 今日抽查数量 / 老师可见池 API
    文件：docs/jp-vocab-teacher-visible-api.txt
    调用：GET https://japanese.info-quests.com/api/jp-vocab/teacher-visible
 

@@ -77,8 +77,10 @@ def main() -> int:
         errors.append("fill-usage 须只补 grammar")
     if "clear_grammar_examples" not in route and "clearAllJpVocabGrammarExampleSentences" not in fill_usage:
         errors.append("缺 clear_grammar_examples")
-    if "example_sentences IS NULL OR example_sentences = ''" not in fill_usage:
-        errors.append("list_missing 须含缺例句（成对补）")
+    if "宽查全部语法" not in fill_usage and "example_sentences IS NULL OR example_sentences = ''" not in fill_usage:
+        errors.append("list_missing 须宽查语法或缺例句（成对补）")
+    if "exN < 3" not in fill_usage:
+        errors.append("list_missing 须把单用法例句不足 3 条算缺失")
     if "example_sentences" not in route:
         errors.append("fill-usage apply 须接受 example_sentences")
     if "parseJpVocabGrammarUsageExamplePairs" not in usage_ai:

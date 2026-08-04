@@ -18,6 +18,7 @@ REQUIRED_IDS = {
     "jp-vocab-fill-pos",
     "jp-vocab-fill-pos-online",
     "jp-vocab-fill-related-compounds-online",
+    "jp-vocab-fill-single-usage-examples-online",
     "jp-vocab-fill-examples",
     "en-vocab-fill",
 }
@@ -48,6 +49,12 @@ def main() -> int:
             "（常规定时与读音/释义等同持久写回）"
         )
     rc = by_id["jp-vocab-fill-related-compounds-online"]
+    sue = by_id["jp-vocab-fill-single-usage-examples-online"]
+    if sue.fill_content != ("例句",):
+        raise SystemExit(
+            f"FAIL: single-usage-examples-online fill_content={sue.fill_content!r}"
+        )
+
     if rc.fill_content != ("相关构词",):
         raise SystemExit(
             f"FAIL: related-compounds-online fill_content={rc.fill_content!r}"
