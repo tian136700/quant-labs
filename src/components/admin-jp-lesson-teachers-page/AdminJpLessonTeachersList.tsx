@@ -130,9 +130,14 @@ export function AdminJpLessonTeachersList(props: AdminJpLessonTeachersListProps)
                   aria-autocomplete="list"
                   onFocus={() => setSearchSuggestOpen(true)}
                   onChange={(e) => {
-                    setSearchDraft(e.target.value);
+                    const next = e.target.value;
+                    setSearchDraft(next);
                     setSelectedSearchTeacherId(null);
                     setSearchSuggestOpen(true);
+                    // 同科即时过滤已由 searchDraft 驱动；Enter /「搜索」仍负责跨科切换
+                    if (!next.trim()) {
+                      applySearch("");
+                    }
                   }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
@@ -182,7 +187,9 @@ export function AdminJpLessonTeachersList(props: AdminJpLessonTeachersListProps)
             >
               {locale === "zh" ? "搜索" : "Search"}
             </button>
-            {appliedSearchQuery || selectedSearchTeacherId != null ? (
+            {searchDraft.trim() ||
+            appliedSearchQuery ||
+            selectedSearchTeacherId != null ? (
               <button
                 type="button"
                 className="btn-rsi-filter btn-rsi-filter--compact"

@@ -127,12 +127,23 @@ export function AdminJpLessonTeachersPageContent() {
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
 
   const switchTeacherSubject = useCallback(
-    (next: LessonTeacherSubject) => {
+    (next: LessonTeacherSubject, opts?: { teacherId?: number | null }) => {
       if (next === teacherSubject) return;
       const params = new URLSearchParams(searchParams.toString());
       const subjectParam = lessonTeacherSubjectSearchParam(next);
       if (subjectParam) params.set("subject", subjectParam);
       else params.delete("subject");
+      // jp/en/ko 老师表 id 各自独立，跨科目保留旧 teacher= 会指到别人，并导致搜索被清掉
+      const nextTeacherId = opts?.teacherId;
+      if (
+        nextTeacherId != null &&
+        Number.isInteger(nextTeacherId) &&
+        nextTeacherId > 0
+      ) {
+        params.set("teacher", String(nextTeacherId));
+      } else {
+        params.delete("teacher");
+      }
       const query = params.toString();
       router.replace(query ? `${pathname}?${query}` : pathname);
     },
@@ -462,17 +473,13 @@ export function AdminJpLessonTeachersPageContent() {
     if (selectedSearchTeacherId != null) {
       return sortedTeachers.filter((teacher) => teacher.id === selectedSearchTeacherId);
     }
+    // 边输入边过滤；勿只等点「搜索」（否则列表一直是全员，像「匹配失败」）
     return filterLessonTeachersBySearch(
       sortedTeachers,
-      appliedSearchQuery,
+      searchDraft,
       searchRemarksById
     );
-  }, [
-    appliedSearchQuery,
-    searchRemarksById,
-    selectedSearchTeacherId,
-    sortedTeachers,
-  ]);
+  }, [searchDraft, searchRemarksById, selectedSearchTeacherId, sortedTeachers]);
 
   const applySearch = useCallback(
     (query: string) => {
@@ -535,7 +542,7 @@ export function AdminJpLessonTeachersPageContent() {
           applied: name,
           teacherId: hit.teacher.id,
         };
-        switchTeacherSubject(hit.subject);
+        switchTeacherSubject(hit.subject, { teacherId: hit.teacher.id });
         return;
       }
       setSearchDraft(name);
@@ -560,12 +567,23 @@ export function AdminJpLessonTeachersPageContent() {
   useEffect(() => {
     if (focusTeacherId == null || loading) return;
     if (!teachers.some((teacher) => teacher.id === focusTeacherId)) return;
-    if (!filteredTeachers.some((teacher) => teacher.id === focusTeacherId)) {
-      setSearchDraft("");
-      setAppliedSearchQuery("");
-      setSelectedSearchTeacherId(null);
-    }
-  }, [focusTeacherId, filteredTeachers, loading, teachers]);
+    if (filteredTeachers.some((teacher) => teacher.id === focusTeacherId)) return;
+    // 用户正在搜索时不要清空搜索框（旧逻辑会清掉 → 又变回全员列表）
+    // 深链 teacher= 与当前过滤冲突时，丢掉 URL 里的 teacher，让搜索结果保留
+    if (!searchParams.get("teacher")) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("teacher");
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname);
+  }, [
+    focusTeacherId,
+    filteredTeachers,
+    loading,
+    teachers,
+    searchParams,
+    pathname,
+    router,
+  ]);
 
   useEffect(() => {
     if (focusTeacherId == null || loading || teachers.length === 0) return;
