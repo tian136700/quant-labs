@@ -97,11 +97,12 @@ export function buildJpVocabWordFrequencyWithRelatedAiPrompt(input: {
 
 本词仍缺「相关构词」。请在频率块之后另起一块写出（可空）：
 【相关构词】
-（多行：漢字(かな)：中文；没有自然相关词则本块留空）
+（多行：漢字(かな)：中文｜词性；词性必填，如名词/他动词/自动词/动词；没有自然相关词则本块留空）
 
 ${relatedFull}
 
-禁止把相关构词写进频率数字行；频率仍须是 1～10 整数、不要写成 n/10。`;
+禁止把相关构词写进频率数字行；频率仍须是 1～10 整数、不要写成 n/10。
+相关构词行末必须带「｜词性」，写回后卡片会展示词性。`;
 }
 
 function resolveLimit(raw: number | undefined): number | null {

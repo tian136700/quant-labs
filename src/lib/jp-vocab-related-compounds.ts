@@ -66,12 +66,13 @@ export const JP_VOCAB_RELATED_COMPOUNDS_PROMPT_HINT = `相关构词（仅单词�
 const LINE_RE =
   /^([\u4E00-\u9FFF々〆ヶぁ-んァ-ンー]+)[（(]([ぁ-んァ-ンヴヵヶー]+)[）)]\s*[:：]\s*(.+)$/;
 
-/** 一词多义：把释义里的分号/斜杠等规范成中文逗号「，」（勿动词性段） */
+/** 一词多义：把释义里的分号/斜杠等规范成中文逗号「，」（勿动「｜词性」段） */
 export function normalizeJpVocabRelatedCompoundGloss(gloss: string): string {
   return String(gloss || "")
     .trim()
     .replace(/[；;]+/g, "，")
-    .replace(/[／/|｜]+/g, "，")
+    // 勿替换 |｜：那是词性分隔符；误对整段 rest 规范化时会把「迎接｜名词」吃成「迎接，名词」
+    .replace(/[／/]+/g, "，")
     .replace(/[、]+/g, "，")
     .replace(/\s*，\s*/g, "，")
     .replace(/^，+|，+$/g, "")
@@ -129,6 +130,20 @@ export function splitJpVocabRelatedCompoundGlossPos(rest: string): {
     if (pos) {
       return {
         gloss: normalizeJpVocabRelatedCompoundGloss(br[1]!),
+        pos,
+      };
+    }
+  }
+
+  // 兼容旧脏数据：释义，名词（曾被 gloss normalize 把｜吃成，）
+  const commaIdx = raw.lastIndexOf("，");
+  if (commaIdx > 0) {
+    const left = raw.slice(0, commaIdx).trim();
+    const right = raw.slice(commaIdx + 1).trim();
+    const pos = normalizeJpVocabRelatedCompoundPos(right);
+    if (pos && left) {
+      return {
+        gloss: normalizeJpVocabRelatedCompoundGloss(left),
         pos,
       };
     }

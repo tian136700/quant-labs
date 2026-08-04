@@ -242,6 +242,10 @@ def main() -> int:
                 "jp-vocab-fill-frequency.ts: must use wordNeedsRelatedCompoundsForFrequency "
                 "(body empty → need related; ignore empty source mark)"
             )
+        if "中文｜词性" not in ff and "｜词性" not in ff:
+            errors.append(
+                "jp-vocab-fill-frequency.ts: frequency+related prompt must require ｜词性"
+            )
         if "related_compounds_source" in ff and "wordNeedsRelatedCompoundsForFrequency" in ff:
             # ensure frequency helper does not gate on source
             # (source-based skip lives only in related-only queue)
@@ -316,6 +320,16 @@ def main() -> int:
             )
         if "【相关构词】" not in op:
             errors.append("frequency-online-api must ask for 【相关构词】 block when needed")
+        if "中文｜词性" not in op and "｜词性" not in op:
+            errors.append(
+                "frequency-online-api must require ｜词性 on related compounds "
+                "(ask AI + write back for card display)"
+            )
+        if "_normalize_related_line_pos_sep" not in op:
+            errors.append(
+                "frequency-online-api must normalize related line POS sep "
+                "(| → ｜) before apply"
+            )
         if "会社員" not in op and "店員" not in op:
             errors.append(
                 "frequency-online-api WORD_SYSTEM should mention multi-kanji decomp "

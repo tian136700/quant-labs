@@ -80,7 +80,9 @@ WORD_SYSTEM = (
     "考试频率：m"
     "n/m 为 1～10 整数；禁止写成 n/10、附单位、JSON。"
     "口语=日常会话；考试=JLPT。可打不同分。"
-    "若用户要求相关构词：在频率块后另起【相关构词】，每行 漢字(かな)：中文；"
+    "若用户要求相关构词：在频率块后另起【相关构词】，每行 漢字(かな)：中文｜词性；"
+    "【词性·必填】行末全角「｜」接词性（名词/他动词/自动词/动词/い形容词/な形容词/副词…）；"
+    "例：迎え(むかえ)：迎接｜名词；出迎える(でむかえる)：出去迎接｜他动词。"
     "多字词先拆部件再举同旁词（会社員→会社/店員）；没有则留空。"
     "禁止把构词写进频率行；禁止 markdown/解释段落。"
 )
@@ -253,7 +255,7 @@ def generate_word_freq(
             if need_related:
                 extra += (
                     "\n若需相关构词，再输出：\n【相关构词】\n"
-                    "漢字(かな)：中文\n（可空）"
+                    "漢字(かな)：中文｜词性\n（可空；词性如名词/他动词/动词）"
                 )
         raw = call_anthropic(
             prompt + extra,
@@ -280,7 +282,10 @@ def generate_word_freq(
 
 
 def extract_related_compounds_block(raw: str) -> str:
-    """从整段输出抽出【相关构词】正文；无块 → ""（视为查过为空）。"""
+    """从整段输出抽出【相关构词】正文；无块 → ""（视为查过为空）。
+
+    保留行末「｜词性」；半角 | 规范成全角｜后原样回填。
+    """
     text = str(raw or "").replace("\r\n", "\n").strip()
     if not text:
         return ""
@@ -296,7 +301,7 @@ def extract_related_compounds_block(raw: str) -> str:
                 past_freq = True
                 continue
             if past_freq and RELATED_LINE_RE.match(t):
-                lines_out.append(t)
+                lines_out.append(_normalize_related_line_pos_sep(t))
         return "\n".join(lines_out).strip()
     lines_out = []
     for line in body.split("\n"):
@@ -306,8 +311,19 @@ def extract_related_compounds_block(raw: str) -> str:
         if t.startswith("（") and "中文" in t:
             continue
         if RELATED_LINE_RE.match(t):
-            lines_out.append(t)
+            lines_out.append(_normalize_related_line_pos_sep(t))
     return "\n".join(lines_out).strip()
+
+
+def _normalize_related_line_pos_sep(line: str) -> str:
+    """漢字(かな)：释义｜词性 — 半角 | → 全角｜（仅第一次，留给词性）。"""
+    m = RELATED_LINE_RE.match(line.strip())
+    if not m:
+        return line.strip()
+    surface, reading, rest = m.group(1), m.group(2), m.group(3).strip()
+    if "|" in rest and "｜" not in rest:
+        rest = rest.replace("|", "｜", 1)
+    return f"{surface}({reading})：{rest}"
 
 
 def generate_grammar_usage(prompt: str) -> str:
@@ -391,7 +407,8 @@ def run_one(
         prompt = (
             prompt
             + "\n\n本词请在频率块后另起【相关构词】（可空）："
-            + "每行 漢字(かな)：中文。"
+            + "每行 漢字(かな)：中文｜词性；【词性·必填】如名词/他动词/自动词/动词。"
+            + "例：迎え(むかえ)：迎接｜名词；出迎える(でむかえる)：出去迎接｜他动词。"
             + "多字词先拆部件再举同旁词（研修生→研修/学生；会社員→会社/店員）。"
             + "禁止把词条本身写入；没有自然相关词则【相关构词】下留空。"
         )

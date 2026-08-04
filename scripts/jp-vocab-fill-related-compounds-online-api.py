@@ -68,14 +68,16 @@ FILL_TASK_ID = "jp-vocab-fill-related-compounds-online"
 
 SYSTEM = (
     "你为日语 N5/N4 初学者写「相关构词」（助记用）。"
-    "只输出相关构词正文：每行 漢字(かな)：简短中文。"
+    "只输出相关构词正文：每行 漢字(かな)：简短中文｜词性。"
+    "【词性·必填】行末全角「｜」接词性（名词/动词/他动词/自动词/い形容词/な形容词/副词…）。"
+    "例：迎え(むかえ)：迎接｜名词；出迎える(でむかえる)：出去迎接｜他动词。"
     "【单汉字】须含本词汉字，且构词里本字读音与本词读音一致（允许连浊：くち→ぐち、こと→ごと）；"
     "禁止不同音读（事=こと 时不要写 食事/大事 等读「じ」的词）。"
     "【多字词】先拆自然部件词，再给能产字旁举 1 个常见词："
-    "例 会社員 → 会社(かいしゃ)：公司 / 店員(てんいん)：店员。"
+    "例 会社員 → 会社(かいしゃ)：公司｜名词；店員(てんいん)：店员｜名词。"
     "部件读音须是本词读音的一段；同旁词该字读音须与本词一致（員=いん）。"
     "【禁止本词】不要把词条本身再写进相关构词（研修生≠再写研修生）。"
-    "一词多义用中文逗号「，」连接（例：目上(めうえ)：上级，长辈）；释义里不要用分号「；」。"
+    "一词多义用中文逗号「，」连接（例：目上(めうえ)：上级，长辈｜名词）；释义里不要用分号「；」。"
     "没有自然相关词则输出空。"
     "禁止编号、禁止 markdown、禁止解释段落。"
 )
@@ -204,6 +206,7 @@ def mark_paid_call() -> None:
 
 
 def normalize_related_compounds_text(raw: str) -> str:
+    """保留「｜词性」；半角 | 规范成全角｜。"""
     text = FENCE_RE.sub("", str(raw or "")).strip()
     if not text:
         return ""
@@ -220,6 +223,9 @@ def normalize_related_compounds_text(raw: str) -> str:
         surface, reading, gloss = m.group(1), m.group(2), m.group(3).strip()
         if not surface or not reading or not gloss:
             continue
+        # 词性分隔：半角 | → 全角｜（勿把释义里的竖线吃掉成逗号）
+        if "|" in gloss and "｜" not in gloss:
+            gloss = gloss.replace("|", "｜", 1)
         lines.append(f"{surface}({reading})：{gloss}")
         if len(lines) >= 5:
             break
@@ -230,7 +236,7 @@ def generate_related_compounds(prompt: str) -> str:
     raw = call_anthropic(
         prompt,
         system=SYSTEM,
-        max_tokens=256,
+        max_tokens=384,
         temperature=0.2,
         timeout=180,
     )

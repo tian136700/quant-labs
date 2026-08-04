@@ -115,7 +115,7 @@ def main() -> int:
     must_contain(lib, "上级，长辈", "multi sense comma example")
     must_contain(lib, "禁止在释义里用分号", "no semicolon in gloss prompt")
 
-    # 一词多义：分号 → 中文逗号
+    # 一词多义：分号 → 中文逗号（勿替换 |｜，那是词性分隔）
     import importlib.util
 
     # 纯 Python 复刻 normalize（与 TS 同规则）
@@ -124,7 +124,7 @@ def main() -> int:
 
         s = g.strip()
         s = _re.sub(r"[；;]+", "，", s)
-        s = _re.sub(r"[／/|｜]+", "，", s)
+        s = _re.sub(r"[／/]+", "，", s)
         s = _re.sub(r"[、]+", "，", s)
         s = _re.sub(r"\s*，\s*", "，", s)
         s = _re.sub(r"^，+|，+$", "", s)
@@ -134,7 +134,21 @@ def main() -> int:
         raise SystemExit("FAIL: gloss semicolon → comma")
     if norm_gloss("上级/长辈") != "上级，长辈":
         raise SystemExit("FAIL: gloss slash → comma")
+    if "｜" not in norm_gloss("迎接｜名词"):
+        raise SystemExit("FAIL: gloss normalize must keep ｜ for POS")
 
+    must_contain(lib, "splitJpVocabRelatedCompoundGlossPos", "split gloss/pos")
+    must_contain(lib, "normalizeJpVocabRelatedCompoundPos", "pos normalize")
+    must_contain(lib, "迎接｜名词", "pos example 迎え")
+    must_contain(lib, "出去迎接｜他动词", "pos example 出迎える")
+    must_contain(section, "item.pos", "UI shows pos")
+    must_contain(styles, "related-compounds-pos", "pos css")
+    must_contain(online, "中文｜词性", "online batch requires POS")
+    freq = ROOT / "scripts/jp-vocab-fill-frequency-online-api.py"
+    must_contain(freq, "中文｜词性", "frequency piggyback requires POS")
+    rc_online = ROOT / "scripts/jp-vocab-fill-related-compounds-online-api.py"
+    must_contain(rc_online, "中文｜词性", "related online requires POS")
+    must_contain(ai, "中文｜词性", "ai prompt requires POS")
     must_contain(section, "related-compounds-source", "source footer")
     must_contain(styles, "related-compounds-source", "source footer css")
     section_text = section.read_text(encoding="utf-8")

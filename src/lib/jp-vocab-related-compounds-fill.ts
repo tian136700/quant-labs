@@ -48,10 +48,10 @@ export function buildJpVocabRelatedCompoundsOnlyAiPrompt(input: {
   const focus = multiKanji
     ? [
         "本词是多字词：请优先拆成自然部件词，再给能产字旁举 1 个常见词。",
-        "例：会社員 → 会社(かいしゃ)：公司；店員(てんいん)：店员。",
+        "例：会社員 → 会社(かいしゃ)：公司｜名词；店員(てんいん)：店员｜名词。",
         "部件读音须是本词读音的一段；同旁词该字读音须与本词一致。",
       ].join("\n")
-    : "本词是单汉字：请写含本字且同读（可连浊）的简单构词。";
+    : "本词是单汉字：请写含本字且同读（可连浊）的简单构词（例：口 → 入口(いりぐち)：入口｜名词）。";
   const lines = [
     "请为下面这个日语单词写出「相关构词」（助记用）。",
     `词条：${word}`,
@@ -64,6 +64,7 @@ export function buildJpVocabRelatedCompoundsOnlyAiPrompt(input: {
     JP_VOCAB_RELATED_COMPOUNDS_PROMPT_HINT,
     "",
     "只输出相关构词正文（多行或空）。",
+    "每行须带词性：漢字(かな)：中文｜词性（名词/他动词/自动词/动词…）。",
     "禁止编号、禁止 markdown、禁止解释段落。",
     "若没有自然相关词，只输出空（不要硬凑）。",
   ].filter((x) => x != null) as string[];
