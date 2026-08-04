@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { JpLessonHalfHourTimeGridPicker } from "@/components/JpLessonHalfHourTimeGridPicker";
+import { JpLessonNextClassTeacherField } from "@/components/JpLessonNextClassTeacherField";
 import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import { useSaveProgressBar } from "@/hooks/useSaveProgressBar";
 import {
@@ -29,13 +30,23 @@ import type {
   JpLessonTeacher,
 } from "@/lib/types";
 
+export type JpLessonNextClassSaveMeta = {
+  /** 与上课时间一并保存；仅 enableTeacherSelect 时传入 */
+  teacherIds?: number[];
+};
+
 type Props = {
   open: boolean;
   lesson: JpLessonRecord | null;
   teachers?: JpLessonTeacher[];
+  /** 日语新课页：弹窗内直接勾选老师（频次排序）；日程页改时间可不传 */
+  enableTeacherSelect?: boolean;
   saving?: boolean;
   onClose: () => void;
-  onSave: (schedules: JpLessonClassScheduleInput[]) => void | Promise<void>;
+  onSave: (
+    schedules: JpLessonClassScheduleInput[],
+    meta?: JpLessonNextClassSaveMeta
+  ) => void | Promise<void>;
   onEditTeachers?: () => void;
 };
 
@@ -90,6 +101,7 @@ export function JpLessonNextClassEditModal({
   open,
   lesson,
   teachers = [],
+  enableTeacherSelect = false,
   saving = false,
   onClose,
   onSave,
@@ -97,15 +109,22 @@ export function JpLessonNextClassEditModal({
 }: Props) {
   const [mounted, setMounted] = useState(false);
   const [rows, setRows] = useState<ScheduleRow[]>([emptyRow()]);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [teacherQuery, setTeacherQuery] = useState("");
   const saveBusy = saving;
   const saveProgress = useSaveProgressBar(saveBusy);
 
   const selectedTeachers = useMemo(() => {
+    if (enableTeacherSelect) {
+      return selectedIds
+        .map((id) => teachers.find((teacher) => teacher.id === id))
+        .filter((teacher): teacher is JpLessonTeacher => teacher != null);
+    }
     if (!lesson) return [] as JpLessonTeacher[];
     return (lesson.teacher_ids ?? [])
       .map((id) => teachers.find((teacher) => teacher.id === id))
       .filter((teacher): teacher is JpLessonTeacher => teacher != null);
-  }, [lesson, teachers]);
+  }, [enableTeacherSelect, lesson, selectedIds, teachers]);
 
   const defaultDuration = useMemo(
     () =>
@@ -115,12 +134,11 @@ export function JpLessonNextClassEditModal({
     [selectedTeachers]
   );
 
-  const teacherJumpLabel = useMemo(() => {
-    if (!selectedTeachers.length) return "去设置老师";
-    const names = selectedTeachers.map((teacher) => teacher.name.trim()).filter(Boolean);
-    if (!names.length) return "去设置老师";
-    return `上课老师：${names.join("、")}（点击更改）`;
-  }, [selectedTeachers]);
+  const durationHint = useMemo(() => {
+    if (!defaultDuration) return null;
+    const label = defaultDuration === "60" ? "1小时" : `${defaultDuration}分钟`;
+    return `新预约默认时长：${label}`;
+  }, [defaultDuration]);
 
   const duplicateRowKeys = useMemo(
     () => findDuplicateLessonScheduleRowKeys(rows),
@@ -134,6 +152,8 @@ export function JpLessonNextClassEditModal({
   useEffect(() => {
     if (!open || !lesson) return;
     setRows(rowsFromLesson(lesson, defaultDuration));
+    setSelectedIds([...(lesson.teacher_ids ?? [])]);
+    setTeacherQuery("");
     // 仅在打开/切换课程时灌草稿；老师列表晚到用下面 effect 补空时长
     // eslint-disable-next-line react-hooks/exhaustive-deps -- teachers/defaultDuration snapshot at open
   }, [open, lesson?.id]);
@@ -166,6 +186,14 @@ export function JpLessonNextClassEditModal({
     });
   };
 
+  const toggleTeacher = (teacherId: number) => {
+    setSelectedIds((prev) =>
+      prev.includes(teacherId)
+        ? prev.filter((id) => id !== teacherId)
+        : [...prev, teacherId]
+    );
+  };
+
   const handleSave = async () => {
     if (hasDuplicateLessonScheduleRows(rows)) {
       return;
@@ -188,7 +216,10 @@ export function JpLessonNextClassEditModal({
       });
     }
 
-    await onSave(schedules);
+    await onSave(
+      schedules,
+      enableTeacherSelect ? { teacherIds: selectedIds } : undefined
+    );
   };
 
   const handleClear = () => {
@@ -230,26 +261,41 @@ export function JpLessonNextClassEditModal({
           </button>
         </div>
 
-        {onEditTeachers ? (
-          <div className="jp-lesson-next-class-teacher-jump">
-            <button
-              type="button"
-              className="jp-lesson-next-class-teacher-jump-btn"
-              disabled={saveBusy}
-              onClick={onEditTeachers}
-            >
-              {teacherJumpLabel}
-            </button>
-            {defaultDuration ? (
-              <p className="jp-lesson-next-class-teacher-duration-hint">
-                新预约默认时长：
-                {defaultDuration === "60" ? "1小时" : `${defaultDuration}分钟`}
-              </p>
-            ) : null}
-          </div>
-        ) : null}
-
         <div className="jp-lesson-next-class-body">
+          {enableTeacherSelect ? (
+            <JpLessonNextClassTeacherField
+              teachers={teachers}
+              selectedIds={selectedIds}
+              query={teacherQuery}
+              disabled={saveBusy}
+              durationHint={durationHint}
+              onQueryChange={setTeacherQuery}
+              onToggle={toggleTeacher}
+              onManageTeachers={onEditTeachers}
+            />
+          ) : onEditTeachers ? (
+            <div className="jp-lesson-next-class-teacher-jump">
+              <button
+                type="button"
+                className="jp-lesson-next-class-teacher-jump-btn"
+                disabled={saveBusy}
+                onClick={onEditTeachers}
+              >
+                {selectedTeachers.length
+                  ? `上课老师：${selectedTeachers
+                      .map((t) => t.name.trim())
+                      .filter(Boolean)
+                      .join("、") || "未命名"}（点击更改）`
+                  : "去设置老师"}
+              </button>
+              {durationHint ? (
+                <p className="jp-lesson-next-class-teacher-duration-hint">
+                  {durationHint}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
           <fieldset className="jp-lesson-next-class-fieldset" disabled={saveBusy}>
             <legend>上课时间（北京时间，整点 / 半点）</legend>
             <div className="jp-lesson-next-class-rows">
@@ -328,7 +374,7 @@ export function JpLessonNextClassEditModal({
               + 添加预约
             </button>
             <p className="jp-lesson-next-class-hint">
-              点击时间后在方块网格中选择整点或半点（如 13:00、13:30）；可添加多条预约；全部留空表示未定义。也可上方粘贴签到通知自动填入。
+              点击时间后在方块网格中选择整点或半点（如 13:00、13:30）；可添加多条预约；全部留空表示未定义。
             </p>
           </fieldset>
 

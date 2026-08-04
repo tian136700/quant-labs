@@ -63,15 +63,39 @@ def main() -> int:
         errors.append(
             f"{NEXT_CLASS.relative_to(ROOT)}: must late-fill empty durations when teachers load"
         )
-    if "teacherJumpLabel" not in next_class:
+    if "JpLessonNextClassTeacherField" not in next_class:
         errors.append(
-            f"{NEXT_CLASS.relative_to(ROOT)}: must show selected teacher names on jump button"
+            f"{NEXT_CLASS.relative_to(ROOT)}: must inline teacher select via JpLessonNextClassTeacherField"
+        )
+    if "enableTeacherSelect" not in next_class:
+        errors.append(
+            f"{NEXT_CLASS.relative_to(ROOT)}: must support enableTeacherSelect for in-modal teacher pick"
+        )
+    if "teacherIds" not in next_class:
+        errors.append(
+            f"{NEXT_CLASS.relative_to(ROOT)}: save meta must include teacherIds when selecting teachers"
+        )
+
+    teacher_field = (
+        ROOT / "src/components/JpLessonNextClassTeacherField.tsx"
+    ).read_text(encoding="utf-8")
+    if "sortJpLessonTeachersByLessonCount" not in teacher_field:
+        errors.append(
+            "src/components/JpLessonNextClassTeacherField.tsx: must sort by lesson count like 设置老师"
         )
 
     modals = MODALS.read_text(encoding="utf-8")
     if "teachers={teachers}" not in modals or "JpLessonNextClassEditModal" not in modals:
         errors.append(
             f"{MODALS.relative_to(ROOT)}: NextClass modal must receive teachers={'{teachers}'}"
+        )
+    if "enableTeacherSelect" not in modals:
+        errors.append(
+            f"{MODALS.relative_to(ROOT)}: NextClass modal must enable in-modal teacher select"
+        )
+    if "setLessonTeachers" not in modals or "teacherIds" not in modals:
+        errors.append(
+            f"{MODALS.relative_to(ROOT)}: saving schedules must also persist teacherIds"
         )
 
     batch = BATCH.read_text(encoding="utf-8")

@@ -190,3 +190,78 @@ export function findDedupedLessonEventForManualLinkedCover<
   }
   return null;
 }
+
+const PLACEHOLDER_TEACHER_NAMES = new Set(["未指定", "手动日程"]);
+
+/**
+ * 老师展示名规范化（顿号/逗号拆分、去空白），用于同堂比对。
+ * 禁止用空名或「未指定」参与匹配。
+ */
+export function normalizeScheduleTeacherNamesForCompare(
+  teachers: string
+): string[] {
+  const names = teachers
+    .split(/[、,，]/)
+    .map((token) => token.trim())
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b, "zh"));
+  if (!names.length) return [];
+  if (names.every((name) => PLACEHOLDER_TEACHER_NAMES.has(name))) return [];
+  return names;
+}
+
+export function scheduleTeacherNamesEqual(a: string, b: string): boolean {
+  const left = normalizeScheduleTeacherNamesForCompare(a);
+  const right = normalizeScheduleTeacherNamesForCompare(b);
+  if (!left.length || !right.length) return false;
+  if (left.length !== right.length) return false;
+  return left.every((name, index) => name === right[index]);
+}
+
+/**
+ * 手动条与新课同老师 + 同一开始时间 + 同一时长 → 只保留新课同步条，丢弃手动展示。
+ * （不要求已关联教材；关联同堂仍优先走 linked cover。）
+ */
+export function findDedupedLessonEventForManualTeacherSlotCover<
+  T extends { classAt: string; durationMinutes: number; teachers: string },
+>(
+  dedupedLessonEvents: T[],
+  manual: {
+    class_at: string;
+    teacher: string;
+    /** 已按标题解析后的时长（与网页/CalDAV 展示一致） */
+    durationMinutes: number;
+  }
+): T | null {
+  const manualTeacher = (manual.teacher ?? "").trim();
+  if (!manualTeacher) return null;
+  const manualAt = normalizeClassAtForCompare(manual.class_at);
+  const duration = Math.round(Number(manual.durationMinutes));
+  if (!Number.isFinite(duration) || duration <= 0) return null;
+
+  for (const event of dedupedLessonEvents) {
+    if (normalizeClassAtForCompare(event.classAt) !== manualAt) continue;
+    if (Math.round(Number(event.durationMinutes)) !== duration) continue;
+    if (!scheduleTeacherNamesEqual(event.teachers, manualTeacher)) continue;
+    return event;
+  }
+  return null;
+}
+
+export function manualScheduleCoveredByLessonTeacherSlot(
+  manual: {
+    class_at: string;
+    teacher: string;
+    durationMinutes: number;
+  },
+  lessonEvents: Array<{
+    classAt: string;
+    durationMinutes: number;
+    teachers: string;
+  }>
+): boolean {
+  return (
+    findDedupedLessonEventForManualTeacherSlotCover(lessonEvents, manual) !=
+    null
+  );
+}

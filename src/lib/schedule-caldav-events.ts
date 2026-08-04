@@ -13,7 +13,7 @@ import {
 } from "@/lib/jp-lesson-shared";
 import { resolveManualScheduleDurationMinutes } from "@/lib/jp-lesson-manual-schedule";
 import { listJpLessonManualSchedules } from "@/lib/jp-lesson-manual-schedule-db";
-import { manualScheduleHasLinkedLessonOnSameSlot } from "@/lib/jp-lesson-manual-schedule-linked";
+import { manualScheduleHasLinkedLessonOnSameSlot, manualScheduleCoveredByLessonTeacherSlot } from "@/lib/jp-lesson-manual-schedule-linked";
 import { listJpLessonTeachers } from "@/lib/jp-lesson-teacher-db";
 
 export const SCHEDULE_CALDAV_UID_DOMAIN = "info-quests.schedule";

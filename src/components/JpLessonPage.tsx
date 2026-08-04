@@ -466,6 +466,7 @@ export function JpLessonPage() {
 
   const {
     setLessonProgress,
+    setLessonTeachers,
     setLessonTeachersForMany,
     addLessonTeacher,
     updateLessonTeacher,
@@ -758,6 +759,7 @@ export function JpLessonPage() {
         updateLessonTeacher={updateLessonTeacher}
         deleteLessonTeacher={deleteLessonTeacher}
         setLessonTeachersForMany={setLessonTeachersForMany}
+        setLessonTeachers={setLessonTeachers}
         setEditingNextClassLesson={setEditingNextClassLesson}
         setLessonClassSchedules={setLessonClassSchedules}
         openTeacherEditModal={openTeacherEditModal}

@@ -75,7 +75,7 @@ def main() -> int:
             "teacher+next-class body must scroll (!important)",
         ),
         (
-            r"\.jp-lesson-teacher-options\s*\{[^}]*max-height:\s*none\s*!important",
+            r"\.jp-lesson-teacher-options(?:\s*,\s*\n\s*\.jp-lesson-next-class-teacher-options)?\s*\{[^}]*max-height:\s*none\s*!important",
             "teacher-options must not keep 55vh nested scroll that eats the sheet",
         ),
         (

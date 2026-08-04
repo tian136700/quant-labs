@@ -60,7 +60,8 @@
   }
 
   /* 列表自滚交给 body；避免 55vh 内层再顶掉底栏按钮 */
-  .jp-lesson-teacher-options {
+  .jp-lesson-teacher-options,
+  .jp-lesson-next-class-teacher-options {
     max-height: none !important;
     overflow: visible !important;
   }

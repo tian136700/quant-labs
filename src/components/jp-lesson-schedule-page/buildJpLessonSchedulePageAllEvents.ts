@@ -1,10 +1,12 @@
 import { flattenEnLessonScheduleEvents } from "@/lib/en-lesson-shared";
 import {
   findDedupedLessonEventForManualLinkedCover,
+  findDedupedLessonEventForManualTeacherSlotCover,
   type ManualScheduleLinkedLessonSlot,
 } from "@/lib/jp-lesson-manual-schedule-linked";
 import {
   manualScheduleToPageEvent,
+  resolveManualScheduleDurationMinutes,
   type JpLessonManualSchedule,
 } from "@/lib/jp-lesson-manual-schedule";
 import { flattenJpLessonScheduleEvents } from "@/lib/jp-lesson-shared";
@@ -28,7 +30,8 @@ type BuildArgs = {
 
 /**
  * 统一日程事件列表：新课去重（同堂单词+语法）+
- * 手动关联教材且同开始时间则并入新课（不另出「手动」条）。
+ * 手动关联教材且同开始时间则并入新课（不另出「手动」条）；
+ * 同老师 + 同时段 + 同时长的未关联手动条也丢弃，只留新课同步条。
  */
 export function buildJpLessonSchedulePageAllEvents({
   lessons,
@@ -128,14 +131,29 @@ export function buildJpLessonSchedulePageAllEvents({
   for (const manual of manualSchedules) {
     const pageEvent = manualScheduleToPageEvent(manual);
     if (!pageEvent) continue;
-    const covered = findDedupedLessonEventForManualLinkedCover(
+    const linkedCover = findDedupedLessonEventForManualLinkedCover(
       dedupedLessonEvents,
       manual,
       lessonSlots
     );
-    if (covered) {
-      covered.manualId = manual.id;
-      covered.manualNote = pageEvent.manualNote;
+    if (linkedCover) {
+      linkedCover.manualId = manual.id;
+      linkedCover.manualNote = pageEvent.manualNote;
+      continue;
+    }
+    const teacherSlotCover = findDedupedLessonEventForManualTeacherSlotCover(
+      dedupedLessonEvents,
+      {
+        class_at: manual.class_at,
+        teacher: manual.teacher,
+        durationMinutes: resolveManualScheduleDurationMinutes(
+          manual.title,
+          manual.duration_minutes
+        ),
+      }
+    );
+    if (teacherSlotCover) {
+      // 纯重复：只保留新课条，不把 manualId 挂上去（避免详情误成「关联手动」）
       continue;
     }
     manualEvents.push(pageEvent);

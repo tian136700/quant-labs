@@ -55,6 +55,7 @@ export type JpLessonPageModalsProps = {
   updateLessonTeacher: (...args: any[]) => any;
   deleteLessonTeacher: (...args: any[]) => any;
   setLessonTeachersForMany: (...args: any[]) => any;
+  setLessonTeachers: (...args: any[]) => any;
   setEditingNextClassLesson: (v: JpLessonRecord | null) => void;
   setLessonClassSchedules: (...args: any[]) => any;
   openTeacherEditModal: (lesson: JpLessonRecord) => void;
@@ -124,6 +125,7 @@ export function JpLessonPageModals(props: JpLessonPageModalsProps) {
     updateLessonTeacher,
     deleteLessonTeacher,
     setLessonTeachersForMany,
+    setLessonTeachers,
     setEditingNextClassLesson,
     setLessonClassSchedules,
     openTeacherEditModal,
@@ -176,14 +178,28 @@ export function JpLessonPageModals(props: JpLessonPageModalsProps) {
         open={editingNextClassLesson != null}
         lesson={editingNextClassLesson}
         teachers={teachers}
+        enableTeacherSelect
         saving={
           savingNextClassId === editingNextClassLesson?.id ||
           savingTeacherLessonId === editingNextClassLesson?.id
         }
         onClose={() => setEditingNextClassLesson(null)}
-        onSave={(schedules) => {
+        onSave={async (schedules, meta) => {
           if (!editingNextClassLesson) return;
-          void setLessonClassSchedules(editingNextClassLesson.id, schedules);
+          const lessonId = editingNextClassLesson.id;
+          if (meta?.teacherIds) {
+            const prevIds = editingNextClassLesson.teacher_ids ?? [];
+            const nextIds = meta.teacherIds;
+            const same =
+              prevIds.length === nextIds.length &&
+              prevIds.every((id) => nextIds.includes(id));
+            if (!same) {
+              await setLessonTeachers(lessonId, nextIds, null, [], {
+                keepOpen: true,
+              });
+            }
+          }
+          await setLessonClassSchedules(lessonId, schedules);
         }}
         onEditTeachers={() => {
           if (!editingNextClassLesson) return;
