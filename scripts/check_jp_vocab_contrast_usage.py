@@ -84,9 +84,28 @@ def main() -> int:
         "is_contrast_word",
         "禁止拆成 5～7 条",
         "【区别】",
+        "接序禁止",
+        "主语是谁",
     ):
         if needle not in script:
             errors.append(f"Mac grammar fill 缺 {needle!r}")
+
+    if "接序禁止夹用法" not in contrast and "主语是谁" not in contrast:
+        errors.append("contrast prompt appendix 须禁止接序夹用法说明")
+    if "くれる" not in contrast or "もらう" not in contrast:
+        errors.append("contrast prompt 须含くれる／もらう接序样例")
+
+    online = (ROOT / "scripts/jp-vocab-fill-online-batch-api.py").read_text(
+        encoding="utf-8"
+    )
+    for needle in (
+        "对比区别课",
+        "connection_has_usage",
+        "grammar_connection_has_usage_noise",
+        "主语必须",
+    ):
+        if needle not in online:
+            errors.append(f"online-batch GRAMMAR_SYSTEM/门禁缺 {needle!r}")
 
     if "对比" not in rule and "【区别】" not in rule:
         errors.append("grammar-usage 规则须写明对比课格式")

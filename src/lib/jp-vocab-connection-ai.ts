@@ -18,7 +18,7 @@ export const JP_VOCAB_CONNECTION_UPLOAD_SPEC = {
   rules: [
     "接序单独成段，放在用法/例句之后，以「【接序】」起头",
     "用法说明里禁止再写接序（接续形态）；接序只写在本字段",
-    "❌ 接序禁止夹用法说明：主语是谁、恩惠流向、强调对方好意／我方获益、意思相近可互换、视角不同等——那些只写在「用法」；接序只留形态公式（词类＋形＋本语法）",
+    "❌ 接序禁止夹用法说明：主语是谁、主语必须、受益者是谁、给予者是谁、恩惠流向、必须是第三方、强调对方好意／我方获益、意思相近可互换、视角不同等——那些只写在「用法」；接序只留形态公式（词类＋形＋本语法）；「｜」后说明列同样禁止写这些",
     "用中文说明；日语形态用「」短引，禁止 漢字(かな) 假名括注",
     "词类标签必须简体中文（动词／一类形容词／二类形容词／名词／词干…）；❌禁止日语繁体词类字（動詞／形容詞／名詞／一類／語幹）",
     "❌词类旁禁止假名读音括注：不要「動詞(どうし)」「普通形(ふつうけい)」；写「动词普通形」即可",
@@ -607,7 +607,7 @@ export type JpVocabConnectionAiInput = {
  * 形态公式旁的短注解如「（前后主语可不同）」不算噪音。
  */
 const CONNECTION_USAGE_NOISE_RE =
-  /恩惠(?:流向|从|得到)?|主语是|接受方(?:是|为)|给予方(?:是|为)|意思相近|可互换|视角不同|从外向内|主动接收|说话人一方|强调(?:对方|说话人|我方|该动作|付出|好意|获益|结果)|两句意思|带有感谢|受恩的语气|含有感谢/;
+  /恩惠(?:流向|从|得到)?|主语是|主语必须|接受方(?:是|为)|给予方(?:是|为)|给予者是|受益者是|受益者（|意思相近|可互换|视角不同|从外向内|主动接收|说话人一方|强调(?:对方|说话人|我方|该动作|付出|好意|获益|结果)|两句意思|带有感谢|受恩的语气|含有感谢|必须是第三方/;
 
 function jpVocabConnectionSegmentIsUsageNoise(seg: string): boolean {
   const t = String(seg || "").trim().replace(/[。．]+$/u, "");
@@ -620,7 +620,7 @@ function jpVocabConnectionSegmentIsUsageNoise(seg: string): boolean {
     !/^(?:一类|二类|三类)(?:动词|形容词)/.test(t) &&
     t.length >= 18 &&
     /[\u4e00-\u9fff]{8,}/.test(t) &&
-    /(?:说话人|对方|我方|感谢|受惠|获益|好意|结果)/.test(t)
+    /(?:说话人|对方|我方|感谢|受惠|获益|好意|结果|受益者|给予者|第三方)/.test(t)
   ) {
     return true;
   }
@@ -657,6 +657,12 @@ export function connectionHasUsageNoise(
     for (const chunk of slashChunks) {
       for (const seg of chunk.split(/(?<=[。．])/u)) {
         if (jpVocabConnectionSegmentIsUsageNoise(seg)) return true;
+        // 「｜说明」列单独扫：模型常把「主语是谁／恩惠流向」塞进第三列
+        const pipeIdx = Math.max(seg.indexOf("｜"), seg.indexOf("|"));
+        if (pipeIdx >= 0) {
+          const note = seg.slice(pipeIdx + 1);
+          if (jpVocabConnectionSegmentIsUsageNoise(note)) return true;
+        }
       }
     }
   }

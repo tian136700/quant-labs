@@ -151,6 +151,18 @@ GRAMMAR_SYSTEM = (
     "句首接续词（しかし／でも／ところが等）也须公式，禁止只写散文「置于后句句首」："
     "前句（动词句／一类形容词句／二类形容词句／名词句）＋しかし｜后句句首，表示转折；"
     "JSON 的 connection 字段禁止省略、禁止空串。"
+    "【接序≠用法·必守】connection 只写形态公式（词类＋形＋本语法）；"
+    "❌禁止在 connection／「｜」说明列写：主语是谁、主语必须、受益者是谁、给予者是谁、"
+    "恩惠流向、必须是第三方、可互换、视角不同、强调好意／获益——那些只写 usage；"
+    "「｜」后只允许接续短注（如「给东西」「帮忙做事」）。"
+    "多形态用全角「；」且每段自带「＋」；❌不要「が／は」斜杠串助词（会被拆断）。"
+    "【对比区别课·必守】词条标题含「区别／对比／辨析」或读音并列（なに／なん、くれる／もらう）："
+    "❌禁止拆成 3～7 条场景「1.用法」；❌不要普通句型的 [口语n|考试m]；"
+    "✅ usage 先写【区别】一段中文概括（句末 (N5)），再恰好 2 组："
+    "1. 「くれる」：…(N5) + 1 条例句；2. 「もらう」：…(N5) + 1 条例句；"
+    "connection 示例："
+    "用法1: 他人＋が＋我＋に＋名词＋をくれる｜给东西；动词て形＋くれる｜帮忙做事\\n"
+    "用法2: 我＋は＋他人＋に＋名词＋をもらう｜得到东西；动词て形＋もらう｜请人做事。"
     "【译文标签·必守】例句下一行只用「译文：」；禁止「訳文：」「訳：」或叠标签。"
     "组数=真实常用用法数；禁止多造例句；例句接续须对应该条用法（た形／原形／て形勿张冠李戴）。"
     "例句只用简单词；句中每个汉字须半角括号假名；译文行禁止写成无标签的中文句（否则会被当成日语漏标）。"
@@ -636,6 +648,51 @@ def grammar_connection_has_formula(text: str) -> bool:
     return False
 
 
+# 与 Worker connectionHasUsageNoise 对齐：接序夹用法说明 → 线上拒 connection_has_usage
+CONNECTION_USAGE_NOISE_RE = re.compile(
+    r"恩惠(?:流向|从|得到)?|主语是|主语必须|接受方(?:是|为)|给予方(?:是|为)|"
+    r"给予者是|受益者是|受益者（|意思相近|可互换|视角不同|从外向内|主动接收|"
+    r"说话人一方|强调(?:对方|说话人|我方|该动作|付出|好意|获益|结果)|两句意思|"
+    r"带有感谢|受恩的语气|含有感谢|必须是第三方"
+)
+
+
+def grammar_connection_has_usage_noise(text: str) -> bool:
+    """接序夹「主语是谁／恩惠流向」等用法说明 → 须重生成，勿直接 apply。"""
+    t = str(text or "").replace("\r\n", "\n").strip()
+    if not t:
+        return False
+    for line in t.split("\n"):
+        for chunk in re.split(r"[／/]", line):
+            segs = re.split(r"(?<=[。．])", chunk)
+            for seg in segs:
+                s = re.sub(r"[。．]+$", "", seg.strip()).strip()
+                if not s:
+                    continue
+                if CONNECTION_USAGE_NOISE_RE.search(s):
+                    return True
+                pipe = s.find("｜")
+                if pipe < 0:
+                    pipe = s.find("|")
+                if pipe >= 0:
+                    note = s[pipe + 1 :].strip()
+                    if note and CONNECTION_USAGE_NOISE_RE.search(note):
+                        return True
+                    if (
+                        note
+                        and "＋" not in note
+                        and "+" not in note
+                        and len(note) >= 18
+                        and re.search(r"[\u4e00-\u9fff]{8,}", note)
+                        and re.search(
+                            r"(?:说话人|对方|我方|感谢|受惠|获益|好意|结果|受益者|给予者|第三方)",
+                            note,
+                        )
+                    ):
+                        return True
+    return False
+
+
 # 与 Worker jpVocabUsageLineLooksNonChinese 对齐：用法「」外禁止 漢字(かな)
 USAGE_FURIGANA_PAREN_RE = re.compile(r"\([\u3040-\u309Fー]+\)")
 
@@ -758,10 +815,11 @@ def bundle_missing_keys(payload: dict[str, Any], row: dict[str, Any]) -> list[st
 
     for key in ("usage", "connection", "example_sentences"):
         if key == "connection":
-            if not grammar_connection_has_formula(
-                str(payload.get("connection") or "")
-            ):
+            conn_text = str(payload.get("connection") or "")
+            if not grammar_connection_has_formula(conn_text):
                 missing.append(key)
+            elif grammar_connection_has_usage_noise(conn_text):
+                missing.append("connection_has_usage")
         elif key == "usage":
             usage_text = str(payload.get("usage") or "").strip()
             if not usage_text or not grammar_usage_looks_chinese(usage_text):
