@@ -28,6 +28,7 @@ from jp_vocab_fill_common import call_api, resolve_token  # noqa: E402
 from jp_vocab_llm_backend import backend_label, is_online_backend  # noqa: E402
 from jp_vocab_example_furigana import (  # noqa: E402
     build_furigana_retry_hint,
+    describe_chinese_prose_in_examples,
     describe_incomplete_furigana,
     merge_fill_payload,
 )
@@ -170,6 +171,8 @@ GRAMMAR_SYSTEM = (
     "【译文标签·必守】例句下一行只用「译文：」；禁止「訳文：」「訳：」或叠标签。"
     "组数=真实常用用法数；禁止多造例句；例句接续须对应该条用法（た形／原形／て形勿张冠李戴）。"
     "例句只用简单词；句中每个汉字须半角括号假名；译文行禁止写成无标签的中文句（否则会被当成日语漏标）。"
+    "❌禁止在 example_sentences 的日语行写中文教学说明（如「一类动词て形变形时…」「促音便要去掉う加って」）；"
+    "规则说明只写 usage 或 connection，例句必须是完整日语句子。"
     "【熟语假名·必守】二字以上熟语整词标假名；该连浊必须浊化："
     "✅出発(しゅっぱつ)／入口(いりぐち)；❌出(で)発(ぱつ)、❌入口(いりくち)、❌日本(にっぽん)語(ご)。"
     "若词条是「变形/ます形规则/て形/ない形/变否定」等活用教学："
@@ -939,6 +942,12 @@ def generate_bundle(row: dict[str, Any], needs: dict[str, bool]) -> dict[str, An
             )
             continue
         payload = merge_fill_payload(payload, payload2)
+
+    still_chinese = describe_chinese_prose_in_examples(
+        str(payload.get("example_sentences") or "")
+    )
+    if still_chinese:
+        raise ValueError(f"chinese_prose_in_japanese_line:{still_chinese}")
 
     still_bad = describe_incomplete_furigana(
         str(payload.get("example_sentences") or "")

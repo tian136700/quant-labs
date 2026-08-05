@@ -248,11 +248,27 @@ export function formatJpVocabExampleGlossLine(text: string): string {
   return body ? `${JP_VOCAB_EXAMPLE_GLOSS_LABEL}${body}` : "";
 }
 
+/**
+ * 例句「日语行」误写中文教学说明（如「一类动词て形变形时，词尾う段…」）。
+ * 简体字（类/变/词/动/时）+ 教学用语 → 拒 chinese_prose_in_japanese_line。
+ */
+const CHINESE_TEACHING_IN_EXAMPLE_RE =
+  /(?:一类|二类|三类)(?:动词|形容)|(?:て|た|ない|ます)?形变形|变化规则|促音便|音便|词尾|う段|あ段|い段|去掉.+加/;
+const SIMPLIFIED_CN_IN_EXAMPLE_RE = /[类变词动时]/;
+
+export function jpVocabExampleLooksLikeChineseTeachingProse(text: string): boolean {
+  const s = stripJpVocabExampleGlossLabel(String(text || "").trim());
+  if (!s || !CHINESE_TEACHING_IN_EXAMPLE_RE.test(s)) return false;
+  if (SIMPLIFIED_CN_IN_EXAMPLE_RE.test(s)) return true;
+  return listJpVocabUnannotatedKanji(s).length >= 4;
+}
+
 /** 含平假名/片假名，且假名足够多 → 视为日语例句行 */
 export function isJpVocabExampleJapaneseLine(text: string): boolean {
   const stripped = stripJpVocabExampleGlossLabel(text);
   // 「译文：…」即使偶有假名也不当日语例句
   if (GLOSS_LABEL_RE.test(text.trim())) return false;
+  if (jpVocabExampleLooksLikeChineseTeachingProse(text)) return false;
   const kana = countMatches(stripped, KANA_RE);
   if (kana === 0) return false;
   const han = countMatches(stripped, HAN_RE);

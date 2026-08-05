@@ -16,6 +16,11 @@ VALID_KANJI_FURIGANA_CHUNK = re.compile(
 KANJI_RE = re.compile(r"[\u4E00-\u9FFF々]")
 JLPT_TAIL_RE = re.compile(r"[（(]\s*N\s*[1-5]\s*[）)]\s*$", re.I)
 GLOSS_LINE_RE = re.compile(r"^(译文|翻譯|翻译|译|譯|訳文|訳)\s*[:：]")
+# 例句「日语行」误写中文教学说明（与 ts jpVocabExampleLooksLikeChineseTeachingProse 对齐）
+CHINESE_TEACHING_IN_EXAMPLE_RE = re.compile(
+    r"(?:一类|二类|三类)(?:动词|形容)|(?:て|た|ない|ます)?形变形|变化规则|促音便|音便|词尾|う段|あ段|い段|去掉.+加"
+)
+SIMPLIFIED_CN_IN_EXAMPLE_RE = re.compile(r"[类变词动时]")
 
 
 def list_unannotated_kanji(japanese_line: str) -> list[str]:
@@ -46,6 +51,33 @@ def iter_japanese_example_lines(block: str) -> list[tuple[int, str]]:
     return rows
 
 
+def looks_like_chinese_teaching_prose(line: str) -> bool:
+    """例句日语行误写中文教学说明（如「一类动词て形变形时…」）。"""
+    text = str(line or "").strip()
+    if GLOSS_LINE_RE.match(text):
+        return False
+    if not text or not CHINESE_TEACHING_IN_EXAMPLE_RE.search(text):
+        return False
+    if SIMPLIFIED_CN_IN_EXAMPLE_RE.search(text):
+        return True
+    return len(list_unannotated_kanji(text)) >= 4
+
+
+def describe_chinese_prose_in_examples(example_sentences: str) -> str | None:
+    """人读反馈；无误写返回 None。"""
+    parts: list[str] = []
+    for n, line in iter_japanese_example_lines(example_sentences):
+        if looks_like_chinese_teaching_prose(line):
+            parts.append(f"第{n}句像中文教学说明")
+    if not parts:
+        return None
+    return (
+        "例句日语行禁止写中文教学说明（规则放 usage/connection，例句须完整日语句）。"
+        + " ".join(parts)
+        + "。"
+    )
+
+
 def describe_incomplete_furigana(example_sentences: str) -> str | None:
     """人读反馈；无漏标返回 None。
 
@@ -69,22 +101,34 @@ def describe_incomplete_furigana(example_sentences: str) -> str | None:
 
 def build_furigana_retry_hint(example_sentences: str, *, kind: str = "word") -> str | None:
     """拼进 Anthropic user prompt 的 CRITICAL 重写指示。"""
+    chinese = describe_chinese_prose_in_examples(example_sentences)
     detail = describe_incomplete_furigana(example_sentences)
-    if not detail:
+    if not chinese and not detail:
         return None
     if kind == "grammar":
         fields = "usage、example_sentences、connection（变形课只要 example_sentences）"
     else:
         fields = "reading、meaning、pos、example_sentences"
-    return (
-        "\n\nCRITICAL: 上次 example_sentences 假名不全，写回会被拒 incomplete_kanji_furigana。\n"
-        f"{detail}\n"
-        f"请重新输出完整 JSON（含 {fields}）。\n"
+    lines = ["\n\nCRITICAL: 上次 example_sentences 不合格，写回会被拒。"]
+    if chinese:
+        lines.append(chinese)
+        lines.append(
+            "❌禁止在 example_sentences 的日语行写中文教学说明"
+            "（如「一类动词て形变形时…」「促音便要去掉…」）；"
+            "规则说明只写 usage 或 connection，例句必须是完整日语句子+假名括注。"
+        )
+    if detail:
+        lines.append(f"假名漏标：{detail}")
+        lines.append(
+            "句中每一个汉字都必须立刻半角括号假名，"
+            "例如 ❌私の趣味(しゅみ)は… → ✅私(わたし)の趣味(しゅみ)は…。"
+        )
+    lines.append(f"请重新输出完整 JSON（含 {fields}）。")
+    lines.append(
         "example_sentences 必须整份重写（不要只改漏的字拼进旧句）；"
-        "句中每一个汉字都必须立刻半角括号假名，"
-        "例如 ❌私の趣味(しゅみ)は… → ✅私(わたし)の趣味(しゅみ)は…。\n"
         "读音/释义/词性若上次已正确可原样再输出一遍，与新例句一起交回。"
     )
+    return "\n".join(lines) + "\n"
 
 
 def merge_fill_payload(old: dict[str, Any], new: dict[str, Any]) -> dict[str, Any]:

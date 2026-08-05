@@ -11,8 +11,10 @@ sys.path.insert(0, str(ROOT / "scripts" / "lib"))
 
 from jp_vocab_example_furigana import (  # noqa: E402
     build_furigana_retry_hint,
+    describe_chinese_prose_in_examples,
     describe_incomplete_furigana,
     list_unannotated_kanji,
+    looks_like_chinese_teaching_prose,
     merge_fill_payload,
 )
 
@@ -44,6 +46,16 @@ def main() -> int:
         errors.append("retry hint must ask for full rewrite")
     if "reading、meaning、pos、example_sentences" not in (hint or ""):
         errors.append("word retry must ask for full four fields")
+
+    bad_cn = (
+        "一类动词て形变形时，词尾う段变い段加て。\n"
+        "译文：一类动词变成て形时，要把词尾变成い段再加て。"
+    )
+    if not describe_chinese_prose_in_examples(bad_cn):
+        errors.append("must detect Chinese teaching prose in example lines")
+    cn_hint = build_furigana_retry_hint(bad_cn, kind="grammar")
+    if not cn_hint or "中文教学说明" not in cn_hint:
+        errors.append("grammar retry must mention 中文教学说明 for prose misuse")
 
     if describe_incomplete_furigana(
         "私(わたし)の趣味(しゅみ)は音楽(おんがく)を聴(き)くことです。(N5)\n"
@@ -90,6 +102,9 @@ def main() -> int:
     if 'incomplete_kanji_furigana${suffix}' not in ai:
         errors.append("ai reject reason must append missing kanji suffix")
 
+    if 'chinese_prose_in_japanese_line' not in ai:
+        errors.append("ai must reject chinese_prose_in_japanese_line")
+
     sentences = (
         ROOT / "src/lib/jp-vocab-example-sentences.ts"
     ).read_text(encoding="utf-8")
@@ -97,6 +112,14 @@ def main() -> int:
         errors.append("ts must export listJpVocabUnannotatedKanji")
     if "describeJpVocabIncompleteFurigana" not in sentences:
         errors.append("ts must export describeJpVocabIncompleteFurigana")
+
+    if "jpVocabExampleLooksLikeChineseTeachingProse" not in sentences:
+        errors.append("ts must export jpVocabExampleLooksLikeChineseTeachingProse")
+
+    if not looks_like_chinese_teaching_prose(
+        "一类动词て形变形时，词尾う段变い段加て。"
+    ):
+        errors.append("looks_like_chinese_teaching_prose must catch bad line")
 
     if errors:
         print("FAIL:")

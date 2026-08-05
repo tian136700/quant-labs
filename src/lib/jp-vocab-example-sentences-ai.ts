@@ -6,6 +6,7 @@ import {
   isJpVocabExampleJapaneseLine,
   jpVocabExampleHasInvalidFuriganaParen,
   jpVocabExampleHasUnannotatedKanji,
+  jpVocabExampleLooksLikeChineseTeachingProse,
   listJpVocabUnannotatedKanji,
   parseJpVocabExampleSentenceItems,
   sanitizeJpVocabExampleJapaneseLine,
@@ -89,6 +90,7 @@ export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
     "need_two_japanese_lines",
     "need_more_japanese_lines",
     "invalid_japanese_line",
+    "chinese_prose_in_japanese_line",
     "incomplete_kanji_furigana",
     "wrong_jukugo_furigana",
     "bad_furigana_paren",
@@ -368,7 +370,12 @@ export function validateJpVocabExampleSentencesAiOutput(
 
   for (const item of cleanedItems) {
     if (!item.text || !isJpVocabExampleJapaneseLine(item.text)) {
-      return { ok: false, reason: "invalid_japanese_line" };
+      return {
+        ok: false,
+        reason: jpVocabExampleLooksLikeChineseTeachingProse(item.text)
+          ? "chinese_prose_in_japanese_line"
+          : "invalid_japanese_line",
+      };
     }
     if (LEMMA_PLACEHOLDER_WAVE_RE.test(stripAllJpVocabParenBlocks(item.text))) {
       return { ok: false, reason: "lemma_placeholder_in_sentence" };
