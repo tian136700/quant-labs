@@ -1,10 +1,17 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ClipboardEvent,
+} from "react";
 import { createPortal } from "react-dom";
 import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import { useSaveProgressBar } from "@/hooks/useSaveProgressBar";
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
+import { pickClipboardLessonFile } from "@/lib/en-lesson-create-paste";
 import {
   EN_VOCAB_CATEGORY_PRESETS,
   EN_VOCAB_DEFAULT_CATEGORY,
@@ -49,6 +56,7 @@ export function EnLessonCreateModal({
   const [mounted, setMounted] = useState(false);
   const [kind, setKind] = useState<EnLessonKind>("word");
   const [content, setContent] = useState("");
+  const [remarks, setRemarks] = useState("");
   const [category, setCategory] = useState<string>(EN_VOCAB_DEFAULT_CATEGORY);
   const [title, setTitle] = useState("");
   const [file, setFile] = useState<File | null>(null);
@@ -56,6 +64,11 @@ export function EnLessonCreateModal({
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
   const saveProgress = useSaveProgressBar(saving);
+
+  const setFileFromPick = (next: File | null) => {
+    setFile(next && next.size > 0 ? next : null);
+    if (!next && fileInputRef.current) fileInputRef.current.value = "";
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -65,6 +78,7 @@ export function EnLessonCreateModal({
     if (!open) return;
     setKind("word");
     setContent("");
+    setRemarks("");
     setCategory(EN_VOCAB_DEFAULT_CATEGORY);
     setTitle("");
     setFile(null);
@@ -81,11 +95,17 @@ export function EnLessonCreateModal({
 
   useEffect(() => {
     if (!file || !file.type.startsWith("image/")) {
-      setPreviewUrl(null);
+      setPreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
       return;
     }
     const url = URL.createObjectURL(file);
-    setPreviewUrl(url);
+    setPreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return url;
+    });
     return () => URL.revokeObjectURL(url);
   }, [file]);
 
@@ -96,9 +116,18 @@ export function EnLessonCreateModal({
       ? "语法可用中文名，如「定语从句」；多项用逗号分隔。"
       : "英文单词/词组用逗号分隔，如 certain, look forward to。";
 
-  const handleFileChange = (next: FileList | null) => {
-    const f = next?.[0] ?? null;
-    setFile(f && f.size > 0 ? f : null);
+  const remarksHint =
+    kind === "grammar"
+      ? "写清这是什么语法、用法要点等，方便以后对照。"
+      : "可选：补充本课说明。";
+
+  const handlePaste = (e: ClipboardEvent<HTMLDivElement>) => {
+    if (saving) return;
+    const picked = pickClipboardLessonFile(e.clipboardData);
+    if (!picked) return;
+    e.preventDefault();
+    setFileFromPick(picked);
+    setFormError("");
   };
 
   const handleSave = async () => {
@@ -115,11 +144,14 @@ export function EnLessonCreateModal({
       form.set("content", trimmed);
       form.set("category", category);
       if (title.trim()) form.set("title", title.trim());
+      if (remarks.trim()) form.set("remarks", remarks.trim());
       if (file) {
         form.set("file", file);
         form.set(
           "media_type",
-          file.type === "application/pdf" ? "pdf" : "image"
+          file.type === "application/pdf" || /\.pdf$/i.test(file.name)
+            ? "pdf"
+            : "image"
         );
       }
 
@@ -214,18 +246,37 @@ export function EnLessonCreateModal({
             <legend>学习内容</legend>
             <textarea
               className="en-lesson-create-textarea"
-              rows={4}
+              rows={3}
               value={content}
               onChange={(e) => setContent(e.target.value)}
               placeholder={
                 kind === "grammar"
-                  ? "例如：定语从句, 状语从句"
+                  ? "例如：定语从句, 现在分词作后置定语"
                   : "例如：certain, forward, look forward to"
               }
               aria-describedby="en-lesson-create-content-hint"
             />
             <p id="en-lesson-create-content-hint" className="en-lesson-create-hint">
               {contentHint}
+            </p>
+          </fieldset>
+
+          <fieldset className="en-lesson-create-fieldset" disabled={saving}>
+            <legend>备注（可选）</legend>
+            <textarea
+              className="en-lesson-create-textarea en-lesson-create-textarea--remarks"
+              rows={3}
+              value={remarks}
+              onChange={(e) => setRemarks(e.target.value)}
+              placeholder={
+                kind === "grammar"
+                  ? "例如：说明这是什么语法、常见用法与注意点"
+                  : "例如：本课重点或补充说明"
+              }
+              aria-describedby="en-lesson-create-remarks-hint"
+            />
+            <p id="en-lesson-create-remarks-hint" className="en-lesson-create-hint">
+              {remarksHint}
             </p>
           </fieldset>
 
@@ -257,36 +308,64 @@ export function EnLessonCreateModal({
 
           <fieldset className="en-lesson-create-fieldset" disabled={saving}>
             <legend>教案图片 / PDF（可选）</legend>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*,.pdf,application/pdf"
-              className="en-lesson-create-file"
-              onChange={(e) => handleFileChange(e.target.files)}
-            />
-            {file ? (
-              <p className="en-lesson-create-file-name">
-                已选：{file.name}
+            <div className="en-lesson-create-paste-actions">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,.pdf,application/pdf"
+                hidden
+                onChange={(e) => {
+                  const f = e.target.files?.[0] ?? null;
+                  setFileFromPick(f);
+                  e.target.value = "";
+                }}
+              />
+              <button
+                type="button"
+                className="jp-lesson-action-btn"
+                disabled={saving}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                选择文件
+              </button>
+              {file ? (
                 <button
                   type="button"
-                  className="en-lesson-create-file-clear"
-                  onClick={() => {
-                    setFile(null);
-                    if (fileInputRef.current) fileInputRef.current.value = "";
-                  }}
+                  className="jp-lesson-action-btn"
+                  disabled={saving}
+                  onClick={() => setFileFromPick(null)}
                 >
                   清除
                 </button>
-              </p>
-            ) : null}
-            {previewUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={previewUrl}
-                alt="教案预览"
-                className="en-lesson-create-preview"
-              />
-            ) : null}
+              ) : null}
+            </div>
+            <div
+              className="en-lesson-create-paste-zone"
+              tabIndex={0}
+              onPaste={handlePaste}
+              role="region"
+              aria-label="粘贴教案图片或 PDF 区域"
+            >
+              {previewUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={previewUrl}
+                  alt="教案预览"
+                  className="en-lesson-create-preview"
+                />
+              ) : file ? (
+                <p className="en-lesson-create-paste-file">
+                  已选：{file.name}
+                  {file.type === "application/pdf" || /\.pdf$/i.test(file.name)
+                    ? "（PDF）"
+                    : ""}
+                </p>
+              ) : (
+                <p>
+                  在此点击后粘贴图片或 PDF（Ctrl/⌘+V），或上方「选择文件」。
+                </p>
+              )}
+            </div>
           </fieldset>
 
           {formError ? (
@@ -433,8 +512,12 @@ export function EnLessonCreateModal({
 
         .en-lesson-create-textarea {
           resize: vertical;
-          min-height: 5.5rem;
+          min-height: 4.5rem;
           line-height: 1.45;
+        }
+
+        .en-lesson-create-textarea--remarks {
+          min-height: 4rem;
         }
 
         .en-lesson-create-hint {
@@ -444,34 +527,42 @@ export function EnLessonCreateModal({
           line-height: 1.4;
         }
 
-        .en-lesson-create-file {
-          width: 100%;
-          font-size: 0.875rem;
-          color: var(--muted);
-        }
-
-        .en-lesson-create-file-name {
-          margin: 0.45rem 0 0;
-          font-size: 0.8125rem;
-          color: var(--muted);
+        .en-lesson-create-paste-actions {
           display: flex;
           flex-wrap: wrap;
-          align-items: center;
-          gap: 0.5rem;
+          gap: 0.45rem;
+          margin-bottom: 0.5rem;
         }
 
-        .en-lesson-create-file-clear {
-          border: none;
-          background: transparent;
-          color: var(--accent);
-          font-size: 0.8125rem;
-          cursor: pointer;
-          padding: 0;
+        .en-lesson-create-paste-zone {
+          min-height: 140px;
+          padding: 0.75rem;
+          border: 1px dashed color-mix(in srgb, var(--accent) 45%, var(--border));
+          border-radius: 10px;
+          background: color-mix(in srgb, var(--bg) 35%, var(--panel));
+          color: var(--muted);
+          font-size: 0.875rem;
+          line-height: 1.45;
+          cursor: text;
+          outline: none;
+        }
+
+        .en-lesson-create-paste-zone:focus {
+          border-color: var(--accent);
+          box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
+        }
+
+        .en-lesson-create-paste-zone p {
+          margin: 0;
+        }
+
+        .en-lesson-create-paste-file {
+          color: var(--text);
+          font-weight: 600;
         }
 
         .en-lesson-create-preview {
           display: block;
-          margin-top: 0.55rem;
           max-width: 100%;
           max-height: 180px;
           object-fit: contain;

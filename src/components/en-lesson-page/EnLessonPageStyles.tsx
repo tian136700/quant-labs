@@ -256,6 +256,28 @@ export function EnLessonPageStyles() {
           min-width: 0;
           max-width: 100%;
         }
+        :global(.en-lesson-remarks-preview) {
+          margin: 0.35rem 0 0;
+          font-size: 0.78125rem;
+          line-height: 1.4;
+          color: var(--muted);
+          white-space: pre-wrap;
+          word-break: break-word;
+          display: -webkit-box;
+          -webkit-line-clamp: 3;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+        :global(.en-lesson-remarks-preview--mobile) {
+          margin: 0.4rem 0 0;
+          -webkit-line-clamp: 4;
+          display: none;
+        }
+        @media (max-width: 767px) {
+          :global(.en-lesson-remarks-preview--mobile) {
+            display: -webkit-box;
+          }
+        }
         :global(.jp-lesson-content-lines) {
           display: flex;
           flex-direction: column;

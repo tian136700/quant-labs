@@ -30,6 +30,7 @@ let devNextId = 1;
 let devSeeded = false;
 let enLessonLinkCopyCountColumnReady = false;
 let enLessonCategoryColumnReady = false;
+let enLessonRemarksColumnReady = false;
 let enLessonSchemaColumnsReady = false;
 
 async function ensureEnLessonLinkCopyCountColumn(db: D1Database): Promise<void> {
@@ -76,6 +77,20 @@ async function ensureEnLessonCategoryColumn(db: D1Database): Promise<void> {
   enLessonCategoryColumnReady = true;
 }
 
+/** 课次备注；旧库缺列时幂等补上 */
+async function ensureEnLessonRemarksColumn(db: D1Database): Promise<void> {
+  if (devStoreEnabled || enLessonRemarksColumnReady) return;
+  try {
+    await db.prepare(`ALTER TABLE en_lesson ADD COLUMN remarks TEXT`).run();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!/duplicate column name/i.test(msg)) {
+      /* column may already exist */
+    }
+  }
+  enLessonRemarksColumnReady = true;
+}
+
 async function ensureEnLessonSchemaColumns(db: D1Database): Promise<void> {
   if (devStoreEnabled || enLessonSchemaColumnsReady) return;
   // 一次 PRAGMA 再按需 ALTER，避免冷 isolate 上无谓失败 ALTER 抢 CPU
@@ -104,6 +119,11 @@ async function ensureEnLessonSchemaColumns(db: D1Database): Promise<void> {
       /* ignore */
     }
     enLessonCategoryColumnReady = true;
+  }
+  if (!names.has("remarks")) {
+    await ensureEnLessonRemarksColumn(db);
+  } else {
+    enLessonRemarksColumnReady = true;
   }
   enLessonSchemaColumnsReady = true;
 }
@@ -145,6 +165,10 @@ function mapRow(row: Record<string, unknown>): EnLessonRecord {
       row.category != null ? String(row.category) : null
     ),
     title: row.title != null ? String(row.title) : null,
+    remarks:
+      row.remarks != null && String(row.remarks).trim()
+        ? String(row.remarks).trim()
+        : null,
     ref_key: row.ref_key != null ? String(row.ref_key) : null,
     completed: Number(row.completed) === 1,
     learning: Number(row.learning) === 1,
@@ -205,7 +229,7 @@ async function attachTeacherIds(
   });
 }
 
-const LESSON_SELECT = `SELECT id, kind, content, category, title, ref_key, completed, learning,
+const LESSON_SELECT = `SELECT id, kind, content, category, title, remarks, ref_key, completed, learning,
   status_updated_at, status_updated_by, teacher_other, next_class_at, class_duration_minutes, link_copy_count, uploaded_at, created_at, updated_at FROM en_lesson`;
 
 async function seedIfEmpty(_db: D1Database): Promise<void> {
@@ -226,6 +250,7 @@ async function seedIfEmpty(_db: D1Database): Promise<void> {
       course_group_id: null,
       category: normalizeEnVocabCategory(item.category),
       title: (item.title || "").trim() || null,
+      remarks: (item.remarks || "").trim() || null,
       ref_key: item.ref_key ? normalizeEnVocabRefKey(item.ref_key) || null : null,
       completed: false,
       learning: false,
@@ -461,6 +486,7 @@ export async function createEnLesson(
     return { ok: false, error: "content_duplicate" };
   }
   const title = (input.title || "").trim() || null;
+  const remarks = (input.remarks || "").trim() || null;
   const category = normalizeEnVocabCategory(input.category);
   const refKey = input.ref_key
     ? normalizeEnVocabRefKey(input.ref_key) || null
@@ -481,6 +507,7 @@ export async function createEnLesson(
       course_group_id: null,
       category,
       title,
+      remarks,
       ref_key: refKey,
       completed: false,
       learning: false,
@@ -508,10 +535,10 @@ export async function createEnLesson(
 
   const result = await db
     .prepare(
-      `INSERT INTO en_lesson (kind, content, category, title, ref_key, completed, learning, uploaded_at, created_at, updated_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, 0, 0, ?6, ?6, ?6)`
+      `INSERT INTO en_lesson (kind, content, category, title, remarks, ref_key, completed, learning, uploaded_at, created_at, updated_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, 0, ?7, ?7, ?7)`
     )
-    .bind(kind, storedContent, category, title, refKey, ts)
+    .bind(kind, storedContent, category, title, remarks, refKey, ts)
     .run();
 
   const id = Number(result.meta?.last_row_id);

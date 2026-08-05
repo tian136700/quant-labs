@@ -40,6 +40,7 @@ export async function POST(request: Request) {
         kind?: EnLessonKind;
         content?: string;
         title?: string | null;
+        remarks?: string | null;
         category?: string | null;
         ref_key?: string | null;
       };
@@ -47,6 +48,7 @@ export async function POST(request: Request) {
         kind: (body.kind === "grammar" ? "grammar" : "word") as EnLessonKind,
         content: String(body.content || "").trim(),
         title: (body.title || "").trim() || null,
+        remarks: (body.remarks || "").trim() || null,
         category: (body.category || "").trim() || null,
         ref_key: normalizeEnVocabRefKey(String(body.ref_key || "")) || null,
         fileBytes: null as ArrayBuffer | null,

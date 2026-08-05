@@ -15,6 +15,8 @@ export type EnLessonCreateWithFileInput = {
   content: string;
   title?: string | null;
   category?: string | null;
+  /** 课次备注（如语法说明） */
+  remarks?: string | null;
   /** 无 file 时可绑定已有教案 key */
   ref_key?: string | null;
   fileBytes?: ArrayBuffer | null;
@@ -41,6 +43,7 @@ export async function createEnLessonWithOptionalFile(
 
   const kind: EnLessonKind = input.kind === "grammar" ? "grammar" : "word";
   const title = (input.title || "").trim() || null;
+  const remarks = (input.remarks || "").trim() || null;
   const category = normalizeEnVocabCategory(input.category);
   const refKey = normalizeEnVocabRefKey(String(input.ref_key || ""));
   const fileBytes = input.fileBytes ?? null;
@@ -56,6 +59,7 @@ export async function createEnLessonWithOptionalFile(
     kind,
     content,
     title,
+    remarks,
     category,
     ref_key: hasFile ? null : refKey || null,
   });
@@ -110,6 +114,11 @@ export async function parseEnLessonCreateFormData(
   const titleRaw = form.get("title");
   const title =
     typeof titleRaw === "string" && titleRaw.trim() ? titleRaw.trim() : null;
+  const remarksRaw = form.get("remarks");
+  const remarks =
+    typeof remarksRaw === "string" && remarksRaw.trim()
+      ? remarksRaw.trim()
+      : null;
   const catRaw = form.get("category");
   const category =
     typeof catRaw === "string" && catRaw.trim() ? catRaw.trim() : null;
@@ -139,6 +148,7 @@ export async function parseEnLessonCreateFormData(
       kind,
       content,
       title,
+      remarks,
       category,
       ref_key: refKey || null,
       fileBytes,

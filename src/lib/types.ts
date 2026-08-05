@@ -527,11 +527,15 @@ export interface EnLessonRecord extends Omit<JpLessonRecord, "kind"> {
   kind: EnLessonKind;
   /** 分类标签；缺省「雅思托福」 */
   category: string | null;
+  /** 课次备注（如语法说明）；可空 */
+  remarks: string | null;
 }
 export type EnLessonUploadInput = Omit<JpLessonUploadInput, "kind"> & {
   kind: EnLessonKind;
   /** 分类标签；缺省「雅思托福」 */
   category?: string | null;
+  /** 课次备注（如语法说明） */
+  remarks?: string | null;
 };
 export type EnLessonNote = JpLessonNote;
 

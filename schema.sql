@@ -699,6 +699,8 @@ CREATE TABLE IF NOT EXISTS en_lesson (
   /** 分类标签（如「雅思托福」；同步到抽问词库） */
   category    TEXT    NOT NULL DEFAULT '雅思托福',
   title       TEXT,
+  /** 课次备注（如语法点说明） */
+  remarks     TEXT,
   ref_key     TEXT,
   completed           INTEGER NOT NULL DEFAULT 0,
   learning            INTEGER NOT NULL DEFAULT 0,

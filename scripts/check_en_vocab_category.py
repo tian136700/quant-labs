@@ -33,7 +33,7 @@ def main() -> None:
     must_contain(ROOT / "src/lib/en-lesson-db.ts", "category: lesson.category")
     must_contain(
         ROOT / "src/lib/en-lesson-db.ts",
-        "INSERT INTO en_lesson (kind, content, category, title, ref_key",
+        "INSERT INTO en_lesson (kind, content, category, title, remarks, ref_key",
     )
     must_contain(
         ROOT / "src/lib/en-lesson-create-with-file.ts",

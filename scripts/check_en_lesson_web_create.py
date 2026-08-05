@@ -43,12 +43,30 @@ def main() -> int:
         errors.append("CreateModal: must offer word/grammar kind radios")
     if "定语从句" not in modal:
         errors.append("CreateModal: must hint Chinese grammar names (定语从句)")
+    if "备注" not in modal:
+        errors.append("CreateModal: must have 备注 field")
+    if "pickClipboardLessonFile" not in modal and "onPaste" not in modal:
+        errors.append("CreateModal: must support paste for lesson file")
+    if "en-lesson-create-paste-zone" not in modal:
+        errors.append("CreateModal: must have paste zone (like JP lesson)")
     if 'type="file"' not in modal:
         errors.append("CreateModal: must allow file upload")
     if "/api/en-lesson/create" not in modal:
         errors.append("CreateModal: must POST /api/en-lesson/create")
     if "JpVocabSaveProgressBar" not in modal:
         errors.append("CreateModal: must show save progress bar")
+
+    paste_helper = ROOT / "src/lib/en-lesson-create-paste.ts"
+    if not paste_helper.is_file():
+        errors.append("missing en-lesson-create-paste.ts")
+    else:
+        paste = paste_helper.read_text(encoding="utf-8")
+        if "application/pdf" not in paste:
+            errors.append("paste helper: must accept PDF as well as images")
+
+    db = (ROOT / "src/lib/en-lesson-db.ts").read_text(encoding="utf-8")
+    if "ensureEnLessonRemarksColumn" not in db or "remarks" not in db:
+        errors.append("en-lesson-db: must persist remarks column")
 
     header = HEADER.read_text(encoding="utf-8")
     if "新增" not in header:
@@ -66,6 +84,8 @@ def main() -> int:
             errors.append("docs: must document /api/en-lesson/create")
         if "en_lesson:operate" not in docs:
             errors.append("docs: must mention en_lesson:operate")
+        if "remarks" not in docs:
+            errors.append("docs: must document remarks field")
 
     if errors:
         print("\n".join(errors))

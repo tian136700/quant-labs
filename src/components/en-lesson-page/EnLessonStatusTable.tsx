@@ -592,6 +592,14 @@ export function EnLessonStatusTable({
                           expanded={Boolean(expandedContentIds[lesson.id])}
                           onToggle={() => onToggleContentExpanded(lesson.id)}
                         />
+                        {lesson.remarks ? (
+                          <p
+                            className="en-lesson-remarks-preview jp-lesson-content-desktop"
+                            title={lesson.remarks}
+                          >
+                            备注：{lesson.remarks}
+                          </p>
+                        ) : null}
                         <div
                           className={`jp-lesson-mobile-content-item${
                             merged ? " jp-lesson-merged-stack-item" : ""
@@ -625,6 +633,11 @@ export function EnLessonStatusTable({
                                 </li>
                               ))}
                             </ul>
+                            {lesson.remarks ? (
+                              <p className="en-lesson-remarks-preview en-lesson-remarks-preview--mobile">
+                                备注：{lesson.remarks}
+                              </p>
+                            ) : null}
                             {canOperate ? (
                               <div className="jp-lesson-mobile-examples-toolbar">
                                 <button
