@@ -9,7 +9,8 @@
 - POST 按 action 改上课状态 / 老师 / 上课时间 / 记复制次数 / 删除课次
 
 上传新课（带教案文件）请用专用接口，勿走本路由：
-  POST /api/en-lesson/upload
+  POST /api/en-lesson/upload          ← 脚本：Bearer 上传令牌
+  POST /api/en-lesson/create          ← 网页「新增」：登录会话（见 docs/en-lesson-create-api.txt）
 
 老师会议号 / 人员管理另见：
   docs/en-lesson-teacher-lookup-api.txt
@@ -313,5 +314,6 @@ POST · delete
 功能索引：docs/feature-index.md → 英语新课
 规则：.cursor/rules/en-lesson-schedule-sets-learning.mdc
       （填上课时间非空 → 默认 learning / 上课中）
-上传：POST /api/en-lesson/upload（页面「API 上传说明」）
+上传：POST /api/en-lesson/upload（令牌；页面「API 上传说明」）
+网页新增：POST /api/en-lesson/create（会话；docs/en-lesson-create-api.txt）
 老师 lookup：docs/en-lesson-teacher-lookup-api.txt

@@ -14,6 +14,8 @@ import {
   type EnLessonImportScheduleApi,
 } from "@/components/en-lesson-page/EnLessonImportScheduleBridge";
 import { EnLessonApiUploadHelp } from "@/components/en-lesson-page/EnLessonApiUploadHelp";
+import { EnLessonCreateBridge } from "@/components/en-lesson-page/EnLessonCreateBridge";
+import { EnLessonPageHeader } from "@/components/en-lesson-page/EnLessonPageHeader";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import {
@@ -69,7 +71,6 @@ import {
 } from "@/components/en-lesson-page/en-lesson-page-helpers";
 import { saveEnLessonNextClassWithMeta } from "@/components/en-lesson-page/save-en-lesson-next-class";
 
-
 /** 含 pdfjs/jspdf：禁止打进 Worker，仅客户端懒加载 */
 const EnLessonAnnotateModal = dynamic(
   () =>
@@ -111,6 +112,7 @@ export function EnLessonPage() {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [copyToast, setCopyToast] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
   const importScheduleApiRef = useRef<EnLessonImportScheduleApi | null>(null);
   const [mobileStatusFilter, setMobileStatusFilterState] =
     useState<EnLessonProgressStatus>(() =>
@@ -724,20 +726,20 @@ export function EnLessonPage() {
     }
   };
 
-
   const editingRef = editingLesson?.ref_key ? refs[editingLesson.ref_key] : undefined;
 
   return (
     <main className="page-wrap jp-lesson-page jp-lesson-page--en" style={{ maxWidth: "min(1320px, 100%)", paddingTop: "1.5rem" }}>
-      <h1 style={{ fontSize: "1.5rem", margin: "0 0 0.35rem" }}>英语新课</h1>
-
-      <p style={{ color: "var(--muted)", marginBottom: "0.75rem" }}>
-        新课学习清单与教案管理。访客可浏览；登录用户可设置状态（未完成 / 上课中 / 上课完）。仅「上课完」会同步进入
-        <a href="/en-vocab" style={{ color: "var(--accent)" }}>
-          英语单词抽问
-        </a>
-        并带上教案链接。
-      </p>
+      <EnLessonPageHeader
+        canOperate={canOperate}
+        onAddClick={() => {
+          if (!user) {
+            openEnAuth();
+            return;
+          }
+          setCreateOpen(true);
+        }}
+      />
 
       {user && !checking && !canViewEnLesson ? (
         <section className="section etr-panel">
@@ -775,7 +777,9 @@ export function EnLessonPage() {
         <p style={{ color: "var(--muted)" }}>加载中…</p>
       ) : !lessons.length ? (
         <section className="section etr-panel" aria-label="学习清单">
-          <p style={{ color: "var(--muted)", margin: 0 }}>暂无新课，请通过 API 上传。</p>
+          <p style={{ color: "var(--muted)", margin: 0 }}>
+            {canOperate ? "暂无新课，请点击上方「新增」，或通过 API 上传。" : "暂无新课，请通过 API 上传。"}
+          </p>
         </section>
       ) : (
         <div className={`jp-lesson-cards jp-lesson-mobile-filter-${mobileStatusFilter}`}>
@@ -868,6 +872,23 @@ export function EnLessonPage() {
           })}
         </div>
       )}
+
+      <EnLessonCreateBridge
+        open={createOpen}
+        locale={locale}
+        onClose={() => setCreateOpen(false)}
+        onNeedLogin={openEnAuth}
+        onCreatedLesson={(lesson) => {
+          setLessons((prev) => {
+            const next = [lesson, ...prev.filter((l) => l.id !== lesson.id)];
+            persistLessonCache(next, refs, notes, teachers);
+            return next;
+          });
+        }}
+        setMobileStatusFilter={setMobileStatusFilter}
+        setStatus={setStatus}
+        loadLessons={loadLessons}
+      />
 
       <EnLessonTeacherEditModal
         open={editingTeacherLesson != null}

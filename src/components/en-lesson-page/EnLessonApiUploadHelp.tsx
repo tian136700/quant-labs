@@ -11,7 +11,12 @@ export function EnLessonApiUploadHelp() {
         固定链接：<code>{SITE_URL}/en-lesson</code>
       </p>
       <p>
-        上传接口：<code>POST /api/en-lesson/upload</code>，Header{" "}
+        网页「新增」：登录后点标题旁按钮，走{" "}
+        <code>POST /api/en-lesson/create</code>（会话鉴权）。说明见{" "}
+        <code>docs/en-lesson-create-api.txt</code>。
+      </p>
+      <p>
+        脚本上传接口：<code>POST /api/en-lesson/upload</code>，Header{" "}
         <code>Authorization: Bearer &lt;JP_REVIEW_UPLOAD_TOKEN&gt;</code>
       </p>
       <pre

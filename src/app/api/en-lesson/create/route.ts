@@ -1,18 +1,28 @@
-import { getCloudflareEnv, jsonResponse } from "@/lib/cloudflare-env";
+import { jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 import {
   createEnLessonWithOptionalFile,
   parseEnLessonCreateFormData,
 } from "@/lib/en-lesson-create-with-file";
-import { normalizeEnVocabRefKey } from "@/lib/en-vocab-ref-shared";
-import { verifyUploadAuth } from "@/lib/jp-review";
+import { requireEnLessonOperate } from "@/lib/en-vocab-auth";
 import type { EnLessonKind } from "@/lib/types";
+import { normalizeEnVocabRefKey } from "@/lib/en-vocab-ref-shared";
 
+const AUTH_MSG = {
+  en: "Please log in to save changes.",
+  zh: "请登录后再操作。",
+};
+
+/**
+ * 网页「新增」英语新课：会话鉴权（en_lesson:operate），支持 multipart 传图。
+ * 脚本/令牌上传仍用 POST /api/en-lesson/upload。
+ */
 export async function POST(request: Request) {
-  try {
-    const env = await getCloudflareEnv();
+  const locale = localeFromRequest(request);
 
-    if (!verifyUploadAuth(request, env)) {
-      return jsonResponse({ ok: false, error: "Unauthorized" }, 401);
+  try {
+    const { env, user, allowed } = await requireEnLessonOperate(request);
+    if (!allowed || !user) {
+      return jsonResponse({ ok: false, error: AUTH_MSG[locale] }, 401);
     }
 
     const contentType = request.headers.get("content-type") || "";

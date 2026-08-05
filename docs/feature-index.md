@@ -271,6 +271,7 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 
 | 功能描述 | 改哪里 |
 |----------|--------|
+| **网页新增整条课**（选单词/语法；语法学习内容可用中文如「定语从句」；可传教案图片；列表多一行） | `EnLessonPageHeader`「新增」→ `EnLessonCreateModal` / `EnLessonCreateBridge`；`POST /api/en-lesson/create`（会话 `en_lesson:operate`）；共用 `en-lesson-create-with-file.ts`；令牌上传仍 `POST /api/en-lesson/upload`；说明 `docs/en-lesson-create-api.txt`；回归 `scripts/check_en_lesson_web_create.py` |
 | 设置上课老师弹窗（弹窗内新增老师并保存） | `EnLessonTeacherEditModal.tsx`（添加行右侧「保存」）；`EnLessonPage.tsx` → `addLessonTeacher` / `setLessonTeachers`（合并老师列表，勿用旧闭包覆盖刚添加的老师）；API：`/api/admin/en-lesson-teachers`、`POST /api/en-lesson` `set_teacher` |
 | **设置上课时间 · 文字拆解**（粘贴签到通知自动填老师与时间；无老师则新建） | `LessonClassNoticePasteBox` + `lesson-class-notice-parse.ts`；`EnLessonNextClassEditModal`（日语已去掉）；回归 `scripts/check_lesson_class_notice_parse.py` |
 | **腾讯会议号**（人员管理英语老师可填；列表上课老师列「腾讯会议」标签；操作「会议号」复制；多老师先问序号；无则「此老师没有会议号」；签到「联系方式」可拆进会议号） | `en_lesson_teacher.tencent_meeting_id`；`en-lesson-tencent-meeting.ts`；`EnLessonStatusTable`；`AdminJpLessonTeachersList`（`?subject=en`）；规则 `.cursor/rules/en-lesson-tencent-meeting.mdc`；回归 `scripts/check_en_lesson_tencent_meeting.py` |

@@ -36,12 +36,20 @@ def main() -> None:
         "INSERT INTO en_lesson (kind, content, category, title, ref_key",
     )
     must_contain(
-        ROOT / "src/app/api/en-lesson/upload/route.ts",
-        "categoryRaw",
+        ROOT / "src/lib/en-lesson-create-with-file.ts",
+        "normalizeEnVocabCategory",
+    )
+    must_contain(
+        ROOT / "src/lib/en-lesson-create-with-file.ts",
+        "category",
     )
     must_contain(
         ROOT / "src/app/api/en-lesson/upload/route.ts",
-        "normalizeEnVocabCategory",
+        "createEnLessonWithOptionalFile",
+    )
+    must_contain(
+        ROOT / "src/app/api/en-lesson/create/route.ts",
+        "createEnLessonWithOptionalFile",
     )
     must_contain(
         ROOT / "src/lib/en-vocab-db/words.ts",

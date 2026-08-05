@@ -1,0 +1,114 @@
+英语新课 · 网页新增（会话鉴权 create）
+========================================
+
+用途
+----
+给已登录、有「英语新课 · 编辑/操作」权限的用户，在网页 `/en-lesson` 点「新增」
+创建一整条新课（单词或语法）。语法类学习内容可用中文名（如「定语从句」）。
+可选上传教案图片 / PDF。
+
+脚本 / 定时任务仍用令牌接口（勿混用）：
+  POST /api/en-lesson/upload
+  Header Authorization: Bearer <JP_REVIEW_UPLOAD_TOKEN>
+
+列表与改状态等见：
+  docs/en-lesson-api.txt
+
+
+线上地址
+--------
+POST https://english.info-quests.com/api/en-lesson/create
+
+也可用 finance.info-quests.com 同路径（同一 Worker / 同一 D1）。
+
+
+本机开发（可选）
+---------------
+POST http://127.0.0.1:3002/api/en-lesson/create
+
+
+鉴权
+----
+须登录 Cookie 会话；权限 `en_lesson:operate`（管理员默认有）。
+未登录 / 无权限 → HTTP 401。
+
+Header（可选）：
+  x-locale: zh | en
+
+
+请求
+----
+推荐 multipart/form-data（与网页弹窗一致）：
+
+| 字段 | 必填 | 说明 |
+|------|------|------|
+| kind | 是 | word 或 grammar |
+| content | 是 | 学习内容；多项用 , ， 、 分隔。语法可用中文，如「定语从句」 |
+| category | 否 | 默认「雅思托福」；亦可「托业」等 |
+| title | 否 | 教案标题 |
+| file | 否 | 图片或 PDF，最大 20MB |
+| media_type | 否 | image 或 pdf；有 file 时可不传，按 MIME 推断 |
+| ref_key | 否 | 无 file 时可绑已有教案 key；有 file 时忽略并由系统生成 |
+
+也支持 JSON（无文件）：
+{
+  "kind": "grammar",
+  "content": "定语从句",
+  "category": "雅思托福"
+}
+
+
+成功响应
+--------
+{
+  "ok": true,
+  "lesson": { "id": 42, "kind": "grammar", "content": "定语从句", ... },
+  "ref_key": "lesson-42",
+  "ref_view_path": "/api/en-vocab/ref/lesson-42"
+}
+
+无教案文件时 ref_key / ref_view_path 可能为 null。
+
+
+失败
+----
+| HTTP | error |
+|------|-------|
+| 401 | 请登录后再操作。 |
+| 400 | content_required / content_empty |
+| 409 | content_duplicate（同 kind + 同规范化 content 已存在） |
+| 413 | File too large (max 20MB) |
+
+
+curl 示例
+---------
+curl -X POST "https://english.info-quests.com/api/en-lesson/create" \
+  -H "Cookie: <your-session-cookie>" \
+  -F "kind=grammar" \
+  -F "content=定语从句" \
+  -F "category=雅思托福" \
+  -F "file=@lesson.png"
+
+
+Python 最小例（requests，须带会话 Cookie）
+----------------------------------------
+import requests
+
+r = requests.post(
+    "https://english.info-quests.com/api/en-lesson/create",
+    cookies={"…": "…"},
+    data={"kind": "grammar", "content": "定语从句"},
+    files={"file": open("lesson.png", "rb")},
+)
+print(r.status_code, r.json())
+
+
+联系 / 改接口时
+--------------
+线上模块：英语新课（/en-lesson）
+本说明：POST /api/en-lesson/create
+实现：src/app/api/en-lesson/create/route.ts
+      src/lib/en-lesson-create-with-file.ts
+      src/components/en-lesson-page/EnLessonCreateModal.tsx
+功能索引：docs/feature-index.md → 英语新课 · 网页新增整条课
+令牌上传对照：POST /api/en-lesson/upload
