@@ -61,11 +61,17 @@ export function EnLessonCreateModal({
   const [title, setTitle] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [zoomOpen, setZoomOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
   const saveProgress = useSaveProgressBar(saving);
 
+  const canZoomImage = Boolean(
+    previewUrl && file && file.type.startsWith("image/")
+  );
+
   const setFileFromPick = (next: File | null) => {
+    setZoomOpen(false);
     setFile(next && next.size > 0 ? next : null);
     if (!next && fileInputRef.current) fileInputRef.current.value = "";
   };
@@ -83,6 +89,7 @@ export function EnLessonCreateModal({
     setTitle("");
     setFile(null);
     setPreviewUrl(null);
+    setZoomOpen(false);
     setFormError("");
     setSaving(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -92,6 +99,15 @@ export function EnLessonCreateModal({
     if (!open) return;
     return lockBodyScroll();
   }, [open]);
+
+  useEffect(() => {
+    if (!zoomOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setZoomOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [zoomOpen]);
 
   useEffect(() => {
     if (!file || !file.type.startsWith("image/")) {
@@ -347,12 +363,33 @@ export function EnLessonCreateModal({
               aria-label="粘贴教案图片或 PDF 区域"
             >
               {previewUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={previewUrl}
-                  alt="教案预览"
-                  className="en-lesson-create-preview"
-                />
+                canZoomImage ? (
+                  <button
+                    type="button"
+                    className="en-lesson-create-thumb"
+                    disabled={saving}
+                    title="点击放大预览"
+                    aria-label="点击放大预览教案图"
+                    onClick={() => setZoomOpen(true)}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={previewUrl}
+                      alt="教案预览"
+                      className="en-lesson-create-preview"
+                    />
+                    <span className="en-lesson-create-zoom-hint">
+                      点击放大预览
+                    </span>
+                  </button>
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={previewUrl}
+                    alt="教案预览"
+                    className="en-lesson-create-preview"
+                  />
+                )
               ) : file ? (
                 <p className="en-lesson-create-paste-file">
                   已选：{file.name}
@@ -404,6 +441,39 @@ export function EnLessonCreateModal({
           </button>
         </div>
       </div>
+
+      {zoomOpen && canZoomImage && previewUrl
+        ? createPortal(
+            <div
+              className="en-lesson-create-zoom"
+              role="dialog"
+              aria-modal="true"
+              aria-label="教案大图预览"
+              onClick={() => setZoomOpen(false)}
+            >
+              <div className="en-lesson-create-zoom-bar">
+                <span>教案图 · 点击空白处或按 Esc 关闭</span>
+                <button
+                  type="button"
+                  className="en-lesson-create-zoom-close"
+                  onClick={() => setZoomOpen(false)}
+                  aria-label="关闭大图预览"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="en-lesson-create-zoom-stage">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={previewUrl}
+                  alt="教案大图预览"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
 
       <style jsx>{`
         .en-lesson-create-overlay {
@@ -535,7 +605,7 @@ export function EnLessonCreateModal({
         }
 
         .en-lesson-create-paste-zone {
-          min-height: 140px;
+          min-height: 160px;
           padding: 0.75rem;
           border: 1px dashed color-mix(in srgb, var(--accent) 45%, var(--border));
           border-radius: 10px;
@@ -545,6 +615,10 @@ export function EnLessonCreateModal({
           line-height: 1.45;
           cursor: text;
           outline: none;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
         }
 
         .en-lesson-create-paste-zone:focus {
@@ -554,6 +628,7 @@ export function EnLessonCreateModal({
 
         .en-lesson-create-paste-zone p {
           margin: 0;
+          max-width: 16rem;
         }
 
         .en-lesson-create-paste-file {
@@ -561,14 +636,93 @@ export function EnLessonCreateModal({
           font-weight: 600;
         }
 
+        .en-lesson-create-thumb {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 0.35rem;
+          width: 100%;
+          margin: 0;
+          padding: 0;
+          border: none;
+          background: transparent;
+          cursor: zoom-in;
+          color: inherit;
+          font: inherit;
+        }
+
+        .en-lesson-create-thumb:disabled {
+          cursor: not-allowed;
+          opacity: 0.7;
+        }
+
         .en-lesson-create-preview {
           display: block;
           max-width: 100%;
           max-height: 180px;
+          margin: 0 auto;
           object-fit: contain;
           border-radius: 8px;
           border: 1px solid var(--border);
           background: var(--bg);
+        }
+
+        .en-lesson-create-zoom-hint {
+          color: var(--muted);
+          font-size: 0.78rem;
+        }
+
+        .en-lesson-create-zoom {
+          position: fixed;
+          inset: 0;
+          z-index: 1300;
+          display: flex;
+          flex-direction: column;
+          background: rgba(0, 0, 0, 0.78);
+          padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0)
+            env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0);
+        }
+
+        .en-lesson-create-zoom-bar {
+          flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.75rem;
+          padding: 0.75rem 1rem;
+          color: #f3f5f8;
+          font-size: 0.9rem;
+        }
+
+        .en-lesson-create-zoom-close {
+          width: 2.2rem;
+          height: 2.2rem;
+          border: 1px solid rgba(255, 255, 255, 0.35);
+          border-radius: 8px;
+          background: rgba(255, 255, 255, 0.08);
+          color: #fff;
+          font-size: 1.35rem;
+          line-height: 1;
+          cursor: pointer;
+        }
+
+        .en-lesson-create-zoom-stage {
+          flex: 1;
+          min-height: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 0.5rem 1rem 1rem;
+          overflow: auto;
+        }
+
+        .en-lesson-create-zoom-stage img {
+          max-width: min(96vw, 1100px);
+          max-height: min(88dvh, 920px);
+          object-fit: contain;
+          border-radius: 8px;
+          box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
         }
 
         .en-lesson-create-error {

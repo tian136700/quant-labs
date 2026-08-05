@@ -49,6 +49,10 @@ def main() -> int:
         errors.append("CreateModal: must support paste for lesson file")
     if "en-lesson-create-paste-zone" not in modal:
         errors.append("CreateModal: must have paste zone (like JP lesson)")
+    if "点击放大预览" not in modal or "en-lesson-create-zoom" not in modal:
+        errors.append("CreateModal: image preview must be clickable to zoom (like JP)")
+    if "en-lesson-create-thumb" not in modal:
+        errors.append("CreateModal: preview thumb must be centered/clickable")
     if 'type="file"' not in modal:
         errors.append("CreateModal: must allow file upload")
     if "/api/en-lesson/create" not in modal:
