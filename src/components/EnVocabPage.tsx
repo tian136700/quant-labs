@@ -77,8 +77,10 @@ import {
 import {
   enVocabWordsInOrder,
   pickRandomEnVocabWord,
+  readStoredEnVocabKindFilter,
   readStoredEnVocabPage,
   readStoredEnVocabPageSize,
+  readStoredEnVocabSearchQuery,
   writeStoredEnVocabPage,
   writeStoredEnVocabPageSize,
 } from "@/lib/en-vocab-page-helpers";
@@ -87,6 +89,7 @@ import { resolveEnVocabRefForPreview } from "@/lib/en-vocab-ref-shared";
 import type { EnVocabLevel, EnVocabRef, EnVocabWord } from "@/lib/types";
 import type { JpVocabDailyQuizProgress } from "@/lib/jp-vocab-daily-quiz-progress";
 import { useEnVocabPageSync } from "@/hooks/useEnVocabPageSync";
+import { useEnVocabSearchFreshLoad } from "@/hooks/useEnVocabSearchFreshLoad";
 import { useEnVocabBindRemoteResetSessionClear } from "@/hooks/useEnVocabRemoteResetSessionClear";
 import {
   useEnVocabQuizTargetPool,
@@ -196,8 +199,12 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
   /** 未手动点列头排序时，行顺序用当日固定 display_order；点过后按列头数值排序 */
   const [useDailyRowOrder, setUseDailyRowOrder] = useState(true);
   /** 服务端持久化的当日行顺序（北京时间 0 点重排，当天内刷新/勾选不变） */
-  const [searchQuery, setSearchQuery] = useState("");
-  const [kindFilter, setKindFilter] = useState<EnVocabKindFilter>("all");
+  const [searchQuery, setSearchQuery] = useState(() =>
+    readStoredEnVocabSearchQuery()
+  );
+  const [kindFilter, setKindFilter] = useState<EnVocabKindFilter>(() =>
+    readStoredEnVocabKindFilter()
+  );
   const [page, setPage] = useState(() => readStoredEnVocabPage());
   const [pageSize, setPageSize] = useState(() => readStoredEnVocabPageSize());
   const [showRiskChart, setShowRiskChart] = useState(false);
@@ -263,6 +270,9 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
   const handleRefreshWords = useCallback(() => {
     void loadWords({ force: true });
   }, [loadWords]);
+
+  // 有搜索关键词时强制拉最新词表（对齐日语；避免滤过期 SWR 缓存）
+  useEnVocabSearchFreshLoad(searchQuery, loadWords);
 
   // 账号正常：约 30 分钟软刷新今日抽查数量/词表（老师+管理员；禁用账号不刷新）
   useEffect(() => {

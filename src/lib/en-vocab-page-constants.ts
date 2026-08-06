@@ -36,3 +36,14 @@ export const EN_VOCAB_PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
 
 export const EN_VOCAB_PAGE_STORAGE_KEY = "en_vocab_current_page";
 export const EN_VOCAB_PAGE_SIZE_STORAGE_KEY = "en_vocab_page_size";
+
+/** 搜索关键词（刷新后保留；点「清除」才空） */
+export const EN_VOCAB_SEARCH_QUERY_STORAGE_KEY = "en_vocab_search_query";
+/** 类型筛选 all|word|grammar */
+export const EN_VOCAB_SEARCH_KIND_STORAGE_KEY = "en_vocab_search_kind";
+/** 最近搜索记录（JSON 字符串数组） */
+export const EN_VOCAB_SEARCH_HISTORY_STORAGE_KEY = "en_vocab_search_history";
+/** 最近搜索最多条数 */
+export const EN_VOCAB_SEARCH_HISTORY_MAX = 8;
+/** 有关键词时强制拉最新词表的防抖（ms） */
+export const EN_VOCAB_SEARCH_FRESH_DEBOUNCE_MS = 400;
