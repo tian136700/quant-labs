@@ -22,6 +22,9 @@ D1_DIR = ROOT / ".wrangler" / "state" / "v3" / "d1" / "miniflare-D1DatabaseObjec
 PLUS_SEG_RE = re.compile(r"^(.+?)([＋+].+)$")
 USAGE_TAG_RE = re.compile(r"^用法\s*\d+\s*[：:]")
 COLON_ROW_RE = re.compile(r"^(.+?)[：:]\s*(.+)$")
+MESSY_PAREN_PLUS_SLASH_RE = re.compile(
+    r"（[^）\n]*[＋+][^）\n]*[／/][^）\n]*）|（[^）\n]*[／/][^）\n]*[＋+][^）\n]*）"
+)
 
 
 def local_sqlite() -> Path:
@@ -51,6 +54,56 @@ def split_semi(text: str) -> list[str]:
     if last:
         parts.append(last)
     return parts
+
+
+def is_messy(connection: str) -> str | None:
+    c = connection or ""
+    if MESSY_PAREN_PLUS_SLASH_RE.search(c):
+        return "messy_paren_plus_slash"
+    for line in c.replace("\r\n", "\n").split("\n"):
+        body = USAGE_TAG_RE.sub("", line.strip()).strip()
+        if not body:
+            continue
+        for seg in split_semi(body) if ("；" in body or ";" in body) else [body]:
+            if "｜" in seg:
+                seg = seg.split("｜", 1)[0]
+            plus_i = -1
+            depth = 0
+            in_quote = False
+            for i, ch in enumerate(seg):
+                if ch in "「『":
+                    in_quote = True
+                elif ch in "」』":
+                    in_quote = False
+                elif ch in "（(":
+                    depth += 1
+                elif ch in "）)":
+                    depth = max(0, depth - 1)
+                elif depth == 0 and not in_quote and ch in "＋+":
+                    plus_i = i
+                    break
+            if plus_i < 0:
+                continue
+            left = seg[:plus_i]
+            # 左侧裸「A／B」（不在括号/引号内）才算应拆行
+            depth = 0
+            in_quote = False
+            bare_slash = False
+            for ch in left:
+                if ch in "「『":
+                    in_quote = True
+                elif ch in "」』":
+                    in_quote = False
+                elif ch in "（(":
+                    depth += 1
+                elif ch in "）)":
+                    depth = max(0, depth - 1)
+                elif depth == 0 and not in_quote and ch in "／/":
+                    bare_slash = True
+                    break
+            if bare_slash:
+                return "slash_morph_single_plus"
+    return None
 
 
 def can_table(connection: str) -> bool:
@@ -109,22 +162,42 @@ def main() -> int:
         ORDER BY id
         """
     ).fetchall()
-    bad: list[tuple[int, str, str]] = []
+    bad: list[tuple[int, str, str, str]] = []
     for wid, word, conn in rows:
+        reason = is_messy(str(conn or ""))
+        if reason:
+            bad.append(
+                (
+                    int(wid),
+                    str(word),
+                    reason,
+                    str(conn or "").replace("\n", " ")[:100],
+                )
+            )
+            continue
         if can_table(str(conn or "")):
             continue
-        bad.append((int(wid), str(word), str(conn or "").replace("\n", " ")[:100]))
+        bad.append(
+            (
+                int(wid),
+                str(word),
+                "not_table",
+                str(conn or "").replace("\n", " ")[:100],
+            )
+        )
 
-    print(f"[scan] grammar_with_connection={len(rows)} not_table={len(bad)} db={db.name}")
+    print(
+        f"[scan] grammar_with_connection={len(rows)} bad={len(bad)} db={db.name}"
+    )
     show = bad if args.limit <= 0 else bad[: args.limit]
-    for wid, word, head in show:
-        print(f"  {wid}\t{word}\t{head}")
+    for wid, word, reason, head in show:
+        print(f"  {wid}\t{word}\t{reason}\t{head}")
     if args.limit > 0 and len(bad) > args.limit:
         print(f"  … 另有 {len(bad) - args.limit} 条")
 
     if args.check and bad:
         print(
-            "[scan] FAIL: 有接续无法上表；请改成「词类＋接什么｜说明」（见 jp-vocab-connection-table-always）",
+            "[scan] FAIL: 有接续无法上表或格式乱；请改成「词类＋接什么｜说明」分行（见日语接续示例图）",
             file=sys.stderr,
         )
         return 1

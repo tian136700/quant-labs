@@ -88,6 +88,15 @@ def main() -> None:
         fail("validate must reject repeated_identical_notes")
     if "missing_table_notes" not in src:
         fail("validate must reject missing_table_notes")
+    expand = (ROOT / "src/lib/jp-vocab-connection-table-expand.ts").read_text(
+        encoding="utf-8"
+    )
+    if "splitConnectionPlusOutsideParens" not in expand:
+        fail("missing splitConnectionPlusOutsideParens")
+    if "expandConnectionTableLabelSlash" not in expand:
+        fail("missing expandConnectionTableLabelSlash")
+    if "messy_paren_plus_slash" not in src:
+        fail("validate must reject messy_paren_plus_slash")
 
     print("ok: connection slash-morphology + id=521 かもしれない specimen guards")
 

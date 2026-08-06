@@ -7,6 +7,11 @@ import {
   connectionHasMissingTableNotes,
   connectionHasRepeatedIdenticalNotes,
 } from "@/lib/jp-vocab-connection-note-diversity";
+import {
+  connectionHasMessyParenPlusSlash,
+  expandConnectionTableLabelSlash,
+  splitConnectionPlusOutsideParens,
+} from "@/lib/jp-vocab-connection-table-expand";
 
 export const JP_VOCAB_CONNECTION_SECTION_MARKER = "【接序】";
 
@@ -293,7 +298,7 @@ const CONNECTION_TABLE_ROW_RE = /^(.+?)[：:]\s*(.+)$/;
 const CONNECTION_USAGE_TAG_RE = /^用法\s*\d+\s*$/;
 /** 词类列上限（含「动词普通形（原形／…）」） */
 const CONNECTION_TABLE_LABEL_MAX = 36;
-/** 「词类＋接续」段：左标签 + 全角/半角加号起的接续 */
+/** 「词类＋接续」段：优先括号外拆＋（见 splitConnectionPlusOutsideParens） */
 const CONNECTION_PLUS_SEGMENT_RE = /^(.+?)([＋+].+)$/;
 
 /** 按 ； 拆段，但不拆全角/半角括号内的顿号（如「前后主语可不同；后项…」） */
@@ -551,11 +556,18 @@ function tryParseSemicolonPlusConnectionTableRows(
   const rows: JpVocabConnectionTableRow[] = [];
   const extraRows: JpVocabConnectionTableRow[] = [];
   for (const seg of segments) {
-    const m = CONNECTION_PLUS_SEGMENT_RE.exec(seg);
-    if (!m) return null;
-    const rawLabel = String(m[1] ?? "").trim();
-    const rawBody = String(m[2] ?? "").trim().replace(/^[+]/, "＋");
-    if (!rawLabel || !rawBody) return null;
+    const split = splitConnectionPlusOutsideParens(seg);
+    const m = split
+      ? null
+      : CONNECTION_PLUS_SEGMENT_RE.exec(seg);
+    const rawLabel = split
+      ? split.label
+      : String(m?.[1] ?? "").trim();
+    const rawBody = (split ? split.body : String(m?.[2] ?? "").trim()).replace(
+      /^[+]/,
+      "＋"
+    );
+    if (!rawLabel || !rawBody || (!split && !m)) return null;
     const label = normalizeConnectionTableLabel(rawLabel);
     if (!label) return null;
     if (CONNECTION_USAGE_TAG_RE.test(label)) return null;
@@ -574,7 +586,11 @@ function tryParseSemicolonPlusConnectionTableRows(
   }
   if (extraRows.length > 0) rows.push(...extraRows);
   // 允许单行上表：只要能拆成「词类＋接什么」就以表格呈现
-  if (rows.length >= 1) return expandConnectionTableLabelParensSlash(rows);
+  if (rows.length >= 1) {
+    return expandConnectionTableLabelSlash(
+      expandConnectionTableLabelParensSlash(rows)
+    );
+  }
   return null;
 }
 
@@ -628,6 +644,11 @@ function expandConnectionTableLabelParensSlash(
       .map((p) => p.trim())
       .filter(Boolean);
     if (parts.length < 2) {
+      expanded.push(row);
+      continue;
+    }
+    // 括号内段还含「＋」→ 旧稿乱格式，勿拆（写回会拒 messy_paren_plus_slash）
+    if (parts.some((p) => /[＋+]/.test(p))) {
       expanded.push(row);
       continue;
     }
@@ -949,6 +970,10 @@ export function validateJpVocabConnectionAiOutput(
   // 写回拒：同一用法下多段「｜说明」全文相同（无形态区分；标本 id=521 各形说明不同）
   if (connectionHasRepeatedIdenticalNotes(preCheckBody)) {
     return { ok: false, reason: "repeated_identical_notes" };
+  }
+  // 写回拒：括号内同时塞 ／ 与 ＋（会拆成错列，如旧稿 572）
+  if (connectionHasMessyParenPlusSlash(preCheckBody)) {
+    return { ok: false, reason: "messy_paren_plus_slash" };
   }
   // 写回拒：能拆成多段公式却没有任何「｜说明」→ 卡片说明列全是「—」
   if (connectionHasMissingTableNotes(preCheckBody)) {
