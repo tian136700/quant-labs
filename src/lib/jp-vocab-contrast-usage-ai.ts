@@ -8,10 +8,17 @@ const DISTINCTION_MARKERS = ["【区别】", "【區別】", "【對比】", "�
 /** 假名形态分隔：／ / ・ · 、 */
 const CONTRAST_FORM_SEP = String.raw`[／\/・·、]`;
 const KANA_FORM = String.raw`[\u3040-\u309Fー]+`;
+const KANA_FORM_MIN2 = String.raw`[\u3040-\u309Fー]{2,}`;
 const CONTRAST_FORM_CHAIN_RE = new RegExp(
   `${KANA_FORM}(?:${CONTRAST_FORM_SEP}${KANA_FORM})+`,
   "u"
 );
+const CONTRAST_FORM_CHAIN_MIN2_RE = new RegExp(
+  `${KANA_FORM_MIN2}(?:${CONTRAST_FORM_SEP}${KANA_FORM_MIN2})+`,
+  "u"
+);
+const JP_SURFACE_TOKEN_RE = /^[\u3040-\u30FF\u4E00-\u9FFF々ー]+$/u;
+const CONTRAST_META_WORD_RE = /区别|區別|对比|對比|辨析|違い|用法/u;
 
 /** 标题/读音里用「／」并列假名形态，或标题含「区别/对比/辨析」 */
 export function isJpVocabContrastGrammar(
@@ -43,6 +50,28 @@ export function splitJpVocabContrastFormChain(raw: string): string[] | null {
   return preferContrastFormsOrder(parts);
 }
 
+/**
+ * 混合表记（如「お元気で／お大事に」）也能拆成对比侧；
+ * 防止回退正则误抽到「で／お」这类 1 字碎片。
+ */
+function splitJpVocabContrastSurfaceChain(raw: string): string[] | null {
+  const t = String(raw || "").trim();
+  if (!t || !new RegExp(CONTRAST_FORM_SEP, "u").test(t)) return null;
+  const parts = t
+    .split(new RegExp(CONTRAST_FORM_SEP, "u"))
+    .map((p) =>
+      p
+        .trim()
+        .replace(/^[「『（(]+/u, "")
+        .replace(/[」』）)]+$/u, "")
+    )
+    .filter((p) => p.length >= 2)
+    .filter((p) => JP_SURFACE_TOKEN_RE.test(p))
+    .filter((p) => !CONTRAST_META_WORD_RE.test(p));
+  if (parts.length < 2) return null;
+  return preferContrastFormsOrder(parts);
+}
+
 /** 从标题 / reading 抽出对比形态，如 ["なに","なん"] 或 ["くれる","もらう"] */
 export function parseJpVocabContrastForms(
   word: string,
@@ -56,8 +85,10 @@ export function parseJpVocabContrastForms(
   const wCore = w
     .replace(/(?:の)?(?:区别|區別|对比|對比|辨析|違い|用法)\s*$/u, "")
     .trim();
+  const fromWordSurface = splitJpVocabContrastSurfaceChain(wCore || w);
+  if (fromWordSurface) return fromWordSurface;
   const mParen = new RegExp(
-    `[（(][^）)]*?(${KANA_FORM}(?:${CONTRAST_FORM_SEP}${KANA_FORM})+)[^）)]*[）)]`,
+    `[（(][^）)]*?(${KANA_FORM_MIN2}(?:${CONTRAST_FORM_SEP}${KANA_FORM_MIN2})+)[^）)]*[）)]`,
     "u"
   ).exec(w);
   if (mParen) {
@@ -67,7 +98,7 @@ export function parseJpVocabContrastForms(
 
   // 词条本体：くれる／もらう、あげる・くれる・もらうの区别
   const mEmbed = new RegExp(
-    `(${KANA_FORM}(?:${CONTRAST_FORM_SEP}${KANA_FORM})+)`,
+    `(${KANA_FORM_MIN2}(?:${CONTRAST_FORM_SEP}${KANA_FORM_MIN2})+)`,
     "u"
   ).exec(wCore || w);
   if (mEmbed) {
