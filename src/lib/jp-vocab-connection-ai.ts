@@ -546,23 +546,55 @@ function tryParseSemicolonPlusConnectionTableRows(
     : [flat];
   if (segments.length < 1) return null;
   const rows: JpVocabConnectionTableRow[] = [];
+  const extraRows: JpVocabConnectionTableRow[] = [];
   for (const seg of segments) {
     const m = CONNECTION_PLUS_SEGMENT_RE.exec(seg);
     if (!m) return null;
-    const label = String(m[1] ?? "").trim();
+    const rawLabel = String(m[1] ?? "").trim();
     const rawBody = String(m[2] ?? "").trim().replace(/^[+]/, "＋");
-    if (!label || !rawBody) return null;
+    if (!rawLabel || !rawBody) return null;
+    const label = normalizeConnectionTableLabel(rawLabel);
+    if (!label) return null;
     if (CONNECTION_USAGE_TAG_RE.test(label)) return null;
     if (label.length > CONNECTION_TABLE_LABEL_MAX) return null;
     // 避免把整句说明误当表（标签里不该再有句号长文）
     if (/[。．]/.test(label)) return null;
     const { body, note } = splitJpVocabConnectionTableNote(rawBody);
     if (!body) return null;
+    const noteDerived = note ? tryExtractConnectionFormulaRowFromNote(note) : null;
+    if (noteDerived) {
+      extraRows.push(noteDerived);
+      rows.push({ label, body });
+      continue;
+    }
     rows.push(note ? { label, body, note } : { label, body });
   }
+  if (extraRows.length > 0) rows.push(...extraRows);
   // 允许单行上表：只要能拆成「词类＋接什么」就以表格呈现
   if (rows.length >= 1) return expandConnectionTableLabelParensSlash(rows);
   return null;
+}
+
+function normalizeConnectionTableLabel(raw: string): string {
+  const t = String(raw || "").trim();
+  if (!t) return "";
+  // 「接二类形容词时：二类形容词」→「二类形容词」
+  const m = /^接[^：:]+时[：:]\s*(.+)$/u.exec(t);
+  if (m) return String(m[1] || "").trim();
+  return t;
+}
+
+function tryExtractConnectionFormulaRowFromNote(
+  note: string
+): JpVocabConnectionTableRow | null {
+  const t = String(note || "").trim();
+  // 「接名词谓语句时：名词＋だと思います」→ label=名词, body=＋だと思います
+  const m = /^接[^：:]+时[：:]\s*([^＋+｜|]+?)\s*([＋+].+)$/u.exec(t);
+  if (!m) return null;
+  const label = normalizeConnectionTableLabel(String(m[1] || "").trim());
+  const body = String(m[2] || "").trim().replace(/^[+]/, "＋");
+  if (!label || !body) return null;
+  return { label, body };
 }
 
 /**
