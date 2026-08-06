@@ -618,8 +618,10 @@ export function parseJpVocabConnectionTableRows(
   const text = String(raw ?? "").trim();
   if (!text) return null;
   return (
-    tryParseColonConnectionTableRows(text) ??
-    tryParseSemicolonPlusConnectionTableRows(text)
+    // 优先匹配「词类＋接什么」的标准公式行；
+    // 避免 colon 分支把「＋…」当进 label，导致两列错位。
+    tryParseSemicolonPlusConnectionTableRows(text) ??
+    tryParseColonConnectionTableRows(text)
   );
 }
 
