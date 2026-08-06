@@ -130,6 +130,8 @@ function mapClassNotesOnlyRow(row: Record<string, unknown>): EnVocabWord {
     mnemonic: null,
     usage: null,
     usage_source: null,
+    connection: null,
+    connection_source: null,
     example_sentences: null,
     example_sentences_source: null,
     last_review_level: null,
@@ -345,6 +347,8 @@ export type EnVocabWordEntryInput = {
   class_notes?: string | null;
   mnemonic?: string | null;
   usage?: string | null;
+  /** 接序 / 接续表（语法时态形态；对齐日语 connection） */
+  connection?: string | null;
   example_sentences?: string | null;
 };
 
@@ -410,6 +414,10 @@ export async function updateEnVocabWordEntry(
     input.usage !== undefined
       ? shieldEnVocabUsageUploadText(input.usage || "") || null
       : current.usage ?? null;
+  const nextConnection =
+    input.connection !== undefined
+      ? (input.connection || "").trim() || null
+      : current.connection ?? null;
   const nextExamples =
     input.example_sentences !== undefined
       ? (input.example_sentences || "").trim() || null
@@ -424,6 +432,9 @@ export async function updateEnVocabWordEntry(
   const usageChanged =
     input.usage !== undefined &&
     (nextUsage || null) !== (current.usage || null);
+  const connectionChanged =
+    input.connection !== undefined &&
+    (nextConnection || null) !== (current.connection || null);
   const examplesChanged =
     input.example_sentences !== undefined &&
     (nextExamples || null) !== (current.example_sentences || null);
@@ -443,6 +454,11 @@ export async function updateEnVocabWordEntry(
       ? "手动"
       : null
     : current.usage_source ?? null;
+  const nextConnectionSource = connectionChanged
+    ? nextConnection
+      ? "手动"
+      : null
+    : current.connection_source ?? null;
   const nextExampleSource = examplesChanged
     ? nextExamples
       ? "手动"
@@ -482,6 +498,8 @@ export async function updateEnVocabWordEntry(
       mnemonic: nextMnemonic,
       usage: nextUsage,
       usage_source: nextUsageSource,
+      connection: nextConnection,
+      connection_source: nextConnectionSource,
       example_sentences: nextExamples,
       example_sentences_source: nextExampleSource,
       updated_at: ts,
@@ -494,9 +512,10 @@ export async function updateEnVocabWordEntry(
          SET kind = ?1, word = ?2, reading = ?3, reading_source = ?4,
              meaning = ?5, meaning_source = ?6, pos = ?7, category = ?8, class_notes = ?9,
              mnemonic = ?10, usage = ?11, usage_source = ?12,
-             example_sentences = ?13, example_sentences_source = ?14,
-             updated_at = ?15
-         WHERE id = ?16`
+             connection = ?13, connection_source = ?14,
+             example_sentences = ?15, example_sentences_source = ?16,
+             updated_at = ?17
+         WHERE id = ?18`
       )
       .bind(
         nextKind,
@@ -511,6 +530,8 @@ export async function updateEnVocabWordEntry(
         nextMnemonic,
         nextUsage,
         nextUsageSource,
+        nextConnection,
+        nextConnectionSource,
         nextExamples,
         nextExampleSource,
         ts,

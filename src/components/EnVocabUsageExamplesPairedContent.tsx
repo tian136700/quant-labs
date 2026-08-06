@@ -1,6 +1,7 @@
 "use client";
 
 import { EnVocabClassNoteContent } from "@/components/EnVocabClassNoteContent";
+import { JpVocabConnectionBody } from "@/components/JpVocabConnectionBody";
 import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import {
   formatEnVocabExampleGlossLine,
@@ -14,6 +15,7 @@ import {
   clampEnVocabUsageFrequency,
   formatEnVocabUsageFrequencyLabel,
 } from "@/lib/en-vocab-usage-ai";
+import { parseJpVocabConnectionDisplayParts } from "@/lib/jp-vocab-connection-ai";
 import { uniqueJpVocabSourcesForDisplay } from "@/lib/jp-vocab-source-display";
 import type { EnVocabLevel } from "@/lib/types";
 
@@ -37,6 +39,9 @@ type Props = {
   exampleSentences: string | null | undefined;
   usageSource?: string | null;
   exampleSource?: string | null;
+  /** 接序：有编号用法时贴在每条用法下显示「接续：」（对齐日语） */
+  connection?: string | null;
+  connectionSource?: string | null;
   /** 外层已算好时可传入，避免重复解析 */
   model?: EnVocabUsageExamplesPairedModel;
   emptyText?: string;
@@ -83,24 +88,54 @@ export function EnVocabUsageExamplesPairedContent({
   exampleSentences,
   usageSource,
   exampleSource,
+  connection,
+  connectionSource,
   model: modelProp,
   emptyText = "暂无用法与例句",
   className,
   usageLevelControls = null,
 }: Props) {
   const model = modelProp ?? buildEnVocabUsageExamplePairs(usage, exampleSentences);
+  const connParts = parseJpVocabConnectionDisplayParts(connection);
+  const hasConnection = Boolean(connParts.normalized);
 
-  if (!model.hasContent) {
+  if (!model.hasContent && !hasConnection) {
     return <p className="en-usage-ex-paired-empty">{emptyText}</p>;
   }
 
   const imageBlock =
     model.imageLines.length > 0 ? model.imageLines.join("\n") : "";
-  // 用法与例句同源（含展示规范化后相同）只角标一次
+  // 用法 / 例句 / 接序同源（含展示规范化后相同）只角标一次
   const sourceLabels = uniqueJpVocabSourcesForDisplay(
     usageSource,
-    exampleSource
+    exampleSource,
+    connectionSource
   );
+
+  const usageIndexesWithText = model.pairs
+    .filter((p) => Boolean(p.usageText))
+    .map((p) => p.index);
+  const firstUsageIndex = usageIndexesWithText[0] ?? null;
+  const lastUsageIndex =
+    usageIndexesWithText[usageIndexesWithText.length - 1] ?? null;
+
+  const connectionTextFor = (usageIndex: number): string | null => {
+    const tagged = connParts.byUsageIndex[usageIndex]?.trim() || "";
+    const isFirst = firstUsageIndex === usageIndex;
+    const isLast = lastUsageIndex === usageIndex;
+    if (connParts.hasUsageTagged) {
+      const bits: string[] = [];
+      if (tagged) bits.push(tagged);
+      if (isLast && connParts.leftover.length) {
+        bits.push(...connParts.leftover);
+      }
+      return bits.length ? bits.join("\n") : null;
+    }
+    if (isFirst && connParts.leftover.length) {
+      return connParts.leftover.join("\n");
+    }
+    return null;
+  };
 
   return (
     <div className={`en-usage-ex-paired${className ? ` ${className}` : ""}`}>
@@ -111,6 +146,11 @@ export function EnVocabUsageExamplesPairedContent({
             imageLabel="用法图片"
           />
         </div>
+      ) : null}
+
+      {/* 无编号用法时：接序单独一块 */}
+      {!usageIndexesWithText.length && connParts.normalized ? (
+        <JpVocabConnectionBody text={connParts.normalized} showLabel />
       ) : null}
 
       {model.pairs.length > 0 ? (
@@ -128,6 +168,9 @@ export function EnVocabUsageExamplesPairedContent({
             const selectedLevel = showLevel
               ? usageLevelControls.levels[usageIndex] ?? null
               : null;
+            const connText = pair.usageText
+              ? connectionTextFor(pair.index)
+              : null;
             return (
               <li
                 key={pair.index}
@@ -144,6 +187,9 @@ export function EnVocabUsageExamplesPairedContent({
                     </span>
                     <EnVocabUsageFrequencyBar frequency={pair.frequency} />
                   </p>
+                ) : null}
+                {connText ? (
+                  <JpVocabConnectionBody text={connText} showLabel />
                 ) : null}
                 {showLevel ? (
                   <div

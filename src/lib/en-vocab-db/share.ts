@@ -329,6 +329,7 @@ export async function queryEnVocabSharedToday(
               w.last_review_level, w.last_review_at, w.last_usage_levels,
               w.created_at, w.updated_at,
               w.mnemonic, w.usage, w.usage_source,
+              w.connection, w.connection_source,
               w.example_sentences, w.example_sentences_source,
               (CASE WHEN w.class_notes IS NOT NULL THEN 1 ELSE 0 END) AS has_class_notes
        FROM en_vocab_shared s
@@ -365,6 +366,8 @@ export async function queryEnVocabSharedToday(
       mnemonic: row.mnemonic,
       usage: row.usage,
       usage_source: row.usage_source,
+      connection: row.connection,
+      connection_source: row.connection_source,
       example_sentences: row.example_sentences,
       example_sentences_source: row.example_sentences_source,
       has_class_notes: row.has_class_notes,

@@ -103,6 +103,8 @@ export function EnVocabUsageViewModal({ open, word, onClose }: Props) {
               exampleSentences={word.example_sentences}
               usageSource={word.usage_source}
               exampleSource={word.example_sentences_source}
+              connection={word.connection}
+              connectionSource={word.connection_source}
               model={model}
               emptyText="暂未填写用法与例句，可在「编辑」中补充，或等待定时补全。"
             />

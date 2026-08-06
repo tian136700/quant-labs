@@ -45,6 +45,7 @@ export async function POST(request: Request) {
       class_notes?: string | null;
       mnemonic?: string | null;
       usage?: string | null;
+      connection?: string | null;
       example_sentences?: string | null;
     };
 
@@ -73,6 +74,7 @@ export async function POST(request: Request) {
         category: body.category,
         class_notes: body.class_notes,
         usage: body.usage,
+        connection: body.connection,
         example_sentences: body.example_sentences,
         ...(isAdmin && body.mnemonic !== undefined
           ? { mnemonic: body.mnemonic }

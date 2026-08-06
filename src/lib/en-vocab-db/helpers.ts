@@ -196,6 +196,14 @@ export function mapRow(row: Record<string, unknown>): EnVocabWord {
       row.usage_source != null && String(row.usage_source).trim()
         ? String(row.usage_source).trim()
         : null,
+    connection:
+      row.connection != null && String(row.connection).trim()
+        ? String(row.connection)
+        : null,
+    connection_source:
+      row.connection_source != null && String(row.connection_source).trim()
+        ? String(row.connection_source).trim()
+        : null,
     example_sentences:
       row.example_sentences != null && String(row.example_sentences).trim()
         ? String(row.example_sentences)
@@ -283,6 +291,8 @@ export async function ensureVocabWordSchema(db: D1Database): Promise<void> {
   await addEnVocabWordColumnIfMissing(db, cols, "mnemonic", "TEXT");
   await addEnVocabWordColumnIfMissing(db, cols, "usage", "TEXT");
   await addEnVocabWordColumnIfMissing(db, cols, "usage_source", "TEXT");
+  await addEnVocabWordColumnIfMissing(db, cols, "connection", "TEXT");
+  await addEnVocabWordColumnIfMissing(db, cols, "connection_source", "TEXT");
   await addEnVocabWordColumnIfMissing(db, cols, "last_usage_levels", "TEXT");
   // 全表 TRIM UPDATE 只在「本 isolate 刚加列」时跑一次；列已存在则跳过，
   // 避免冷 isolate 每次进抽查页扫全表 → Worker 1102。读路径 normalize* 仍把空值当默认。
@@ -390,14 +400,14 @@ export async function listEnVocabRefsByKeys(
 
 export const WORD_SELECT = `SELECT id, word, reading, reading_source, meaning, meaning_source, pos, kind, category, upload_source, ref_key,
   cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, mnemonic,
-  usage, usage_source, example_sentences, example_sentences_source,
+  usage, usage_source, connection, connection_source, example_sentences, example_sentences_source,
   last_review_level, last_review_at, last_usage_levels, created_at, updated_at FROM en_vocab_word`;
 
 /** 全库列表 / 增量 sync：省略 class_notes 正文，用 has_class_notes 标记 */
 export const WORD_SELECT_LIST = `SELECT id, word, reading, reading_source, meaning, meaning_source, pos, kind, category, upload_source, ref_key,
   cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date,
   (CASE WHEN class_notes IS NOT NULL THEN 1 ELSE 0 END) AS has_class_notes, mnemonic,
-  usage, usage_source, example_sentences, example_sentences_source,
+  usage, usage_source, connection, connection_source, example_sentences, example_sentences_source,
   last_review_level, last_review_at, last_usage_levels, created_at, updated_at FROM en_vocab_word`;
 
 export function refsRecord(refs: EnVocabRef[]): Record<string, EnVocabRef> {

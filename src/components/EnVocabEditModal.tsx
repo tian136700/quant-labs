@@ -57,6 +57,7 @@ export function EnVocabEditModal({
   const [category, setCategory] = useState(EN_VOCAB_DEFAULT_CATEGORY);
   const [mnemonic, setMnemonic] = useState("");
   const [usage, setUsage] = useState("");
+  const [connection, setConnection] = useState("");
   const [exampleSentences, setExampleSentences] = useState("");
   const [classNotes, setClassNotes] = useState("");
   const [error, setError] = useState("");
@@ -75,6 +76,7 @@ export function EnVocabEditModal({
       setCategory(displayEnVocabCategory(word.category));
       setMnemonic(word.mnemonic || "");
       setUsage(word.usage || "");
+      setConnection(word.connection || "");
       setExampleSentences(word.example_sentences || "");
       setClassNotes(word.class_notes || "");
       setError("");
@@ -119,6 +121,14 @@ export function EnVocabEditModal({
           ? "手动"
           : null
         : snapshot.example_sentences_source ?? null;
+    const nextConnection = connection.trim() || null;
+    const prevConnection = (snapshot.connection || "").trim() || null;
+    const nextConnectionSource =
+      nextConnection !== prevConnection
+        ? nextConnection
+          ? "手动"
+          : null
+        : snapshot.connection_source ?? null;
     const optimistic = buildOptimisticEnVocabWord(snapshot, {
       kind,
       word: trimmedWord,
@@ -128,6 +138,8 @@ export function EnVocabEditModal({
       category: category.trim() || EN_VOCAB_DEFAULT_CATEGORY,
       class_notes: classNotes.trim() || null,
       usage: usage.trim() || null,
+      connection: nextConnection,
+      connection_source: nextConnectionSource,
       example_sentences: nextExamples,
       example_sentences_source: nextExampleSource,
       ...(showMnemonic ? { mnemonic: mnemonic.trim() || null } : {}),
@@ -155,6 +167,7 @@ export function EnVocabEditModal({
             category: category.trim() || EN_VOCAB_DEFAULT_CATEGORY,
             class_notes: classNotes.trim() || null,
             usage: usage.trim() || null,
+            connection: nextConnection,
             example_sentences: nextExamples,
             ...(showMnemonic ? { mnemonic: mnemonic.trim() || null } : {}),
           }),
@@ -377,6 +390,34 @@ export function EnVocabEditModal({
               <p className="jp-vocab-edit-hint">
                 写常用用法即可（勿写考试名称标签）；编号后可写 [1]～[10]
                 出现频次（如「1. [8] 动词：…」）。支持粘贴或上传图片（居中显示）。
+              </p>
+            </div>
+
+            <div className="field">
+              <label
+                htmlFor="en-vocab-edit-connection"
+                className="jp-vocab-edit-label"
+              >
+                接序
+              </label>
+              <textarea
+                id="en-vocab-edit-connection"
+                className="jp-vocab-edit-textarea jp-vocab-edit-textarea--expand"
+                rows={4}
+                value={connection}
+                disabled={!canEdit}
+                placeholder={
+                  kind === "grammar"
+                    ? "例（对齐日语接续表）：\n用法1: 主语＋have/has＋过去分词｜表示已完成且对现在有影响\n用法2: 主语＋have/has＋过去分词＋for＋时间段｜从过去持续到现在"
+                    : "例：\n动词原形＋-ed → 规则过去分词；不规则见不规则表"
+                }
+                onChange={(e) => setConnection(e.target.value)}
+              />
+              <p className="jp-vocab-edit-hint">
+                接续形态：写成「词类／形态＋接什么｜短说明」，多段用「；」；多用法用「用法1:」「用法2:」分行（卡片会出三列表）。
+                {word?.connection_source?.trim()
+                  ? ` 当前接序来源：${formatJpVocabSourceDisplay(word.connection_source)}（你在此修改并保存后会记为「手动」）。`
+                  : " 人手填写并保存后，接序来源记为「手动」。"}
               </p>
             </div>
 

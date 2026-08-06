@@ -436,6 +436,8 @@ export function EnVocabAdminReviewFlashcardModal({
                     exampleSentences={w.example_sentences}
                     usageSource={w.usage_source}
                     exampleSource={w.example_sentences_source}
+                    connection={w.connection}
+                    connectionSource={w.connection_source}
                     emptyText="暂无用法与例句"
                   />
                 </div>

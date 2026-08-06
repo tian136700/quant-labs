@@ -14,6 +14,8 @@ export function buildOptimisticEnVocabWord(
       | "class_notes"
       | "mnemonic"
       | "usage"
+      | "connection"
+      | "connection_source"
       | "example_sentences"
       | "example_sentences_source"
     >
