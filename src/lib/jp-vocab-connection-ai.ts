@@ -523,7 +523,7 @@ function tryParseColonConnectionTableRows(
   }
   // ≥2 行上表；仅 1 行但有「说明」列也上表（单形态用法如た形）
   // 允许单行上表：对比课/少行接序时仍需要展示成「id=521」表格样式
-  if (rows.length >= 1) return rows;
+  if (rows.length >= 1) return expandConnectionTableLabelParensSlash(rows);
   return null;
 }
 
@@ -561,8 +561,49 @@ function tryParseSemicolonPlusConnectionTableRows(
     rows.push(note ? { label, body, note } : { label, body });
   }
   // 允许单行上表：只要能拆成「词类＋接什么」就以表格呈现
-  if (rows.length >= 1) return rows;
+  if (rows.length >= 1) return expandConnectionTableLabelParensSlash(rows);
   return null;
+}
+
+/**
+ * 连接表增强：把词类/形态标签中括号里的「A／B」拆成多行。
+ * 例：引出内容（动词简体形／—）＋と言いました
+ *   → 两行：动词简体形＋と言いました；—＋と言いました
+ *
+ * 目的是让展示粒度更接近 id=521 的标准接序表格（多词类分行）。
+ */
+function expandConnectionTableLabelParensSlash(
+  rows: JpVocabConnectionTableRow[]
+): JpVocabConnectionTableRow[] {
+  const expanded: JpVocabConnectionTableRow[] = [];
+  for (const row of rows) {
+    const label = String(row.label || "").trim();
+    const m = /^(.+?)（(.+?)）$/u.exec(label) || /^(.+?)\((.+?)\)$/u.exec(label);
+    if (!m) {
+      expanded.push(row);
+      continue;
+    }
+    const inner = String(m[2] || "").trim();
+    if (!inner || (!inner.includes("／") && !inner.includes("/"))) {
+      expanded.push(row);
+      continue;
+    }
+    const parts = inner
+      .split(/(?:／|\/)/u)
+      .map((p) => p.trim())
+      .filter(Boolean);
+    if (parts.length < 2) {
+      expanded.push(row);
+      continue;
+    }
+    for (const part of parts) {
+      expanded.push({
+        ...row,
+        label: part,
+      });
+    }
+  }
+  return expanded;
 }
 
 /**
