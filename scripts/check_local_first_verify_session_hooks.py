@@ -16,9 +16,10 @@ RULE = ROOT / ".cursor" / "rules" / "local-first-verify.mdc"
 HOOK_CMD = ".cursor/hooks/local-first-verify-session.py"
 
 REQUIRED_PHRASES = [
-    "本地先测通",
-    "git commit",
-    "git push",
+    "本地测通",
+    "db:sync-remote-to-local",
+    "Admin",
+    "agent_ready_to_publish",
     "publish",
 ]
 
@@ -44,10 +45,9 @@ def main() -> None:
     rule_text = RULE.read_text(encoding="utf-8")
     for phrase in (
         "本地先验证",
-        "git commit",
-        "git push",
-        "publish",
         "db:sync-remote-to-local",
+        "Admin",
+        "agent_ready_to_publish",
         "alwaysApply: true",
     ):
         if phrase not in rule_text:

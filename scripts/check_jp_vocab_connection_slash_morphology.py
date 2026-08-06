@@ -82,8 +82,12 @@ def main() -> None:
     diversity = (ROOT / "src/lib/jp-vocab-connection-note-diversity.ts").read_text(encoding="utf-8")
     if "connectionHasRepeatedIdenticalNotes" not in diversity:
         fail("missing connectionHasRepeatedIdenticalNotes")
+    if "connectionHasMissingTableNotes" not in diversity:
+        fail("missing connectionHasMissingTableNotes")
     if "repeated_identical_notes" not in src:
         fail("validate must reject repeated_identical_notes")
+    if "missing_table_notes" not in src:
+        fail("validate must reject missing_table_notes")
 
     print("ok: connection slash-morphology + id=521 かもしれない specimen guards")
 

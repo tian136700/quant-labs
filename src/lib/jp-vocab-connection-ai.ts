@@ -3,12 +3,15 @@
  * 与用法/例句同一次模型输出；用法正文禁止再写接序。
  */
 
-import { connectionHasRepeatedIdenticalNotes } from "@/lib/jp-vocab-connection-note-diversity";
+import {
+  connectionHasMissingTableNotes,
+  connectionHasRepeatedIdenticalNotes,
+} from "@/lib/jp-vocab-connection-note-diversity";
 
 export const JP_VOCAB_CONNECTION_SECTION_MARKER = "【接序】";
 
 export const JP_VOCAB_CONNECTION_UPLOAD_SPEC = {
-  version: 11,
+  version: 12,
   label: "接序",
   /** 标准标本：jp_vocab_word id=521「～かもしれない」接序；词类／形态＋接什么｜说明 */
   format_example_grammar:
@@ -28,7 +31,7 @@ export const JP_VOCAB_CONNECTION_UPLOAD_SPEC = {
     "动词分类只用「一类动词／二类动词／三类动词」（国内教材）；对照改写（禁止左边、必须用右边）：五段／五段动词／一類動詞 → 一类动词；一段／一段动词 → 二类动词；カ变／カ変動詞／サ变／サ変動詞／する・くる不规则 → 三类动词；❌ 禁止写左边术语，也禁止「一类动词（五段）」括注同义",
     "卡片三列「词类／形态｜＋接什么｜说明」：多种词类须「词类／形态＋本语法｜短说明」并用全角「；」串同一用法；或分行「词类：说明」",
     "多种动词形态都能接时：优先写成「动词辞书形（动词原形）＋X；动词た形＋X；动词ている形＋X」（每段都带「＋」），❌ 不要写成「动词原形／动词た形／动词ている形＋X」只在最后加一次「＋」",
-    "标准：每段公式后用全角「｜」加短「说明」列，写清「该形态」差别（时间／肯定否定／词类义／句法角色），标本 id=521：辞书形｜推测将要发生或一般可能、た形｜推测已经发生的事；样态类用「好像（状态）」如「好像（已经发生）」；❌禁止多段都抄同一句用法大意（如每行「好像……、看起来……」）；说明宜短；说明内勿用「／」，改用「、」或「·」",
+    "标准：每段公式后用全角「｜」加短「说明」列，写清「该形态」差别（时间／肯定否定／词类义／句法角色），标本 id=521：辞书形｜推测将要发生或一般可能、た形｜推测已经发生的事；样态类用「好像（状态）」如「好像（已经发生）」；❌禁止多段都抄同一句用法大意（如每行「好像……、看起来……」）；说明宜短；说明内勿用「／」，改用「、」或「·」；❌禁止只写公式不写「｜说明」（卡片说明列会全是「—」，系统拒收 missing_table_notes）",
     "❌ 禁止写成散文「接在动词、一类形容词、名词后面」——无法上表，学生难扫读；须改成「词类＋接什么｜短说明」表行",
     "句首接续词（しかし／でも／ところが等）：❌禁止散文「置于后句句首独立使用」→ ✅「前句（动词句／一类形容词句／二类形容词句／名词句）＋しかし｜后句句首，表示转折」",
     "涉及多种动词接续时优先分行：一类动词: …／二类动词: …／三类动词: …（「来る」「する」）",
@@ -561,10 +564,10 @@ function tryParseSemicolonPlusConnectionTableRows(
     if (/[。．]/.test(label)) return null;
     const { body, note } = splitJpVocabConnectionTableNote(rawBody);
     if (!body) return null;
+    // 「｜」后若是「接…时：名词＋だ…」整段公式，升为独立表行；不要留下无说明的空壳父行
     const noteDerived = note ? tryExtractConnectionFormulaRowFromNote(note) : null;
     if (noteDerived) {
       extraRows.push(noteDerived);
-      rows.push({ label, body });
       continue;
     }
     rows.push(note ? { label, body, note } : { label, body });
@@ -946,6 +949,10 @@ export function validateJpVocabConnectionAiOutput(
   // 写回拒：同一用法下多段「｜说明」全文相同（无形态区分；标本 id=521 各形说明不同）
   if (connectionHasRepeatedIdenticalNotes(preCheckBody)) {
     return { ok: false, reason: "repeated_identical_notes" };
+  }
+  // 写回拒：能拆成多段公式却没有任何「｜说明」→ 卡片说明列全是「—」
+  if (connectionHasMissingTableNotes(preCheckBody)) {
+    return { ok: false, reason: "missing_table_notes" };
   }
   // 句首接续词（しかし）等常写成无「＋」散文 → normalize 会剥空；先点名拒
   if (!connectionHasFormulaShape(preCheckBody)) {
