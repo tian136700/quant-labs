@@ -522,8 +522,8 @@ function tryParseColonConnectionTableRows(
     rows.push(note ? { label, body, note } : { label, body });
   }
   // ≥2 行上表；仅 1 行但有「说明」列也上表（单形态用法如た形）
-  if (rows.length >= 2) return rows;
-  if (rows.length === 1 && rows[0]?.note) return rows;
+  // 允许单行上表：对比课/少行接序时仍需要展示成「id=521」表格样式
+  if (rows.length >= 1) return rows;
   return null;
 }
 
@@ -560,8 +560,8 @@ function tryParseSemicolonPlusConnectionTableRows(
     if (!body) return null;
     rows.push(note ? { label, body, note } : { label, body });
   }
-  if (rows.length >= 2) return rows;
-  if (rows.length === 1 && rows[0]?.note) return rows;
+  // 允许单行上表：只要能拆成「词类＋接什么」就以表格呈现
+  if (rows.length >= 1) return rows;
   return null;
 }
 
