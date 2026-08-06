@@ -86,14 +86,26 @@ def main() -> int:
         "view modal",
     )
 
-    # 展示层复用日语表解析：标本公式须含「＋」与「｜」
-    sample = (
-        "用法1: 主语＋have/has＋规则过去分词（原形＋ed）｜如 finish→finished；"
-        "主语＋have/has＋不规则过去分词｜如 go→gone\n"
-        "用法2: 主语＋have/has＋过去分词＋for＋时间段｜从过去持续到现在"
+    errors += must_contain(
+        "src/lib/jp-vocab-connection-ai.ts",
+        [
+            "protectEnglishHaveHasSlash",
+            "restoreEnglishHaveHasSlash",
+            "\\uFFF0",
+            "EN_HAVE_HAS_SLASH_TOKEN",
+        ],
+        "have/has slash protect",
     )
-    if "＋" not in sample or "｜" not in sample or not re.search(r"用法\s*1\s*:", sample):
-        errors.append("sample connection format self-check failed")
+    errors += must_contain(
+        "src/components/EnVocabUsageExamplesPairedContent.tsx",
+        [
+            "leftoverConnectionNotes",
+            "en-usage-ex-paired-conn-note",
+            # leftover 不得并进公式（；会打断上表）
+            "不要并进公式正文",
+        ],
+        "leftover separate from table",
+    )
 
     if errors:
         print("FAIL: en-vocab grammar connection")

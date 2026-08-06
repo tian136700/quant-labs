@@ -670,16 +670,40 @@ export function connectionHasUsageNoise(
 }
 
 /**
+ * 英语助动词 have/has 里的 / 不能被日语「形态／形态」拆段逻辑切开，
+ * 否则「主语＋have/has＋过去分词」normalize 后碎掉、接续表解析失败。
+ */
+const EN_HAVE_HAS_SLASH_TOKEN = "HAVE\uFFF0HAS";
+const EN_HAS_HAVE_SLASH_TOKEN = "HAS\uFFF0HAVE";
+
+export function protectEnglishHaveHasSlash(raw: string): string {
+  return String(raw ?? "")
+    .replace(/\bhave\s*\/\s*has\b/gi, EN_HAVE_HAS_SLASH_TOKEN)
+    .replace(/\bhas\s*\/\s*have\b/gi, EN_HAS_HAVE_SLASH_TOKEN);
+}
+
+export function restoreEnglishHaveHasSlash(raw: string): string {
+  return String(raw ?? "")
+    .split(EN_HAVE_HAS_SLASH_TOKEN)
+    .join("have/has")
+    .split(EN_HAS_HAVE_SLASH_TOKEN)
+    .join("has/have");
+}
+
+/**
  * 展示/normalize：剥掉接序里的用法说明句，只留形态公式。
  * 例：「くれる：【动词て形】＋くれる。主语是…。／もらう：…」→ 两行公式。
  *
  * 注意：不得把「动词原形／动词た形／动词ている形＋かもしれない」按 ／ 拆丢；
  * 括号内的 ／（普通形（原形／た形））也不拆。
+ * 英语 have/has 的 / 须先 protect（见 protectEnglishHaveHasSlash）。
  */
 export function stripJpVocabConnectionUsageNoise(raw: string): string {
-  const text = String(raw ?? "")
-    .replace(/\r\n/g, "\n")
-    .trim();
+  const text = protectEnglishHaveHasSlash(
+    String(raw ?? "")
+      .replace(/\r\n/g, "\n")
+      .trim()
+  );
   if (!text) return "";
   const outLines: string[] = [];
   for (const line of text.split("\n")) {
@@ -700,7 +724,7 @@ export function stripJpVocabConnectionUsageNoise(raw: string): string {
       if (joined && !outLines.includes(joined)) outLines.push(joined);
     }
   }
-  return outLines.join("\n");
+  return restoreEnglishHaveHasSlash(outLines.join("\n"));
 }
 
 export function normalizeJpVocabConnectionText(
@@ -750,7 +774,8 @@ export function normalizeJpVocabConnectionText(
         out = out.replace(/[。．]+$/u, "");
       }
       return out;
-    });
+    })
+    .map((line) => restoreEnglishHaveHasSlash(line));
   if (!lines.length) return null;
   return lines.join("\n");
 }

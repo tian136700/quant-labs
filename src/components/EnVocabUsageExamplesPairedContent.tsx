@@ -116,26 +116,22 @@ export function EnVocabUsageExamplesPairedContent({
     .filter((p) => Boolean(p.usageText))
     .map((p) => p.index);
   const firstUsageIndex = usageIndexesWithText[0] ?? null;
-  const lastUsageIndex =
-    usageIndexesWithText[usageIndexesWithText.length - 1] ?? null;
 
   const connectionTextFor = (usageIndex: number): string | null => {
     const tagged = connParts.byUsageIndex[usageIndex]?.trim() || "";
-    const isFirst = firstUsageIndex === usageIndex;
-    const isLast = lastUsageIndex === usageIndex;
+    // 注意/否定形等 leftover 不要并进公式正文：其内「；」会打断接续表解析
     if (connParts.hasUsageTagged) {
-      const bits: string[] = [];
-      if (tagged) bits.push(tagged);
-      if (isLast && connParts.leftover.length) {
-        bits.push(...connParts.leftover);
-      }
-      return bits.length ? bits.join("\n") : null;
+      return tagged || null;
     }
-    if (isFirst && connParts.leftover.length) {
+    if (firstUsageIndex === usageIndex && connParts.leftover.length) {
       return connParts.leftover.join("\n");
     }
     return null;
   };
+  const leftoverConnectionNotes =
+    connParts.hasUsageTagged && connParts.leftover.length
+      ? connParts.leftover.join("\n")
+      : "";
 
   return (
     <div className={`en-usage-ex-paired${className ? ` ${className}` : ""}`}>
@@ -259,6 +255,10 @@ export function EnVocabUsageExamplesPairedContent({
             );
           })}
         </ol>
+      ) : null}
+
+      {leftoverConnectionNotes ? (
+        <p className="en-usage-ex-paired-conn-note">{leftoverConnectionNotes}</p>
       ) : null}
 
       {imageBlock ? (
@@ -386,6 +386,18 @@ export function EnVocabUsageExamplesPairedContent({
           margin: 0.15rem 0 0;
           color: var(--muted);
           font-size: 0.8rem;
+        }
+        .en-usage-ex-paired-conn-note {
+          margin: 0;
+          padding: 0.45rem 0.55rem;
+          line-height: 1.5;
+          font-size: 0.875rem;
+          color: var(--muted);
+          white-space: pre-wrap;
+          word-break: break-word;
+          border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+          border-radius: 8px;
+          background: color-mix(in srgb, var(--panel) 92%, var(--bg));
         }
         .en-usage-ex-paired-sources {
           display: flex;
