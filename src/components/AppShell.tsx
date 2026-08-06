@@ -49,6 +49,10 @@ import { SiteNav } from "./SiteNav";
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? "/";
   const onMaintenance = isMaintenancePath(pathname);
+  const onLocalDebugPage =
+    (pathname === "/debug-connection-571" || pathname.startsWith("/debug-")) &&
+    typeof window !== "undefined" &&
+    ["127.0.0.1", "localhost"].includes(window.location.hostname);
   const { user, checking, isAdmin } = useEtrAuth();
   const compareGatedShell =
     COMPARE_ADMIN_ONLY &&
@@ -116,6 +120,11 @@ export function AppShell({ children }: { children: ReactNode }) {
     // 教案「查看」分享页：不挂任何鉴权/封禁路由笼。
     // 账号被禁用也要能打开链接；微信旧 Cookie/本地缓存也不得踢到韩语或维护页。
     // 注意：EtrAuthProvider 也不得对 ref 路径 hard-redirect 维护页（否则会闪一下又没了）。
+    return <main>{children}</main>;
+  }
+
+  // 本地调试页：不挂任何鉴权/封禁路由笼，避免你“没权限也看不了表格效果”。
+  if (onLocalDebugPage) {
     return <main>{children}</main>;
   }
 
