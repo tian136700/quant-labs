@@ -1,10 +1,10 @@
 "use client";
 
 export type JpVocabContrastTableRow = {
-  /** 何时用 */
+  /** 语法/形态名（如 んです / のです） */
+  form: string;
+  /** 区别：何时用 */
   when: string;
-  /** 接续要点（可空） */
-  connection: string | null;
 };
 
 type Props = {
@@ -14,9 +14,9 @@ type Props = {
 };
 
 /**
- * 读音/形态对比课：用表格展示两侧区别（何时用 / 接续）。
+ * 读音/形态对比课：用表格展示两侧区别（语法 / 何时用）。
  * 样式对齐接续表 `jp-vocab-conn-table`（含手机断点）。
- * 形态写在「何时用」开头（くれる：…），不再单独「读法」列，避免误抽「我方」等中文括注。
+ * 语法名单独成列，避免混在区别描述里看不清。
  */
 export function JpVocabContrastDistinctionTable({
   rows,
@@ -31,15 +31,15 @@ export function JpVocabContrastDistinctionTable({
         <table className="jp-vocab-conn-table jp-vocab-contrast-table">
           <thead>
             <tr>
+              <th scope="col">语法</th>
               <th scope="col">何时用</th>
-              <th scope="col">接续</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row, idx) => (
-              <tr key={`${row.when.slice(0, 24)}-${idx}`}>
+              <tr key={`${row.form}:${row.when.slice(0, 24)}:${idx}`}>
+                <th scope="row">{row.form}</th>
                 <td>{row.when}</td>
-                <td>{row.connection?.trim() || "—"}</td>
               </tr>
             ))}
           </tbody>
@@ -90,14 +90,19 @@ export function JpVocabContrastDistinctionTable({
           background: color-mix(in srgb, var(--accent) 6%, var(--panel));
           white-space: nowrap;
         }
-        .jp-vocab-contrast-table thead th:nth-child(2),
-        .jp-vocab-contrast-table tbody td:nth-child(2) {
-          width: 32%;
+        .jp-vocab-contrast-table tbody th {
+          width: 30%;
+          max-width: 9rem;
+          font-weight: 600;
+          color: var(--text);
+          background: color-mix(in srgb, var(--bg) 55%, var(--panel));
+          white-space: nowrap;
         }
         .jp-vocab-contrast-table tbody td {
           color: var(--muted);
           line-height: 1.55;
         }
+        .jp-vocab-contrast-table tbody tr:last-child th,
         .jp-vocab-contrast-table tbody tr:last-child td {
           border-bottom: none;
         }
@@ -109,9 +114,9 @@ export function JpVocabContrastDistinctionTable({
           .jp-vocab-contrast-table td {
             padding: 0.4rem 0.45rem;
           }
-          .jp-vocab-contrast-table thead th:nth-child(2),
-          .jp-vocab-contrast-table tbody td:nth-child(2) {
+          .jp-vocab-contrast-table tbody th {
             width: 34%;
+            max-width: 7.5rem;
           }
         }
       `}</style>

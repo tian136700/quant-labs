@@ -296,11 +296,25 @@ export function formatJpVocabUsageExamplesCopyText(
     if (rows?.length) {
       blocks.push("【区别】");
       blocks.push(
-        ["何时用", "接续"].join("\t"),
-        ...rows.map((r) =>
-          [r.when, r.connection?.trim() || "—"].join("\t")
-        )
+        ["语法", "何时用"].join("\t"),
+        ...rows.map((r) => [r.form, r.when].join("\t"))
       );
+      const connRows = Object.entries(byUsage)
+        .map(([k, v]) => ({ idx: Number(k), text: String(v || "").trim() }))
+        .filter((row) => Number.isInteger(row.idx) && row.idx > 0 && row.text)
+        .sort((a, b) => a.idx - b.idx);
+      if (connRows.length > 0 || leftover.length > 0) {
+        const connLines: string[] = ["【接序】"];
+        if (connRows.length > 0) {
+          connLines.push(["用法", "接续"].join("\t"));
+          connLines.push(
+            ...connRows.map((row) => [`用法${row.idx}`, row.text].join("\t"))
+          );
+        } else {
+          connLines.push(...leftover);
+        }
+        blocks.push(connLines.join("\n"));
+      }
     } else if (fallback) {
       blocks.push(fallback);
     }
@@ -389,16 +403,16 @@ export function jpVocabContrastFormFromPair(
 }
 
 export type JpVocabContrastComparisonRow = {
-  /** 形态（くれる / なに）；仅用于标签/兼容，表上不再单独「读法」列 */
+  /** 语法/形态（くれる / なに / んです） */
   form: string;
+  /** 区别描述 */
   when: string;
-  connection: string | null;
 };
 
-/** 对比课卡片表格行：何时用 / 接续（形态已写在何时用开头） */
+/** 对比课卡片「区别表」行：语法 / 何时用 */
 export function buildJpVocabContrastComparisonRows(
   model: JpVocabUsageExamplesPairedModel,
-  connectionTextFor: (usageIndex: number) => string | null,
+  _connectionTextFor: (usageIndex: number) => string | null,
   opts?: { word?: string | null; reading?: string | null }
 ): JpVocabContrastComparisonRow[] | null {
   if (!model.isContrast) return null;
@@ -416,7 +430,6 @@ export function buildJpVocabContrastComparisonRows(
       forms?.[p.index - 1] ?? forms?.[i] ?? null
     ),
     when: String(p.usageText || "").trim(),
-    connection: connectionTextFor(p.index),
   }));
 }
 

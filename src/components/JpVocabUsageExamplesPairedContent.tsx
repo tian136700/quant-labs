@@ -118,6 +118,8 @@ export function JpVocabUsageExamplesPairedContent({
     { word: wordLabel, reading }
   );
   const showContrastTable = Boolean(contrastRows?.length);
+  const contrastConnectionText =
+    showContrastTable && connParts.normalized ? connParts.normalized : null;
 
   return (
     <div className="jp-usage-ex-paired">
@@ -142,6 +144,9 @@ export function JpVocabUsageExamplesPairedContent({
         <JpVocabContrastDistinctionTable rows={contrastRows} />
       ) : model.fallbackUsage ? (
         <p className="jp-usage-ex-paired-fallback">{model.fallbackUsage}</p>
+      ) : null}
+      {contrastConnectionText ? (
+        <JpVocabConnectionBody text={contrastConnectionText} showLabel />
       ) : null}
 
       {model.pairs.length > 0 ? (

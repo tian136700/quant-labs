@@ -194,8 +194,10 @@ def main() -> int:
         errors.append("display 须有 buildJpVocabContrastComparisonRows")
     if '["读法", "何时用", "接续"]' in display:
         errors.append("复制全文不得再含「读法」列")
-    if '["何时用", "接续"]' not in display:
-        errors.append("复制全文须为何时用 / 接续两列")
+    if '["语法", "何时用"]' not in display:
+        errors.append("复制全文区别表须为语法 / 何时用两列")
+    if "【接序】" not in display or '["用法", "接续"]' not in display:
+        errors.append("复制全文须单独输出接序表（用法 / 接续）")
     if errors:
         for e in errors:
             print(f"FAIL: {e}", file=sys.stderr)
