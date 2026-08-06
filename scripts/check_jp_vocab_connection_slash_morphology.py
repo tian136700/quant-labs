@@ -51,11 +51,13 @@ def main() -> None:
     ]:
         fail("stripJpVocabConnectionUsageNoise must rejoin morphology slash chunks")
 
-    if "说明" not in body or "showNoteCol" not in body:
-        fail("JpVocabConnectionBody must support optional 说明 column")
+    if "说明" not in body:
+        fail("JpVocabConnectionBody must include 说明 column")
+    if "showNoteCol" in body:
+        fail("JpVocabConnectionBody must always show 说明（禁止 showNoteCol 条件隐藏）")
 
     if "词类／形态" not in body or "＋接什么" not in body:
-        fail("JpVocabConnectionBody headers must be 词类／形态 + ＋接什么 (+ 说明)")
+        fail("JpVocabConnectionBody headers must be 词类／形态 + ＋接什么 + 说明")
 
     if "｜" not in src or "CONNECTION_TABLE_NOTE_SEP_RE" not in src:
         fail("connection table note separator ｜ missing")

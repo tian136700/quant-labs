@@ -26,7 +26,7 @@ export function JpVocabConnectionBody({
   const trimmed = String(text || "").trim();
   if (!trimmed) return null;
   const rows = parseJpVocabConnectionTableRows(trimmed);
-  const showNoteCol = Boolean(rows?.some((r) => Boolean(r.note)));
+  // 同一卡片内接续表必须三列一致；缺说明用「—」，禁止某段表头少「说明」列
 
   return (
     <div
@@ -42,7 +42,7 @@ export function JpVocabConnectionBody({
               <tr>
                 <th scope="col">词类／形态</th>
                 <th scope="col">＋接什么</th>
-                {showNoteCol ? <th scope="col">说明</th> : null}
+                <th scope="col">说明</th>
               </tr>
             </thead>
             <tbody>
@@ -50,7 +50,7 @@ export function JpVocabConnectionBody({
                 <tr key={`${row.label}:${row.body.slice(0, 24)}:${row.note ?? ""}`}>
                   <th scope="row">{row.label}</th>
                   <td>{row.body}</td>
-                  {showNoteCol ? <td>{row.note ?? "—"}</td> : null}
+                  <td>{row.note?.trim() ? row.note : "—"}</td>
                 </tr>
               ))}
             </tbody>

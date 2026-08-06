@@ -140,6 +140,25 @@ export function normalizeJpVocabUsageJlptTail(
 }
 
 /**
+ * 展示层：从用法正文抽出 JLPT 等级（如 N5），正文去掉句末 `(N5)` 以免与徽章重复。
+ * 存库仍保留 `(N5)`；复制全部用完整存库串。
+ */
+export function extractJpVocabUsageJlptForDisplay(text: string): {
+  body: string;
+  jlptLevel: string | null;
+} {
+  const t = String(text || "").trim();
+  if (!t) return { body: "", jlptLevel: null };
+  const m = JP_VOCAB_USAGE_JLPT_TAIL_RE.exec(t);
+  if (!m) return { body: t, jlptLevel: null };
+  const body = m[1].replace(/\s+$/u, "");
+  return {
+    body: body || t,
+    jlptLevel: `N${m[2]}`,
+  };
+}
+
+/**
  * 剥接续后是否只剩空串或句末等级「(N4)」——常见于把「接在…」整句当用法。
  * 展示应丢掉该编号点；写回须拒 usage_empty_after_strip。
  */

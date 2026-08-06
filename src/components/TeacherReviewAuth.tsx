@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { EtrAuthUser } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { readStoredLocale } from "@/lib/locale-detect";
@@ -149,6 +149,7 @@ export function TeacherReviewAuth({
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const localAutoLoginTried = useRef(false);
 
   useEffect(() => {
     setMode(resolveMode(initialMode));
@@ -159,6 +160,86 @@ export function TeacherReviewAuth({
     if (variant !== "inline") return;
     writeAuthDraft({ username, password, mode });
   }, [variant, username, password, mode]);
+
+  // 本机调试：自动填入 Admin 并登录一次（线上 API 403）
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (localAutoLoginTried.current) return;
+    const host = window.location.hostname;
+    if (host !== "127.0.0.1" && host !== "localhost") return;
+    if (mode !== "login") return;
+    if (username.trim() && password.trim()) return;
+
+    localAutoLoginTried.current = true;
+    let cancelled = false;
+    const run = async () => {
+      try {
+        const res = await fetch("/api/debug-local-admin-creds", {
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          ok?: boolean;
+          username?: string;
+          password?: string;
+          auto_submit?: boolean;
+        };
+        if (cancelled || !data.ok || !data.username || !data.password) return;
+        setUsername(data.username);
+        setPassword(data.password);
+        if (data.auto_submit !== false) {
+          setLoading(true);
+          try {
+            const loginRes = await fetch("/api/english-teacher-review/auth", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({
+                action: "login",
+                username: data.username,
+                password: data.password,
+              }),
+            });
+            const parsed = await readApiJson<{
+              ok?: boolean;
+              error?: string;
+              maintenance?: boolean;
+              user?: EtrAuthUser;
+            }>(loginRes);
+            if (cancelled) return;
+            if (!parsed.ok) {
+              setError(parsed.error || auth.failed);
+              return;
+            }
+            const body = parsed.data;
+            if (body.maintenance) {
+              const locale = readStoredLocale() ?? "en";
+              window.location.href = maintenancePath(locale);
+              return;
+            }
+            if (!body.ok) {
+              setError(body.error || auth.failed);
+              return;
+            }
+            if (variant === "inline") clearAuthDraft();
+            onAuthenticated(body.user as EtrAuthUser);
+          } catch {
+            if (!cancelled) setError(auth.failed);
+          } finally {
+            if (!cancelled) setLoading(false);
+          }
+        }
+      } catch {
+        /* 无本机凭据时保持空表单 */
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+    // 仅挂载时尝试一次
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const switchMode = (next: AuthMode) => {
     setMode(next);

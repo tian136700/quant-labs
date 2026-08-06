@@ -22,6 +22,7 @@ import {
 } from "@/lib/jp-vocab-connection-ai";
 import { uniqueJpVocabSourcesForDisplay } from "@/lib/jp-vocab-source-display";
 import { JpVocabUsageFrequencyBars } from "@/components/JpVocabUsageFrequencyBars";
+import { extractJpVocabUsageJlptForDisplay } from "@/lib/jp-vocab-usage-ai";
 
 type Props = {
   usage: string | null | undefined;
@@ -156,6 +157,9 @@ export function JpVocabUsageExamplesPairedContent({
               showContrastTable || !pair.usageText
                 ? null
                 : connectionTextFor(pair.index);
+            const usageJlpt = pair.usageText
+              ? extractJpVocabUsageJlptForDisplay(pair.usageText)
+              : null;
             return (
             <li key={pair.index} className="jp-usage-ex-paired-item">
               {pair.usageText && !showContrastTable ? (
@@ -164,8 +168,16 @@ export function JpVocabUsageExamplesPairedContent({
                     {pair.usageLabel}：
                   </span>
                   <span className="jp-usage-ex-paired-usage-body">
-                    {pair.usageText}
+                    {usageJlpt?.body ?? pair.usageText}
                   </span>
+                  {usageJlpt?.jlptLevel ? (
+                    <span
+                      className="jp-usage-ex-paired-jlpt"
+                      title={`该用法对应 ${usageJlpt.jlptLevel}`}
+                    >
+                      {usageJlpt.jlptLevel}
+                    </span>
+                  ) : null}
                 </p>
               ) : pair.usageText && showContrastTable ? (
                 <p className="jp-usage-ex-paired-usage jp-usage-ex-paired-usage--contrast-ex">
@@ -360,6 +372,21 @@ export function JpVocabUsageExamplesPairedContent({
         }
         .jp-usage-ex-paired-usage-label {
           font-weight: 600;
+        }
+        .jp-usage-ex-paired-jlpt {
+          display: inline-block;
+          margin-left: 0.4rem;
+          padding: 0.08rem 0.42rem;
+          border-radius: 6px;
+          font-size: 0.78rem;
+          font-weight: 700;
+          letter-spacing: 0.02em;
+          vertical-align: 0.12em;
+          color: color-mix(in srgb, var(--accent, #3b82f6) 92%, #fff);
+          background: color-mix(in srgb, var(--accent, #3b82f6) 22%, transparent);
+          border: 1px solid
+            color-mix(in srgb, var(--accent, #3b82f6) 45%, transparent);
+          white-space: nowrap;
         }
         .jp-usage-ex-paired-usage--contrast-ex {
           display: flex;

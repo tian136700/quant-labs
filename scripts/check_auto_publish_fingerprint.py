@@ -56,6 +56,11 @@ def main() -> int:
     if "summarize_feature_remark" not in text:
         return fail("hook must use summarize_feature_remark (accurate change remark)")
 
+    if "agent_ready_to_publish" not in text or "READY_FILE" not in text:
+        return fail("hook must gate publish on agent_ready_to_publish.txt")
+    if "跳过自动发布" not in text:
+        return fail("hook must skip publish (no POST) when ready file missing")
+
     remark_check = ROOT / "scripts" / "check_feature_remark_format.py"
     if not remark_check.is_file():
         return fail("missing scripts/check_feature_remark_format.py (功能：改了什么)")
