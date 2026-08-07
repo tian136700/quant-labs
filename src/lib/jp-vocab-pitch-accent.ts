@@ -54,6 +54,28 @@ export function serializeJpVocabPitchAccent(data: JpVocabPitchAccent): string {
   });
 }
 
+/** 存库 kana 须与卡片读音一致（平/片假名等价），否则不展示。 */
+function normalizeKanaForPitchCompare(text: string): string {
+  return text.replace(/\s/g, "").replace(/[\u30A1-\u30F6]/g, (ch) =>
+    String.fromCharCode(ch.charCodeAt(0) - 0x60)
+  );
+}
+
+export function jpVocabPitchAccentMatchesReading(
+  pitchAccent: string | JpVocabPitchAccent | null | undefined,
+  reading: string | null | undefined
+): JpVocabPitchAccent | null {
+  const parsed =
+    typeof pitchAccent === "string"
+      ? parseJpVocabPitchAccent(pitchAccent)
+      : pitchAccent ?? null;
+  if (!parsed) return null;
+  const readingNorm = normalizeKanaForPitchCompare(reading ?? "");
+  const kanaNorm = normalizeKanaForPitchCompare(parsed.kana);
+  if (!readingNorm || kanaNorm !== readingNorm) return null;
+  return parsed;
+}
+
 export function validateJpVocabPitchAccentPayload(
   payload: unknown
 ): { ok: true; data: JpVocabPitchAccent } | { ok: false; reason: string } {

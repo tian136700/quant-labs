@@ -409,6 +409,32 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           letter-spacing: 0.04em;
           line-height: 1.2;
         }
+        /* OJAD 音调：假名顶横线（L 无 / H 黑线 / N 红线+核） */
+        :global(.jp-vocab-pitch-accent) {
+          display: inline-flex;
+          flex-wrap: wrap;
+          align-items: flex-end;
+          letter-spacing: 0.04em;
+          font-weight: 700;
+        }
+        :global(.jp-vocab-pitch-accent--hero) {
+          font-size: clamp(1.85rem, 7vw, 2.35rem);
+          line-height: 1.2;
+        }
+        :global(.jp-vocab-pitch-accent__mora) {
+          display: inline-block;
+          min-width: 1.05em;
+          text-align: center;
+          padding-top: 0.22em;
+          box-sizing: border-box;
+        }
+        :global(.jp-vocab-pitch-accent__mora--high) {
+          border-top: 2px solid #111;
+        }
+        :global(.jp-vocab-pitch-accent__mora--nucleus) {
+          color: #c62828;
+          border-top: 2px solid #c62828;
+        }
         .jp-vocab-teacher-quiz__kanji {
           font-size: clamp(1.35rem, 5vw, 1.75rem);
           font-weight: 600;

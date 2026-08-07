@@ -93,34 +93,74 @@ def fetch_ojad_rows(word: str, session: requests.Session | None = None) -> list[
 
 
 def _normalize_kana(text: str) -> str:
-    return re.sub(r"[\s\u3000]", "", text or "")
+    text = re.sub(r"[\s\u3000]", "", text or "")
+    # 片假名 → 平假名，便于与 OJAD 对齐
+    out: list[str] = []
+    for ch in text:
+        code = ord(ch)
+        if 0x30A1 <= code <= 0x30F6:
+            out.append(chr(code - 0x60))
+        elif ch == "ー":
+            out.append("ー")
+        else:
+            out.append(ch)
+    return "".join(out)
 
 
-def pick_jisho_form(
-    rows: list[dict[str, Any]], *, reading: str | None = None
-) -> dict[str, Any] | None:
-    """Pick dictionary-form (jisho) accent; match reading kana when provided."""
-    reading_norm = _normalize_kana(reading or "")
-    candidates: list[dict[str, Any]] = []
+def _headword_matches(headword: str, query: str) -> bool:
+    q = query.strip()
+    if not q or not headword:
+        return False
+    hw = headword.strip()
+    if hw == q:
+        return True
+    for part in re.split(r"[・／/]", hw):
+        if part.strip() == q:
+            return True
+    return False
+
+
+def _collect_jisho_candidates(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
     for row in rows:
         for form in row.get("forms") or []:
             if form.get("form") == "jisho" and form.get("moras"):
-                candidates.append(form)
-    if not candidates:
-        for row in rows:
-            for form in row.get("forms") or []:
-                if form.get("moras"):
-                    candidates.append(form)
+                out.append(form)
+    if out:
+        return out
+    for row in rows:
+        for form in row.get("forms") or []:
+            if form.get("moras"):
+                out.append(form)
+    return out
+
+
+def pick_jisho_form(
+    rows: list[dict[str, Any]],
+    *,
+    word: str | None = None,
+    reading: str | None = None,
+) -> dict[str, Any] | None:
+    """Pick dictionary-form (jisho) accent; reading kana must match exactly when provided."""
+    reading_norm = _normalize_kana(reading or "")
+    word_trim = (word or "").strip()
+
+    scoped = rows
+    if word_trim:
+        matched = [r for r in rows if _headword_matches(str(r.get("headword") or ""), word_trim)]
+        if matched:
+            scoped = matched
+
+    candidates = _collect_jisho_candidates(scoped)
     if not candidates:
         return None
+
     if reading_norm:
         for form in candidates:
             if _normalize_kana(form.get("kana") or "") == reading_norm:
                 return form
-        for form in candidates:
-            kana = _normalize_kana(form.get("kana") or "")
-            if kana and (kana in reading_norm or reading_norm in kana):
-                return form
+        return None
+
     return candidates[0]
 
 
@@ -131,15 +171,26 @@ def fetch_pitch_accent_for_word(
     session: requests.Session | None = None,
 ) -> dict[str, Any] | None:
     """Return compact pitch accent dict for DB storage, or None if OJAD has no match."""
-    rows = fetch_ojad_rows(word, session=session)
-    form = pick_jisho_form(rows, reading=reading)
-    if not form or not form.get("moras"):
-        return None
-    return {
-        "kana": form["kana"],
-        "pattern": form["pattern"],
-        "moras": form["moras"],
-    }
+    sess = session or requests.Session()
+    queries: list[tuple[str, str | None]] = [(word, word)]
+    reading_trim = (reading or "").strip()
+    if reading_trim and reading_trim != word.strip():
+        queries.append((reading_trim, word))
+
+    seen: set[str] = set()
+    for query, match_word in queries:
+        if not query or query in seen:
+            continue
+        seen.add(query)
+        rows = fetch_ojad_rows(query, session=sess)
+        form = pick_jisho_form(rows, word=match_word, reading=reading_trim or None)
+        if form and form.get("moras"):
+            return {
+                "kana": form["kana"],
+                "pattern": form["pattern"],
+                "moras": form["moras"],
+            }
+    return None
 
 
 def pitch_accent_to_json(data: dict[str, Any]) -> str:

@@ -3,11 +3,15 @@
 import { useCallback, useState } from "react";
 import { CopyToast } from "@/components/CopyToast";
 import { JpVocabFlashcardCopyButton } from "@/components/JpVocabFlashcardCopyButton";
+import { JpVocabPitchAccentText } from "@/components/JpVocabPitchAccentText";
+import { jpVocabPitchAccentMatchesReading } from "@/lib/jp-vocab-pitch-accent";
 import type { JpVocabKind, JpVocabRef } from "@/lib/types";
 
 type Props = {
   readingTrim: string;
   wordTrim: string;
+  /** OJAD 音调 JSON；仅 kind=word 且 kana 与 reading 一致时展示顶横线 */
+  pitchAccent?: string | null;
   /** 单词/语法：显示在词条旁的醒目前缀（「单词：」「语法：」） */
   kind?: JpVocabKind;
   refKey?: string | null;
@@ -21,6 +25,7 @@ type Props = {
 export function JpVocabFlashcardWordHero({
   readingTrim,
   wordTrim,
+  pitchAccent,
   kind,
   refKey,
   ref,
@@ -37,6 +42,20 @@ export function JpVocabFlashcardWordHero({
   const copyReadingTrim = hideReading ? "" : readingTrim;
   const kindLabel =
     kind === "grammar" ? "语法：" : kind === "word" ? "单词：" : null;
+  const pitchForDisplay =
+    kind === "word" && !hideReading
+      ? jpVocabPitchAccentMatchesReading(pitchAccent, readingTrim)
+      : null;
+
+  const renderReadingBody = () =>
+    pitchForDisplay ? (
+      <JpVocabPitchAccentText
+        pitchAccent={pitchForDisplay}
+        className="jp-vocab-teacher-quiz__reading jp-vocab-pitch-accent--hero"
+      />
+    ) : (
+      readingTrim
+    );
 
   const renderReading = () =>
     refKey ? (
@@ -46,10 +65,10 @@ export function JpVocabFlashcardWordHero({
         title={ref?.title ? `教案：${ref.title}` : "查看教案"}
         onClick={() => onOpenRef(refKey, ref)}
       >
-        {readingTrim}
+        {renderReadingBody()}
       </button>
     ) : (
-      <span className="jp-vocab-teacher-quiz__reading">{readingTrim}</span>
+      <span className="jp-vocab-teacher-quiz__reading">{renderReadingBody()}</span>
     );
 
   const renderKanji = () =>

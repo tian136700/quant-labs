@@ -315,6 +315,7 @@ export function JpVocabAdminReviewFlashcardModal({
         <JpVocabFlashcardWordHero
           readingTrim={readingTrim}
           wordTrim={wordTrim}
+          pitchAccent={w.pitch_accent}
           kind={w.kind}
           refKey={w.ref_key}
           ref={ref}
