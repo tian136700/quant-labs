@@ -1386,7 +1386,9 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           line-height: 1.5;
         }
         .jp-vocab-teacher-quiz__examples-body :global(.jp-vocab-furigana-reading) {
-          font-size: 0.55em;
+          font-size: 0.68em;
+          font-weight: 650;
+          color: #8ec5ff;
         }
         .jp-vocab-teacher-quiz__examples-body :global(.jp-usage-ex-paired-nested-index) {
           font-size: 1.05rem;
@@ -1580,15 +1582,15 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           line-height: 1.2;
           color: var(--text);
         }
-        /* 假名在对应日语词正下方居中；显眼亮蓝 */
+        /* 假名在对应日语词正下方居中；略大 + 显眼亮蓝 */
         .jp-vocab-teacher-quiz__related-compounds-jp .jp-vocab-furigana-reading {
           display: block;
-          font-size: 0.58em;
+          font-size: 0.68em;
           font-weight: 650;
-          line-height: 1.2;
-          letter-spacing: 0;
+          line-height: 1.25;
+          letter-spacing: 0.01em;
           white-space: nowrap;
-          color: #7eb8ff;
+          color: #8ec5ff;
           opacity: 1;
           user-select: none;
           margin-top: 0.08em;

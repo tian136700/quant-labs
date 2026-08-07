@@ -109,8 +109,13 @@ def main() -> int:
     flow_chunk = styles_text.split("related-compounds-flow", 1)[-1][:500]
     if "1.18rem" not in flow_chunk:
         raise SystemExit("FAIL: related-compounds-flow 字体应再放大（约 1.18rem）")
-    if "#7eb8ff" not in styles_text:
-        raise SystemExit("FAIL: 相关构词假名须用显眼颜色（如 #7eb8ff）")
+    if "#8ec5ff" not in styles_text and "#7eb8ff" not in styles_text:
+        raise SystemExit("FAIL: 相关构词假名须用显眼亮蓝（如 #8ec5ff）")
+    reading_chunk = styles_text.split(
+        ".jp-vocab-teacher-quiz__related-compounds-jp .jp-vocab-furigana-reading", 1
+    )[-1].split("}", 1)[0]
+    if "0.68em" not in reading_chunk and "0.64em" not in reading_chunk:
+        raise SystemExit("FAIL: 相关构词假名字号须 ≥0.64em（勿再缩成难看清）")
     must_contain(lib, "normalizeJpVocabRelatedCompoundGloss", "gloss normalize")
     must_contain(lib, "上级，长辈", "multi sense comma example")
     must_contain(lib, "禁止在释义里用分号", "no semicolon in gloss prompt")

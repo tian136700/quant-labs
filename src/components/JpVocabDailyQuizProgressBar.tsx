@@ -17,6 +17,8 @@ type Props = {
     saving: boolean;
     onChange: (value: string) => void;
     onSave: () => void;
+    /** 聚焦编辑中：父级勿用 sync 旧值盖回草稿 */
+    onFocusChange?: (focused: boolean) => void;
   };
   /** 今日抽查已完成：进入课堂带读 */
   coachAction?: {
@@ -34,6 +36,13 @@ function parseQuizTargetDraft(value: string): number | null {
   const count = Math.floor(parsed);
   if (count < 1 || count > 999) return null;
   return count;
+}
+
+/** 全角数字 → 半角，避免 IME/全角键盘打字被 /^\d+$/ 静默吞掉 */
+function normalizeQuizTargetInputDigits(raw: string): string {
+  return raw.replace(/[０-９]/g, (ch) =>
+    String.fromCharCode(ch.charCodeAt(0) - 0xff10)
+  );
 }
 
 export function JpVocabDailyQuizProgressBar({
@@ -87,11 +96,17 @@ export function JpVocabDailyQuizProgressBar({
               id="jp-vocab-quiz-target"
               type="text"
               inputMode="numeric"
+              pattern="[0-9]*"
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck={false}
               className="jp-vocab-quiz-target-admin__input"
               value={adminQuizTarget.value}
+              onFocus={() => adminQuizTarget.onFocusChange?.(true)}
+              onBlur={() => adminQuizTarget.onFocusChange?.(false)}
               onChange={(e) => {
-                const next = e.target.value;
-                if (next === "" || /^\d+$/.test(next)) {
+                const next = normalizeQuizTargetInputDigits(e.target.value);
+                if (next === "" || /^\d{0,3}$/.test(next)) {
                   adminQuizTarget.onChange(next);
                 }
               }}
@@ -152,7 +167,9 @@ export function JpVocabDailyQuizProgressBar({
         </button>
       ) : null}
 
-      <style jsx>{`
+      {/* jsx global：须压过 globals-forms 的 input[type=text]{w-full;min-height:44px}，
+          否则进度条一行里输入框被压扁，数字像「打不进去」 */}
+      <style jsx global>{`
         .jp-vocab-quiz-progress {
           margin-bottom: 0.55rem;
           padding: 0.4rem 0.65rem 0.45rem;
@@ -181,25 +198,37 @@ export function JpVocabDailyQuizProgressBar({
         }
         .jp-vocab-quiz-target-admin__label,
         .jp-vocab-quiz-target-admin__unit {
+          display: inline;
+          margin: 0;
           font-size: 0.75rem;
           color: var(--muted);
+          flex: 0 0 auto;
         }
-        .jp-vocab-quiz-target-admin__input {
-          width: 3.25rem;
-          padding: 0.12rem 0.35rem;
+        input.jp-vocab-quiz-target-admin__input[type="text"] {
+          box-sizing: border-box;
+          flex: 0 0 auto;
+          flex-shrink: 0;
+          width: 3.5rem;
+          min-width: 3.5rem;
+          max-width: 4.5rem;
+          min-height: 1.85rem;
+          height: 1.85rem;
+          padding: 0.15rem 0.4rem;
           border-radius: 4px;
           border: 1px solid var(--border);
-          background: var(--panel);
+          background: var(--bg);
           color: var(--text);
-          font-size: 0.8125rem;
+          caret-color: var(--accent);
+          font-size: 0.875rem;
           font-variant-numeric: tabular-nums;
-          line-height: 1.35;
+          line-height: 1.25;
+          text-align: center;
         }
-        .jp-vocab-quiz-target-admin__input:focus {
+        input.jp-vocab-quiz-target-admin__input[type="text"]:focus {
           outline: none;
           border-color: var(--accent);
         }
-        .jp-vocab-quiz-target-admin__input:disabled {
+        input.jp-vocab-quiz-target-admin__input[type="text"]:disabled {
           opacity: 0.6;
         }
         .jp-vocab-quiz-progress-title {

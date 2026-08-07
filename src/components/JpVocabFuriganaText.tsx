@@ -47,7 +47,7 @@ export function JpVocabFuriganaText({ text, className }: Props) {
       )}
       <style jsx global>{`
         .jp-vocab-furigana-text {
-          line-height: 1.15;
+          line-height: 1.35;
         }
         .jp-vocab-furigana-unit {
           display: inline-flex;
@@ -60,16 +60,17 @@ export function JpVocabFuriganaText({ text, className }: Props) {
         .jp-vocab-furigana-base {
           line-height: 1.15;
         }
+        /* 汉字下方假名：略大 + 亮蓝，方便不识汉字时对照读音 */
         .jp-vocab-furigana-reading {
           display: block;
-          font-size: 0.48em;
-          font-weight: 500;
-          line-height: 1.2;
-          letter-spacing: 0;
+          font-size: 0.64em;
+          font-weight: 650;
+          line-height: 1.25;
+          letter-spacing: 0.01em;
           white-space: nowrap;
-          color: color-mix(in srgb, currentColor 68%, transparent);
+          color: #8ec5ff;
           user-select: none;
-          margin-top: 0.06em;
+          margin-top: 0.08em;
         }
       `}</style>
     </span>
