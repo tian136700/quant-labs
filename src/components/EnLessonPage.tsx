@@ -59,7 +59,6 @@ import type { EnLessonTeacherUpdateInput } from "@/components/EnLessonTeacherEdi
 import {
   readLessonCache,
   persistLessonCache,
-  refViewUrl,
   LESSON_STATUS_SECTIONS,
   groupLessonsForDisplay,
   mergeEnLessonTeachers,
@@ -721,8 +720,6 @@ export function EnLessonPage() {
     }
   };
 
-  const editingRef = editingLesson?.ref_key ? refs[editingLesson.ref_key] : undefined;
-
   return (
     <main className="page-wrap jp-lesson-page jp-lesson-page--en" style={{ maxWidth: "min(1320px, 100%)", paddingTop: "1.5rem" }}>
       <EnLessonPageHeader
@@ -873,141 +870,46 @@ export function EnLessonPage() {
         </div>
       )}
 
-      <EnLessonCreateBridge
-        open={createOpen}
+      <EnLessonPageModals
         locale={locale}
-        onClose={() => setCreateOpen(false)}
-        onNeedLogin={openEnAuth}
-        onCreatedLesson={(lesson) => {
-          setLessons((prev) => {
-            const next = [lesson, ...prev.filter((l) => l.id !== lesson.id)];
-            persistLessonCache(next, refs, notes, teachers);
-            return next;
-          });
-        }}
+        canOperate={canOperate}
+        createOpen={createOpen}
+        setCreateOpen={setCreateOpen}
+        openEnAuth={openEnAuth}
+        lessons={lessons}
+        setLessons={setLessons}
+        refs={refs}
+        notes={notes}
+        teachers={teachers}
+        setTeachers={setTeachers}
         setMobileStatusFilter={setMobileStatusFilter}
         setStatus={setStatus}
         loadLessons={loadLessons}
+        editContentApiRef={editContentApiRef}
+        importScheduleApiRef={importScheduleApiRef}
+        editingTeacherLesson={editingTeacherLesson}
+        setEditingTeacherLesson={setEditingTeacherLesson}
+        savingTeacherId={savingTeacherId}
+        addLessonTeacher={addLessonTeacher}
+        deleteLessonTeacher={deleteLessonTeacher}
+        setLessonTeachers={setLessonTeachers}
+        editingNextClassLesson={editingNextClassLesson}
+        setEditingNextClassLesson={setEditingNextClassLesson}
+        savingNextClassId={savingNextClassId}
+        setLessonClassSchedules={setLessonClassSchedules}
+        editingLesson={editingLesson}
+        setEditingLesson={setEditingLesson}
+        handleRefUpdated={handleRefUpdated}
+        annotatingLesson={annotatingLesson}
+        setAnnotatingLesson={setAnnotatingLesson}
+        handleAnnotateSaved={handleAnnotateSaved}
+        handleImportScheduleLessonSynced={handleImportScheduleLessonSynced}
+        handleImportScheduleStatus={handleImportScheduleStatus}
+        showOperateModals
       />
-
-      <EnLessonEditBridge
-        locale={locale}
-        apiRef={editContentApiRef}
-        onNeedLogin={openEnAuth}
-        onUpdated={(lesson) => {
-          setLessons((prev) => {
-            const next = prev.map((item) =>
-              item.id === lesson.id ? { ...item, ...lesson } : item
-            );
-            persistLessonCache(next, refs, notes, teachers);
-            return next;
-          });
-          setStatus(`已更新新课 #${lesson.id}`);
-          window.setTimeout(() => setStatus(""), 2500);
-        }}
-      />
-
-      <EnLessonTeacherEditModal
-        open={editingTeacherLesson != null}
-        lesson={editingTeacherLesson}
-        teachers={teachers}
-        saving={savingTeacherId === editingTeacherLesson?.id}
-        onClose={() => setEditingTeacherLesson(null)}
-        onAddTeacher={addLessonTeacher}
-        onDeleteTeacher={deleteLessonTeacher}
-        onSave={(teacherIds, teacherOther, teacherUpdates, options) => {
-          if (editingTeacherLesson) {
-            return setLessonTeachers(
-              editingTeacherLesson.id,
-              teacherIds,
-              teacherOther,
-              teacherUpdates,
-              options
-            );
-          }
-        }}
-      />
-
-      <EnLessonNextClassEditModal
-        open={editingNextClassLesson != null}
-        lesson={editingNextClassLesson}
-        teachers={teachers}
-        saving={
-          savingNextClassId === editingNextClassLesson?.id ||
-          savingTeacherId === editingNextClassLesson?.id
-        }
-        onClose={() => setEditingNextClassLesson(null)}
-        onAddTeacher={addLessonTeacher}
-        onSave={(schedules, meta) => {
-          if (!editingNextClassLesson) return;
-          void saveEnLessonNextClassWithMeta({
-            lessonId: editingNextClassLesson.id,
-            schedules,
-            meta,
-            onTeacherUpdated: (teacher) => {
-              setTeachers((prev) => {
-                const next = prev.map((t) =>
-                  t.id === teacher.id ? teacher : t
-                );
-                persistLessonCache(lessons, refs, notes, next);
-                return next;
-              });
-            },
-            setLessonTeachers,
-            setLessonClassSchedules,
-          });
-        }}
-      />
-
-      <EnVocabRefEditModal
-        open={editingLesson != null}
-        lessonId={editingLesson?.id ?? null}
-        refKey={editingLesson?.ref_key ?? null}
-        refMeta={editingRef}
-        locale={locale}
-        canEdit={canOperate}
-        onClose={() => setEditingLesson(null)}
-        onUpdated={handleRefUpdated}
-        onNeedAuth={openEnAuth}
-      />
-
-      <EnLessonAnnotateModal
-        open={annotatingLesson != null}
-        imageUrl={annotatingLesson?.imageUrl ?? ""}
-        mediaType={
-          annotatingLesson?.mediaType ??
-          (annotatingLesson?.ref.media_type === "pdf" ? "pdf" : "image")
-        }
-        refKey={annotatingLesson?.lesson.ref_key ?? ""}
-        lessonId={annotatingLesson?.lesson.id ?? 0}
-        lessonContent={annotatingLesson?.lesson.content ?? ""}
-        locale={locale}
-        canSave={canOperate}
-        viewUrl={
-          annotatingLesson?.lesson.ref_key
-            ? refViewUrl(
-                annotatingLesson.lesson.ref_key,
-                annotatingLesson.ref.updated_at
-              )
-            : ""
-        }
-        onClose={() => setAnnotatingLesson(null)}
-        onSaved={handleAnnotateSaved}
-        onNeedAuth={openEnAuth}
-      />
-
-      <EnLessonApiUploadHelp />
         </>
       )}
 
-      <EnLessonImportScheduleBridge
-        locale={locale}
-        teachers={teachers}
-        canOperate={canOperate}
-        apiRef={importScheduleApiRef}
-        onLessonSynced={handleImportScheduleLessonSynced}
-        onStatus={handleImportScheduleStatus}
-      />
       <EnLessonPageStyles />
       <CopyToast message={copyToast} onDismiss={() => setCopyToast(null)} />
     </main>

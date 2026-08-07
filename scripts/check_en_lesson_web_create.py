@@ -77,7 +77,18 @@ def main() -> int:
         errors.append("PageHeader: missing 新增 button")
 
     page = PAGE.read_text(encoding="utf-8")
-    if "EnLessonCreateBridge" not in page and "EnLessonCreateModal" not in page:
+    modals = (
+        ROOT / "src/components/en-lesson-page/EnLessonPageModals.tsx"
+    ).read_text(encoding="utf-8")
+    wired = (
+        "EnLessonCreateBridge" in page
+        or "EnLessonCreateModal" in page
+        or (
+            "EnLessonPageModals" in page
+            and "EnLessonCreateBridge" in modals
+        )
+    )
+    if not wired:
         errors.append("EnLessonPage: must wire create modal/bridge")
 
     if not DOCS.is_file():

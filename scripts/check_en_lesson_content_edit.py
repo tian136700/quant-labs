@@ -70,6 +70,36 @@ def main() -> int:
     if "meanings" not in create_docs:
         errors.append("docs/en-lesson-create-api.txt must document meanings")
 
+    table = (
+        ROOT / "src/components/en-lesson-page/EnLessonStatusTable.tsx"
+    ).read_text(encoding="utf-8")
+    if "onEditContent" not in table:
+        errors.append("StatusTable must expose onEditContent (not only onEditLesson)")
+    if "EnLessonMeaningsPreview" not in table:
+        errors.append("StatusTable must show EnLessonMeaningsPreview")
+    if '释义' not in table:
+        errors.append("StatusTable must have 释义 column")
+
+    edit_bridge = (
+        ROOT / "src/components/en-lesson-page/EnLessonEditBridge.tsx"
+    ).read_text(encoding="utf-8")
+    if 'action: "update"' not in edit_bridge and "action: 'update'" not in edit_bridge:
+        errors.append("EnLessonEditBridge must POST action update")
+    if "JpVocabSaveProgressBar" not in edit_bridge:
+        errors.append("EnLessonEditBridge must use JpVocabSaveProgressBar")
+    if "buildEnLessonContentEditRows" not in edit_bridge:
+        errors.append("EnLessonEditBridge must use paired content/meaning rows")
+
+    create_modal = (
+        ROOT / "src/components/en-lesson-page/EnLessonCreateModal.tsx"
+    ).read_text(encoding="utf-8")
+    if "meanings" not in create_modal or "释义" not in create_modal:
+        errors.append("CreateModal must allow meanings / 释义")
+
+    rule = ROOT / ".cursor/rules/en-lesson-content-edit.mdc"
+    if not rule.is_file():
+        errors.append("missing .cursor/rules/en-lesson-content-edit.mdc")
+
     if errors:
         print("FAIL check_en_lesson_content_edit:")
         for err in errors:
