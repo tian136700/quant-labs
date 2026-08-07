@@ -1,0 +1,122 @@
+日语抽问 · 教案/参考资料文件 API（/api/jp-vocab/ref/[refKey]）
+=============================================================
+
+用途
+----
+按 `ref_key` 取教案/参考图或 PDF 字节，或只取轻量元数据。
+
+常见入口：
+- 日语抽问「查看教案」弹窗 / 全页 `/jp-vocab/ref/{refKey}`
+- 日语新课「查看」教案
+- 随手画保存后的 live 刷新（`?meta=1` 读 `updated_at`）
+
+`media_type` 以存库为准，但若 `r2_key` 以 `.pdf` 结尾，**一律按 PDF** 纠偏
+（避免新课→抽问 sync 曾把 PDF 误标成 image，导致 Content-Type/预览分支错误）。
+
+
+线上地址
+--------
+GET https://japanese.info-quests.com/api/jp-vocab/ref/{refKey}
+GET https://japanese.info-quests.com/api/jp-vocab/ref/{refKey}?meta=1
+GET https://japanese.info-quests.com/api/jp-vocab/ref/{refKey}?download=1
+
+说明：也可用 finance.info-quests.com 同路径（同一 Worker / 同一 D1）。
+`{refKey}` 例：`lesson-78`、`course-abc123`。
+
+
+本机开发（可选）
+---------------
+GET http://127.0.0.1:3002/api/jp-vocab/ref/{refKey}
+GET http://127.0.0.1:3002/api/jp-vocab/ref/{refKey}?meta=1
+
+
+鉴权
+----
+- 默认 inline 预览 / `?meta=1`：不强制登录（与页面查看一致）。
+- `?download=1` 且媒体为 **image**：须管理员 Cookie（非管理员 403）。
+- `?download=1` 且媒体为 **pdf**：可直接下附件。
+
+
+Query
+-----
+meta=1       只返回 JSON 元数据，不读 R2 文件体（轻量；供 live 刷新）
+download=1   附件下载（Content-Disposition: attachment）
+v=…          可选缓存戳（页面拼在 URL 上；服务端可读可不处理）
+
+
+成功 · meta
+-----------
+{
+  "ref_key": "lesson-78",
+  "updated_at": "2026-08-03 08:11:21",
+  "media_type": "pdf"
+}
+
+`media_type` 取值：`image` | `pdf`（已按 r2_key `.pdf` 纠偏）。
+
+
+成功 · 文件体
+-------------
+HTTP 200
+Content-Type:
+  pdf   → application/pdf
+  image → image/png
+X-Content-Type-Options: nosniff
+Cache-Control: private, max-age=0, must-revalidate, no-transform
+（download 时另有 Content-Disposition / no-transform / identity）
+
+正文为原始文件字节。
+
+
+失败
+----
+404  Not found
+     → 无此 ref_key
+
+404  Reference file not uploaded yet
+     → D1 有行但 R2/本地文件缺失（或本地 marker 无文件）
+
+403  Forbidden
+     → 非管理员下载 image 原图
+
+500  （纯文本错误信息）
+
+
+curl 示例
+---------
+# 元数据
+curl -sS \
+  'https://japanese.info-quests.com/api/jp-vocab/ref/lesson-78?meta=1'
+
+# 预览 PDF/图片字节
+curl -sS -D- -o /tmp/lesson-78.bin \
+  'https://japanese.info-quests.com/api/jp-vocab/ref/lesson-78'
+
+# 下载（PDF）
+curl -sS -OJ \
+  'https://japanese.info-quests.com/api/jp-vocab/ref/lesson-78?download=1'
+
+
+Python 最小示例
+---------------
+import json
+import urllib.request
+
+BASE = "https://japanese.info-quests.com/api/jp-vocab/ref"
+ref_key = "lesson-78"
+
+with urllib.request.urlopen(f"{BASE}/{ref_key}?meta=1", timeout=20) as resp:
+    meta = json.loads(resp.read().decode("utf-8"))
+    print(meta)  # media_type: image | pdf
+
+with urllib.request.urlopen(f"{BASE}/{ref_key}", timeout=60) as resp:
+    ctype = resp.headers.get("Content-Type")
+    data = resp.read()
+    print(ctype, len(data))
+
+
+相关
+----
+- 英语对照：docs/en-vocab-ref-[refKey]-api.txt
+- media_type 防覆盖：.cursor/rules/vocab-ref-media-type-preserve.mdc
+- 回归：python3 scripts/check_vocab_ref_media_type_preserve.py

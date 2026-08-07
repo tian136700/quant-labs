@@ -52,6 +52,11 @@ def main() -> int:
     errors: list[str] = []
 
     enable = ENABLE_TS.read_text(encoding="utf-8")
+    types_ts = ROOT / "src/lib/teacher-user-schedule-enable-types.ts"
+    internal_ts = ROOT / "src/lib/teacher-user-schedule-enable-internal.ts"
+    types = types_ts.read_text(encoding="utf-8") if types_ts.is_file() else ""
+    internal = internal_ts.read_text(encoding="utf-8") if internal_ts.is_file() else ""
+    enable_all = "\n".join([enable, types, internal])
     disable = DISABLE_TS.read_text(encoding="utf-8")
     route = ROUTE_TS.read_text(encoding="utf-8")
     shell = SHELL.read_text(encoding="utf-8")
@@ -60,12 +65,14 @@ def main() -> int:
     plist = PLIST.read_text(encoding="utf-8")
     worker = WORKER.read_text(encoding="utf-8")
 
-    if not WITHIN_RE.search(enable):
+    if not WITHIN_RE.search(enable_all):
         errors.append("missing 2h TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS")
     if not RUN_RE.search(enable):
         errors.append("missing runTeacherUserPreClassEnable")
     if not UPCOMING_RE.search(enable):
         errors.append("missing listTeacherIdsWithUpcomingClassStart")
+    if "listTeacherIdsWithOngoingClass" not in enable:
+        errors.append("pre-class must also enable ongoing class (listTeacherIdsWithOngoingClass)")
     if "runTeacherUserPreClassEnable" not in route:
         errors.append("API route does not call runTeacherUserPreClassEnable")
     if not DIRLOCK_RE.search(shell):
@@ -76,14 +83,16 @@ def main() -> int:
         errors.append("quiz-complete-disable must skip near class")
     if "listLinkedUserIdsWithClassNearNow" not in disable:
         errors.append("quiz-complete-disable must use listLinkedUserIdsWithClassNearNow")
-    if "teacherClassEndMs" not in enable and "resolveClassDurationMinutes" not in enable:
+    if "manual_enable_suppress" not in disable:
+        errors.append("quiz-complete-disable must honor manual_enable_suppress")
+    if "teacherClassEndMs" not in enable and "resolveClassDurationMinutes" not in enable_all:
         errors.append("near-class window should consider class duration/end")
-    if "listJpLessonTeacherNameMapByUserId" in enable:
+    if "listJpLessonTeacherNameMapByUserId" in enable_all:
         errors.append(
             "enable path must not call listJpLessonTeacherNameMapByUserId "
             "(full scan → Worker 1102); SELECT never_disable in JOIN instead"
         )
-    if "never_disable" not in enable:
+    if "never_disable" not in enable_all:
         errors.append("linked teacher SELECT must include never_disable")
     if not RETRY_HOURS_RE.search(schedule_shell):
         errors.append(

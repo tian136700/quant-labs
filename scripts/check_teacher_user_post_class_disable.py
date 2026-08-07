@@ -17,6 +17,9 @@ REGISTRY = ROOT / "scripts/maintenance_center/cron_tasks/registry.py"
 GRACE_RE = re.compile(
     r"TEACHER_POST_CLASS_DISABLE_AFTER_MS\s*=\s*10\s*\*\s*60\s*\*\s*1000"
 )
+CATCHUP_RE = re.compile(
+    r"TEACHER_POST_CLASS_DISABLE_CATCHUP_MS\s*=\s*2\s*\*\s*60\s*\*\s*60\s*\*\s*1000"
+)
 RUN_RE = re.compile(r"export async function runTeacherUserPostClassDisable")
 DUE_RE = re.compile(r"export async function listTeacherIdsDueForPostClassDisable")
 DIRLOCK_RE = re.compile(r"dirlock_acquire")
@@ -27,13 +30,38 @@ def main() -> int:
     errors: list[str] = []
 
     enable = ENABLE_TS.read_text(encoding="utf-8")
+    # constants may live in *-types.ts after split
+    types_ts = ROOT / "src/lib/teacher-user-schedule-enable-types.ts"
+    types = types_ts.read_text(encoding="utf-8") if types_ts.is_file() else ""
+    combined = enable + "\n" + types
     route = ROUTE_TS.read_text(encoding="utf-8")
     shell = SHELL.read_text(encoding="utf-8")
     plist = PLIST.read_text(encoding="utf-8")
     registry = REGISTRY.read_text(encoding="utf-8")
+    suppress = (ROOT / "src/lib/teacher-user-disable-suppress.ts").read_text(
+        encoding="utf-8"
+    )
+    users = (ROOT / "src/lib/etr-auth-db/users.ts").read_text(encoding="utf-8")
+    manual_route = (
+        ROOT / "src/app/api/jp-lesson/manual-schedules/route.ts"
+    ).read_text(encoding="utf-8")
 
-    if not GRACE_RE.search(enable):
+    if not GRACE_RE.search(combined):
         errors.append("missing 10min TEACHER_POST_CLASS_DISABLE_AFTER_MS")
+    if not CATCHUP_RE.search(combined):
+        errors.append("missing 2h TEACHER_POST_CLASS_DISABLE_CATCHUP_MS")
+    if "listTeacherPostClassDues" not in enable:
+        errors.append("missing listTeacherPostClassDues (catch-up due list)")
+    if "manual_enable_suppress" not in (
+        ROOT / "src/lib/teacher-user-schedule-enable-internal.ts"
+    ).read_text(encoding="utf-8"):
+        errors.append("post-class must skip manual_enable_suppress")
+    if "markTeacherUserManualEnableSuppress" not in users:
+        errors.append("setUserDisabled(enable) must mark manual enable suppress")
+    if "maybeEnableTeacherUsersForManualSchedule" not in manual_route:
+        errors.append("manual schedule create/update must try enable teacher account")
+    if "etr_user_schedule_disable_suppress" not in suppress:
+        errors.append("missing suppress table helper")
     if not RUN_RE.search(enable):
         errors.append("missing runTeacherUserPostClassDisable")
     if not DUE_RE.search(enable):

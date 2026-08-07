@@ -84,6 +84,10 @@ export async function runTeacherUserQuizCompleteDisable(
     afterMs: TEACHER_QUIZ_DISABLE_SKIP_NEAR_CLASS_MS,
     now,
   });
+  const suppressMap = await listTeacherUserDisableSuppressAfterByUserId(
+    db,
+    dueRows.map((row) => Number(row.user_id))
+  );
 
   const disabled: TeacherUserQuizCompleteDisableResult["disabled"] = [];
   const skipped: TeacherUserQuizCompleteDisableResult["skipped"] = [];
@@ -184,6 +188,28 @@ export async function runTeacherUserQuizCompleteDisable(
         reason: "near_upcoming_or_ongoing_class",
         subject,
       });
+      continue;
+    }
+
+    // 管理员手动启用后压制：勿再禁（disable_after 当作本节禁用点）
+    const disableAfterMs = row.disable_after_at
+      ? Date.parse(row.disable_after_at)
+      : NaN;
+    if (
+      Number.isFinite(disableAfterMs) &&
+      isTeacherUserDisableSuppressedForDisableAt(
+        suppressMap.get(userId),
+        disableAfterMs
+      )
+    ) {
+      skipped.push({
+        user_id: userId,
+        username: user.username,
+        quiz_date: quizDate,
+        reason: "manual_enable_suppress",
+        subject,
+      });
+      await markDisabled();
       continue;
     }
 

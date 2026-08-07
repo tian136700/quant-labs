@@ -67,7 +67,17 @@ export async function POST(request: Request) {
         return jsonResponse({ ok: false, error: result.error }, status);
       }
 
-      return jsonResponse({ ok: true, schedule: result.schedule });
+      let teacher_enable: unknown = null;
+      try {
+        teacher_enable = await maybeEnableTeacherUsersForManualSchedule(
+          env.DB,
+          result.schedule
+        );
+      } catch {
+        teacher_enable = { triggered: false, reason: "enable_failed" };
+      }
+
+      return jsonResponse({ ok: true, schedule: result.schedule, teacher_enable });
     }
 
     const result = await createJpLessonManualSchedule(env.DB, draft);
@@ -75,7 +85,17 @@ export async function POST(request: Request) {
       return jsonResponse({ ok: false, error: result.error }, 400);
     }
 
-    return jsonResponse({ ok: true, schedule: result.schedule });
+    let teacher_enable: unknown = null;
+    try {
+      teacher_enable = await maybeEnableTeacherUsersForManualSchedule(
+        env.DB,
+        result.schedule
+      );
+    } catch {
+      teacher_enable = { triggered: false, reason: "enable_failed" };
+    }
+
+    return jsonResponse({ ok: true, schedule: result.schedule, teacher_enable });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return jsonResponse({ ok: false, error: message }, 500);
