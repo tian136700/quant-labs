@@ -110,6 +110,20 @@ export function enVocabRefContentType(mediaType: EnVocabMediaType): string {
   return mediaType === "pdf" ? "application/pdf" : "image/png";
 }
 
+/**
+ * 以 r2_key 扩展名为准纠偏 media_type（与日语 resolveJpVocabRefMediaType 同逻辑）。
+ * 新课→抽问 metadata upsert 曾把 PDF 盖成 image。
+ */
+export function resolveEnVocabRefMediaType(ref: {
+  media_type?: string | null;
+  r2_key?: string | null;
+}): EnVocabMediaType {
+  const key = String(ref.r2_key || "").toLowerCase();
+  if (key.endsWith(".pdf")) return "pdf";
+  if (ref.media_type === "pdf") return "pdf";
+  return "image";
+}
+
 /** 本地 dev：文件落在 public/en-vocab-refs/，r2_key 记为 local:{ref_key} */
 export function enVocabRefLocalMarker(refKey: string): string {
   return `local:${refKey}`;
@@ -151,17 +165,20 @@ export function resolveEnVocabRefForPreview(
   refs: Record<string, EnVocabRef>,
   ref?: EnVocabRef
 ): EnVocabRef {
-  return (
+  const base =
     ref ??
     refs[refKey] ?? {
       ref_key: refKey,
       title: null,
-      media_type: "image",
+      media_type: "image" as const,
       r2_key: "",
       created_at: "",
       updated_at: "",
-    }
-  );
+    };
+  return {
+    ...base,
+    media_type: resolveEnVocabRefMediaType(base),
+  };
 }
 
 /** 教案查看页（带下载按钮） */

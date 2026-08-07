@@ -18,6 +18,10 @@ import {
 } from "@/lib/en-vocab-teacher-quiz-day";
 import { beijingDateString } from "@/lib/jp-vocab-daily-check";
 import {
+  isTeacherUserDisableSuppressedForDisableAt,
+  listTeacherUserDisableSuppressAfterByUserId,
+} from "@/lib/teacher-user-disable-suppress";
+import {
   isExcludedFromTeacherScheduleAutoEnable,
   listLinkedUserIdsWithClassNearNow,
   TEACHER_QUIZ_DISABLE_SKIP_NEAR_CLASS_MS,

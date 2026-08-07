@@ -1,8 +1,6 @@
 import "server-only";
 
 import { beijingDateString } from "@/lib/jp-vocab-daily-check";
-import { revokeUserSessions } from "@/lib/etr-auth-db";
-import type { EtrUser, EtrUserRole } from "@/lib/etr-auth";
 import {
   getJpLessonProgressStatus,
   parseBeijingDateTime,
@@ -16,127 +14,55 @@ import {
   listEnTeacherIdsWithUpcomingClassStart,
   listLinkedEnTeacherUsersForTeacherIds,
 } from "@/lib/teacher-user-en-schedule";
+import {
+  disableLinkedTeacherUsersForTeacherIds,
+  enableLinkedTeacherUsersForTeacherIds,
+  listLinkedKoTeacherUsersForTeacherIds,
+  listLinkedTeacherUsersForTeacherIds,
+} from "@/lib/teacher-user-schedule-enable-internal";
+import {
+  KO_TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS,
+  KO_TEACHER_QUIZ_DISABLE_SKIP_NEAR_CLASS_MS,
+  TEACHER_LESSON_LEARNING_AUTO_ENABLE_WITHIN_MS,
+  TEACHER_POST_CLASS_DISABLE_AFTER_MS,
+  TEACHER_POST_CLASS_DISABLE_CATCHUP_MS,
+  TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS,
+  TEACHER_QUIZ_DISABLE_SKIP_NEAR_CLASS_MS,
+  type TeacherUserLearningLessonEnableResult,
+  type TeacherUserPostClassDisableResult,
+  type TeacherUserPreClassEnableResult,
+  type TeacherUserScheduleEnableResult,
+} from "@/lib/teacher-user-schedule-enable-types";
 
 export {
   EN_TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS,
   EN_TEACHER_QUIZ_DISABLE_SKIP_NEAR_CLASS_MS,
 } from "@/lib/teacher-user-en-schedule";
 
-/** 不受课表自动启用控制的账号（仅管理员手动开关） */
-export const TEACHER_SCHEDULE_AUTO_ENABLE_EXCLUDED_USERNAMES = [
-  "user1",
-  "test",
-] as const;
-
-/**
- * 日语新课设为「学习中」且开课时间在此时长内 → 立即启用关联老师账号。
- * 与每日 05:00「今日有课」启用互补（补上排课晚于 05:00、或开课前不足一天的场景）。
- */
-export const TEACHER_LESSON_LEARNING_AUTO_ENABLE_WITHIN_MS =
-  18 * 60 * 60 * 1000;
-
-/**
- * 开课前此时长内：定时任务必须把已禁用的关联登录账号改为启用
- * （补上抽完延时禁用后、下午还有课等场景；与 05:00 / 学习中 18h 互补）。
- */
-export const TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS = 2 * 60 * 60 * 1000;
-
-/** 韩语老师：开课前此时长内启用关联登录账号（手动日程按老师姓名匹配） */
-export const KO_TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS = 30 * 60 * 1000;
-
-/**
- * 抽完延时禁用时：开课前 / 下课后再此时长内跳过禁用，避免刚解禁又被禁、或课中被踢。
- * 与 `TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS` 同窗口（按 class_at→下课时刻计算）。
- */
-export const TEACHER_QUIZ_DISABLE_SKIP_NEAR_CLASS_MS =
-  TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS;
-
-/** 韩语抽完禁用：临近课窗口与开课前 30min 启用一致 */
-export const KO_TEACHER_QUIZ_DISABLE_SKIP_NEAR_CLASS_MS =
-  KO_TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS;
-
-/**
- * 下课（开课 + 课时）后，再过此时长 → 自动禁用关联登录账号。
- * 北京墙钟；有后续未结束/未过宽限的课则不禁。
- */
-export const TEACHER_POST_CLASS_DISABLE_AFTER_MS = 10 * 60 * 1000;
-
-export function isExcludedFromTeacherScheduleAutoEnable(
-  user: Pick<EtrUser, "role" | "username" | "never_disable">
-): boolean {
-  /** 用户管理「永不禁用」：启禁定时任务均跳过（含课表启用 / 下课禁用 / 抽完禁用） */
-  if ((user.never_disable ?? 0) !== 0) return true;
-  if (user.role === "admin") return true;
-  const lower = user.username.trim().toLowerCase();
-  return TEACHER_SCHEDULE_AUTO_ENABLE_EXCLUDED_USERNAMES.some(
-    (name) => lower === name
-  );
-}
-
-export type TeacherUserEnableSkip = {
-  user_id: number;
-  username: string;
-  teacher_id: number;
-  reason: string;
-};
-
-export type TeacherUserEnableHit = {
-  user_id: number;
-  username: string;
-  teacher_id: number;
-};
-
-export type TeacherUserScheduleEnableResult = {
-  date: string;
-  dry_run: boolean;
-  teachers_with_class: number[];
-  enabled: TeacherUserEnableHit[];
-  skipped: TeacherUserEnableSkip[];
-};
-
-export type TeacherUserLearningLessonEnableResult = {
-  triggered: boolean;
-  reason?: string;
-  dry_run: boolean;
-  within_ms: number;
-  enabled: TeacherUserEnableHit[];
-  skipped: TeacherUserEnableSkip[];
-};
-
-export type TeacherUserPreClassEnableResult = {
-  dry_run: boolean;
-  within_ms: number;
-  teachers_with_upcoming_class: number[];
-  enabled: TeacherUserEnableHit[];
-  skipped: TeacherUserEnableSkip[];
-  /** 韩语老师开课前启用窗口（默认 30min） */
-  ko_within_ms?: number;
-  ko_teachers_with_upcoming_class?: number[];
-  /** 英语老师开课前启用窗口（默认 30min；手动日程姓名匹配） */
-  en_within_ms?: number;
-  en_teachers_with_upcoming_class?: number[];
-};
-
-export type TeacherUserPostClassDisableHit = {
-  user_id: number;
-  username: string;
-  teacher_id: number;
-};
-
-export type TeacherUserPostClassDisableResult = {
-  dry_run: boolean;
-  grace_ms: number;
-  teachers_due: number[];
-  disabled: TeacherUserPostClassDisableHit[];
-  skipped: TeacherUserEnableSkip[];
-};
+export {
+  isExcludedFromTeacherScheduleAutoEnable,
+  KO_TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS,
+  KO_TEACHER_QUIZ_DISABLE_SKIP_NEAR_CLASS_MS,
+  TEACHER_LESSON_LEARNING_AUTO_ENABLE_WITHIN_MS,
+  TEACHER_POST_CLASS_DISABLE_AFTER_MS,
+  TEACHER_POST_CLASS_DISABLE_CATCHUP_MS,
+  TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS,
+  TEACHER_QUIZ_DISABLE_SKIP_NEAR_CLASS_MS,
+  TEACHER_SCHEDULE_AUTO_ENABLE_EXCLUDED_USERNAMES,
+  type TeacherUserEnableHit,
+  type TeacherUserEnableSkip,
+  type TeacherUserLearningLessonEnableResult,
+  type TeacherUserPostClassDisableHit,
+  type TeacherUserPostClassDisableResult,
+  type TeacherUserPreClassEnableResult,
+  type TeacherUserScheduleEnableResult,
+} from "@/lib/teacher-user-schedule-enable-types";
 
 async function listTeacherIdsWithClassOnDate(
   db: D1Database,
   dateStr: string
 ): Promise<number[]> {
   const datePrefix = `${dateStr}%`;
-  // 仅日语新课排课 + 手动日程。英语老师不提供系统登录账号，不纳入自动启用。
   const result = await db
     .prepare(
       `SELECT DISTINCT teacher_id FROM (
@@ -169,7 +95,6 @@ type TeacherClassAtRow = {
   duration_minutes: number | null;
 };
 
-/** 北京日 today / tomorrow 的日语排课 + 手动日程（含 teacher_id + class_at + 时长） */
 async function listTeacherClassAtsNearBeijingDates(
   db: D1Database,
   dateStrs: string[]
@@ -206,7 +131,6 @@ async function listTeacherClassAtsNearBeijingDates(
   return result.results ?? [];
 }
 
-/** 北京日 today / tomorrow 的韩语老师手动日程（姓名匹配 ko_lesson_teacher） */
 async function listKoTeacherClassAtsNearBeijingDates(
   db: D1Database,
   dateStrs: string[]
@@ -233,7 +157,6 @@ async function listKoTeacherClassAtsNearBeijingDates(
       .all<TeacherClassAtRow>();
     return result.results ?? [];
   } catch {
-    // 冷库尚未建 ko_lesson_teacher 时跳过，勿拖垮日语开课前启用
     return [];
   }
 }
@@ -253,8 +176,6 @@ function teacherClassEndMs(row: TeacherClassAtRow): number | null {
 
 /**
  * 老师在 [class_at - beforeMs, 下课 + afterMs] 内有课（北京墙钟）。
- * beforeMs：开课前；afterMs：下课后再算「临近」（课中/刚下课仍算）。
- * 课时缺省按 DEFAULT 55min。供抽完禁用跳过等。
  */
 export async function listTeacherIdsWithClassNearNow(
   db: D1Database,
@@ -288,7 +209,7 @@ export async function listTeacherIdsWithClassNearNow(
   return [...ids].sort((a, b) => a - b);
 }
 
-/** 开课前启用专用：尚未开始、且 class_at ∈ [now, now+withinMs] */
+/** 开课前启用：尚未开始、且 class_at ∈ [now, now+withinMs] */
 export async function listTeacherIdsWithUpcomingClassStart(
   db: D1Database,
   options: { withinMs?: number; now?: Date } = {}
@@ -318,7 +239,35 @@ export async function listTeacherIdsWithUpcomingClassStart(
   return [...ids].sort((a, b) => a - b);
 }
 
-/** 韩语老师：开课前 withinMs 内（默认 30min）有尚未开始的课 */
+/**
+ * 课进行中（已开课、尚未下课）：开课前任务漏启或课中被误禁时补开。
+ */
+export async function listTeacherIdsWithOngoingClass(
+  db: D1Database,
+  options: { now?: Date } = {}
+): Promise<number[]> {
+  const now = options.now ?? new Date();
+  const nowMs = now.getTime();
+  const dateStrs = [
+    beijingDatePlusDays(now, -1),
+    beijingDateString(now),
+    beijingDatePlusDays(now, 1),
+  ];
+  const rows = await listTeacherClassAtsNearBeijingDates(db, dateStrs);
+  const ids = new Set<number>();
+  for (const row of rows) {
+    const teacherId = Number(row.teacher_id);
+    if (!Number.isInteger(teacherId) || teacherId <= 0) continue;
+    const start = parseBeijingDateTime(String(row.class_at ?? "").trim());
+    if (!start) continue;
+    const endMs = teacherClassEndMs(row);
+    if (endMs == null) continue;
+    const startMs = start.getTime();
+    if (nowMs >= startMs && nowMs <= endMs) ids.add(teacherId);
+  }
+  return [...ids].sort((a, b) => a - b);
+}
+
 export async function listKoTeacherIdsWithUpcomingClassStart(
   db: D1Database,
   options: { withinMs?: number; now?: Date } = {}
@@ -380,16 +329,41 @@ export async function listKoTeacherIdsWithClassNearNow(
   return [...ids].sort((a, b) => a - b);
 }
 
+export type TeacherPostClassDue = {
+  teacher_id: number;
+  latest_disable_at_ms: number;
+};
+
 /**
- * 下课 + grace 已过、且没有「尚未下课+grace」的后续课 → 应禁用。
- * 例：12:30 开课、55min → 13:25 下课，13:35 起可禁；若下午还有课则等最后一节过宽限。
+ * 下课 + grace 已过、无后续 blocking 课，且仍在补跑窗口内 → 应禁用。
+ * 补跑窗口避免「昨天已下课」把账号整天钉在 due 上、管理员启用后又被禁。
  */
 export async function listTeacherIdsDueForPostClassDisable(
   db: D1Database,
-  options: { graceMs?: number; now?: Date } = {}
+  options: {
+    graceMs?: number;
+    catchupMs?: number;
+    now?: Date;
+  } = {}
 ): Promise<number[]> {
+  const dues = await listTeacherPostClassDues(db, options);
+  return dues.map((d) => d.teacher_id);
+}
+
+export async function listTeacherPostClassDues(
+  db: D1Database,
+  options: {
+    graceMs?: number;
+    catchupMs?: number;
+    now?: Date;
+  } = {}
+): Promise<TeacherPostClassDue[]> {
   const now = options.now ?? new Date();
   const graceMs = Math.max(0, options.graceMs ?? TEACHER_POST_CLASS_DISABLE_AFTER_MS);
+  const catchupMs = Math.max(
+    0,
+    options.catchupMs ?? TEACHER_POST_CLASS_DISABLE_CATCHUP_MS
+  );
   const nowMs = now.getTime();
   const dateStrs = [
     beijingDatePlusDays(now, -1),
@@ -406,25 +380,29 @@ export async function listTeacherIdsDueForPostClassDisable(
     byTeacher.set(teacherId, list);
   }
 
-  const due: number[] = [];
+  const due: TeacherPostClassDue[] = [];
   for (const [teacherId, classRows] of byTeacher) {
     let hasBlocking = false;
-    let hasFinishedPastGrace = false;
+    let latestDisableAt = Number.NEGATIVE_INFINITY;
     for (const row of classRows) {
       const endMs = teacherClassEndMs(row);
       if (endMs == null) continue;
       const disableAt = endMs + graceMs;
+      if (disableAt > latestDisableAt) latestDisableAt = disableAt;
       if (nowMs < disableAt) {
         hasBlocking = true;
-      } else {
-        hasFinishedPastGrace = true;
       }
     }
-    if (hasFinishedPastGrace && !hasBlocking) {
-      due.push(teacherId);
+    if (
+      !hasBlocking &&
+      Number.isFinite(latestDisableAt) &&
+      latestDisableAt <= nowMs &&
+      nowMs <= latestDisableAt + catchupMs
+    ) {
+      due.push({ teacher_id: teacherId, latest_disable_at_ms: latestDisableAt });
     }
   }
-  return due.sort((a, b) => a - b);
+  return due.sort((a, b) => a.teacher_id - b.teacher_id);
 }
 
 /** 关联登录用户中，临近开课的 user_id 集合（供抽完禁用跳过；含日语 + 韩语 + 英语） */
@@ -472,138 +450,6 @@ export async function listLinkedUserIdsWithClassNearNow(
   return userIds;
 }
 
-type LinkedTeacherUser = {
-  user_id: number;
-  username: string;
-  role: string;
-  disabled: number;
-  never_disable: number;
-  teacher_id: number;
-};
-
-function linkedRowAsUser(
-  row: LinkedTeacherUser,
-  username: string
-): Pick<EtrUser, "role" | "username" | "never_disable" | "disabled"> {
-  return {
-    role: String(row.role ?? "user") as EtrUserRole,
-    username,
-    never_disable: Number(row.never_disable ?? 0),
-    disabled: Number(row.disabled ?? 0),
-  };
-}
-
-const LINKED_TEACHER_USER_SELECT = `SELECT link.user_id AS user_id, u.username AS username, u.role AS role,
-              COALESCE(u.disabled, 0) AS disabled,
-              COALESCE(u.never_disable, 0) AS never_disable,
-              link.teacher_id AS teacher_id`;
-
-async function listLinkedTeacherUsersForTeacherIds(
-  db: D1Database,
-  teacherIds: number[]
-): Promise<LinkedTeacherUser[]> {
-  if (!teacherIds.length) return [];
-  const placeholders = teacherIds.map((_, i) => `?${i + 1}`).join(", ");
-  const result = await db
-    .prepare(
-      `${LINKED_TEACHER_USER_SELECT}
-       FROM etr_user_jp_lesson_teacher_link link
-       INNER JOIN etr_users u ON u.id = link.user_id
-       WHERE link.teacher_id IN (${placeholders})`
-    )
-    .bind(...teacherIds)
-    .all<LinkedTeacherUser>();
-  return result.results ?? [];
-}
-
-async function listLinkedKoTeacherUsersForTeacherIds(
-  db: D1Database,
-  teacherIds: number[]
-): Promise<LinkedTeacherUser[]> {
-  if (!teacherIds.length) return [];
-  // 确保关联表存在（与 ensureKoLessonTeacherUserAccount 同 DDL）
-  await db
-    .prepare(
-      `CREATE TABLE IF NOT EXISTS etr_user_ko_lesson_teacher_link (
-         user_id INTEGER PRIMARY KEY,
-         teacher_id INTEGER NOT NULL,
-         created_at TEXT NOT NULL DEFAULT (datetime('now')),
-         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-       )`
-    )
-    .run();
-  const placeholders = teacherIds.map((_, i) => `?${i + 1}`).join(", ");
-  const result = await db
-    .prepare(
-      `${LINKED_TEACHER_USER_SELECT}
-       FROM etr_user_ko_lesson_teacher_link link
-       INNER JOIN etr_users u ON u.id = link.user_id
-       WHERE link.teacher_id IN (${placeholders})`
-    )
-    .bind(...teacherIds)
-    .all<LinkedTeacherUser>();
-  return result.results ?? [];
-}
-
-async function enableLinkedTeacherUsers(
-  db: D1Database,
-  teacherIds: number[],
-  options: { dryRun?: boolean; subject?: "jp" | "ko" | "en" } = {}
-): Promise<{ enabled: TeacherUserEnableHit[]; skipped: TeacherUserEnableSkip[] }> {
-  const dryRun = Boolean(options.dryRun);
-  const subject = options.subject ?? "jp";
-  const linkedUsers =
-    subject === "ko"
-      ? await listLinkedKoTeacherUsersForTeacherIds(db, teacherIds)
-      : subject === "en"
-        ? await listLinkedEnTeacherUsersForTeacherIds(db, teacherIds)
-        : await listLinkedTeacherUsersForTeacherIds(db, teacherIds);
-  const enabled: TeacherUserEnableHit[] = [];
-  const skipped: TeacherUserEnableSkip[] = [];
-
-  for (const row of linkedUsers) {
-    const userId = Number(row.user_id);
-    const teacherId = Number(row.teacher_id);
-    const username = String(row.username ?? "").trim();
-    if (!Number.isInteger(userId) || userId <= 0 || !username) continue;
-
-    // 列表 JOIN 已带 role/disabled/never_disable，勿再逐条 findUserById（易 1102）
-    const user = linkedRowAsUser(row, username);
-
-    if (isExcludedFromTeacherScheduleAutoEnable(user)) {
-      skipped.push({
-        user_id: userId,
-        username,
-        teacher_id: teacherId,
-        reason: "excluded_account",
-      });
-      continue;
-    }
-
-    if ((user.disabled ?? 0) === 0) {
-      skipped.push({
-        user_id: userId,
-        username,
-        teacher_id: teacherId,
-        reason: "already_enabled",
-      });
-      continue;
-    }
-
-    if (!dryRun) {
-      await db
-        .prepare(`UPDATE etr_users SET disabled = 0 WHERE id = ?1`)
-        .bind(userId)
-        .run();
-    }
-
-    enabled.push({ user_id: userId, username, teacher_id: teacherId });
-  }
-
-  return { enabled, skipped };
-}
-
-/** 新课是否有「尚未开始且在 withinMs 内」的上课时间 */
 export function jpLessonHasClassStartingWithin(
   lesson: Pick<JpLessonRecord, "class_schedules" | "next_class_at">,
   withinMs: number,
@@ -628,11 +474,6 @@ export function jpLessonHasClassStartingWithin(
   return false;
 }
 
-/**
- * 日语新课保存老师 / 上课时间 /「学习中」后调用：
- * 若状态为学习中、已指定老师、且开课在 18 小时内 → 启用关联登录账号。
- * 失败不抛给调用方业务路径用；调用方宜 try/catch 以免影响主保存。
- */
 export async function maybeEnableTeacherUsersForLearningLesson(
   db: D1Database,
   lesson: Pick<
@@ -682,9 +523,11 @@ export async function maybeEnableTeacherUsersForLearningLesson(
     };
   }
 
-  const { enabled, skipped } = await enableLinkedTeacherUsers(db, teacherIds, {
-    dryRun,
-  });
+  const { enabled, skipped } = await enableLinkedTeacherUsersForTeacherIds(
+    db,
+    teacherIds,
+    { dryRun }
+  );
 
   return {
     triggered: true,
@@ -695,7 +538,6 @@ export async function maybeEnableTeacherUsersForLearningLesson(
   };
 }
 
-/** 北京时间当日 05:00 定时：有关联老师且今日有课的用户，自动从禁用改为启用。 */
 export async function runTeacherUserScheduleEnable(
   db: D1Database,
   options: { dryRun?: boolean; now?: Date } = {}
@@ -703,9 +545,11 @@ export async function runTeacherUserScheduleEnable(
   const dryRun = Boolean(options.dryRun);
   const date = beijingDateString(options.now);
   const teacherIds = await listTeacherIdsWithClassOnDate(db, date);
-  const { enabled, skipped } = await enableLinkedTeacherUsers(db, teacherIds, {
-    dryRun,
-  });
+  const { enabled, skipped } = await enableLinkedTeacherUsersForTeacherIds(
+    db,
+    teacherIds,
+    { dryRun }
+  );
 
   return {
     date,
@@ -717,10 +561,9 @@ export async function runTeacherUserScheduleEnable(
 }
 
 /**
- * 开课前定时：关联账号若仍禁用则启用。
- * - 日语：开课前 2h（Mac launchd 每 10 分钟）
- * - 韩语：开课前 30min（同一定时任务；手动日程姓名匹配 ko_lesson_teacher）
- * - 英语：开课前 30min（同一定时任务；手动日程姓名匹配 en_lesson_teacher，如闲鱼英语抽查）
+ * 开课前 / 课中定时启用。
+ * - 日语：开课前 2h + 课进行中
+ * - 韩语 / 英语：开课前 30min
  */
 export async function runTeacherUserPreClassEnable(
   db: D1Database,
@@ -748,10 +591,14 @@ export async function runTeacherUserPreClassEnable(
   } catch {
     // 绑定失败不阻断开课前启用
   }
-  const teacherIds = await listTeacherIdsWithUpcomingClassStart(db, {
+  const upcomingIds = await listTeacherIdsWithUpcomingClassStart(db, {
     withinMs,
     now,
   });
+  const ongoingIds = await listTeacherIdsWithOngoingClass(db, { now });
+  const teacherIds = [
+    ...new Set([...upcomingIds, ...ongoingIds]),
+  ].sort((a, b) => a - b);
   const koTeacherIds = await listKoTeacherIdsWithUpcomingClassStart(db, {
     withinMs: koWithinMs,
     now,
@@ -760,18 +607,20 @@ export async function runTeacherUserPreClassEnable(
     withinMs: enWithinMs,
     now,
   });
-  const jpResult = await enableLinkedTeacherUsers(db, teacherIds, {
+  const jpResult = await enableLinkedTeacherUsersForTeacherIds(db, teacherIds, {
     dryRun,
     subject: "jp",
   });
-  const koResult = await enableLinkedTeacherUsers(db, koTeacherIds, {
-    dryRun,
-    subject: "ko",
-  });
-  const enResult = await enableLinkedTeacherUsers(db, enTeacherIds, {
-    dryRun,
-    subject: "en",
-  });
+  const koResult = await enableLinkedTeacherUsersForTeacherIds(
+    db,
+    koTeacherIds,
+    { dryRun, subject: "ko" }
+  );
+  const enResult = await enableLinkedTeacherUsersForTeacherIds(
+    db,
+    enTeacherIds,
+    { dryRun, subject: "en" }
+  );
 
   return {
     dry_run: dryRun,
@@ -786,70 +635,34 @@ export async function runTeacherUserPreClassEnable(
   };
 }
 
-/**
- * 下课（开课+课时）后再过 grace（默认 10 分钟）→ 禁用关联登录账号。
- * 若还有未下课 / 未过宽限的课（含下午下一节）则跳过。
- * Mac launchd 每 10 分钟；与抽完延时禁用互补；排除 admin / user1 / test。
- */
 export async function runTeacherUserPostClassDisable(
   db: D1Database,
-  options: { dryRun?: boolean; now?: Date; graceMs?: number } = {}
+  options: {
+    dryRun?: boolean;
+    now?: Date;
+    graceMs?: number;
+    catchupMs?: number;
+  } = {}
 ): Promise<TeacherUserPostClassDisableResult> {
   const dryRun = Boolean(options.dryRun);
   const now = options.now ?? new Date();
-  const graceMs =
-    options.graceMs ?? TEACHER_POST_CLASS_DISABLE_AFTER_MS;
-  const teacherIds = await listTeacherIdsDueForPostClassDisable(db, {
+  const graceMs = options.graceMs ?? TEACHER_POST_CLASS_DISABLE_AFTER_MS;
+  const catchupMs = options.catchupMs ?? TEACHER_POST_CLASS_DISABLE_CATCHUP_MS;
+  const dues = await listTeacherPostClassDues(db, {
     graceMs,
+    catchupMs,
     now,
   });
+  const teacherIds = dues.map((d) => d.teacher_id);
+  const latestDisableAtByTeacherId = new Map(
+    dues.map((d) => [d.teacher_id, d.latest_disable_at_ms] as const)
+  );
 
-  const linkedUsers = await listLinkedTeacherUsersForTeacherIds(db, teacherIds);
-  const disabled: TeacherUserPostClassDisableHit[] = [];
-  const skipped: TeacherUserEnableSkip[] = [];
-
-  for (const row of linkedUsers) {
-    const userId = Number(row.user_id);
-    const teacherId = Number(row.teacher_id);
-    const username = String(row.username ?? "").trim();
-    if (!Number.isInteger(userId) || userId <= 0 || !username) continue;
-
-    const user = linkedRowAsUser(row, username);
-
-    if (isExcludedFromTeacherScheduleAutoEnable(user)) {
-      skipped.push({
-        user_id: userId,
-        username,
-        teacher_id: teacherId,
-        reason: "excluded_account",
-      });
-      continue;
-    }
-
-    if ((user.disabled ?? 0) !== 0) {
-      skipped.push({
-        user_id: userId,
-        username,
-        teacher_id: teacherId,
-        reason: "already_disabled",
-      });
-      continue;
-    }
-
-    if (!dryRun) {
-      await db
-        .prepare(`UPDATE etr_users SET disabled = 1 WHERE id = ?1`)
-        .bind(userId)
-        .run();
-      await revokeUserSessions(db, userId);
-    }
-
-    disabled.push({
-      user_id: userId,
-      username,
-      teacher_id: teacherId,
-    });
-  }
+  const { disabled, skipped } = await disableLinkedTeacherUsersForTeacherIds(
+    db,
+    teacherIds,
+    { dryRun, latestDisableAtByTeacherId }
+  );
 
   return {
     dry_run: dryRun,

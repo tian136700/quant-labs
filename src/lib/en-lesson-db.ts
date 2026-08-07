@@ -3,8 +3,12 @@ import "server-only";
 import type { EnLessonKind, EnLessonRecord, EnLessonUploadInput } from "@/lib/types";
 import { parseLessonContent, normalizeLessonContentForStorage, compareEnLessonsByProgress, type EnLessonProgressStatus, enLessonProgressToFields, normalizeClassDurationMinutes } from "@/lib/en-lesson-shared";
 import { normalizeEnVocabCategory } from "@/lib/en-vocab-category";
-import { normalizeEnVocabRefKey } from "@/lib/en-vocab-ref-shared";
 import {
+  normalizeEnVocabRefKey,
+  resolveEnVocabRefMediaType,
+} from "@/lib/en-vocab-ref-shared";
+import {
+  getEnVocabRef,
   removeEnVocabLessonWords,
   syncLessonNotesToVocab,
   upsertEnVocabFromLesson,
@@ -433,12 +437,19 @@ async function syncLessonToVocab(
   if (!items.length) return;
 
   const refKey = lesson.ref_key;
+  let mediaType: "image" | "pdf" = "image";
+  if (refKey) {
+    const existingRef = await getEnVocabRef(db, refKey);
+    if (existingRef) {
+      mediaType = resolveEnVocabRefMediaType(existingRef);
+    }
+  }
   const refs = refKey
     ? [
         {
           ref_key: refKey,
           title: lesson.title,
-          media_type: "image" as const,
+          media_type: mediaType,
         },
       ]
     : [];

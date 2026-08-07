@@ -120,6 +120,20 @@ export function jpVocabRefContentType(mediaType: JpVocabMediaType): string {
   return mediaType === "pdf" ? "application/pdf" : "image/png";
 }
 
+/**
+ * 以 r2_key 扩展名为准纠偏 media_type。
+ * 新课→抽问 metadata upsert 曾把 PDF 盖成 image，导致预览当图开、Content-Type 错成 image/png。
+ */
+export function resolveJpVocabRefMediaType(ref: {
+  media_type?: string | null;
+  r2_key?: string | null;
+}): JpVocabMediaType {
+  const key = String(ref.r2_key || "").toLowerCase();
+  if (key.endsWith(".pdf")) return "pdf";
+  if (ref.media_type === "pdf") return "pdf";
+  return "image";
+}
+
 /** 本地 dev：文件落在 public/jp-vocab-refs/，r2_key 记为 local:{ref_key} */
 export function jpVocabRefLocalMarker(refKey: string): string {
   return `local:${refKey}`;
@@ -161,17 +175,20 @@ export function resolveJpVocabRefForPreview(
   refs: Record<string, JpVocabRef>,
   ref?: JpVocabRef
 ): JpVocabRef {
-  return (
+  const base =
     ref ??
     refs[refKey] ?? {
       ref_key: refKey,
       title: null,
-      media_type: "image",
+      media_type: "image" as const,
       r2_key: "",
       created_at: "",
       updated_at: "",
-    }
-  );
+    };
+  return {
+    ...base,
+    media_type: resolveJpVocabRefMediaType(base),
+  };
 }
 
 /** 教案查看页（带下载按钮） */

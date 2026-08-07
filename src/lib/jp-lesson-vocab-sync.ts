@@ -13,12 +13,18 @@ import {
 } from "@/lib/jp-lesson-shared";
 import { alignLessonItemAnnotations } from "@/lib/jp-vocab-annotation";
 import {
+  getJpVocabRef,
   syncLessonNotesToVocab,
   upsertJpVocabFromLesson,
   type JpVocabLessonUpsertItem,
 } from "@/lib/jp-vocab-db";
 import { jpVerbMasuToDictionaryForm } from "@/lib/jp-verb-masu-to-dictionary";
-import type { JpLessonRecord, JpVocabRefUploadInput } from "@/lib/types";
+import { resolveJpVocabRefMediaType } from "@/lib/jp-vocab-ref-shared";
+import type {
+  JpLessonRecord,
+  JpVocabMediaType,
+  JpVocabRefUploadInput,
+} from "@/lib/types";
 import {
   JP_LESSON_VOCAB_SYNC_CHUNK_SIZE,
   type JpLessonVocabSyncPlan,
@@ -57,7 +63,10 @@ export function buildJpLessonVocabSyncPlan(
   };
 }
 
-function buildJpLessonVocabUpsertItems(lesson: JpLessonRecord): {
+function buildJpLessonVocabUpsertItems(
+  lesson: JpLessonRecord,
+  refMediaType: JpVocabMediaType = "image"
+): {
   items: JpVocabLessonUpsertItem[];
   refs: JpVocabRefUploadInput[];
 } {
@@ -82,7 +91,7 @@ function buildJpLessonVocabUpsertItems(lesson: JpLessonRecord): {
         {
           ref_key: refKey,
           title: lesson.title,
-          media_type: "image",
+          media_type: refMediaType,
         },
       ]
     : [];
@@ -129,7 +138,15 @@ export async function syncJpLessonRecordToVocabChunk(
     Math.max(1, Math.floor(Number(limitInput) || JP_LESSON_VOCAB_SYNC_CHUNK_SIZE))
   );
 
-  const { items, refs } = buildJpLessonVocabUpsertItems(lesson);
+  let refMediaType: JpVocabMediaType = "image";
+  if (lesson.ref_key) {
+    const existingRef = await getJpVocabRef(db, lesson.ref_key);
+    if (existingRef) {
+      refMediaType = resolveJpVocabRefMediaType(existingRef);
+    }
+  }
+
+  const { items, refs } = buildJpLessonVocabUpsertItems(lesson, refMediaType);
   const total = items.length;
   const lessonId = lesson.id;
 

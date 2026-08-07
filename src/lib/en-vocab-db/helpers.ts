@@ -28,6 +28,7 @@ import {
   enVocabRefKeyFromBytes,
   enVocabRefLocalMarker,
   normalizeEnVocabRefKey,
+  resolveEnVocabRefMediaType,
 } from "@/lib/en-vocab-ref-shared";
 import { normalizeEnVocabCategory } from "@/lib/en-vocab-category";
 import {
@@ -136,11 +137,15 @@ export function normalizeMediaType(raw?: EnVocabMediaType | null): EnVocabMediaT
 }
 
 export function mapRefRow(row: Record<string, unknown>): EnVocabRef {
+  const r2Key = String(row.r2_key);
   return {
     ref_key: String(row.ref_key),
     title: row.title != null ? String(row.title) : null,
-    media_type: row.media_type === "pdf" ? "pdf" : "image",
-    r2_key: String(row.r2_key),
+    media_type: resolveEnVocabRefMediaType({
+      media_type: row.media_type != null ? String(row.media_type) : null,
+      r2_key: r2Key,
+    }),
+    r2_key: r2Key,
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
   };
@@ -423,11 +428,17 @@ export async function upsertRefMetadataDev(
 
   const mediaType = normalizeMediaType(item.media_type);
   const existing = enVocabDbState.devRefs.get(refKey);
+  const r2Key = existing?.r2_key || enVocabRefLocalMarker(refKey);
+  // metadata-only upsert 不得盖掉已上传 PDF 的 media_type
+  const resolvedMedia = resolveEnVocabRefMediaType({
+    media_type: existing?.media_type ?? mediaType,
+    r2_key: r2Key,
+  });
   const ref: EnVocabRef = {
     ref_key: refKey,
     title: (item.title || "").trim() || existing?.title || null,
-    media_type: mediaType,
-    r2_key: existing?.r2_key || enVocabRefLocalMarker(refKey),
+    media_type: resolvedMedia,
+    r2_key: r2Key,
     created_at: existing?.created_at || ts,
     updated_at: ts,
   };
@@ -446,13 +457,13 @@ export async function upsertRefMetadataDb(
   const mediaType = normalizeMediaType(item.media_type);
   const title = (item.title || "").trim() || null;
 
+  // 冲突时只改 title/updated_at；media_type 留给 saveEnVocabRefFileMeta
   await db
     .prepare(
       `INSERT INTO en_vocab_ref (ref_key, title, media_type, r2_key, created_at, updated_at)
        VALUES (?1, ?2, ?3, ?4, ?5, ?5)
        ON CONFLICT(ref_key) DO UPDATE SET
          title = COALESCE(excluded.title, en_vocab_ref.title),
-         media_type = excluded.media_type,
          updated_at = excluded.updated_at`
     )
     .bind(refKey, title, mediaType, enVocabRefLocalMarker(refKey), ts)

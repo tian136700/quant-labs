@@ -88,6 +88,25 @@ export async function setUserDisabled(
     .bind(flag, userId)
     .run();
 
+  // 手动启用：压制下课/抽完自动禁用；手动禁用：清压制
+  try {
+    const {
+      clearTeacherUserDisableSuppress,
+      markTeacherUserManualEnableSuppress,
+    } = await import("@/lib/teacher-user-disable-suppress");
+    if (!disabled) {
+      await markTeacherUserManualEnableSuppress(db, userId);
+      const { cancelPendingTeacherQuizCompleteDisablesForUser } = await import(
+        "@/lib/teacher-user-cancel-quiz-disable"
+      );
+      await cancelPendingTeacherQuizCompleteDisablesForUser(db, userId);
+    } else {
+      await clearTeacherUserDisableSuppress(db, userId);
+    }
+  } catch {
+    // 压制表失败不阻断启禁用本身
+  }
+
   const updated = await findUserById(db, userId);
   if (!updated) return { ok: false, error: "user_not_found" };
   return { ok: true, user: updated };

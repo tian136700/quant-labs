@@ -13,6 +13,7 @@ import {
   jpLessonRefDownloadFilename,
   jpVocabRefContentType,
   jpVocabRefFilename,
+  resolveJpVocabRefMediaType,
 } from "@/lib/jp-vocab-ref-shared";
 
 function refResponseHeaders(
@@ -58,12 +59,14 @@ export async function GET(
       return new Response("Not found", { status: 404 });
     }
 
+    const mediaType = resolveJpVocabRefMediaType(ref);
+
     if (asMeta) {
       return Response.json(
         {
           ref_key: ref.ref_key,
           updated_at: ref.updated_at,
-          media_type: ref.media_type,
+          media_type: mediaType,
         },
         {
           headers: {
@@ -73,28 +76,28 @@ export async function GET(
       );
     }
 
-    if (asDownload && ref.media_type === "image") {
+    if (asDownload && mediaType === "image") {
       const user = await getSessionUserFromRequest(env, request.headers.get("cookie"));
       if (!isAdminSuperuser(user?.role)) {
         return new Response("Forbidden", { status: 403 });
       }
     }
 
-    let filename = jpVocabRefFilename(ref.ref_key, ref.media_type);
+    let filename = jpVocabRefFilename(ref.ref_key, mediaType);
     if (asDownload) {
       const lesson = await getJpLessonByRefKey(env.DB, refKey);
       if (lesson) {
-        filename = jpLessonRefDownloadFilename(lesson, ref.media_type);
+        filename = jpLessonRefDownloadFilename(lesson, mediaType);
       }
     }
 
     if (isLocalJpVocabRefMarker(ref.r2_key)) {
-      const bytes = await readLocalJpVocabRefFile(ref.ref_key, ref.media_type);
+      const bytes = await readLocalJpVocabRefFile(ref.ref_key, mediaType);
       if (!bytes) {
         return new Response("Reference file not uploaded yet", { status: 404 });
       }
       const headers = refResponseHeaders(
-        ref.media_type,
+        mediaType,
         filename,
         asDownload,
         bytes.byteLength
@@ -107,7 +110,7 @@ export async function GET(
       return new Response("Reference file not uploaded yet", { status: 404 });
     }
 
-    const headers = refResponseHeaders(ref.media_type, filename, asDownload);
+    const headers = refResponseHeaders(mediaType, filename, asDownload);
     const etag = obj.httpEtag || obj.etag;
     if (etag) headers.set("ETag", etag);
 

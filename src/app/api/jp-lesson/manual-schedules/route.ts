@@ -8,6 +8,7 @@ import {
 } from "@/lib/jp-lesson-manual-schedule-db";
 import type { JpLessonManualScheduleDraft } from "@/lib/jp-lesson-manual-schedule";
 import { normalizeManualScheduleLinkedLessons } from "@/lib/jp-lesson-manual-schedule-linked";
+import { maybeEnableTeacherUsersForManualSchedule } from "@/lib/teacher-user-manual-schedule-enable";
 
 export async function GET(request: Request) {
   try {
