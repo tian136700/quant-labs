@@ -257,6 +257,14 @@ export function mapRow(row: Record<string, unknown>): JpVocabWord {
       String(row.related_compounds_source).trim()
         ? String(row.related_compounds_source).trim()
         : null,
+    pitch_accent:
+      row.pitch_accent != null && String(row.pitch_accent).trim()
+        ? String(row.pitch_accent).trim()
+        : null,
+    pitch_accent_source:
+      row.pitch_accent_source != null && String(row.pitch_accent_source).trim()
+        ? String(row.pitch_accent_source).trim()
+        : null,
     last_review_level:
       row.last_review_level === "very" ||
       row.last_review_level === "normal" ||
@@ -443,7 +451,8 @@ export const WORD_SELECT_LIST = `SELECT id, word, reading, meaning, pos, kind, r
   cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date,
   (CASE WHEN class_notes IS NOT NULL THEN 1 ELSE 0 END) AS has_class_notes,
   mnemonic, annotation, course_label, oral_frequency, exam_frequency, example_sentences,
-  example_sentences_source, meaning_source, pos_source, usage, usage_source, connection, connection_source,
+  example_sentences_source, meaning_source, pos_source, pitch_accent, pitch_accent_source,
+  usage, usage_source, connection, connection_source,
   related_compounds, related_compounds_source,
   last_review_level, last_review_at, srs_interval_days, srs_due_date, created_at, updated_at FROM jp_vocab_word`;
 
