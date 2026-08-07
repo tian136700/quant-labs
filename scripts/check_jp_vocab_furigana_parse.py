@@ -207,10 +207,36 @@ def main() -> int:
             )
             return 1
 
+    # 展示：汉字下方假名须够大、够亮（曾灰小到读不清）
+    furigana_ui = (
+        ROOT / "src/components/JpVocabFuriganaText.tsx"
+    ).read_text(encoding="utf-8")
+    if "currentColor 68%" in furigana_ui:
+        print(
+            "[check_jp_vocab_furigana_parse] FAIL: furigana reading must not use "
+            "faded currentColor 68% (too hard to read)",
+            file=sys.stderr,
+        )
+        return 1
+    if "font-size: 0.48em" in furigana_ui or "font-size: 0.55em" in furigana_ui:
+        print(
+            "[check_jp_vocab_furigana_parse] FAIL: furigana reading font-size too small "
+            "(use ≥0.64em)",
+            file=sys.stderr,
+        )
+        return 1
+    if "#8ec5ff" not in furigana_ui and "var(--accent)" not in furigana_ui:
+        print(
+            "[check_jp_vocab_furigana_parse] FAIL: furigana reading needs a clear "
+            "accent color (e.g. #8ec5ff)",
+            file=sys.stderr,
+        )
+        return 1
+
     print(
         f"[check_jp_vocab_furigana_parse] OK "
         f"({len(CASES)} parse + {len(SANITIZE_CASES)} sanitize + "
-        f"{len(INCOMPLETE_KANJI_CASES)} incomplete-kanji cases)"
+        f"{len(INCOMPLETE_KANJI_CASES)} incomplete-kanji cases + visibility)"
     )
     return 0
 

@@ -18,6 +18,7 @@ type JpVocabPageHeaderProps = {
   exporting: boolean;
   dailyCoachLevelCounts: { normal: number; weak: number };
   onQuizTargetInputChange: (value: string) => void;
+  onQuizTargetInputFocusChange?: (focused: boolean) => void;
   onSaveQuizTarget: () => void;
   onGoToCoach: () => void;
 };
@@ -37,6 +38,7 @@ export function JpVocabPageHeader({
   exporting,
   dailyCoachLevelCounts,
   onQuizTargetInputChange,
+  onQuizTargetInputFocusChange,
   onSaveQuizTarget,
   onGoToCoach,
 }: JpVocabPageHeaderProps) {
@@ -101,6 +103,7 @@ export function JpVocabPageHeader({
                   savedValue: teacherVisibleQuizTarget,
                   saving: settingQuizTarget,
                   onChange: onQuizTargetInputChange,
+                  onFocusChange: onQuizTargetInputFocusChange,
                   onSave: onSaveQuizTarget,
                 }
               : undefined

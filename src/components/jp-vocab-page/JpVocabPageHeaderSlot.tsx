@@ -19,6 +19,7 @@ type Props = {
   exporting: boolean;
   dailyCoachLevelCounts: { normal: number; weak: number };
   onQuizTargetInputChange: (value: string) => void;
+  onQuizTargetInputFocusChange?: (focused: boolean) => void;
   onSaveQuizTarget: () => void;
 };
 

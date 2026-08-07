@@ -1,7 +1,9 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
+  useRef,
   useState,
   type Dispatch,
   type MutableRefObject,
@@ -101,12 +103,18 @@ export function useJpVocabAdminActions(options: {
     )
   );
   const [settingQuizTarget, setSettingQuizTarget] = useState(false);
+  const quizTargetInputFocusedRef = useRef(false);
 
-  // 仅在「已保存值」变化时回写输入框；保存中禁止被 sync 旧值打回
+  // 仅在「已保存值」变化时回写输入框；保存中 / 聚焦编辑中禁止被 sync 旧值打回
   useEffect(() => {
     if (settingQuizTarget) return;
+    if (quizTargetInputFocusedRef.current) return;
     setQuizTargetInput(String(teacherVisibleLimit.quiz_target));
   }, [teacherVisibleLimit.quiz_target, settingQuizTarget]);
+
+  const setQuizTargetInputFocused = useCallback((focused: boolean) => {
+    quizTargetInputFocusedRef.current = focused;
+  }, []);
 
   const boostQuizPriority = async (word: JpVocabWord) => {
     if (!isAdminMode || !canOperate) {
@@ -379,6 +387,7 @@ export function useJpVocabAdminActions(options: {
     boostingWordId,
     quizTargetInput,
     setQuizTargetInput,
+    setQuizTargetInputFocused,
     settingQuizTarget,
     boostQuizPriority,
     deleteWord,

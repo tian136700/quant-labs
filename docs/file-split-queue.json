@@ -33,7 +33,7 @@
   "excluded_over_threshold": [
     {
       "path": "src/components/JpVocabTeacherQuizFlashcardStyles.tsx",
-      "lines": 2019,
+      "lines": 2021,
       "reason": "style_or_data"
     }
   ]

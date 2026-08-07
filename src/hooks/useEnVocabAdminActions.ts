@@ -1,7 +1,9 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
+  useRef,
   useState,
   type Dispatch,
   type MutableRefObject,
@@ -105,17 +107,23 @@ export function useEnVocabAdminActions(options: {
     )
   );
   const [settingQuizTarget, setSettingQuizTarget] = useState(false);
+  const quizTargetInputFocusedRef = useRef(false);
   const [exporting, setExporting] = useState(false);
   const [deletingBatch, setDeletingBatch] = useState(false);
   const [selectedDeleteIds, setSelectedDeleteIds] = useState<Set<number>>(
     () => new Set()
   );
 
-  // 仅在「已保存值」变化时回写输入框；保存中禁止被 sync 旧值打回
+  // 仅在「已保存值」变化时回写输入框；保存中 / 聚焦编辑中禁止被 sync 旧值打回
   useEffect(() => {
     if (settingQuizTarget) return;
+    if (quizTargetInputFocusedRef.current) return;
     setQuizTargetInput(String(teacherVisibleLimit.quiz_target));
   }, [teacherVisibleLimit.quiz_target, settingQuizTarget]);
+
+  const setQuizTargetInputFocused = useCallback((focused: boolean) => {
+    quizTargetInputFocusedRef.current = focused;
+  }, []);
 
   const setDailyQuizTarget = async () => {
     if (!isAdminMode || settingQuizTarget) return;
@@ -425,6 +433,7 @@ export function useEnVocabAdminActions(options: {
     setShowResetChoice,
     quizTargetInput,
     setQuizTargetInput,
+    setQuizTargetInputFocused,
     settingQuizTarget,
     exporting,
     deletingBatch,
