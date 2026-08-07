@@ -3,56 +3,51 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>音调：单词原文 + 读音平假名横线</title>
+  <title>卡片：单词原样 + 词性旁读音横线</title>
   <style>
-    :root { --bg: #1a1d24; --fg: #f2f4f8; --muted: #9aa3b2; --rise: #e85d6f; }
-    body { margin: 0; font-family: "Hiragino Sans", "PingFang SC", sans-serif; background: var(--bg); color: var(--fg); padding: 2rem; }
-    .note { color: var(--muted); font-size: 0.9rem; max-width: 42rem; line-height: 1.55; }
-    .card { margin-top: 1.25rem; padding: 1.25rem 1.5rem; border: 1px solid #2c3340; border-radius: 12px; max-width: 30rem; }
-    .word-row { font-size: 2rem; font-weight: 700; }
-    .label { color: var(--muted); margin-right: 0.35rem; font-size: 1.2rem; }
-    .reading-row { margin-top: 0.4rem; font-size: 1.45rem; color: var(--muted); font-weight: 600; }
-    .table { margin-top: 1rem; color: var(--muted); }
-    .jp-vocab-pitch-accent { display: inline-flex; flex-wrap: wrap; align-items: flex-end; letter-spacing: 0.04em; }
-    .jp-vocab-pitch-accent__mora { display: inline-block; min-width: 1.05em; text-align: center; padding-top: 0.22em; }
-    .jp-vocab-pitch-accent__mora--high { border-top: 2px solid currentColor; }
-    .ok { color: #3fb983; margin-top: 1rem; }
-    .fail { color: var(--rise); margin-top: 1rem; }
+    :root { --bg:#1a1d24; --fg:#f2f4f8; --muted:#9aa3b2; --rise:#e85d6f; --border:#3a4150; --card:#232833; }
+    body { margin:0; font-family:"Hiragino Sans","PingFang SC",sans-serif; background:var(--bg); color:var(--fg); padding:2rem; }
+    .note { color:var(--muted); font-size:.9rem; max-width:42rem; line-height:1.55; }
+    .card { margin-top:1.25rem; padding:1.25rem 1.5rem; background:var(--card); border:1px solid var(--border); border-radius:14px; max-width:28rem; }
+    .word-row { font-size:2rem; font-weight:700; text-align:center; }
+    .label { color:var(--muted); margin-right:.35rem; font-size:1.2rem; }
+    .info { margin-top:1rem; padding:1rem; border:1px solid var(--border); border-radius:12px; }
+    .row { display:grid; grid-template-columns:auto 1fr; gap:.35rem .75rem; align-items:center; margin:.4rem 0; }
+    .pos { display:inline-block; padding:.1rem .45rem; border-radius:999px; border:1px solid var(--border); font-size:.8125rem; color:var(--muted); }
+    .pos-reading { display:flex; flex-wrap:wrap; align-items:center; gap:.55rem .85rem; }
+    .pitch { display:inline-flex; color:var(--muted); font-size:1.2rem; font-weight:600; letter-spacing:.04em; }
+    .mora { display:inline-block; min-width:1.05em; text-align:center; padding-top:.22em; }
+    .mora-h { border-top:2px solid currentColor; }
+    .ok { color:#3fb983; margin-top:1rem; }
   </style>
 </head>
 <body>
-  <h1>单词原文 + 读音平假名（横线只标读音）</h1>
-  <p class="note">DB：word=イギリス、reading=イギリス。卡片「单词」仍片假名；「读音」显示 いぎりす + 横线。列表读音列同规则。</p>
+  <h1>真实卡片布局样例</h1>
+  <p class="note">顶部「单词」必须是 イギリス。读音+横线在「词性」同一行右侧：名词 + いぎりす。</p>
   <div class="card">
     <div class="word-row"><span class="label">单词：</span><span id="word">イギリス</span></div>
-    <div class="reading-row"><span class="jp-vocab-pitch-accent" id="reading"></span></div>
-    <div class="table"><span class="label">列表读音：</span><span class="jp-vocab-pitch-accent" id="table"></span></div>
-    <p id="result"></p>
+    <div class="info">
+      <div class="row"><span>释义：</span><span>英国</span></div>
+      <div class="row">
+        <span>词性：</span>
+        <div class="pos-reading">
+          <span class="pos">名词</span>
+          <span class="pitch" id="reading"></span>
+        </div>
+      </div>
+    </div>
+    <p class="ok" id="result"></p>
   </div>
   <script>
-    const word = "イギリス";
-    const dbReading = "イギリス";
-    const pitchKana = "いぎりす";
-    const moras = [{c:"い",p:"L"},{c:"ぎ",p:"H"},{c:"り",p:"H"},{c:"す",p:"H"}];
-    function norm(t){ return t.replace(/[\u30A1-\u30F6]/g,ch=>String.fromCharCode(ch.charCodeAt(0)-0x60)); }
-    function readingDisplay(dbR, w, pk){ return (dbR===w||norm(dbR)===norm(w)) ? pk : dbR; }
-    function render(el, text, ms){
-      el.replaceChildren();
-      let i=0;
-      for(const m of ms){
-        const span=document.createElement("span");
-        span.className=m.p==="H"?"jp-vocab-pitch-accent__mora jp-vocab-pitch-accent__mora--high":"jp-vocab-pitch-accent__mora";
-        span.textContent=text.slice(i,i+m.c.length); i+=m.c.length; el.appendChild(span);
-      }
+    const moras=[{c:"い",p:"L"},{c:"ぎ",p:"H"},{c:"り",p:"H"},{c:"す",p:"H"}];
+    const el=document.getElementById("reading");
+    for(const m of moras){
+      const s=document.createElement("span");
+      s.className="mora"+(m.p==="H"?" mora-h":"");
+      s.textContent=m.c; el.appendChild(s);
     }
-    const rd = readingDisplay(dbReading, word, pitchKana);
-    document.getElementById("word").textContent = word;
-    render(document.getElementById("reading"), rd, moras);
-    render(document.getElementById("table"), rd, moras);
-    const ok = document.getElementById("word").textContent==="イギリス" && rd==="いぎりす";
-    const el=document.getElementById("result");
-    el.textContent = ok ? "通过：单词=片假名，读音=平假名+横线" : "失败";
-    el.className = ok ? "ok" : "fail";
+    const ok=document.getElementById("word").textContent==="イギリス";
+    document.getElementById("result").textContent=ok?"通过：顶部片假名原样；词性旁平假名+横线":"失败";
   </script>
 </body>
 </html>

@@ -2,6 +2,7 @@ import "server-only";
 
 import type { EnLessonKind, EnLessonRecord, EnLessonUploadInput } from "@/lib/types";
 import { parseLessonContent, normalizeLessonContentForStorage, compareEnLessonsByProgress, type EnLessonProgressStatus, enLessonProgressToFields, normalizeClassDurationMinutes } from "@/lib/en-lesson-shared";
+import { normalizeLessonMeaningsForStorage } from "@/lib/jp-lesson-shared";
 import { normalizeEnVocabCategory } from "@/lib/en-vocab-category";
 import {
   normalizeEnVocabRefKey,
@@ -35,6 +36,7 @@ let devSeeded = false;
 let enLessonLinkCopyCountColumnReady = false;
 let enLessonCategoryColumnReady = false;
 let enLessonRemarksColumnReady = false;
+let enLessonMeaningsColumnReady = false;
 let enLessonSchemaColumnsReady = false;
 
 async function ensureEnLessonLinkCopyCountColumn(db: D1Database): Promise<void> {
@@ -95,6 +97,20 @@ async function ensureEnLessonRemarksColumn(db: D1Database): Promise<void> {
   enLessonRemarksColumnReady = true;
 }
 
+/** 学习内容对齐释义；旧库缺列时幂等补上 */
+async function ensureEnLessonMeaningsColumn(db: D1Database): Promise<void> {
+  if (devStoreEnabled || enLessonMeaningsColumnReady) return;
+  try {
+    await db.prepare(`ALTER TABLE en_lesson ADD COLUMN meanings TEXT`).run();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!/duplicate column name/i.test(msg)) {
+      /* column may already exist */
+    }
+  }
+  enLessonMeaningsColumnReady = true;
+}
+
 async function ensureEnLessonSchemaColumns(db: D1Database): Promise<void> {
   if (devStoreEnabled || enLessonSchemaColumnsReady) return;
   // 一次 PRAGMA 再按需 ALTER，避免冷 isolate 上无谓失败 ALTER 抢 CPU
@@ -129,11 +145,29 @@ async function ensureEnLessonSchemaColumns(db: D1Database): Promise<void> {
   } else {
     enLessonRemarksColumnReady = true;
   }
+  if (!names.has("meanings")) {
+    await ensureEnLessonMeaningsColumn(db);
+  } else {
+    enLessonMeaningsColumnReady = true;
+  }
   enLessonSchemaColumnsReady = true;
 }
 
 export function enableEnLessonDevStore() {
   devStoreEnabled = true;
+}
+
+export function isEnLessonDevStoreEnabled(): boolean {
+  return devStoreEnabled;
+}
+
+/** 开发内存库：整课字段更新后替换记录 */
+export function replaceEnLessonDevStoreRecord(lesson: EnLessonRecord): boolean {
+  if (!devStoreEnabled) return false;
+  const idx = devLessons.findIndex((item) => item.id === lesson.id);
+  if (idx < 0) return false;
+  devLessons[idx] = lesson;
+  return true;
 }
 
 function nowIso(): string {
@@ -155,11 +189,16 @@ function mapRow(row: Record<string, unknown>): EnLessonRecord {
     row.class_duration_minutes != null ? Number(row.class_duration_minutes) : null
   );
 
+  const content = String(row.content);
+  const meaningsRaw =
+    row.meanings != null && String(row.meanings).trim()
+      ? String(row.meanings).trim()
+      : null;
   return {
     id: Number(row.id),
     kind: row.kind === "grammar" ? "grammar" : "word",
-    content: String(row.content),
-    meanings: null,
+    content,
+    meanings: normalizeLessonMeaningsForStorage(content, meaningsRaw),
     annotations: null,
     example_sentences: null,
     grammar_item_count: 0,
@@ -233,7 +272,7 @@ async function attachTeacherIds(
   });
 }
 
-const LESSON_SELECT = `SELECT id, kind, content, category, title, remarks, ref_key, completed, learning,
+const LESSON_SELECT = `SELECT id, kind, content, meanings, category, title, remarks, ref_key, completed, learning,
   status_updated_at, status_updated_by, teacher_other, next_class_at, class_duration_minutes, link_copy_count, uploaded_at, created_at, updated_at FROM en_lesson`;
 
 async function seedIfEmpty(_db: D1Database): Promise<void> {
@@ -242,11 +281,16 @@ async function seedIfEmpty(_db: D1Database): Promise<void> {
   if (devSeeded || devLessons.length > 0) return;
   const ts = nowIso();
   for (const item of SEED_LESSONS) {
+    const storedContent = normalizeLessonContentForStorage(item.content);
+    const meanings = normalizeLessonMeaningsForStorage(
+      storedContent,
+      item.meanings
+    );
     devLessons.push({
       id: devNextId++,
       kind: normalizeKind(item.kind),
-      content: item.content.trim(),
-      meanings: null,
+      content: storedContent,
+      meanings,
       annotations: null,
       example_sentences: null,
       grammar_item_count: 0,
@@ -289,29 +333,55 @@ function lessonContentMatchesNormalized(
   return normalizeLessonContentForStorage(storedContent) === normalizedContent;
 }
 
-async function enLessonContentExists(
+/** 同 kind+规范化 content 是否已有其它课（更新时可 excludeLessonId） */
+export async function enLessonContentExists(
   db: D1Database,
   kind: EnLessonKind,
-  normalizedContent: string
+  normalizedContent: string,
+  excludeLessonId?: number
 ): Promise<boolean> {
+  const skipId =
+    excludeLessonId != null &&
+    Number.isInteger(excludeLessonId) &&
+    excludeLessonId > 0
+      ? excludeLessonId
+      : null;
+
   if (devStoreEnabled) {
     return devLessons.some(
       (lesson) =>
         lesson.kind === kind &&
+        (skipId == null || lesson.id !== skipId) &&
         lessonContentMatchesNormalized(lesson.content, normalizedContent)
     );
   }
 
-  const exact = await db
-    .prepare("SELECT 1 AS ok FROM en_lesson WHERE kind = ?1 AND content = ?2 LIMIT 1")
-    .bind(kind, normalizedContent)
-    .first<{ ok: number }>();
-  if (exact?.ok) return true;
+  if (skipId == null) {
+    const exact = await db
+      .prepare(
+        "SELECT 1 AS ok FROM en_lesson WHERE kind = ?1 AND content = ?2 LIMIT 1"
+      )
+      .bind(kind, normalizedContent)
+      .first<{ ok: number }>();
+    if (exact?.ok) return true;
+  } else {
+    const exact = await db
+      .prepare(
+        "SELECT 1 AS ok FROM en_lesson WHERE kind = ?1 AND content = ?2 AND id != ?3 LIMIT 1"
+      )
+      .bind(kind, normalizedContent, skipId)
+      .first<{ ok: number }>();
+    if (exact?.ok) return true;
+  }
 
   const result = await db
-    .prepare("SELECT content FROM en_lesson WHERE kind = ?1")
-    .bind(kind)
-    .all<{ content: string }>();
+    .prepare(
+      skipId == null
+        ? "SELECT id, content FROM en_lesson WHERE kind = ?1"
+        : "SELECT id, content FROM en_lesson WHERE kind = ?1 AND id != ?2"
+    )
+    .bind(...(skipId == null ? [kind] : [kind, skipId]))
+    .all<{ id: number; content: string }>();
 
   return (result.results ?? []).some((row) =>
     lessonContentMatchesNormalized(String(row.content), normalizedContent)
@@ -492,6 +562,7 @@ export async function createEnLesson(
 
   const kind = normalizeKind(input.kind);
   const storedContent = normalizeLessonContentForStorage(content);
+  const meanings = normalizeLessonMeaningsForStorage(storedContent, input.meanings);
 
   if (await enLessonContentExists(db, kind, storedContent)) {
     return { ok: false, error: "content_duplicate" };
@@ -510,7 +581,7 @@ export async function createEnLesson(
       id: devNextId++,
       kind,
       content: storedContent,
-      meanings: null,
+      meanings,
       annotations: null,
       example_sentences: null,
       grammar_item_count: 0,
@@ -546,10 +617,10 @@ export async function createEnLesson(
 
   const result = await db
     .prepare(
-      `INSERT INTO en_lesson (kind, content, category, title, remarks, ref_key, completed, learning, uploaded_at, created_at, updated_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, 0, ?7, ?7, ?7)`
+      `INSERT INTO en_lesson (kind, content, meanings, category, title, remarks, ref_key, completed, learning, uploaded_at, created_at, updated_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, 0, ?8, ?8, ?8)`
     )
-    .bind(kind, storedContent, category, title, remarks, refKey, ts)
+    .bind(kind, storedContent, meanings, category, title, remarks, refKey, ts)
     .run();
 
   const id = Number(result.meta?.last_row_id);

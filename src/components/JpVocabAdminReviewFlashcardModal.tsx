@@ -19,6 +19,7 @@ import { JpVocabAnnotationSection } from "@/components/JpVocabAnnotationSection"
 import { JpVocabCourseFreqMetaSection } from "@/components/JpVocabCourseFreqMetaSection";
 import { JpVocabTeacherQuizFlashcardStyles } from "@/components/JpVocabTeacherQuizFlashcardStyles";
 import { JpVocabFlashcardWordHero } from "@/components/JpVocabFlashcardWordHero";
+import { JpVocabFlashcardPosWithReading } from "@/components/JpVocabFlashcardPosWithReading";
 import {
   effectiveTodayCheckCount,
   isJpVocabWordQuizzedToday,
@@ -315,7 +316,6 @@ export function JpVocabAdminReviewFlashcardModal({
         <JpVocabFlashcardWordHero
           readingTrim={readingTrim}
           wordTrim={wordTrim}
-          pitchAccent={w.pitch_accent}
           kind={w.kind}
           refKey={w.ref_key}
           ref={ref}
@@ -352,20 +352,26 @@ export function JpVocabAdminReviewFlashcardModal({
                 ) : null}
               </dd>
               <dt>词性：</dt>
-              <dd className={posTrim ? "" : "jp-vocab-teacher-quiz__meta-empty"}>
-                {posTrim ? <span className="jp-vocab-teacher-quiz__pos">{posTrim}</span> : null}
-              </dd>
-              {!showReadingPrimary ? (
+              {w.kind === "word" ? (
+                <JpVocabFlashcardPosWithReading
+                  posTrim={posTrim}
+                  reading={w.reading}
+                  word={w.word}
+                  kind={w.kind}
+                  pitchAccent={w.pitch_accent}
+                />
+              ) : (
+                <dd className={posTrim ? "" : "jp-vocab-teacher-quiz__meta-empty"}>
+                  {posTrim ? (
+                    <span className="jp-vocab-teacher-quiz__pos">{posTrim}</span>
+                  ) : null}
+                </dd>
+              )}
+              {w.kind !== "word" && !showReadingPrimary ? (
                 <>
                   <dt>读音</dt>
-                  <dd
-                    className={
-                      readingTrim || w.kind !== "word"
-                        ? ""
-                        : "jp-vocab-teacher-quiz__meta-empty"
-                    }
-                  >
-                    {readingTrim || (w.kind === "word" ? "待补全" : "—")}
+                  <dd className={readingTrim ? "" : "jp-vocab-teacher-quiz__meta-empty"}>
+                    {readingTrim || "—"}
                   </dd>
                 </>
               ) : null}

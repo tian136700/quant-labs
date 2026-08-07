@@ -22,6 +22,12 @@ export function JpVocabPitchAccentStyles() {
         font-weight: inherit;
         line-height: 1.45;
       }
+      :global(.jp-vocab-pitch-accent--pos) {
+        font-size: clamp(1.05rem, 3.8vw, 1.25rem);
+        font-weight: 600;
+        line-height: 1.35;
+        color: var(--muted);
+      }
       :global(.jp-vocab-pitch-accent__mora) {
         display: inline-block;
         min-width: 1.05em;
