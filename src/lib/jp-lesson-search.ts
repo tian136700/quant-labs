@@ -6,6 +6,34 @@ import {
 import { resolveLessonTeacherRateFields } from "@/lib/jp-lesson-teacher-rate";
 import type { JpLessonRecord, JpLessonTeacher } from "@/lib/types";
 
+/** 日语新课搜索框：刷新后保留，点「清除」才清空 */
+export const JP_LESSON_SEARCH_QUERY_KEY = "jp-lesson:search-query";
+
+export function readStoredJpLessonSearchQuery(fallback = ""): string {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const raw = window.localStorage.getItem(JP_LESSON_SEARCH_QUERY_KEY);
+    return typeof raw === "string" ? raw : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+export function writeStoredJpLessonSearchQuery(query: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      window.localStorage.removeItem(JP_LESSON_SEARCH_QUERY_KEY);
+      return;
+    }
+    // 存原文（含首尾空格意图以外的中间空格），与输入框 value 一致
+    window.localStorage.setItem(JP_LESSON_SEARCH_QUERY_KEY, query);
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
 function normalizeSearchQuery(query: string): string[] {
   return query
     .trim()

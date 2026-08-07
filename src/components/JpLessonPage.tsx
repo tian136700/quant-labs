@@ -38,7 +38,11 @@ import {
   adminJpLessonTeachersPath,
   jpLessonSchedulePath,
 } from "@/lib/locale-path";
-import { filterJpLessonsBySearch } from "@/lib/jp-lesson-search";
+import {
+  filterJpLessonsBySearch,
+  readStoredJpLessonSearchQuery,
+  writeStoredJpLessonSearchQuery,
+} from "@/lib/jp-lesson-search";
 import { normalizeJpLessonTeacher } from "@/lib/jp-lesson-teacher-rate";
 import {
   mergeJpLessonTeachersCache,
@@ -147,7 +151,13 @@ export function JpLessonPage() {
   const [expandedContentIds, setExpandedContentIds] = useState<Record<number, boolean>>({});
   const [expandedMeaningsIds, setExpandedMeaningsIds] = useState<Record<number, boolean>>({});
   const [sectionSort, setSectionSort] = useState(DEFAULT_JP_LESSON_SECTION_SORT);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQueryState] = useState(
+    () => readStoredJpLessonSearchQuery()
+  );
+  const setSearchQuery = useCallback((query: string) => {
+    setSearchQueryState(query);
+    writeStoredJpLessonSearchQuery(query);
+  }, []);
 
   const toggleContentExpanded = useCallback((lessonId: number) => {
     setExpandedContentIds((prev) => ({
