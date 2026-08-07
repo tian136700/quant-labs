@@ -2,6 +2,7 @@
 
 import { JpEditIconButton } from "@/components/JpEditIconButton";
 import { JpVocabMobileNotesCell } from "@/components/JpVocabMobileNotesCell";
+import { JpVocabReadingWithPitch } from "@/components/JpVocabReadingWithPitch";
 import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import { JpVocabStatSortButton, JpVocabThSortButton } from "@/components/jp-vocab-page/JpVocabStatSortButton";
@@ -407,16 +408,13 @@ export function JpVocabWordTable({
                           )}
                         </div>
                         <div className="jp-vocab-mobile-reading-row jp-vocab-mobile-only">
-                          {w.kind === "word" ? (
-                            readingTrim ? (
-                              <span className="jp-vocab-reading-text">{readingTrim}</span>
-                            ) : (
-                              <span className="jp-vocab-reading-text jp-vocab-reading-text--pending">
-                                待补全
-                              </span>
-                            )
-                          ) : readingTrim ? (
-                            <span className="jp-vocab-reading-text">{readingTrim}</span>
+                          {w.kind === "word" || readingTrim ? (
+                            <JpVocabReadingWithPitch
+                              reading={w.reading}
+                              word={w.word}
+                              kind={w.kind}
+                              pitchAccent={w.pitch_accent}
+                            />
                           ) : null}
                         </div>
                       </td>
@@ -427,25 +425,22 @@ export function JpVocabWordTable({
                         data-label="读音"
                       >
                         <div className="jp-vocab-reading-cell">
-                          {readingTrim ? (
-                            readingCopyText ? (
-                              <button
-                                type="button"
-                                className="jp-vocab-reading-text jp-vocab-reading-text--copy"
-                                title={`点击复制「${readingCopyText}」`}
-                                aria-label={`点击复制读音「${readingCopyText}」`}
-                                onClick={() => showReadingCopyToast(readingTrim, wordTrim)}
-                              >
-                                {readingTrim}
-                              </button>
-                            ) : (
-                              <span className="jp-vocab-reading-text">{readingTrim}</span>
-                            )
-                          ) : w.kind === "word" ? (
-                            <span className="jp-vocab-reading-text jp-vocab-reading-text--pending">
-                              待补全
-                            </span>
-                          ) : null}
+                          <JpVocabReadingWithPitch
+                            reading={w.reading}
+                            word={w.word}
+                            kind={w.kind}
+                            pitchAccent={w.pitch_accent}
+                            copyButton={
+                              readingCopyText
+                                ? {
+                                    title: `点击复制「${readingCopyText}」`,
+                                    "aria-label": `点击复制读音「${readingCopyText}」`,
+                                    onClick: () =>
+                                      showReadingCopyToast(readingTrim, wordTrim),
+                                  }
+                                : undefined
+                            }
+                          />
                         </div>
                       </td>
                       <td

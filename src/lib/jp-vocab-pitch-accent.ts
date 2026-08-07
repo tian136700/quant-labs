@@ -76,6 +76,22 @@ export function jpVocabPitchAccentMatchesReading(
   return parsed;
 }
 
+/** 单词：读音或词条假名与 OJAD kana 一致时返回可展示音调（平/片假名等价）。 */
+export function resolveJpVocabPitchAccentForWord(
+  pitchAccent: string | JpVocabPitchAccent | null | undefined,
+  reading: string | null | undefined,
+  word: string | null | undefined,
+  kind: "word" | "grammar" | null | undefined
+): JpVocabPitchAccent | null {
+  if (kind !== "word") return null;
+  const readingTrim = (reading ?? "").trim();
+  const wordTrim = (word ?? "").trim();
+  return (
+    jpVocabPitchAccentMatchesReading(pitchAccent, readingTrim) ??
+    jpVocabPitchAccentMatchesReading(pitchAccent, wordTrim)
+  );
+}
+
 export function validateJpVocabPitchAccentPayload(
   payload: unknown
 ): { ok: true; data: JpVocabPitchAccent } | { ok: false; reason: string } {

@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import { CopyToast } from "@/components/CopyToast";
 import { JpVocabFlashcardCopyButton } from "@/components/JpVocabFlashcardCopyButton";
 import { JpVocabPitchAccentText } from "@/components/JpVocabPitchAccentText";
-import { jpVocabPitchAccentMatchesReading } from "@/lib/jp-vocab-pitch-accent";
+import { resolveJpVocabPitchAccentForWord } from "@/lib/jp-vocab-pitch-accent";
 import type { JpVocabKind, JpVocabRef } from "@/lib/types";
 
 type Props = {
@@ -44,7 +44,7 @@ export function JpVocabFlashcardWordHero({
     kind === "grammar" ? "语法：" : kind === "word" ? "单词：" : null;
   const pitchForDisplay =
     kind === "word" && !hideReading
-      ? jpVocabPitchAccentMatchesReading(pitchAccent, readingTrim)
+      ? resolveJpVocabPitchAccentForWord(pitchAccent, readingTrim, wordTrim, kind)
       : null;
 
   const renderReadingBody = () =>
