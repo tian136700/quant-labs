@@ -56,6 +56,7 @@ export function EnLessonCreateModal({
   const [mounted, setMounted] = useState(false);
   const [kind, setKind] = useState<EnLessonKind>("word");
   const [content, setContent] = useState("");
+  const [meanings, setMeanings] = useState("");
   const [remarks, setRemarks] = useState("");
   const [category, setCategory] = useState<string>(EN_VOCAB_DEFAULT_CATEGORY);
   const [title, setTitle] = useState("");
@@ -84,6 +85,7 @@ export function EnLessonCreateModal({
     if (!open) return;
     setKind("word");
     setContent("");
+    setMeanings("");
     setRemarks("");
     setCategory(EN_VOCAB_DEFAULT_CATEGORY);
     setTitle("");
@@ -159,6 +161,7 @@ export function EnLessonCreateModal({
       form.set("kind", kind);
       form.set("content", trimmed);
       form.set("category", category);
+      if (meanings.trim()) form.set("meanings", meanings.trim());
       if (title.trim()) form.set("title", title.trim());
       if (remarks.trim()) form.set("remarks", remarks.trim());
       if (file) {
@@ -274,6 +277,25 @@ export function EnLessonCreateModal({
             />
             <p id="en-lesson-create-content-hint" className="en-lesson-create-hint">
               {contentHint}
+            </p>
+          </fieldset>
+
+          <fieldset className="en-lesson-create-fieldset" disabled={saving}>
+            <legend>释义（可选）</legend>
+            <textarea
+              className="en-lesson-create-textarea"
+              rows={2}
+              value={meanings}
+              onChange={(e) => setMeanings(e.target.value)}
+              placeholder={
+                kind === "grammar"
+                  ? "与学习内容各项对应，多项用 | 分隔"
+                  : "如：确定的|前进；向前|期待，多项用 | 分隔"
+              }
+              aria-describedby="en-lesson-create-meanings-hint"
+            />
+            <p id="en-lesson-create-meanings-hint" className="en-lesson-create-hint">
+              与上方学习内容按项对齐；多项释义用竖线 | 分隔（释义里可含逗号）。
             </p>
           </fieldset>
 

@@ -1,0 +1,249 @@
+日语抽问 · OJAD 音调（重音横线）补全 API
+========================================
+
+用途
+----
+给缺 pitch_accent 的**单词**补 OJAD 式音调（mora L/H/N），写回 D1。
+卡片 / 列表：查到 → 读音上方画横线；查不到 → 只显示普通读音（不报错）。
+
+**禁止在 Worker 内调 OJAD / 大模型**——Mac 脚本抓 OJAD，再经本接口 apply / mark_not_found。
+语法（kind=grammar）不补音调。
+
+
+线上地址
+--------
+POST https://finance.info-quests.com/api/jp-vocab/fill-pitch-accent
+
+说明：
+- 也可用 `japanese.info-quests.com` 同路径（同一 Worker / 同一 D1）。
+- Mac 客户端：`scripts/jp-vocab-fill-pitch-accent-api.py`
+- 定时 stage：`scripts/jp-vocab-fill-pitch-accent-stage.sh`
+- 安装 launchd（每 60 秒）：`bash scripts/setup-jp-vocab-fill-pitch-accent-mac.sh`
+
+
+本机开发（可选）
+---------------
+POST http://127.0.0.1:3002/api/jp-vocab/fill-pitch-accent
+
+
+鉴权
+----
+Header:
+  Authorization: Bearer <JP_REVIEW_UPLOAD_TOKEN>
+
+Token 与 jp-review-sync 共用，常见配置：
+  ~/.config/info-quests/jp-review-sync.env → JP_REVIEW_UPLOAD_TOKEN
+
+
+限流
+----
+与其它日语/英语 fill-* 共用：同一 IP×路径约 ≥5s 一次。
+超限返回 429，并带 Retry-After；客户端须等待后重试。
+Worker 1027 配额满时 Mac 脚本会 skip（不打付费/写库）。
+
+
+mode 一览
+---------
+| mode | 说明 |
+|------|------|
+| list_missing（默认；空 body 亦同） | 拉缺音调单词（pitch 空且 source 未标过） |
+| apply | 写回音调 JSON（有合法 updates 时自动走 apply） |
+| mark_not_found | OJAD 查无：只写 pitch_accent_source=OJAD_NONE，pitch 保持空 |
+
+
+公共字段
+--------
+mode              见上表
+dry_run           选填。true=不写库
+limit             list_missing：最多返回几条（定时脚本常拉 50，本轮只处理 batch）
+allow_overwrite   apply：true 才覆盖已有 pitch_accent
+updates           apply：数组，见下
+word_ids          mark_not_found：正整数 id 数组
+
+
+pitch_accent JSON（存库 / apply）
+--------------------------------
+{
+  "kana": "いぎりす",
+  "pattern": "LHHH",
+  "moras": [
+    { "c": "い", "p": "L" },
+    { "c": "ぎ", "p": "H" },
+    { "c": "り", "p": "H" },
+    { "c": "す", "p": "H" }
+  ]
+}
+
+p 取值：L=低（无顶线）/ H=高（顶线）/ N=核音（红顶线）。
+拗音等可多字 mora，如 { "c": "きょ", "p": "H" }。
+
+
+1) list_missing
+---------------
+body 例：
+  { "mode": "list_missing", "limit": 50 }
+
+候选条件（须同时满足）：
+- kind != grammar
+- pitch_accent 为空
+- pitch_accent_source 为空（已标 OJAD_NONE 的不再返回）
+
+成功：
+{
+  "ok": true,
+  "mode": "list_missing",
+  "missing": [
+    { "id": 34, "word": "イギリス", "reading": "イギリス", "kind": "word" }
+  ],
+  "total_missing": 120,
+  "updated": 0,
+  "applied": [],
+  "skipped": [],
+  "dry_run": true
+}
+
+
+2) apply
+--------
+body 例：
+{
+  "mode": "apply",
+  "updates": [
+    {
+      "word_id": 34,
+      "source": "OJAD",
+      "pitch_accent": {
+        "kana": "いぎりす",
+        "pattern": "LHHH",
+        "moras": [
+          { "c": "い", "p": "L" },
+          { "c": "ぎ", "p": "H" },
+          { "c": "り", "p": "H" },
+          { "c": "す", "p": "H" }
+        ]
+      }
+    }
+  ]
+}
+
+成功：
+{
+  "ok": true,
+  "mode": "apply",
+  "updated": 1,
+  "applied": [{ "id": 34, "word": "?", "pitch_accent": "{...}" }],
+  "skipped": [],
+  "dry_run": false
+}
+
+非法 mora / 缺 word_id 的条目会被丢掉；全部无效时 400 No valid updates。
+
+
+3) mark_not_found
+-----------------
+OJAD 无匹配时调用。只写 source=OJAD_NONE，不写 pitch_accent。
+UI 只显示库里普通读音（无横线）；之后 list_missing 不再返回该 id。
+
+body 例：
+{
+  "mode": "mark_not_found",
+  "word_ids": [35, 99]
+}
+
+成功：
+{
+  "ok": true,
+  "mode": "mark_not_found",
+  "marked": 2,
+  "skipped": [],
+  "dry_run": false
+}
+
+word_ids 空 → 400 No word_ids。
+
+
+失败
+----
+401 Unauthorized
+400 No valid updates / No word_ids
+429 限流
+500 + error 字符串
+
+
+curl 例
+-------
+# 拉缺音调
+curl -sS -X POST "https://finance.info-quests.com/api/jp-vocab/fill-pitch-accent" \
+  -H "Authorization: Bearer $JP_REVIEW_UPLOAD_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"list_missing","limit":5}'
+
+# 写回一条
+curl -sS -X POST "https://finance.info-quests.com/api/jp-vocab/fill-pitch-accent" \
+  -H "Authorization: Bearer $JP_REVIEW_UPLOAD_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"apply","updates":[{"word_id":34,"source":"OJAD","pitch_accent":{"kana":"いぎりす","pattern":"LHHH","moras":[{"c":"い","p":"L"},{"c":"ぎ","p":"H"},{"c":"り","p":"H"},{"c":"す","p":"H"}]}}]}'
+
+# OJAD 查无
+curl -sS -X POST "https://finance.info-quests.com/api/jp-vocab/fill-pitch-accent" \
+  -H "Authorization: Bearer $JP_REVIEW_UPLOAD_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"mark_not_found","word_ids":[35]}'
+
+
+Mac 定时
+--------
+安装（默认 StartInterval=60）：
+  bash scripts/setup-jp-vocab-fill-pitch-accent-mac.sh
+
+试跑一轮：
+  bash scripts/jp-vocab-fill-pitch-accent-stage.sh
+
+仅本地试 OJAD（不打 API）：
+  python3 scripts/jp-vocab-fill-pitch-accent-api.py --test-words イギリス 働く
+
+配置：
+  ~/.config/info-quests/jp-vocab-fill-pitch-accent.env
+  （JP_VOCAB_FILL_PITCH_ACCENT_BATCH 默认 3；OJAD 间隔默认 5s）
+
+日志：
+  ~/Library/Logs/jp-vocab-fill-pitch-accent.log
+  ~/Library/Logs/jp-vocab-fill-pitch-accent.err.log
+
+plist：
+  ~/Library/LaunchAgents/com.infoquests.jp-vocab-fill-pitch-accent.plist
+
+
+Python 最小例
+-------------
+import json, os, urllib.request
+
+TOKEN = os.environ["JP_REVIEW_UPLOAD_TOKEN"]
+URL = "https://finance.info-quests.com/api/jp-vocab/fill-pitch-accent"
+
+def post(payload: dict) -> dict:
+    req = urllib.request.Request(
+        URL,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {TOKEN}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=120) as resp:
+        return json.load(resp)
+
+missing = post({"mode": "list_missing", "limit": 3})["missing"]
+# …本机抓 OJAD 得 accent dict 或判定无匹配…
+# post({"mode": "apply", "updates": [{"word_id": id, "pitch_accent": accent, "source": "OJAD"}]})
+# post({"mode": "mark_not_found", "word_ids": [id]})
+
+
+相关代码
+--------
+API：src/app/api/jp-vocab/fill-pitch-accent/route.ts
+库：src/lib/jp-vocab-fill-pitch-accent.ts、src/lib/jp-vocab-pitch-accent.ts
+OJAD：scripts/lib/ojad_pitch_accent.py
+UI：JpVocabFlashcardPosWithReading、JpVocabReadingWithPitch
+回归：python3 scripts/check_jp_vocab_fill_pitch_accent.py

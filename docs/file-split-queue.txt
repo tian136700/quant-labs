@@ -7,7 +7,7 @@
 
 01. [status=0]  1080  src/components/EnVocabPage.tsx
 02. [status=0]  1061  src/components/JpVocabPage.tsx
-03. [status=0]  1032  src/components/EnLessonPage.tsx
+03. [status=0]  1015  src/components/EnLessonPage.tsx
 04. [status=0]  1007  src/lib/jp-vocab-connection-ai.ts
 05. [status=0]  1006  src/components/JpLessonTeacherEditModal.tsx
 

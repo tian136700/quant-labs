@@ -1,25 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import dynamic from "next/dynamic";
-import { EnLessonNextClassEditModal } from "@/components/EnLessonNextClassEditModal";
-import {
-  EnLessonTeacherEditModal,
-  type EnLessonTeacherUpdateInput,
-} from "@/components/EnLessonTeacherEditModal";
 import { CopyToast } from "@/components/CopyToast";
-import { EnVocabRefEditModal } from "@/components/EnVocabRefEditModal";
 import {
-  EnLessonImportScheduleBridge,
   type EnLessonImportScheduleApi,
 } from "@/components/en-lesson-page/EnLessonImportScheduleBridge";
-import { EnLessonApiUploadHelp } from "@/components/en-lesson-page/EnLessonApiUploadHelp";
-import { EnLessonCreateBridge } from "@/components/en-lesson-page/EnLessonCreateBridge";
 import {
-  EnLessonEditBridge,
   type EnLessonEditApi,
 } from "@/components/en-lesson-page/EnLessonEditBridge";
 import { EnLessonPageHeader } from "@/components/en-lesson-page/EnLessonPageHeader";
+import { EnLessonPageModals } from "@/components/en-lesson-page/EnLessonPageModals";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import {
@@ -64,6 +54,7 @@ import type {
 } from "@/lib/types";
 import { EnLessonPageStyles } from "@/components/en-lesson-page/EnLessonPageStyles";
 import { EnLessonStatusTable } from "@/components/en-lesson-page/EnLessonStatusTable";
+import type { EnLessonTeacherUpdateInput } from "@/components/EnLessonTeacherEditModal";
 
 import {
   readLessonCache,
@@ -73,14 +64,6 @@ import {
   groupLessonsForDisplay,
   mergeEnLessonTeachers,
 } from "@/components/en-lesson-page/en-lesson-page-helpers";
-import { saveEnLessonNextClassWithMeta } from "@/components/en-lesson-page/save-en-lesson-next-class";
-
-/** 含 pdfjs/jspdf：禁止打进 Worker，仅客户端懒加载 */
-const EnLessonAnnotateModal = dynamic(
-  () =>
-    import("@/components/EnLessonAnnotateModal").then((m) => m.EnLessonAnnotateModal),
-  { ssr: false }
-);
 
 export function EnLessonPage() {
   const { locale } = useI18n();
