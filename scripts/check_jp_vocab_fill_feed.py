@@ -152,6 +152,16 @@ def main() -> int:
         raise SystemExit("FAIL: feed 查询下一词须用 status=waiting_list")
     if 'data-fill-lang="jp"' not in index_html or 'data-fill-lang="en"' not in index_html:
         raise SystemExit("FAIL: missing 日语/英语 language tabs")
+    if 'id="jp-fill-task-tabs"' not in index_html:
+        raise SystemExit("FAIL: missing jp-fill-task-tabs")
+    if 'data-fill-task="jp-vocab-fill-pitch-accent"' not in index_html:
+        raise SystemExit("FAIL: missing pitch-accent task tab")
+    if "filterRecentByJpFillTask" not in app_js:
+        raise SystemExit("FAIL: app.js must filter JP recent by fill_task")
+    if "JP_FILL_TASK_KEY" not in app_js or "activeJpFillTask" not in app_js:
+        raise SystemExit("FAIL: app.js missing JP fill task tab state")
+    if "bindJpFillTaskTabs" not in app_js:
+        raise SystemExit("FAIL: app.js must bind JP fill task tabs")
     if 'id="vocab-fill-panel-en"' not in index_html or 'id="en-fill-feed-rows"' not in index_html:
         raise SystemExit("FAIL: missing English fill panel")
     # 词条卡须在 view-jp-fill 内，不在 view-cron 内
@@ -440,6 +450,24 @@ def main() -> int:
     )
     if "临时词性" not in pos_label or "词性" not in pos_label:
         raise SystemExit(f"FAIL: pos fill content label bad: {pos_label!r}")
+    pitch_label = format_fill_content_label(
+        lang="jp",
+        applied="['pitch_accent']",
+        fill_task="jp-vocab-fill-pitch-accent",
+    )
+    if pitch_label != "音调":
+        raise SystemExit(
+            f"FAIL: pitch fill content must be exactly 音调 (no 音调 · 音调): {pitch_label!r}"
+        )
+    if _APPLIED_LABELS.get("pitch_accent") != "音调":
+        raise SystemExit("FAIL: pitch_accent must map to 音调")
+    pitch_api = (
+        ROOT / "scripts/jp-vocab-fill-pitch-accent-api.py"
+    ).read_text(encoding="utf-8")
+    if "jp-vocab-fill/word-runs" not in pitch_api:
+        raise SystemExit("FAIL: pitch-accent api must POST word-runs")
+    if 'fill_task' not in pitch_api or "jp-vocab-fill-pitch-accent" not in pitch_api:
+        raise SystemExit("FAIL: pitch-accent api must report fill_task")
     rc_label = format_fill_content_label(
         lang="jp",
         applied="['related_compounds']",
