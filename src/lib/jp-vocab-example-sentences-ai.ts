@@ -224,7 +224,7 @@ export function buildJpVocabExampleSentencesAiPrompt(
   const meta = [
     `词条：${input.word.trim()}`,
     input.kind === "grammar" && grammarCore
-      ? `语法点：句中必须出现「${grammarCore}」（教助词时不要换成别的助词；例如「～が」不要写成只有「は」的句子）。词条里的「～」「〜」是占位符，禁止写进例句；请换成具体内容，如「天気予報によると…」「彼によると…」`
+      ? `语法点：句中必须出现「${grammarCore}」（教助词时不要换成别的助词；例如「～が」不要写成只有「は」的句子）。词条里的「～」「〜」是占位符，禁止写进例句；请换成具体内容，如「天気予報によると…」「彼によると…」。若语法核是假名（如「あたり」「ところ」），优先写假名；写「辺り／所」亦可，但假名读音须正确（あたり≠へん）。`
       : null,
     hasDa
       ? `造句用词干：${stem}（「だ」是な形容词辞书形词尾，例句里用「${stem}」即可，不必带「だ」）`
@@ -315,6 +315,40 @@ ${
     : `11. 相关构词（助记，与例句等同一次输出，勿另开请求）：没有自然相关词就不要写（填空/省略即可，禁止硬凑）；只有 1～2 个就写 1～2；多则最多 4～5 行「漢字(かな)：中文｜词性」；【词性·必填】行末全角「｜」接名词/他动词/自动词/动词/い形容词/な形容词/副词等（例：迎え(むかえ)：迎接｜名词；出迎える(でむかえる)：出去迎接｜他动词）；须含本词汉字；单汉字须同读（允许连浊くち→ぐち、こと→ごと；禁止不同音读，如事=こと勿写食事/大事的「じ」）；多字词先拆部件再举同旁词（会社員→会社(かいしゃ)：公司｜名词、店員(てんいん)：店员｜名词）；【禁止本词】不要把词条本身再写进相关构词（研修生≠再写研修生）；一词多义用中文逗号「，」（目上：上级，长辈｜名词），释义里禁止用「；」；优先 N5～N4（口→入口(いりぐち)：入口｜名词）；假名须正确；禁止商务难词。`
 }
 ${jpVocabConnectionPromptAppendix(input.kind === "grammar" ? "grammar" : "word")}`;
+}
+
+/**
+ * 语法假名核是否在例句中出现（含词干截断 + 常见汉字表记）。
+ * 例：あたり ↔ 辺り；ところ ↔ 所（避免模型写汉字却被 grammar_not_used 误拒）。
+ */
+const JP_VOCAB_GRAMMAR_KANA_KANJI_ALIASES: Record<string, readonly string[]> = {
+  あたり: ["辺り"],
+  ところ: ["所", "処"],
+};
+
+export function jpVocabGrammarLemmaAppearsInExamples(
+  kanaRun: string,
+  combinedPlain: string,
+  combinedRaw: string
+): boolean {
+  const n = String(kanaRun || "").trim();
+  if (!n) return false;
+  const variants = [n];
+  if (n.length >= 3) variants.push(n.slice(0, -1));
+  for (const v of variants) {
+    if (combinedPlain.includes(v) || combinedRaw.includes(v)) return true;
+    const aliases = JP_VOCAB_GRAMMAR_KANA_KANJI_ALIASES[v];
+    if (aliases?.some((a) => combinedPlain.includes(a) || combinedRaw.includes(a))) {
+      return true;
+    }
+  }
+  // のあたり → 核末段 あたり 也认汉字表记
+  for (const [kana, aliases] of Object.entries(JP_VOCAB_GRAMMAR_KANA_KANJI_ALIASES)) {
+    if (n.endsWith(kana) && aliases.some((a) => combinedPlain.includes(a))) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /** 校验 AI 返回的例句块是否可用 */
@@ -430,13 +464,9 @@ export function validateJpVocabExampleSentencesAiOutput(
       .sort((a, b) => b.length - a.length);
     if (longKana.length > 0) {
       // ～ておく / ～てみる：须出现假名语法核或其词干（ておきました→ておき）
-      const variants = longKana.flatMap((n) => {
-        const out = [n];
-        if (n.length >= 3) out.push(n.slice(0, -1));
-        return out;
-      });
-      const hit = variants.some(
-        (n) => combinedPlain.includes(n) || combined.includes(n)
+      // 常见汉字表记：あたり↔辺り、ところ↔所（模型写汉字时勿误拒 grammar_not_used）
+      const hit = longKana.some((n) =>
+        jpVocabGrammarLemmaAppearsInExamples(n, combinedPlain, combined)
       );
       if (!hit) {
         return { ok: false, reason: "grammar_not_used" };

@@ -156,7 +156,12 @@ def is_conjugation_word(word: str) -> bool:
 
 
 def is_contrast_word(word: str, reading: str | None = None) -> bool:
-    """读音/形态对比课：何（なん／なに）、标题含区别等。"""
+    """读音/形态对比课：何（なん／なに）、これ／あれ（人を指す）、标题含区别等。
+
+    须与 Worker `isJpVocabContrastGrammar` 对齐：词条内嵌假名并列（これ／あれ）
+    也算对比课；旧实现只认括号内／整段 reading，会漏掉「これ／あれ（人を指す）」
+    → 走普通用法 prompt → 线上拒 contrast_missing_distinction。
+    """
     w = str(word or "").strip()
     r = str(reading or "").strip()
     if not w and not r:
@@ -164,8 +169,14 @@ def is_contrast_word(word: str, reading: str | None = None) -> bool:
     if is_conjugation_word(w):
         return False
     blob = f"{w}\n{r}"
+    # 词条内嵌假名并列（与 Worker CONTRAST_FORM_CHAIN_RE 对齐）
     if re.search(
-        r"[（(][^）)]*[\u3040-\u309fー]+[／/][\u3040-\u309fー]+[^）)]*[）)]",
+        r"[\u3040-\u309fー]{2,}(?:[／/・·、][\u3040-\u309fー]{2,})+",
+        blob,
+    ):
+        return True
+    if re.search(
+        r"[（(][^）)]*[\u3040-\u309fー]{2,}[／/][\u3040-\u309fー]{2,}[^）)]*[）)]",
         blob,
         re.I,
     ):

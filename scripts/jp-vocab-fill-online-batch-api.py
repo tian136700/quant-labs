@@ -140,6 +140,8 @@ GRAMMAR_SYSTEM = (
     "每条编号后必须带出现分：[口语n|考试m]（各 1～10），例："
     "1. [口语9|考试8] 表示……。(N4)；❌禁止漏掉口语/考试分。"
     "用法正文禁止大段日语、禁止写成接续说明（接在…／构成…放到 connection）。"
+    "❌用法正文禁止以「接在…」开头（会被剥光只剩 (N4) → usage_empty_after_strip）："
+    "✅「表示某人所在的地方，相当于「……那里」」❌「接在人物名词后，表示…」。"
     "❌用法行禁止 漢字(かな) 假名括注（会被拒 usage_not_chinese）："
     "❌「用(も)于列举」→ ✅「用于列举」；「」内也不要假名括注。"
     "假名括注只允许出现在 example_sentences 的日语行。"
@@ -161,7 +163,8 @@ GRAMMAR_SYSTEM = (
     "恩惠流向、必须是第三方、可互换、视角不同、强调好意／获益——那些只写 usage；"
     "「｜」后只允许接续短注（如「给东西」「帮忙做事」）。"
     "多形态用全角「；」且每段自带「＋」；❌不要「が／は」斜杠串助词（会被拆断）。"
-    "【对比区别课·必守】词条标题含「区别／对比／辨析」或读音并列（なに／なん、くれる／もらう）："
+    "【对比区别课·必守】词条标题含「区别／对比／辨析」或假名并列"
+    "（なに／なん、くれる／もらう、これ／あれ（人を指す）等）："
     "❌禁止拆成 3～7 条场景「1.用法」；❌不要普通句型的 [口语n|考试m]；"
     "✅ usage 先写【区别】一段中文概括（句末 (N5)），再恰好 2 组："
     "1. 「くれる」：…(N5) + 1 条例句；2. 「もらう」：…(N5) + 1 条例句；"
@@ -171,6 +174,7 @@ GRAMMAR_SYSTEM = (
     "【译文标签·必守】例句下一行只用「译文：」；禁止「訳文：」「訳：」或叠标签。"
     "组数=真实常用用法数；禁止多造例句；例句接续须对应该条用法（た形／原形／て形勿张冠李戴）。"
     "例句只用简单词；句中每个汉字须半角括号假名；译文行禁止写成无标签的中文句（否则会被当成日语漏标）。"
+    "语法核是假名时（あたり／ところ）优先写假名；写「辺り／所」亦可但读音须对（あたり≠へん）。"
     "❌禁止在 example_sentences 的日语行写中文教学说明（如「一类动词て形变形时…」「促音便要去掉う加って」）；"
     "规则说明只写 usage 或 connection，例句必须是完整日语句子。"
     "【熟语假名·必守】二字以上熟语整词标假名；该连浊必须浊化："
@@ -200,6 +204,14 @@ def is_conjugation_word(word: str) -> bool:
         "jp-vocab-fill-grammar-usage-examples-api.py", "_jp_grammar_helpers"
     )
     return grammar_mod.is_conjugation_word(word)
+
+
+def is_contrast_word(word: str, reading: str | None = None) -> bool:
+    """与 grammar 脚本 / Worker 对齐（含 これ／あれ 内嵌假名并列）。"""
+    grammar_mod = _load_helper_module(
+        "jp-vocab-fill-grammar-usage-examples-api.py", "_jp_grammar_helpers"
+    )
+    return grammar_mod.is_contrast_word(word, reading)
 
 
 def full_refresh_needs(kind: str, word: str) -> dict[str, bool]:
@@ -302,14 +314,24 @@ def build_prompt(row: dict[str, Any], *, full_bundle: bool = True) -> str:
             + ("必须一次性输出 " + " + ".join(parts) if parts else "按 JSON 键输出")
             + "；usage 必须是空字符串 \"\"；禁止编号用法长文。"
         )
+    elif is_contrast_word(word, row.get("reading") if isinstance(row.get("reading"), str) else None):
+        bundle_rule = (
+            "本条是读音/形态对比课（如 これ／あれ、なに／なん）："
+            "必须一次性输出 usage、example_sentences、connection。"
+            "usage 必须先写【区别】一段中文（句末 (N4)/(N5)），再恰好 2 组："
+            "1. 「形态A」：…(Nn) + 1 条例句；2. 「形态B」：…(Nn) + 1 条例句；"
+            "❌禁止普通句型的 [口语n|考试m]；❌禁止拆成 3～7 条场景用法；"
+            "connection 用「用法1:」「用法2:」分行，须含「＋」。"
+        )
     else:
         bundle_rule = (
             "必须一次性输出 JSON 的全部三项（即使库里只有接序缺失，也要重写用法/例句/接序）："
             "usage, example_sentences, connection。"
             "禁止输出 reading、meaning、pos（语法没有这些字段）。"
             "usage 每条必须：数字. [口语n|考试m] 中文说明。(Nn)；"
+            "❌用法正文禁止以「接在…」开头（会被剥光 → usage_empty_after_strip）；"
             "仅 1 种用法时 example_sentences 须恰好 3 句（按接续不同类型）；多用法则 1:1；"
-            "有课次时勿超纲；"
+            "有课次时勿超纲；语法核假名（あたり／ところ）优先写假名；"
             "connection 必须含「＋」或「用法N:」，禁止五段/一段/カ变/サ变，禁止无公式长散文；"
             "句首接续词（しかし／でも／ところが）示例："
             "前句（动词句／一类形容词句／二类形容词句／名词句）＋しかし｜后句句首，表示转折。"
@@ -719,6 +741,58 @@ def grammar_usage_looks_chinese(text: str) -> bool:
     return True
 
 
+_NUMBERED_USAGE_LINE_RE = re.compile(
+    r"^\s*\d+\s*[.、．)\]]\s*(?:\[口语\s*\d+\s*\|\s*考试\s*\d+\s*\]\s*)?(.+)$"
+)
+
+
+def grammar_usage_starts_with_connection_noise(text: str) -> bool:
+    """编号用法以「接在…／构成…」开头 → 线上会剥光 → usage_empty_after_strip。"""
+    for ln in str(text or "").splitlines():
+        m = _NUMBERED_USAGE_LINE_RE.match(ln.strip())
+        if not m:
+            continue
+        body = m.group(1).strip()
+        if body.startswith("接在") or body.startswith("构成「"):
+            return True
+    return False
+
+
+# 语法假名核 ↔ 常见汉字（与 Worker jpVocabGrammarLemmaAppearsInExamples 对齐）
+_GRAMMAR_KANA_KANJI_ALIASES = {
+    "あたり": ("辺り",),
+    "ところ": ("所", "処"),
+}
+
+
+def grammar_examples_hit_lemma(word: str, examples: str) -> bool:
+    """例句是否出现语法假名核（含汉字表记）。"""
+    core = str(word or "").strip()
+    core = re.sub(r"^[～~〜]+", "", core)
+    core = re.sub(r"[～~〜]+$", "", core)
+    raw = str(examples or "")
+    plain = re.sub(r"[（(][^）)]*[）)]", "", raw)
+    long_kana = sorted(
+        re.findall(r"[\u3040-\u30FFー]{2,}", core), key=len, reverse=True
+    )
+    if not long_kana:
+        return True
+    for n in long_kana:
+        variants = [n]
+        if len(n) >= 3:
+            variants.append(n[:-1])
+        for v in variants:
+            if v in plain or v in raw:
+                return True
+            for alias in _GRAMMAR_KANA_KANJI_ALIASES.get(v, ()):
+                if alias in plain:
+                    return True
+        for kana, aliases in _GRAMMAR_KANA_KANJI_ALIASES.items():
+            if n.endswith(kana) and any(a in plain for a in aliases):
+                return True
+    return False
+
+
 def salvage_connection_from_examples(ex: str) -> str:
     """模型偶把【接序】塞进例句字段；写库前拆出。"""
     text = str(ex or "").replace("\r\n", "\n")
@@ -831,6 +905,20 @@ def bundle_missing_keys(payload: dict[str, Any], row: dict[str, Any]) -> list[st
             usage_text = str(payload.get("usage") or "").strip()
             if not usage_text or not grammar_usage_looks_chinese(usage_text):
                 missing.append(key)
+            elif grammar_usage_starts_with_connection_noise(usage_text):
+                missing.append("usage_empty_after_strip")
+            elif is_contrast_word(
+                word,
+                row.get("reading") if isinstance(row.get("reading"), str) else None,
+            ):
+                if "【区别】" not in usage_text and "【區別】" not in usage_text:
+                    missing.append("contrast_missing_distinction")
+        elif key == "example_sentences":
+            ex_text = str(payload.get("example_sentences") or "").strip()
+            if not ex_text:
+                missing.append(key)
+            elif not grammar_examples_hit_lemma(word, ex_text):
+                missing.append("grammar_not_used")
         elif not str(payload.get(key) or "").strip():
             missing.append(key)
     if payload.get("reading") or payload.get("meaning") or payload.get("pos"):
@@ -911,7 +999,24 @@ def generate_bundle(row: dict[str, Any], needs: dict[str, bool]) -> dict[str, An
                 "禁止空 connection、禁止无「＋」散文。"
                 "usage 必须纯中文：❌禁止 漢字(かな) 假名括注（如「用(も)于」）；"
                 "假名括注只写在 example_sentences。"
+                "❌用法禁止以「接在…」开头（会 usage_empty_after_strip）；直接写「表示…」。"
+                "对比课（これ／あれ等）usage 必须先【区别】再恰好 2 组。"
+                "例句须出现语法假名核（あたり／ところ）；优先写假名。"
             )
+            if "contrast_missing_distinction" in missing:
+                retry_hint += (
+                    "本条是对比课：usage 第一行必须是【区别】，再 1./2. 两侧各 1 句；"
+                    "不要写 [口语n|考试m]。"
+                )
+            if "usage_empty_after_strip" in missing:
+                retry_hint += (
+                    "用法正文不要以「接在人物/场所名词后」开头；改为「表示……」。"
+                )
+            if "grammar_not_used" in missing:
+                retry_hint += (
+                    "例句须自然出现语法核假名（如「あたり」「のところ」）；"
+                    "不要只写「辺り」却漏假名核。"
+                )
         payload = _call(retry_hint)
         missing = bundle_missing_keys(payload, row)
         if missing:

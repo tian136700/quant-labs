@@ -103,14 +103,36 @@ def main() -> int:
         "connection_has_usage",
         "grammar_connection_has_usage_noise",
         "主语必须",
+        "これ／あれ",
+        "contrast_missing_distinction",
+        "grammar_usage_starts_with_connection_noise",
+        "grammar_examples_hit_lemma",
+        "is_contrast_word",
     ):
         if needle not in online:
             errors.append(f"online-batch GRAMMAR_SYSTEM/门禁缺 {needle!r}")
+
+    # 运行时：词条内嵌假名并列须认成对比课（曾漏 これ／あれ → contrast_missing_distinction）
+    import importlib.util
+
+    grammar_path = ROOT / "scripts/jp-vocab-fill-grammar-usage-examples-api.py"
+    spec = importlib.util.spec_from_file_location("_jp_contrast_check", grammar_path)
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    if not mod.is_contrast_word("これ／あれ（人を指す）"):
+        errors.append("is_contrast_word 须认「これ／あれ（人を指す）」为对比课")
+    if not mod.is_contrast_word("何（なん／なに）"):
+        errors.append("is_contrast_word 须认「何（なん／なに）」为对比课")
+    if mod.is_contrast_word("～のあたり"):
+        errors.append("is_contrast_word 不应把「～のあたり」当对比课")
 
     if "对比" not in rule and "【区别】" not in rule:
         errors.append("grammar-usage 规则须写明对比课格式")
     if "contrast_missing_distinction" not in quality and "なに／なん" not in quality:
         errors.append("content-quality 规则须记录对比课坑")
+    if "これ／あれ" not in quality:
+        errors.append("content-quality 规则须记录 これ／あれ 漏认坑")
 
     teacher = (
         ROOT / "src/components/JpVocabTeacherQuizFlashcardModal.tsx"

@@ -76,6 +76,12 @@ def main() -> int:
     ai = (ROOT / "src/lib/jp-vocab-example-sentences-ai.ts").read_text(encoding="utf-8")
     if "gloss_has_yakuwen_label" not in ai:
         fail("apply 须拒 gloss_has_yakuwen_label")
+    if "jpVocabGrammarLemmaAppearsInExamples" not in ai:
+        fail("example-sentences-ai 须有假名核汉字表记 jpVocabGrammarLemmaAppearsInExamples")
+    if "あたり" not in ai or "辺り" not in ai:
+        fail("example-sentences-ai 假名核表记须含 あたり↔辺り")
+    if "grammar_not_used" not in ai:
+        fail("example-sentences-ai 须拒 grammar_not_used")
 
     conn = (ROOT / "src/lib/jp-vocab-connection-ai.ts").read_text(encoding="utf-8")
     if "bare_numbered_lines" not in conn:
