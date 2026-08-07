@@ -39,7 +39,7 @@ POST http://127.0.0.1:3002/api/en-lesson
 |------|------|
 | GET 列表 | 访客可读；非管理员会清空老师/上课时间字段 |
 | POST record_link_copy | 访客也可记（与列表浏览一致） |
-| POST delete / 改上课状态（progress） | 英语新课 · 编辑/操作 |
+| POST delete / update / 改上课状态（progress） | 英语新课 · 编辑/操作 |
 | POST set_teacher / set_class_schedules / set_next_class_at | **管理员** |
 
 Header（可选，影响错误文案语言）：
@@ -70,6 +70,7 @@ GET · 列表
       "id": 24,
       "kind": "word",
       "content": "attempt, warrant, …",
+      "meanings": "尝试|授权令；逮捕令",
       "category": "雅思托福",
       "completed": false,
       "learning": true,
@@ -129,6 +130,7 @@ action 一览
 | action | 谁可调 | 作用 |
 |--------|--------|------|
 | （省略或只传 progress） | 有编辑权 | 改上课状态 pending/learning/completed |
+| update | 有编辑权 | 改课次本体：kind / content / meanings / category / remarks / title |
 | delete | 有编辑权 | 删除该课次（不可恢复） |
 | record_link_copy | 访客也可 | 教案链接复制次数 +1 |
 | set_teacher | 管理员 | 设置上课老师 |
@@ -154,6 +156,49 @@ POST · 改上课状态
 }
 
 成功：{ "ok": true, "lesson": { … } }
+
+
+────────────────────────────────
+POST · update（有编辑权）
+────────────────────────────────
+
+用途
+----
+改课次本体字段（类型 / 学习内容 / 释义 / 分类 / 备注 / 标题）。
+老师、上课时间、状态、换教案仍走其它 action / 专用接口。
+
+释义 `meanings` 与 `content` 各项对齐，多项用竖线 `|` 分隔（释义内可含逗号）。
+
+
+请求体
+------
+{
+  "action": "update",
+  "lesson_id": 24,
+  "kind": "word",
+  "content": "attempt, warrant",
+  "meanings": "尝试|授权令；逮捕令",
+  "category": "雅思托福",
+  "remarks": null,
+  "title": null
+}
+
+字段：
+  content     必填；多项用 , ， 、 分隔
+  meanings    可选；与 content 项数对齐，用 |
+  kind        可选；word | grammar；省略则保持原值
+  category    可选；省略则保持原值
+  remarks     可选；空串/null 清空
+  title       可选；空串/null 清空
+
+
+成功：{ "ok": true, "lesson": { … } }
+
+失败（常见）
+------------
+400  content_empty / content_invalid / kind_invalid / lesson_id_invalid
+404  not_found
+409  content_duplicate   // 同 kind+content 已有其它课
 
 
 ────────────────────────────────

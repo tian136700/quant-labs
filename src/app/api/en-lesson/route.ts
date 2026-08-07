@@ -9,12 +9,13 @@ import {
   updateEnLessonProgress,
   updateEnLessonTeacherAssignment,
 } from "@/lib/en-lesson-db";
+import { updateEnLessonContentFields } from "@/lib/en-lesson-db-content";
 import type { EnLessonProgressStatus } from "@/lib/en-lesson-shared";
 import { listEnLessonNotes } from "@/lib/en-lesson-note-db";
 import { listEnLessonTeachersWithLessonCounts } from "@/lib/en-lesson-teacher-db";
 import { requireEnLessonOperate } from "@/lib/en-vocab-auth";
 import { listEnVocabRefs } from "@/lib/en-vocab-db";
-import type { EnLessonRecord } from "@/lib/types";
+import type { EnLessonKind, EnLessonRecord } from "@/lib/types";
 
 const AUTH_MSG = {
   en: "Please log in to save changes.",
@@ -100,6 +101,12 @@ export async function POST(request: Request) {
         class_at: string;
         duration_minutes: number | null;
       }>;
+      kind?: EnLessonKind | string | null;
+      content?: string;
+      meanings?: string | null;
+      category?: string | null;
+      remarks?: string | null;
+      title?: string | null;
     };
 
     // 复制次数：与列表浏览一致，访客也可记（含「仅文字」）
@@ -137,6 +144,71 @@ export async function POST(request: Request) {
       }
 
       return jsonResponse({ ok: true });
+    }
+
+    if (body.action === "update") {
+      const lessonId = Number(body.lesson_id);
+      if (!Number.isInteger(lessonId) || lessonId <= 0) {
+        return jsonResponse({ ok: false, error: "lesson_id_invalid" }, 400);
+      }
+      if (typeof body.content !== "string") {
+        return jsonResponse({ ok: false, error: "content_invalid" }, 400);
+      }
+
+      const meanings =
+        body.meanings === undefined
+          ? undefined
+          : body.meanings === null
+            ? null
+            : String(body.meanings);
+      const kindRaw = body.kind;
+      const kind =
+        kindRaw === undefined || kindRaw === null
+          ? undefined
+          : kindRaw === "grammar"
+            ? ("grammar" as const)
+            : kindRaw === "word"
+              ? ("word" as const)
+              : null;
+      if (kindRaw !== undefined && kindRaw !== null && kind === null) {
+        return jsonResponse({ ok: false, error: "kind_invalid" }, 400);
+      }
+
+      const result = await updateEnLessonContentFields(env.DB, lessonId, {
+        kind,
+        content: body.content,
+        meanings,
+        category:
+          body.category === undefined
+            ? undefined
+            : body.category === null
+              ? null
+              : String(body.category),
+        remarks:
+          body.remarks === undefined
+            ? undefined
+            : body.remarks === null
+              ? null
+              : String(body.remarks),
+        title:
+          body.title === undefined
+            ? undefined
+            : body.title === null
+              ? null
+              : String(body.title),
+      });
+
+      if (!result.ok) {
+        const status =
+          result.error === "not_found"
+            ? 404
+            : result.error === "content_duplicate"
+              ? 409
+              : 400;
+        return jsonResponse({ ok: false, error: result.error }, status);
+      }
+
+      return jsonResponse({ ok: true, lesson: result.lesson });
     }
 
     if (body.action === "set_next_class_at" || body.action === "set_class_schedules") {

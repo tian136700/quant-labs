@@ -17,6 +17,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_BASE = "http://127.0.0.1:3002"
+sys.path.insert(0, str(ROOT / "scripts" / "lib"))
+from open_preview_browser import open_preview_url  # noqa: E402
 
 
 def wait_ready(base: str, timeout_sec: float = 90.0) -> bool:
@@ -68,7 +70,7 @@ def main() -> int:
     url = f"{base}/debug-jp-vocab-card-571?word_id={word_id}"
     print(f"[open-preview] {url}", flush=True)
     if not args.no_open:
-        subprocess.run(["open", url], check=False)
+        open_preview_url(url)
     return 0
 
 

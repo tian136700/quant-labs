@@ -44,6 +44,7 @@ Header（可选）：
 |------|------|------|
 | kind | 是 | word 或 grammar |
 | content | 是 | 学习内容；多项用 , ， 、 分隔。语法可用中文，如「定语从句」 |
+| meanings | 否 | 与 content 各项一一对应的释义，多项用竖线 `|` 分隔 |
 | category | 否 | 默认「雅思托福」；亦可「托业」等 |
 | title | 否 | 教案标题 |
 | remarks | 否 | 课次备注（如语法说明：这是什么语法、用法要点） |
@@ -55,6 +56,7 @@ Header（可选）：
 {
   "kind": "grammar",
   "content": "定语从句",
+  "meanings": "修饰名词的从句，由关系代词/副词引导",
   "remarks": "关系代词 who/which/that；限制性与非限制性",
   "category": "雅思托福"
 }

@@ -13,7 +13,7 @@ type Props = {
 };
 
 /**
- * 卡片信息区「词性」行：词性 pill + 右侧读音（可平假名）+ OJAD 顶横线。
+ * 卡片信息区「词性」行：词性 pill + 「读音」标签 + 平假名读音（OJAD 顶横线）。
  * 不改 word 存库；顶部英雄区仍显示原词条。
  */
 export function JpVocabFlashcardPosWithReading({
@@ -30,6 +30,31 @@ export function JpVocabFlashcardPosWithReading({
   const readingDisplay =
     readingText || (reading ?? "").trim() || (showReading ? "" : "");
 
+  const readingBody = (() => {
+    if (!showReading) return null;
+    if (!readingDisplay) {
+      return (
+        <span className="jp-vocab-teacher-quiz__pos-pitch-pending">
+          待补全
+        </span>
+      );
+    }
+    if (pitch) {
+      return (
+        <JpVocabPitchAccentText
+          pitchAccent={pitch}
+          displayText={readingDisplay}
+          className="jp-vocab-teacher-quiz__pos-pitch jp-vocab-pitch-accent--pos"
+        />
+      );
+    }
+    return (
+      <span className="jp-vocab-teacher-quiz__pos-pitch-plain">
+        {readingDisplay}
+      </span>
+    );
+  })();
+
   return (
     <dd
       className={
@@ -43,23 +68,12 @@ export function JpVocabFlashcardPosWithReading({
           <span className="jp-vocab-teacher-quiz__pos">{posTrim}</span>
         ) : null}
         {showReading ? (
-          readingDisplay ? (
-            pitch ? (
-              <JpVocabPitchAccentText
-                pitchAccent={pitch}
-                displayText={readingDisplay}
-                className="jp-vocab-teacher-quiz__pos-pitch jp-vocab-pitch-accent--pos"
-              />
-            ) : (
-              <span className="jp-vocab-teacher-quiz__pos-pitch-plain">
-                {readingDisplay}
-              </span>
-            )
-          ) : (
-            <span className="jp-vocab-teacher-quiz__pos-pitch-pending">
-              待补全读音
+          <span className="jp-vocab-teacher-quiz__reading-inline">
+            <span className="jp-vocab-teacher-quiz__reading-inline-label">
+              读音
             </span>
-          )
+            {readingBody}
+          </span>
         ) : null}
       </div>
     </dd>

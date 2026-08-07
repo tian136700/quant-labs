@@ -23,10 +23,14 @@ export function JpVocabPitchAccentStyles() {
         line-height: 1.45;
       }
       :global(.jp-vocab-pitch-accent--pos) {
-        font-size: clamp(1.05rem, 3.8vw, 1.25rem);
+        font-size: 1rem;
         font-weight: 600;
         line-height: 1.35;
-        color: var(--muted);
+        color: var(--text);
+      }
+      :global(.jp-vocab-pitch-accent--pos .jp-vocab-pitch-accent__mora) {
+        padding-top: 0.18em;
+        min-width: 1em;
       }
       :global(.jp-vocab-pitch-accent__mora) {
         display: inline-block;

@@ -29,6 +29,7 @@ export async function POST(request: Request) {
       const body = (await request.json()) as {
         kind?: EnLessonKind;
         content?: string;
+        meanings?: string | null;
         title?: string | null;
         remarks?: string | null;
         category?: string | null;
@@ -37,6 +38,7 @@ export async function POST(request: Request) {
       createInput = {
         kind: (body.kind === "grammar" ? "grammar" : "word") as EnLessonKind,
         content: String(body.content || "").trim(),
+        meanings: (body.meanings || "").trim() || null,
         title: (body.title || "").trim() || null,
         remarks: (body.remarks || "").trim() || null,
         category: (body.category || "").trim() || null,

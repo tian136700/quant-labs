@@ -1021,34 +1021,73 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           color: color-mix(in srgb, var(--muted) 78%, transparent);
         }
         .jp-vocab-teacher-quiz__pos {
-          display: inline-block;
-          padding: 0.1rem 0.45rem;
+          display: inline-flex;
+          align-items: center;
+          height: 1.45em;
+          padding: 0 0.5rem;
           border-radius: 999px;
           border: 1px solid var(--border);
           font-size: 0.8125rem;
+          line-height: 1;
           color: var(--muted);
+          box-sizing: border-box;
         }
         .jp-vocab-teacher-quiz__pos-reading-dd {
           min-width: 0;
+          display: flex;
+          align-items: center;
         }
         .jp-vocab-teacher-quiz__pos-reading-row {
           display: flex;
-          flex-wrap: wrap;
+          flex-wrap: nowrap;
           align-items: center;
-          gap: 0.55rem 0.85rem;
+          gap: 0.75rem;
           min-width: 0;
+          width: 100%;
+        }
+        .jp-vocab-teacher-quiz__reading-inline {
+          display: inline-flex;
+          flex-wrap: nowrap;
+          align-items: center;
+          gap: 0.4rem;
+          min-width: 0;
+          padding-left: 0.75rem;
+          border-left: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+        }
+        .jp-vocab-teacher-quiz__reading-inline-label {
+          flex-shrink: 0;
+          font-size: 0.875rem;
+          font-weight: 500;
+          color: var(--muted);
+          letter-spacing: 0;
+          line-height: 1.4;
+        }
+        .jp-vocab-teacher-quiz__reading-inline-label::after {
+          content: "：";
         }
         .jp-vocab-teacher-quiz__pos-pitch,
         .jp-vocab-teacher-quiz__pos-pitch-plain {
-          font-size: clamp(1.05rem, 3.8vw, 1.25rem);
+          font-size: 1rem;
           font-weight: 600;
-          letter-spacing: 0.04em;
-          color: var(--muted);
+          letter-spacing: 0.03em;
+          color: var(--text);
           line-height: 1.35;
         }
         .jp-vocab-teacher-quiz__pos-pitch-pending {
-          font-size: 0.875rem;
+          font-size: 0.8125rem;
+          font-style: italic;
           color: color-mix(in srgb, var(--muted) 75%, transparent);
+        }
+        @media (max-width: 520px) {
+          .jp-vocab-teacher-quiz__pos-reading-row {
+            flex-wrap: wrap;
+            gap: 0.45rem 0.65rem;
+          }
+          .jp-vocab-teacher-quiz__reading-inline {
+            padding-left: 0;
+            border-left: none;
+            width: 100%;
+          }
         }
         .jp-vocab-teacher-quiz__actions-row {
           display: flex;

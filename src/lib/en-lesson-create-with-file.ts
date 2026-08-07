@@ -13,6 +13,8 @@ export const EN_LESSON_UPLOAD_MAX_BYTES = 20 * 1024 * 1024;
 export type EnLessonCreateWithFileInput = {
   kind: EnLessonKind;
   content: string;
+  /** 与 content 项对齐的释义，多项用 | 分隔 */
+  meanings?: string | null;
   title?: string | null;
   category?: string | null;
   /** 课次备注（如语法说明） */
@@ -42,6 +44,7 @@ export async function createEnLessonWithOptionalFile(
   }
 
   const kind: EnLessonKind = input.kind === "grammar" ? "grammar" : "word";
+  const meanings = (input.meanings || "").trim() || null;
   const title = (input.title || "").trim() || null;
   const remarks = (input.remarks || "").trim() || null;
   const category = normalizeEnVocabCategory(input.category);
@@ -58,6 +61,7 @@ export async function createEnLessonWithOptionalFile(
   const result = await createEnLesson(env.DB, {
     kind,
     content,
+    meanings,
     title,
     remarks,
     category,
@@ -111,6 +115,11 @@ export async function parseEnLessonCreateFormData(
   const kind: EnLessonKind =
     form.get("kind") === "grammar" ? "grammar" : "word";
   const content = String(form.get("content") || "").trim();
+  const meaningsRaw = form.get("meanings");
+  const meanings =
+    typeof meaningsRaw === "string" && meaningsRaw.trim()
+      ? meaningsRaw.trim()
+      : null;
   const titleRaw = form.get("title");
   const title =
     typeof titleRaw === "string" && titleRaw.trim() ? titleRaw.trim() : null;
@@ -147,6 +156,7 @@ export async function parseEnLessonCreateFormData(
     input: {
       kind,
       content,
+      meanings,
       title,
       remarks,
       category,

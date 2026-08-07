@@ -6,6 +6,7 @@ import { EnLessonCopyMenu } from "@/components/EnLessonCopyMenu";
 import { EnVocabRefDownloadMenu } from "@/components/EnVocabRefDownloadMenu";
 import {
   EnLessonContentPreview,
+  EnLessonMeaningsPreview,
   EnLessonMobileFieldValue,
   EnLessonMobileIcon,
   formatLessonTeacherNames,
@@ -47,12 +48,14 @@ export type EnLessonStatusTableProps = {
   savingTeacherId: number | null;
   noteCountByLesson: Map<number, number>;
   expandedContentIds: Record<number, boolean>;
+  expandedMeaningsIds: Record<number, boolean>;
   deletingId: number | null;
   savingId: number | null;
   savingNextClassId: number | null;
   copiedId: number | null;
   onToggleClassTimeSort: () => void;
   onToggleContentExpanded: (lessonId: number) => void;
+  onToggleMeaningsExpanded: (lessonId: number) => void;
   onSetLessonProgress: (lessonId: number, status: EnLessonProgressStatus) => void | Promise<void>;
   onEditLesson: (lesson: EnLessonRecord) => void;
   onAnnotateLesson: (payload: {
@@ -82,12 +85,14 @@ export function EnLessonStatusTable({
   savingTeacherId,
   noteCountByLesson,
   expandedContentIds,
+  expandedMeaningsIds,
   deletingId,
   savingId,
   savingNextClassId,
   copiedId,
   onToggleClassTimeSort,
   onToggleContentExpanded,
+  onToggleMeaningsExpanded,
   onSetLessonProgress,
   onEditLesson,
   onAnnotateLesson,
@@ -462,6 +467,7 @@ export function EnLessonStatusTable({
               分类
             </th>
             <th className="jp-lesson-content-col">学习内容</th>
+            <th className="jp-lesson-meanings-col">释义</th>
             <th className="jp-lesson-content-count-col" title="按英文/中文逗号分隔统计的词/短语数">
               数
             </th>

@@ -44,6 +44,8 @@ def main() -> None:
         fail("pos row must render pitch on reading")
     if "pos-reading-row" not in pos:
         fail("pos+reading must share one row")
+    if "读音" not in pos or "reading-inline-label" not in pos:
+        fail("must show 读音 label beside pitch reading")
 
     for name in (
         "JpVocabTeacherQuizFlashcardModal.tsx",

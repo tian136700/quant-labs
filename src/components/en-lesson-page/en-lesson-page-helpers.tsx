@@ -25,6 +25,7 @@ import {
   type EnLessonClassTimeSortOrder,
   type EnLessonProgressStatus,
 } from "@/lib/en-lesson-shared";
+import { formatLessonMeaningsLines } from "@/lib/jp-lesson-shared";
 import { fetchWithClientCache, readClientCache, writeClientCache } from "@/lib/client-swr-cache";
 import {
   enLessonRefDownloadFilename,
@@ -123,6 +124,64 @@ export function EnLessonContentPreview({
       <div className="jp-lesson-content-lines jp-lesson-content-desktop">
         {shown.map((line, lineIdx) => (
           <span key={lineIdx} className="jp-lesson-content-line">
+            {line}
+          </span>
+        ))}
+      </div>
+      {!expanded ? moreBtn : null}
+    </div>
+  );
+}
+
+/** 列表释义预览（折叠规则对齐日语新课） */
+export function EnLessonMeaningsPreview({
+  content,
+  meanings,
+  expanded,
+  onToggle,
+}: {
+  content: string;
+  meanings: string | null | undefined;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const lines = formatLessonMeaningsLines(content, meanings);
+  const empty = !lines.length || lines.every((line) => line === "—");
+  if (empty) {
+    return <span className="jp-lesson-examples-empty">—</span>;
+  }
+
+  const itemCount = parseLessonContent(content).length || lines.length;
+  const needsMore =
+    lines.length > EN_LESSON_CONTENT_PREVIEW_LINES ||
+    itemCount > EN_LESSON_CONTENT_PREVIEW_ITEMS;
+  const shown =
+    !expanded && needsMore ? lines.slice(0, EN_LESSON_CONTENT_PREVIEW_LINES) : lines;
+
+  const moreBtn = needsMore ? (
+    <button
+      type="button"
+      className="jp-lesson-content-more-btn"
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle();
+      }}
+      aria-expanded={expanded}
+    >
+      {expanded ? "收起" : "更多"}
+    </button>
+  ) : null;
+
+  return (
+    <div
+      className={`jp-lesson-meanings-preview${expanded ? " is-expanded" : ""}${
+        needsMore && !expanded ? " is-clamped" : ""
+      }`}
+    >
+      {expanded ? moreBtn : null}
+      <div className="jp-lesson-meanings-lines jp-lesson-meanings-desktop">
+        {shown.map((line, lineIdx) => (
+          <span key={lineIdx} className="jp-lesson-meanings-line">
             {line}
           </span>
         ))}
