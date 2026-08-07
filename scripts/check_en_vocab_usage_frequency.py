@@ -35,10 +35,16 @@ def main() -> None:
         fail("format_example / prompt must show [score] sample")
     if "同一核心义项" not in ai and "同一核心义" not in ai:
         fail("usage prompt must tell model to merge near-duplicate senses")
+    if "同词性" not in ai or "意思差不多" not in ai:
+        fail("usage prompt must hard-merge same-POS near-synonym senses")
     if "按对象" not in ai and "按修饰对象" not in ai:
         fail("usage prompt must forbid splitting one sense by object/scene")
     if "attractive" not in ai:
         fail("usage prompt must give attractive merge anti-example")
+    if "fail" not in ai or "考试" not in ai:
+        fail("usage prompt must give fail same-POS scene-split anti-example")
+    if "freeze" not in ai or "冻结账户" not in ai:
+        fail("usage prompt must give freeze same-POS scene-split anti-example")
     if "carefully" not in ai:
         fail("usage prompt must give carefully near-synonym merge anti-example")
     if "近义微调" not in ai and "近义改写" not in ai:
@@ -95,6 +101,12 @@ def main() -> None:
         fail("online SYSTEM/prompt must require frequency scores")
     if "near-duplicate" not in online and "同一义项" not in online and "同一义" not in online:
         fail("online prompt must forbid splitting one core sense into duplicate lines")
+    if "SAME part of speech" not in online and "同词性" not in online:
+        fail("online prompt must hard-merge same-POS near-synonym senses")
+    if "fail" not in online:
+        fail("online prompt must include fail same-POS merge anti-example")
+    if "freeze" not in online:
+        fail("online prompt must include freeze same-POS merge anti-example")
     if "按对象" not in online and "attractive" not in online:
         fail("online prompt must forbid splitting one sense by object/scene")
     if "几乎可互换" not in online:
