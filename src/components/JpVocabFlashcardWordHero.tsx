@@ -51,6 +51,7 @@ export function JpVocabFlashcardWordHero({
     pitchForDisplay ? (
       <JpVocabPitchAccentText
         pitchAccent={pitchForDisplay}
+        displayText={readingTrim}
         className="jp-vocab-teacher-quiz__reading jp-vocab-pitch-accent--hero"
       />
     ) : (

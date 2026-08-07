@@ -20,6 +20,9 @@ type Props = {
   pendingLabel?: string;
 };
 
+/**
+ * 词表「读音」列：保留原读音文字，有音调时只在字上画横线（不改 word/reading 存库）。
+ */
 export function JpVocabReadingWithPitch({
   reading,
   word,
@@ -33,12 +36,19 @@ export function JpVocabReadingWithPitch({
   const readingTrim = (reading ?? "").trim();
   const wordTrim = (word ?? "").trim();
   const displayText = readingTrim || (kind === "word" ? wordTrim : readingTrim);
-  const pitch = resolveJpVocabPitchAccentForWord(pitchAccent, readingTrim, wordTrim, kind);
+  const pitch = resolveJpVocabPitchAccentForWord(
+    pitchAccent,
+    readingTrim,
+    wordTrim,
+    kind
+  );
 
   if (!displayText) {
     if (kind === "word") {
       return (
-        <span className={`${className} jp-vocab-reading-text--pending`}>{pendingLabel}</span>
+        <span className={`${className} jp-vocab-reading-text--pending`}>
+          {pendingLabel}
+        </span>
       );
     }
     return null;
@@ -48,7 +58,8 @@ export function JpVocabReadingWithPitch({
     pitch != null ? (
       <JpVocabPitchAccentText
         pitchAccent={pitch}
-        className={`${className} ${pitchClassName}`.trim()}
+        displayText={displayText}
+        className={pitchClassName}
       />
     ) : (
       displayText
@@ -68,14 +79,5 @@ export function JpVocabReadingWithPitch({
     );
   }
 
-  if (pitch != null) {
-    return (
-      <JpVocabPitchAccentText
-        pitchAccent={pitch}
-        className={`${className} ${pitchClassName}`.trim()}
-      />
-    );
-  }
-
-  return <span className={className}>{displayText}</span>;
+  return <span className={className}>{body}</span>;
 }

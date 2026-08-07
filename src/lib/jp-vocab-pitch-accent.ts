@@ -55,7 +55,7 @@ export function serializeJpVocabPitchAccent(data: JpVocabPitchAccent): string {
 }
 
 /** 存库 kana 须与卡片读音一致（平/片假名等价），否则不展示。 */
-function normalizeKanaForPitchCompare(text: string): string {
+export function normalizeKanaForPitchCompare(text: string): string {
   return text.replace(/\s/g, "").replace(/[\u30A1-\u30F6]/g, (ch) =>
     String.fromCharCode(ch.charCodeAt(0) - 0x60)
   );
@@ -90,6 +90,30 @@ export function resolveJpVocabPitchAccentForWord(
     jpVocabPitchAccentMatchesReading(pitchAccent, readingTrim) ??
     jpVocabPitchAccentMatchesReading(pitchAccent, wordTrim)
   );
+}
+
+/**
+ * 把 OJAD 各拍音调套到**页面原读音**上（保留片假名/原文），禁止用 OJAD 平假名替换展示。
+ * 长度或读音对不上则返回 null（调用方回退为纯读音文字）。
+ */
+export function mapJpVocabPitchAccentOntoDisplayText(
+  pitchAccent: JpVocabPitchAccent,
+  displayText: string
+): JpVocabPitchMora[] | null {
+  const text = (displayText ?? "").replace(/\s/g, "");
+  if (!text || !pitchAccent.moras.length) return null;
+  if (normalizeKanaForPitchCompare(text) !== normalizeKanaForPitchCompare(pitchAccent.kana)) {
+    return null;
+  }
+  const expectedLen = pitchAccent.moras.reduce((n, m) => n + m.c.length, 0);
+  if (text.length !== expectedLen) return null;
+  let i = 0;
+  const out: JpVocabPitchMora[] = [];
+  for (const m of pitchAccent.moras) {
+    out.push({ c: text.slice(i, i + m.c.length), p: m.p });
+    i += m.c.length;
+  }
+  return out;
 }
 
 export function validateJpVocabPitchAccentPayload(
