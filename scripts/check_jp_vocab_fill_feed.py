@@ -397,6 +397,7 @@ def main() -> int:
                 "word_id": 119,
                 "word": "形容词变否定",
                 "status": "success",
+                "fill_task": "jp-vocab-fill-unified",
                 "started_at": "2026-08-04 04:07:00",
                 "finished_at": "2026-08-04 04:07:00",
                 "run_finished_at": "2026-08-04 04:07:57",
@@ -407,6 +408,7 @@ def main() -> int:
                 "word_id": 119,
                 "word": "形容词变否定",
                 "status": "success",
+                "fill_task": "jp-vocab-fill-unified",
                 "started_at": "2026-08-04 04:07:24",
                 "finished_at": "2026-08-04 04:07:57",
             }
@@ -417,9 +419,54 @@ def main() -> int:
         raise SystemExit(
             f"FAIL: log+DB same run must merge to 1 row, got {len(deduped)}: {deduped}"
         )
-    counted = attach_run_counts(list(deduped), {119: 2})
+    # 不同 fill_task 即使同词同终态同窗，也须各留一行（次数按种类计）
+    cross_task = merge_terminal_fill_rows(
+        from_log=[],
+        db_rows=[
+            {
+                "word_id": 524,
+                "word": "直接",
+                "status": "success",
+                "fill_task": "jp-vocab-fill-pitch-accent",
+                "finished_at": "2026-08-07 22:27:32",
+            },
+            {
+                "word_id": 524,
+                "word": "直接",
+                "status": "success",
+                "fill_task": "jp-vocab-fill-unified",
+                "finished_at": "2026-08-07 22:27:40",
+            },
+        ],
+        limit=10,
+    )
+    if len(cross_task) != 2:
+        raise SystemExit(
+            f"FAIL: different fill_task must stay 2 rows, got {len(cross_task)}: {cross_task}"
+        )
+    counted = attach_run_counts(
+        list(deduped), {(119, "jp-vocab-fill-unified"): 2}
+    )
     if int(counted[0].get("run_count") or 0) != 2:
         raise SystemExit(f"FAIL: attach_run_counts should set run_count=2, got {counted[0]}")
+    # 音调只跑 1 次 → 即使其它种类有记录，音调行次数仍为 1
+    pitch_only = attach_run_counts(
+        [
+            {
+                "word_id": 524,
+                "fill_task": "jp-vocab-fill-pitch-accent",
+            }
+        ],
+        {
+            (524, "jp-vocab-fill-pitch-accent"): 1,
+            (524, "jp-vocab-fill-unified"): 5,
+            (524, "jp-vocab-fill-frequency-online"): 2,
+        },
+    )
+    if int(pitch_only[0].get("run_count") or 0) != 1:
+        raise SystemExit(
+            f"FAIL: run_count must be per fill_task (pitch=1), got {pitch_only[0]}"
+        )
     if "vocab_fill_applied_label" not in (
         ROOT / "scripts/maintenance_center/jp_vocab_fill_feed.py"
     ).read_text(encoding="utf-8"):
@@ -683,6 +730,7 @@ def main() -> int:
             "status": "success",
             "source": "线上 test",
             "applied": "['word_bundle']",
+            "fill_task": "jp-vocab-fill-unified",
             "finished_at": "2099-01-01 00:00:12",
         }
     )
@@ -697,7 +745,7 @@ def main() -> int:
     if "释义/词性" not in content:
         raise SystemExit(f"FAIL: success row missing fill_content_label: {rows[0]}")
 
-    # 次数：同词再跑终态 → run_count 应 ≥2（快照挂 attach_run_counts）
+    # 次数：同词同 fill_task 再跑终态 → 该种类 run_count ≥2
     feed.insert_jp_vocab_fill_word_run(
         {
             "word_id": 900034,
@@ -706,18 +754,41 @@ def main() -> int:
             "status": "success",
             "source": "线上 test-2",
             "applied": "['word_bundle']",
+            "fill_task": "jp-vocab-fill-unified",
             "finished_at": "2099-01-01 01:00:00",
         }
     )
+    # 另一种类不应抬高统一补全的次数
+    feed.insert_jp_vocab_fill_word_run(
+        {
+            "word_id": 900034,
+            "word": "テスト英国",
+            "kind": "word",
+            "status": "success",
+            "source": "OJAD",
+            "applied": "pitch_accent",
+            "fill_task": "jp-vocab-fill-pitch-accent",
+            "finished_at": "2099-01-01 01:05:00",
+        }
+    )
     counts = feed.count_jp_vocab_fill_terminal_runs([900034])
-    if int(counts.get(900034) or 0) < 2:
-        raise SystemExit(f"FAIL: terminal run count for 900034 should be ≥2, got {counts}")
+    unified_n = int(counts.get((900034, "jp-vocab-fill-unified")) or 0)
+    pitch_n = int(counts.get((900034, "jp-vocab-fill-pitch-accent")) or 0)
+    if unified_n < 2:
+        raise SystemExit(
+            f"FAIL: unified terminal count for 900034 should be ≥2, got {counts}"
+        )
+    if pitch_n != 1:
+        raise SystemExit(
+            f"FAIL: pitch terminal count for 900034 should be 1, got {counts}"
+        )
     snap_count = feed.jp_vocab_fill_feed_snapshot(limit=80)
     row900 = next(
         (
             r
             for r in (snap_count.get("recent") or [])
             if int(r.get("word_id") or 0) == 900034
+            and str(r.get("fill_task") or "") == "jp-vocab-fill-unified"
         ),
         None,
     )
@@ -725,7 +796,20 @@ def main() -> int:
         # 快照可能被真实近期数据挤出窗口；至少保证 count API 正确
         pass
     elif int(row900.get("run_count") or 0) < 2:
-        raise SystemExit(f"FAIL: snapshot run_count for 900034 should be ≥2, got {row900}")
+        raise SystemExit(f"FAIL: snapshot run_count for 900034 unified should be ≥2, got {row900}")
+    row900_pitch = next(
+        (
+            r
+            for r in (snap_count.get("recent") or [])
+            if int(r.get("word_id") or 0) == 900034
+            and str(r.get("fill_task") or "") == "jp-vocab-fill-pitch-accent"
+        ),
+        None,
+    )
+    if row900_pitch is not None and int(row900_pitch.get("run_count") or 0) != 1:
+        raise SystemExit(
+            f"FAIL: snapshot pitch run_count should be 1, got {row900_pitch}"
+        )
 
     # 清掉测试脏数据
     from maintenance_center.db import get_conn, init_db
