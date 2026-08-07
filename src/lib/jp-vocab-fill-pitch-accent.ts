@@ -28,6 +28,8 @@ export type JpVocabFillPitchAccentResult = {
 };
 
 export const JP_VOCAB_PITCH_ACCENT_SOURCE_OJAD = "OJAD";
+/** OJAD 查无此词：只标 source，pitch_accent 保持空；UI 只显示普通读音。 */
+export const JP_VOCAB_PITCH_ACCENT_SOURCE_NONE = "OJAD_NONE";
 
 export function validateJpVocabPitchAccentForApply(
   payload: unknown
@@ -58,9 +60,11 @@ export async function listJpVocabWordsMissingPitchAccent(
   await ensureJpVocabWordSchema(db);
   const cap =
     typeof limit === "number" && limit > 0 ? Math.min(Math.floor(limit), 500) : undefined;
+  // 未补音调，且未标记 OJAD 查无（source 为空才继续抓）
   const sql = `SELECT id, word, reading, kind FROM jp_vocab_word
        WHERE kind != 'grammar'
          AND (pitch_accent IS NULL OR TRIM(pitch_accent) = '')
+         AND (pitch_accent_source IS NULL OR TRIM(pitch_accent_source) = '')
        ORDER BY id${cap ? " LIMIT ?1" : ""}`;
   const stmt = cap ? db.prepare(sql).bind(cap) : db.prepare(sql);
   const result = await stmt.all<{
@@ -75,6 +79,45 @@ export async function listJpVocabWordsMissingPitchAccent(
     reading: row.reading != null ? String(row.reading) : null,
     kind: String(row.kind),
   }));
+}
+
+/** OJAD 查无：只写 source=OJAD_NONE，不写音调；页面只显示普通读音。 */
+export async function markJpVocabPitchAccentNotFound(
+  db: D1Database,
+  wordIds: number[],
+  options: { dryRun?: boolean } = {}
+): Promise<{ marked: number; skipped: Array<{ id: number; reason: string }> }> {
+  await ensureJpVocabWordSchema(db);
+  const dryRun = Boolean(options.dryRun);
+  const skipped: Array<{ id: number; reason: string }> = [];
+  let marked = 0;
+  for (const rawId of wordIds) {
+    const wordId = Number(rawId);
+    if (!Number.isInteger(wordId) || wordId <= 0) {
+      skipped.push({ id: wordId, reason: "invalid_id" });
+      continue;
+    }
+    if (dryRun) {
+      marked += 1;
+      continue;
+    }
+    const result = await db
+      .prepare(
+        `UPDATE jp_vocab_word
+         SET pitch_accent_source = ?1, updated_at = datetime('now')
+         WHERE id = ?2 AND kind != 'grammar'
+           AND (pitch_accent IS NULL OR TRIM(pitch_accent) = '')
+           AND (pitch_accent_source IS NULL OR TRIM(pitch_accent_source) = '')`
+      )
+      .bind(JP_VOCAB_PITCH_ACCENT_SOURCE_NONE, wordId)
+      .run();
+    if (Number(result.meta?.changes ?? 0) > 0) {
+      marked += 1;
+    } else {
+      skipped.push({ id: wordId, reason: "no_change" });
+    }
+  }
+  return { marked, skipped };
 }
 
 export async function applyJpVocabPitchAccentUpdates(

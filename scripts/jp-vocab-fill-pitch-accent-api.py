@@ -104,6 +104,7 @@ def run_batch(
 
     updates: list[dict] = []
     skipped: list[dict] = []
+    not_found_ids: list[int] = []
 
     for i, item in enumerate(missing[:batch]):
         if i:
@@ -121,7 +122,8 @@ def run_batch(
             skipped.append({"id": word_id, "word": word, "reason": str(e)})
             continue
         if not accent:
-            print("    (no OJAD match)", flush=True)
+            print("    (no OJAD match → mark OJAD_NONE, UI 只显示普通读音)", flush=True)
+            not_found_ids.append(word_id)
             skipped.append({"id": word_id, "word": word, "reason": "no_match"})
             continue
         print(f"    -> {accent['kana']} pattern={accent['pattern']}", flush=True)
@@ -137,19 +139,33 @@ def run_batch(
         return {
             "ok": True,
             "updated": len(updates),
+            "marked_not_found": len(not_found_ids),
             "applied": [{"id": u["word_id"], "pitch_accent": u["pitch_accent"]} for u in updates],
             "skipped": skipped,
             "total_missing": total,
             "dry_run": True,
         }
 
+    marked_not_found = 0
+    if not_found_ids:
+        mark = call_api(
+            api_url=api_url,
+            token=token,
+            payload={"mode": "mark_not_found", "word_ids": not_found_ids},
+        )
+        if not mark.get("ok"):
+            raise SystemExit(f"mark_not_found error: {mark.get('error', mark)}")
+        marked_not_found = int(mark.get("marked") or 0)
+        print(f"  mark_not_found={marked_not_found}", flush=True)
+
     if not updates:
         return {
             "ok": True,
             "updated": 0,
+            "marked_not_found": marked_not_found,
             "applied": [],
             "skipped": skipped,
-            "total_missing": total,
+            "total_missing": max(0, total - marked_not_found),
             "dry_run": False,
         }
 
@@ -165,8 +181,9 @@ def run_batch(
     print(f"  apply updated={len(applied)} skipped={len(apply.get('skipped') or [])}", flush=True)
     return {
         **apply,
+        "marked_not_found": marked_not_found,
         "skipped": skipped + list(apply.get("skipped") or []),
-        "total_missing": max(0, total - len(applied)),
+        "total_missing": max(0, total - len(applied) - marked_not_found),
         "dry_run": False,
     }
 
@@ -231,7 +248,14 @@ def main() -> int:
         batch=batch,
         ojad_gap=max(1.0, args.ojad_gap),
     )
-    print(json.dumps({k: result[k] for k in ("ok", "updated", "total_missing", "dry_run") if k in result}, ensure_ascii=False))
+    print(json.dumps(
+        {
+            k: result[k]
+            for k in ("ok", "updated", "marked_not_found", "total_missing", "dry_run")
+            if k in result
+        },
+        ensure_ascii=False,
+    ))
     return 0
 
 

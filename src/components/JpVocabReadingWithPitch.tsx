@@ -41,8 +41,13 @@ export function JpVocabReadingWithPitch({
     wordTrim,
     kind
   );
+  // 查到音调：平假名+横线；查不到：只显示库里读音原文
   const displayText =
-    kind === "word" ? readingText || readingTrim : readingTrim;
+    kind === "word"
+      ? pitch
+        ? readingText || readingTrim
+        : readingTrim
+      : readingTrim;
 
   if (!displayText) {
     if (kind === "word") {

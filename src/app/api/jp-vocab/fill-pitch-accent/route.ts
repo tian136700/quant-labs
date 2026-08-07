@@ -2,13 +2,14 @@ import { getCloudflareEnv, jsonResponse } from "@/lib/cloudflare-env";
 import {
   applyJpVocabPitchAccentUpdates,
   listJpVocabWordsMissingPitchAccent,
+  markJpVocabPitchAccentNotFound,
   validateJpVocabPitchAccentForApply,
 } from "@/lib/jp-vocab-fill-pitch-accent";
 import { verifyUploadAuth } from "@/lib/jp-review";
 import { enforceVocabFillRouteRateLimit } from "@/lib/worker-api-rate-limit";
 
 type FillPitchAccentBody = {
-  mode?: "list_missing" | "apply";
+  mode?: "list_missing" | "apply" | "mark_not_found";
   dry_run?: boolean;
   limit?: number;
   allow_overwrite?: boolean;
@@ -17,6 +18,8 @@ type FillPitchAccentBody = {
     pitch_accent?: unknown;
     source?: string;
   }>;
+  /** OJAD 查无：只标 OJAD_NONE，UI 只显示普通读音 */
+  word_ids?: number[];
 };
 
 export async function POST(request: Request) {
@@ -41,6 +44,24 @@ export async function POST(request: Request) {
       /* empty → list_missing */
     }
 
+    if (body.mode === "mark_not_found") {
+      const ids = (Array.isArray(body.word_ids) ? body.word_ids : [])
+        .map((id) => Number(id))
+        .filter((id) => Number.isInteger(id) && id > 0);
+      if (ids.length === 0) {
+        return jsonResponse({ ok: false, error: "No word_ids" }, 400);
+      }
+      const result = await markJpVocabPitchAccentNotFound(env.DB, ids, {
+        dryRun: Boolean(body.dry_run),
+      });
+      return jsonResponse({
+        ok: true,
+        mode: "mark_not_found",
+        ...result,
+        dry_run: Boolean(body.dry_run),
+      });
+    }
+
     const updatesRaw = Array.isArray(body.updates) ? body.updates : [];
     const updates = updatesRaw
       .map((item) => {
@@ -56,7 +77,8 @@ export async function POST(request: Request) {
       })
       .filter((item): item is NonNullable<typeof item> => item != null);
 
-    const mode = updates.length > 0 ? "apply" : body.mode === "apply" ? "apply" : "list_missing";
+    const mode =
+      updates.length > 0 ? "apply" : body.mode === "apply" ? "apply" : "list_missing";
 
     if (mode === "list_missing") {
       const missing = await listJpVocabWordsMissingPitchAccent(

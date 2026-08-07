@@ -13,8 +13,8 @@ type Props = {
 };
 
 /**
- * 卡片信息区「词性」行：词性 pill + 「读音」标签 + 平假名读音（OJAD 顶横线）。
- * 不改 word 存库；顶部英雄区仍显示原词条。
+ * 卡片信息区「词性」行：词性 pill + 「读音」标签 +（有 OJAD 时）平假名顶横线。
+ * OJAD 查无：pitch 为空，只显示库里读音，不多提示。
  */
 export function JpVocabFlashcardPosWithReading({
   posTrim,
@@ -24,11 +24,12 @@ export function JpVocabFlashcardPosWithReading({
   pitchAccent,
 }: Props) {
   const showReading = kind === "word";
+  const readingTrim = (reading ?? "").trim();
   const { readingText, pitch } = showReading
     ? resolveJpVocabReadingPitchDisplay(pitchAccent, reading, word, kind)
-    : { readingText: (reading ?? "").trim(), pitch: null };
-  const readingDisplay =
-    readingText || (reading ?? "").trim() || (showReading ? "" : "");
+    : { readingText: readingTrim, pitch: null };
+  // 无音调时用库里读音原文；有音调时用平假名+横线
+  const readingDisplay = pitch ? readingText || readingTrim : readingTrim;
 
   const readingBody = (() => {
     if (!showReading) return null;

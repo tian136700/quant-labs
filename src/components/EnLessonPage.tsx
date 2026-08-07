@@ -15,6 +15,10 @@ import {
 } from "@/components/en-lesson-page/EnLessonImportScheduleBridge";
 import { EnLessonApiUploadHelp } from "@/components/en-lesson-page/EnLessonApiUploadHelp";
 import { EnLessonCreateBridge } from "@/components/en-lesson-page/EnLessonCreateBridge";
+import {
+  EnLessonEditBridge,
+  type EnLessonEditApi,
+} from "@/components/en-lesson-page/EnLessonEditBridge";
 import { EnLessonPageHeader } from "@/components/en-lesson-page/EnLessonPageHeader";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
@@ -114,6 +118,7 @@ export function EnLessonPage() {
   const [copyToast, setCopyToast] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const importScheduleApiRef = useRef<EnLessonImportScheduleApi | null>(null);
+  const editContentApiRef = useRef<EnLessonEditApi | null>(null);
   const [mobileStatusFilter, setMobileStatusFilterState] =
     useState<EnLessonProgressStatus>(() =>
       readStoredLessonMobileStatusFilter(EN_LESSON_MOBILE_STATUS_FILTER_KEY)
@@ -133,6 +138,7 @@ export function EnLessonPage() {
     mediaType?: "image" | "pdf";
   } | null>(null);
   const [expandedContentIds, setExpandedContentIds] = useState<Record<number, boolean>>({});
+  const [expandedMeaningsIds, setExpandedMeaningsIds] = useState<Record<number, boolean>>({});
   const [classTimeSortOrder, setClassTimeSortOrder] =
     useState<EnLessonClassTimeSortOrder>("asc");
 
@@ -143,6 +149,12 @@ export function EnLessonPage() {
     }));
   }, []);
 
+  const toggleMeaningsExpanded = useCallback((lessonId: number) => {
+    setExpandedMeaningsIds((prev) => ({
+      ...prev,
+      [lessonId]: !prev[lessonId],
+    }));
+  }, []);
   const toggleClassTimeSortOrder = useCallback(() => {
     setClassTimeSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
   }, []);
@@ -845,14 +857,19 @@ export function EnLessonPage() {
                     savingTeacherId={savingTeacherId}
                     noteCountByLesson={noteCountByLesson}
                     expandedContentIds={expandedContentIds}
+                    expandedMeaningsIds={expandedMeaningsIds}
                     deletingId={deletingId}
                     savingId={savingId}
                     savingNextClassId={savingNextClassId}
                     copiedId={copiedId}
                     onToggleClassTimeSort={toggleClassTimeSortOrder}
                     onToggleContentExpanded={toggleContentExpanded}
+                    onToggleMeaningsExpanded={toggleMeaningsExpanded}
                     onSetLessonProgress={setLessonProgress}
                     onEditLesson={setEditingLesson}
+                    onEditContent={(lesson) => {
+                      editContentApiRef.current?.open(lesson);
+                    }}
                     onAnnotateLesson={setAnnotatingLesson}
                     onOpenTeacherEdit={setEditingTeacherLesson}
                     onOpenNextClassEdit={setEditingNextClassLesson}
@@ -888,6 +905,23 @@ export function EnLessonPage() {
         setMobileStatusFilter={setMobileStatusFilter}
         setStatus={setStatus}
         loadLessons={loadLessons}
+      />
+
+      <EnLessonEditBridge
+        locale={locale}
+        apiRef={editContentApiRef}
+        onNeedLogin={openEnAuth}
+        onUpdated={(lesson) => {
+          setLessons((prev) => {
+            const next = prev.map((item) =>
+              item.id === lesson.id ? { ...item, ...lesson } : item
+            );
+            persistLessonCache(next, refs, notes, teachers);
+            return next;
+          });
+          setStatus(`已更新新课 #${lesson.id}`);
+          window.setTimeout(() => setStatus(""), 2500);
+        }}
       />
 
       <EnLessonTeacherEditModal

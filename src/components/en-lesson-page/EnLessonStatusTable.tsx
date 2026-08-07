@@ -58,6 +58,8 @@ export type EnLessonStatusTableProps = {
   onToggleMeaningsExpanded: (lessonId: number) => void;
   onSetLessonProgress: (lessonId: number, status: EnLessonProgressStatus) => void | Promise<void>;
   onEditLesson: (lesson: EnLessonRecord) => void;
+  /** 编辑课次本体（内容/释义等）；勿接到换教案 */
+  onEditContent: (lesson: EnLessonRecord) => void;
   onAnnotateLesson: (payload: {
     lesson: EnLessonRecord;
     ref: EnVocabRef;
@@ -95,6 +97,7 @@ export function EnLessonStatusTable({
   onToggleMeaningsExpanded,
   onSetLessonProgress,
   onEditLesson,
+  onEditContent,
   onAnnotateLesson,
   onOpenTeacherEdit,
   onOpenNextClassEdit,
@@ -142,16 +145,26 @@ export function EnLessonStatusTable({
       return canOperate || isAdmin ? (
         <div className="jp-lesson-actions">
           {canOperate ? (
-            <button
-              type="button"
-              className="jp-lesson-action-btn"
-              onClick={() => onEditLesson(lesson)}
-            >
-              <span className="jp-lesson-mobile-btn-icon" aria-hidden="true">
-                <EnLessonMobileIcon name="upload" />
-              </span>
-              上传教案
-            </button>
+            <>
+              <button
+                type="button"
+                className="jp-lesson-action-btn"
+                title="编辑类型、分类、学习内容、释义、备注、标题"
+                onClick={() => onEditContent(lesson)}
+              >
+                编辑
+              </button>
+              <button
+                type="button"
+                className="jp-lesson-action-btn"
+                onClick={() => onEditLesson(lesson)}
+              >
+                <span className="jp-lesson-mobile-btn-icon" aria-hidden="true">
+                  <EnLessonMobileIcon name="upload" />
+                </span>
+                上传教案
+              </button>
+            </>
           ) : null}
           {isAdmin ? (
             <button
@@ -268,6 +281,17 @@ export function EnLessonStatusTable({
     if (canOperate) {
       actionItems.push(
         <button
+          key="edit-content"
+          type="button"
+          className="jp-lesson-action-btn"
+          title="编辑类型、分类、学习内容、释义、备注、标题"
+          onClick={() => onEditContent(lesson)}
+        >
+          编辑
+        </button>
+      );
+      actionItems.push(
+        <button
           key="import-schedule"
           type="button"
           className="jp-lesson-action-btn"
@@ -279,7 +303,7 @@ export function EnLessonStatusTable({
       );
       actionItems.push(
         <EnEditIconButton
-          key="edit"
+          key="edit-ref"
           title="编辑教案（弹窗）"
           onClick={() => onEditLesson(lesson)}
         />
@@ -296,6 +320,30 @@ export function EnLessonStatusTable({
       if (canOperate) {
         buttons.push(
           <button
+            key={`edit-content-${lesson.id}`}
+            type="button"
+            className="jp-lesson-mobile-footer-btn"
+            onClick={() => onEditContent(lesson)}
+          >
+            <EnLessonMobileIcon name="edit" />
+            <span>{groupLessons.length > 1 ? `#${lesson.id} ` : ""}编辑</span>
+          </button>
+        );
+        buttons.push(
+          <button
+            key={`edit-ref-${lesson.id}`}
+            type="button"
+            className="jp-lesson-mobile-footer-btn"
+            onClick={() => onEditLesson(lesson)}
+          >
+            <EnLessonMobileIcon name="pen" />
+            <span>
+              {groupLessons.length > 1 ? `#${lesson.id} ` : ""}换教案
+            </span>
+          </button>
+        );
+        buttons.push(
+          <button
             key={`import-schedule-${lesson.id}`}
             type="button"
             className="jp-lesson-mobile-footer-btn"
@@ -305,17 +353,6 @@ export function EnLessonStatusTable({
             <span>
               {groupLessons.length > 1 ? `#${lesson.id} ` : ""}引入日程
             </span>
-          </button>
-        );
-        buttons.push(
-          <button
-            key={`edit-${lesson.id}`}
-            type="button"
-            className="jp-lesson-mobile-footer-btn"
-            onClick={() => onEditLesson(lesson)}
-          >
-            <EnLessonMobileIcon name="edit" />
-            <span>{groupLessons.length > 1 ? `#${lesson.id} ` : ""}编辑课程</span>
           </button>
         );
       }
@@ -644,8 +681,26 @@ export function EnLessonStatusTable({
                                 备注：{lesson.remarks}
                               </p>
                             ) : null}
+                            <p className="jp-lesson-mobile-meanings-inline">
+                              <span className="jp-lesson-mobile-meanings-label">释义</span>
+                              <EnLessonMeaningsPreview
+                                content={lesson.content}
+                                meanings={lesson.meanings}
+                                expanded={Boolean(expandedMeaningsIds[lesson.id])}
+                                onToggle={() => onToggleMeaningsExpanded(lesson.id)}
+                              />
+                            </p>
                             {canOperate ? (
                               <div className="jp-lesson-mobile-examples-toolbar">
+                                <button
+                                  type="button"
+                                  className="jp-lesson-mobile-content-edit"
+                                  title={`编辑 #${lesson.id} 学习内容与释义`}
+                                  aria-label={`编辑 #${lesson.id} 学习内容与释义`}
+                                  onClick={() => onEditContent(lesson)}
+                                >
+                                  编辑
+                                </button>
                                 <button
                                   type="button"
                                   className="jp-lesson-mobile-content-edit"
@@ -653,7 +708,7 @@ export function EnLessonStatusTable({
                                   aria-label={`修改 #${lesson.id} 教案`}
                                   onClick={() => onEditLesson(lesson)}
                                 >
-                                  修改
+                                  换教案
                                 </button>
                               </div>
                             ) : null}
@@ -662,6 +717,23 @@ export function EnLessonStatusTable({
                       </div>
                       );
                     })}
+                  </div>
+                </td>
+                <td data-label="释义" className="jp-lesson-meanings-col">
+                  <div className={stackClass.trim() || undefined}>
+                    {group.lessons.map((lesson) => (
+                      <div
+                        key={lesson.id}
+                        className={merged ? "jp-lesson-merged-stack-item" : undefined}
+                      >
+                        <EnLessonMeaningsPreview
+                          content={lesson.content}
+                          meanings={lesson.meanings}
+                          expanded={Boolean(expandedMeaningsIds[lesson.id])}
+                          onToggle={() => onToggleMeaningsExpanded(lesson.id)}
+                        />
+                      </div>
+                    ))}
                   </div>
                 </td>
                 <td data-label="词/短语数" className="jp-lesson-content-count-col">

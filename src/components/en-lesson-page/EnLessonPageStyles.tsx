@@ -256,6 +256,45 @@ export function EnLessonPageStyles() {
           min-width: 0;
           max-width: 100%;
         }
+        :global(.jp-lesson-meanings-col) {
+          min-width: 0;
+          width: 14%;
+          color: var(--muted);
+          font-size: 0.8125rem;
+          word-break: break-word;
+        }
+        :global(.jp-lesson-meanings-preview) {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 0.25rem;
+          min-width: 0;
+          max-width: 100%;
+        }
+        :global(.jp-lesson-meanings-lines) {
+          display: flex;
+          flex-direction: column;
+          gap: 0.2rem;
+          line-height: 1.45;
+          min-width: 0;
+          max-width: 100%;
+        }
+        :global(.jp-lesson-meanings-preview.is-clamped .jp-lesson-meanings-lines) {
+          display: -webkit-box;
+          -webkit-box-orient: vertical;
+          -webkit-line-clamp: 2;
+          overflow: hidden;
+        }
+        :global(.jp-lesson-meanings-line) {
+          display: block;
+          word-break: break-word;
+        }
+        :global(.jp-lesson-examples-empty) {
+          color: var(--muted);
+        }
+        :global(.jp-lesson-mobile-meanings-inline) {
+          display: none;
+        }
         :global(.en-lesson-remarks-preview) {
           margin: 0.35rem 0 0;
           font-size: 0.78125rem;
@@ -276,6 +315,21 @@ export function EnLessonPageStyles() {
         @media (max-width: 767px) {
           :global(.en-lesson-remarks-preview--mobile) {
             display: -webkit-box;
+          }
+          :global(.jp-lesson-page--en .jp-lesson-meanings-col) {
+            display: none !important;
+          }
+          :global(.jp-lesson-page--en .jp-lesson-mobile-meanings-inline) {
+            display: block;
+            margin: 0.35rem 0 0;
+            font-size: 0.8125rem;
+            line-height: 1.45;
+            color: var(--muted);
+          }
+          :global(.jp-lesson-page--en .jp-lesson-mobile-meanings-label) {
+            margin-right: 0.35rem;
+            color: var(--text);
+            font-weight: 500;
           }
         }
         :global(.jp-lesson-content-lines) {
