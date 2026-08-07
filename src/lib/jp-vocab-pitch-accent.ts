@@ -93,7 +93,56 @@ export function resolveJpVocabPitchAccentForWord(
 }
 
 /**
- * 把 OJAD 各拍音调套到**页面原读音**上（保留片假名/原文），禁止用 OJAD 平假名替换展示。
+ * 读音区展示：词条 word 保持原文；读音可显示平假名，音调横线只标在读音上。
+ * DB 读音与词条同形（如片假名 イギリス）且有 OJAD 时，读音区用 pitch.kana（平假名）画线。
+ */
+export function resolveJpVocabReadingPitchDisplay(
+  pitchAccent: string | JpVocabPitchAccent | null | undefined,
+  reading: string | null | undefined,
+  word: string | null | undefined,
+  kind: "word" | "grammar" | null | undefined
+): { readingText: string; pitch: JpVocabPitchAccent | null } {
+  const readingTrim = (reading ?? "").trim();
+  const wordTrim = (word ?? "").trim();
+
+  if (kind !== "word") {
+    return { readingText: readingTrim, pitch: null };
+  }
+
+  const pitch = resolveJpVocabPitchAccentForWord(
+    pitchAccent,
+    readingTrim,
+    wordTrim,
+    kind
+  );
+  if (!pitch) {
+    return { readingText: readingTrim, pitch: null };
+  }
+
+  if (!readingTrim) {
+    return { readingText: pitch.kana, pitch };
+  }
+
+  if (
+    normalizeKanaForPitchCompare(readingTrim) !== normalizeKanaForPitchCompare(pitch.kana)
+  ) {
+    return { readingText: readingTrim, pitch: null };
+  }
+
+  const readingSameAsWord =
+    readingTrim === wordTrim ||
+    (wordTrim &&
+      normalizeKanaForPitchCompare(readingTrim) ===
+        normalizeKanaForPitchCompare(wordTrim));
+
+  return {
+    readingText: readingSameAsWord ? pitch.kana : readingTrim,
+    pitch,
+  };
+}
+
+/**
+ * 把 OJAD 各拍音调套到读音展示文字上（读音区可为平假名；词条 word 字段不在此处理）。
  * 长度或读音对不上则返回 null（调用方回退为纯读音文字）。
  */
 export function mapJpVocabPitchAccentOntoDisplayText(

@@ -1,7 +1,7 @@
 "use client";
 
 import { JpVocabPitchAccentText } from "@/components/JpVocabPitchAccentText";
-import { resolveJpVocabPitchAccentForWord } from "@/lib/jp-vocab-pitch-accent";
+import { resolveJpVocabReadingPitchDisplay } from "@/lib/jp-vocab-pitch-accent";
 import type { JpVocabKind } from "@/lib/types";
 
 type Props = {
@@ -21,7 +21,7 @@ type Props = {
 };
 
 /**
- * 词表「读音」列：保留原读音文字，有音调时只在字上画横线（不改 word/reading 存库）。
+ * 词表「读音」列：读音可显示平假名；音调横线只标在读音上（不改 word 存库）。
  */
 export function JpVocabReadingWithPitch({
   reading,
@@ -35,13 +35,14 @@ export function JpVocabReadingWithPitch({
 }: Props) {
   const readingTrim = (reading ?? "").trim();
   const wordTrim = (word ?? "").trim();
-  const displayText = readingTrim || (kind === "word" ? wordTrim : readingTrim);
-  const pitch = resolveJpVocabPitchAccentForWord(
+  const { readingText, pitch } = resolveJpVocabReadingPitchDisplay(
     pitchAccent,
     readingTrim,
     wordTrim,
     kind
   );
+  const displayText =
+    kind === "word" ? readingText || readingTrim : readingTrim;
 
   if (!displayText) {
     if (kind === "word") {

@@ -3,133 +3,56 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>音调横线视觉样例（不改词条）</title>
+  <title>音调：单词原文 + 读音平假名横线</title>
   <style>
-    :root {
-      --bg: #1a1d24;
-      --fg: #f2f4f8;
-      --muted: #9aa3b2;
-      --rise: #e85d6f;
-    }
-    body {
-      margin: 0;
-      font-family: "Hiragino Sans", "PingFang SC", sans-serif;
-      background: var(--bg);
-      color: var(--fg);
-      padding: 2rem;
-    }
-    h1 { font-size: 1.1rem; font-weight: 600; }
-    .note { color: var(--muted); font-size: 0.9rem; max-width: 40rem; line-height: 1.5; }
-    .card {
-      margin-top: 1.5rem;
-      padding: 1.25rem 1.5rem;
-      border: 1px solid #2c3340;
-      border-radius: 12px;
-      max-width: 28rem;
-    }
-    .label { color: var(--muted); margin-right: 0.35rem; }
-    .hero { font-size: 2.1rem; font-weight: 700; letter-spacing: 0.04em; }
-    .table { font-size: 1rem; color: var(--muted); margin-top: 0.75rem; }
-    .jp-vocab-pitch-accent {
-      display: inline-flex;
-      flex-wrap: wrap;
-      align-items: flex-end;
-      letter-spacing: 0.04em;
-      color: inherit;
-      font-weight: inherit;
-    }
-    .jp-vocab-pitch-accent__mora {
-      display: inline-block;
-      min-width: 1.05em;
-      text-align: center;
-      padding-top: 0.22em;
-      box-sizing: border-box;
-    }
-    .jp-vocab-pitch-accent__mora--high {
-      border-top: 2px solid currentColor;
-    }
-    .jp-vocab-pitch-accent__mora--nucleus {
-      color: var(--rise);
-      border-top: 2px solid var(--rise);
-    }
-    .check { margin-top: 1rem; font-size: 0.95rem; }
-    .ok { color: #3fb983; }
+    :root { --bg: #1a1d24; --fg: #f2f4f8; --muted: #9aa3b2; --rise: #e85d6f; }
+    body { margin: 0; font-family: "Hiragino Sans", "PingFang SC", sans-serif; background: var(--bg); color: var(--fg); padding: 2rem; }
+    .note { color: var(--muted); font-size: 0.9rem; max-width: 42rem; line-height: 1.55; }
+    .card { margin-top: 1.25rem; padding: 1.25rem 1.5rem; border: 1px solid #2c3340; border-radius: 12px; max-width: 30rem; }
+    .word-row { font-size: 2rem; font-weight: 700; }
+    .label { color: var(--muted); margin-right: 0.35rem; font-size: 1.2rem; }
+    .reading-row { margin-top: 0.4rem; font-size: 1.45rem; color: var(--muted); font-weight: 600; }
+    .table { margin-top: 1rem; color: var(--muted); }
+    .jp-vocab-pitch-accent { display: inline-flex; flex-wrap: wrap; align-items: flex-end; letter-spacing: 0.04em; }
+    .jp-vocab-pitch-accent__mora { display: inline-block; min-width: 1.05em; text-align: center; padding-top: 0.22em; }
+    .jp-vocab-pitch-accent__mora--high { border-top: 2px solid currentColor; }
+    .ok { color: #3fb983; margin-top: 1rem; }
+    .fail { color: var(--rise); margin-top: 1rem; }
   </style>
 </head>
 <body>
-  <h1>音调样例：原读音保留 + 上方横线</h1>
-  <p class="note">
-    库里 word/reading 仍是「イギリス」。OJAD 内部是平假名「いぎりす」LHHH，
-    展示必须仍是片假名，只在字顶画线。若这里变成「いぎりす」即回归失败。
-  </p>
+  <h1>单词原文 + 读音平假名（横线只标读音）</h1>
+  <p class="note">DB：word=イギリス、reading=イギリス。卡片「单词」仍片假名；「读音」显示 いぎりす + 横线。列表读音列同规则。</p>
   <div class="card">
-    <div class="hero">
-      <span class="label">单词：</span>
-      <span class="jp-vocab-pitch-accent" id="hero" aria-label="音调 LHHH"></span>
-    </div>
-    <div class="table">
-      <span class="label">列表读音：</span>
-      <span class="jp-vocab-pitch-accent" id="table"></span>
-    </div>
-    <p class="check" id="result"></p>
+    <div class="word-row"><span class="label">单词：</span><span id="word">イギリス</span></div>
+    <div class="reading-row"><span class="jp-vocab-pitch-accent" id="reading"></span></div>
+    <div class="table"><span class="label">列表读音：</span><span class="jp-vocab-pitch-accent" id="table"></span></div>
+    <p id="result"></p>
   </div>
   <script>
-    /** @type {{c:string,p:'L'|'H'|'N'}[]} */
-    const ojAdMoras = [
-      { c: "い", p: "L" },
-      { c: "ぎ", p: "H" },
-      { c: "り", p: "H" },
-      { c: "す", p: "H" },
-    ];
-    const displayText = "イギリス"; // 页面原读音，禁止改成 OJAD 平假名
-
-    function normalize(t) {
-      return t.replace(/\s/g, "").replace(/[\u30A1-\u30F6]/g, (ch) =>
-        String.fromCharCode(ch.charCodeAt(0) - 0x60)
-      );
-    }
-    function mapOnto(display, moras) {
-      const text = display.replace(/\s/g, "");
-      const kana = moras.map((m) => m.c).join("");
-      if (normalize(text) !== normalize(kana)) return null;
-      const expected = moras.reduce((n, m) => n + m.c.length, 0);
-      if (text.length !== expected) return null;
-      let i = 0;
-      return moras.map((m) => {
-        const c = text.slice(i, i + m.c.length);
-        i += m.c.length;
-        return { c, p: m.p };
-      });
-    }
-    function render(el, moras) {
+    const word = "イギリス";
+    const dbReading = "イギリス";
+    const pitchKana = "いぎりす";
+    const moras = [{c:"い",p:"L"},{c:"ぎ",p:"H"},{c:"り",p:"H"},{c:"す",p:"H"}];
+    function norm(t){ return t.replace(/[\u30A1-\u30F6]/g,ch=>String.fromCharCode(ch.charCodeAt(0)-0x60)); }
+    function readingDisplay(dbR, w, pk){ return (dbR===w||norm(dbR)===norm(w)) ? pk : dbR; }
+    function render(el, text, ms){
       el.replaceChildren();
-      for (const m of moras) {
-        const span = document.createElement("span");
-        span.className =
-          m.p === "H"
-            ? "jp-vocab-pitch-accent__mora jp-vocab-pitch-accent__mora--high"
-            : m.p === "N"
-              ? "jp-vocab-pitch-accent__mora jp-vocab-pitch-accent__mora--nucleus"
-              : "jp-vocab-pitch-accent__mora";
-        span.textContent = m.c;
-        el.appendChild(span);
+      let i=0;
+      for(const m of ms){
+        const span=document.createElement("span");
+        span.className=m.p==="H"?"jp-vocab-pitch-accent__mora jp-vocab-pitch-accent__mora--high":"jp-vocab-pitch-accent__mora";
+        span.textContent=text.slice(i,i+m.c.length); i+=m.c.length; el.appendChild(span);
       }
     }
-    const mapped = mapOnto(displayText, ojAdMoras);
-    const result = document.getElementById("result");
-    if (!mapped) {
-      result.textContent = "映射失败";
-      result.className = "check";
-    } else {
-      render(document.getElementById("hero"), mapped);
-      render(document.getElementById("table"), mapped);
-      const shown = mapped.map((m) => m.c).join("");
-      const ok = shown === "イギリス" && !shown.includes("い");
-      result.textContent = ok
-        ? "通过：显示仍是「イギリス」，横线叠在原读音上"
-        : "失败：展示文字被改成了 " + shown;
-      result.className = "check " + (ok ? "ok" : "");
-    }
+    const rd = readingDisplay(dbReading, word, pitchKana);
+    document.getElementById("word").textContent = word;
+    render(document.getElementById("reading"), rd, moras);
+    render(document.getElementById("table"), rd, moras);
+    const ok = document.getElementById("word").textContent==="イギリス" && rd==="いぎりす";
+    const el=document.getElementById("result");
+    el.textContent = ok ? "通过：单词=片假名，读音=平假名+横线" : "失败";
+    el.className = ok ? "ok" : "fail";
   </script>
 </body>
 </html>

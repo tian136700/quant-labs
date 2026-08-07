@@ -36,14 +36,16 @@ def main() -> None:
     hero = (ROOT / "src/components/JpVocabFlashcardWordHero.tsx").read_text(
         encoding="utf-8"
     )
-    if "displayText={readingTrim}" not in hero:
-        fail("flashcard hero must pass readingTrim as displayText")
+    if "resolveJpVocabReadingPitchDisplay" not in hero:
+        fail("flashcard hero must use resolveJpVocabReadingPitchDisplay")
+    if "jp-vocab-teacher-quiz__word-main" not in hero:
+        fail("flashcard hero must show word in original script")
 
     reading = (ROOT / "src/components/JpVocabReadingWithPitch.tsx").read_text(
         encoding="utf-8"
     )
-    if "displayText={displayText}" not in reading:
-        fail("table reading cell must pass original displayText")
+    if "resolveJpVocabReadingPitchDisplay" not in reading:
+        fail("table reading cell must use resolveJpVocabReadingPitchDisplay")
 
     print("ok: pitch accent overlays original reading (no OJAD kana swap)")
 

@@ -423,6 +423,20 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           font-weight: 700;
           line-height: 1.25;
         }
+        .jp-vocab-teacher-quiz__pitch-reading-row {
+          margin-top: 0.35rem;
+        }
+        .jp-vocab-teacher-quiz__pitch-reading {
+          font-size: clamp(1.35rem, 5vw, 1.75rem);
+          font-weight: 600;
+          letter-spacing: 0.04em;
+          line-height: 1.25;
+          color: var(--muted);
+        }
+        .jp-vocab-teacher-quiz__reading-pending {
+          font-size: clamp(0.95rem, 3.5vw, 1.05rem);
+          color: color-mix(in srgb, var(--muted) 80%, transparent);
+        }
         /* 英语卡：「单词：」与拼写同字号；音标缩小贴本行右下角 */
         .en-vocab-flashcard-reading-row {
           width: 100%;
