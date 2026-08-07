@@ -57,6 +57,8 @@ def main() -> int:
         return fail("deploy-auto-fix-stop must allow orphan followup after source session ends")
     if "_materialize_failure_from_mc" not in fix:
         return fail("deploy-auto-fix-stop must materialize failure from maintenance center")
+    if "_mc_has_running_deploy" not in fix:
+        return fail("deploy-auto-fix-stop must skip followup while a newer deploy is running")
 
     if "conversation_id" not in feature:
         return fail("feature-remark-stop must store conversation_id in pending")
