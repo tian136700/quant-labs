@@ -558,8 +558,8 @@ export function useAdminUsersPageActions(options: UseAdminUsersPageActionsOption
 
     const confirmed = window.confirm(
       locale === "zh"
-        ? `本机没有「${username}」的密码记录。\n继续将生成新密码，旧密码立即失效，已登录会话会被踢下线。\n若只想复制现有密码，请取消后点「编辑」填写已知密码。\n是否生成新密码并复制？`
-        : `No saved password for "${username}" on this device.\nContinue will generate a new password, invalidate the old one, and sign out active sessions.\nTo copy the current password, cancel and use Edit to store it.\nGenerate a new password and copy it?`
+        ? `本机没有「${username}」的密码记录。\n继续将生成新密码，旧密码立即失效，其它设备上的登录将失效，当前设备也会下线。\n若只想复制现有密码，请取消后点「编辑」填写已知密码。\n是否生成新密码并复制？`
+        : `No saved password for "${username}" on this device.\nContinue will generate a new password, invalidate the old one, and sign out other devices; this device will also be signed out.\nTo copy the current password, cancel and use Edit to store it.\nGenerate a new password and copy it?`
     );
     if (!confirmed) return null;
 
@@ -590,8 +590,8 @@ export function useAdminUsersPageActions(options: UseAdminUsersPageActionsOption
       else if (url) showCopyFailure();
       setStatus(
         locale === "zh"
-          ? `已为 ${row.username} 生成新登录链接（旧链接与已登录状态已失效；登录后 ${data.session_days ?? 30} 天免登录）${copied ? "，已复制到剪贴板" : ""}：${url}`
-          : `New login link for ${row.username} (previous links and sessions invalidated; ${data.session_days ?? 30}-day session after sign-in)${copied ? ", copied" : ""}: ${url}`
+          ? `已为 ${row.username} 生成新登录链接（旧链接失效，其它设备需重新登录；登录后 ${data.session_days ?? 30} 天免登录）${copied ? "，已复制到剪贴板" : ""}：${url}`
+          : `New login link for ${row.username} (previous links invalidated; other devices must sign in again; ${data.session_days ?? 30}-day session after sign-in)${copied ? ", copied" : ""}: ${url}`
       );
     } catch {
       setStatus(locale === "zh" ? "生成链接失败" : "Failed to generate link");
@@ -707,8 +707,8 @@ export function useAdminUsersPageActions(options: UseAdminUsersPageActionsOption
 
     const confirmed = window.confirm(
       locale === "zh"
-        ? `确定更换「${username}」的密码吗？\n旧密码将立即失效，已登录会话会被踢下线。\n新密码会复制到剪贴板。`
-        : `Reset password for "${username}"?\nThe old password will stop working and active sessions will be signed out.\nThe new password will be copied to the clipboard.`
+        ? `确定更换「${username}」的密码吗？\n旧密码将立即失效，其它设备上的登录将失效，当前设备也会下线。\n新密码会复制到剪贴板。`
+        : `Reset password for "${username}"?\nThe old password will stop working and other devices will be signed out; this device will also be signed out.\nThe new password will be copied to the clipboard.`
     );
     if (!confirmed) return;
 
@@ -728,8 +728,8 @@ export function useAdminUsersPageActions(options: UseAdminUsersPageActionsOption
       openCredentialsConfirm(username, password);
       setStatus(
         locale === "zh"
-          ? `已更换 ${username} 的密码（旧密码与会话已失效），新密码已复制：${password}`
-          : `Password for ${username} reset (old password and sessions invalidated). New password copied: ${password}`
+          ? `已更换 ${username} 的密码（旧密码已失效，其它设备需重新登录），新密码已复制：${password}`
+          : `Password for ${username} reset (old password invalidated; other devices must sign in again). New password copied: ${password}`
       );
       setStatusErr(false);
       return;

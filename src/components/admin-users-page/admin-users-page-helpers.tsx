@@ -346,8 +346,8 @@ export function AdminUserActions({
           onClick={() => void onResetPassword(row)}
           title={
             locale === "zh"
-              ? "一键更换密码：旧密码立即失效并踢下线；新密码复制到剪贴板。系统保留账号（李老师 / user1）禁止"
-              : "One-click password reset: old password stops working and sessions are signed out; new password is copied. Bootstrap accounts cannot be random-reset"
+              ? "一键更换密码：旧密码立即失效，其它设备需重新登录；新密码复制到剪贴板。系统保留账号（李老师 / user1）禁止"
+              : "One-click password reset: old password stops working and other devices must sign in again; new password is copied. Bootstrap accounts cannot be random-reset"
           }
         >
           {resettingId === row.id

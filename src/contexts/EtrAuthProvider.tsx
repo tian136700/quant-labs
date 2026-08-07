@@ -167,8 +167,8 @@ export function EtrAuthProvider({ children }: { children: ReactNode }) {
         setAuthPanel({
           mode: "login",
           loginOnly: true,
-          title: "账号在其他设备登录",
-          subtitle: "当前设备已退出，请重新登录。",
+          title: "你已在别处登录",
+          subtitle: "当前设备已下线，请重新登录。",
         });
         return;
       }
