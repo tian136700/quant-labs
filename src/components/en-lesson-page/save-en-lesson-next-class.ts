@@ -17,11 +17,12 @@ export async function saveEnLessonNextClassWithMeta(options: {
     teacherOther: string | null,
     teacherUpdates?: EnLessonTeacherUpdateInput[],
     options?: { keepOpen?: boolean }
-  ) => Promise<void>;
+  ) => Promise<boolean | void>;
   setLessonClassSchedules: (
     lessonId: number,
-    schedules: EnLessonClassScheduleInput[]
-  ) => void | Promise<void>;
+    schedules: EnLessonClassScheduleInput[],
+    options?: { keepOpen?: boolean }
+  ) => void | Promise<boolean | void>;
 }): Promise<void> {
   const {
     lessonId,

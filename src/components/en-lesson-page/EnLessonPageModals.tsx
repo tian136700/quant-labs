@@ -20,6 +20,7 @@ import {
 } from "@/components/en-lesson-page/EnLessonEditBridge";
 import { saveEnLessonNextClassWithMeta } from "@/components/en-lesson-page/save-en-lesson-next-class";
 import { persistLessonCache, refViewUrl } from "@/components/en-lesson-page/en-lesson-page-helpers";
+import type { Locale } from "@/i18n/messages";
 import type { EnLessonProgressStatus } from "@/lib/en-lesson-shared";
 import type {
   EnLessonClassScheduleInput,
@@ -36,7 +37,7 @@ const EnLessonAnnotateModal = dynamic(
 );
 
 type Props = {
-  locale: string;
+  locale: Locale;
   canOperate: boolean;
   createOpen: boolean;
   setCreateOpen: (open: boolean) => void;
@@ -56,7 +57,7 @@ type Props = {
   setEditingTeacherLesson: (lesson: EnLessonRecord | null) => void;
   savingTeacherId: number | null;
   addLessonTeacher: (name: string) => Promise<EnLessonTeacher | null>;
-  deleteLessonTeacher: (teacherId: number) => Promise<boolean>;
+  deleteLessonTeacher: (teacherId: number, name: string) => Promise<boolean>;
   setLessonTeachers: (
     lessonId: number,
     teacherIds: number[],
@@ -183,16 +184,16 @@ export function EnLessonPageModals({
             onClose={() => setEditingTeacherLesson(null)}
             onAddTeacher={addLessonTeacher}
             onDeleteTeacher={deleteLessonTeacher}
-            onSave={(teacherIds, teacherOther, teacherUpdates, options) => {
-              if (editingTeacherLesson) {
-                return setLessonTeachers(
-                  editingTeacherLesson.id,
-                  teacherIds,
-                  teacherOther,
-                  teacherUpdates,
-                  options
-                );
-              }
+            onSave={async (teacherIds, teacherOther, teacherUpdates, options) => {
+              if (!editingTeacherLesson) return;
+              // Modal 约定 void|Promise<void>；setLessonTeachers 可能返回 boolean，勿直接 return
+              await setLessonTeachers(
+                editingTeacherLesson.id,
+                teacherIds,
+                teacherOther,
+                teacherUpdates,
+                options
+              );
             }}
           />
 

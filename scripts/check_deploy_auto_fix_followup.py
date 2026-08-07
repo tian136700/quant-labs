@@ -53,9 +53,24 @@ def main() -> int:
         return fail("deploy-auto-fix-stop must document skipping wait followup for Plan")
     if "conversation_id" not in fix:
         return fail("deploy-auto-fix-stop must scope failure followup by conversation_id")
+    if "ORPHAN_FOLLOWUP_SEC" not in fix and "_may_followup_fix" not in fix:
+        return fail("deploy-auto-fix-stop must allow orphan followup after source session ends")
+    if "_materialize_failure_from_mc" not in fix:
+        return fail("deploy-auto-fix-stop must materialize failure from maintenance center")
 
     if "conversation_id" not in feature:
         return fail("feature-remark-stop must store conversation_id in pending")
+    if "_spawn_wait_deploy" not in feature and "wait_deploy_result" not in feature:
+        return fail("feature-remark-stop must spawn wait_deploy after enqueue (belt+suspenders)")
+
+    session_hook = ROOT / ".cursor" / "hooks" / "deploy-auto-fix-session.py"
+    if not session_hook.is_file():
+        return fail("missing deploy-auto-fix-session.py")
+    if "deploy-auto-fix-session.py" not in hooks:
+        return fail("hooks.json sessionStart must include deploy-auto-fix-session.py")
+    session = session_hook.read_text(encoding="utf-8")
+    if "last_deploy_failure" not in session or "additional_context" not in session:
+        return fail("deploy-auto-fix-session must inject failure context")
 
     wait = WAIT.read_text(encoding="utf-8")
     if "/api/deploy-logs" not in wait:
@@ -73,6 +88,10 @@ def main() -> int:
         return fail("deploy-auto-fix-followup.mdc must forbid wait followup interrupting Plan")
     if "后台" not in rule and "spawn" not in rule:
         return fail("rule must describe background wait")
+    if "orphan" not in rule.lower() and "90" not in rule:
+        return fail("rule must document orphan followup")
+    if "deploy-auto-fix-session" not in rule:
+        return fail("rule must mention sessionStart deploy-auto-fix-session")
 
     bark = (ROOT / "scripts" / "maintenance_center" / "bark_notify.py").read_text(
         encoding="utf-8"
