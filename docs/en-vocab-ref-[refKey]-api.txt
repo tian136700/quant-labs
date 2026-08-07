@@ -1,0 +1,116 @@
+英语抽背 · 教案/参考资料字节 API（给脚本 / 预览页 / 外链）
+======================================================
+
+用途
+----
+按 `ref_key` 读取英语教案文件（PNG 图片或 PDF），或只拉轻量元数据。
+
+典型 ref_key：
+- `lesson-{新课id}` — 英语新课上传的教案
+
+页面入口：
+- 英语抽背词表 / 抽查卡「查看教案」
+- `/en-vocab/ref/{refKey}` 整页查看
+- 英语新课列表「查看」
+
+**media_type 纠偏**：若 D1 里 `media_type=image` 但 `r2_key` 以 `.pdf` 结尾，
+接口与 `?meta=1` 会按 **r2_key 扩展名** 返回 `pdf`，并设正确 Content-Type。
+
+
+线上地址
+--------
+GET https://english.info-quests.com/api/en-vocab/ref/{refKey}
+
+说明：
+- `{refKey}` 须 URL 编码
+- 也可用 `finance.info-quests.com` 同路径（同一 Worker / 同一 D1）
+
+
+本机开发（可选）
+---------------
+GET http://127.0.0.1:3002/api/en-vocab/ref/{refKey}
+
+
+鉴权
+----
+| 模式 | 鉴权 |
+|------|------|
+| inline 预览（默认） | **无需登录** |
+| `?meta=1` | 无需登录 |
+| `?download=1` 且 **PDF** | 无需登录 |
+| `?download=1` 且 **图片** | 须 **管理员** Cookie 会话 |
+
+外部脚本探测类型/版本优先 `?meta=1`。
+
+
+请求参数（Query）
+-----------------
+| 参数 | 说明 |
+|------|------|
+| meta | `1` → JSON 元数据 only |
+| download | `1` → 附件下载 |
+| v | 客户端缓存戳（optional） |
+
+示例：
+  GET …/api/en-vocab/ref/lesson-12?meta=1
+  GET …/api/en-vocab/ref/lesson-12?download=1
+
+
+成功响应
+--------
+
+1) `?meta=1`
+
+{
+  "ref_key": "lesson-12",
+  "updated_at": "2026-07-15 10:00:00",
+  "media_type": "image"
+}
+
+2) 二进制 inline / download
+
+| media_type | Content-Type |
+|------------|--------------|
+| pdf | application/pdf |
+| image | image/png |
+
+R2 路径：`vocab-ref/{refKey}.pdf` 或 `.png`（与日语共用 `JP_REVIEW` 桶前缀）。
+
+download 文件名：对应英语新课时用 `{id}. Word Learn|Grammar Learn (word1, …)`；
+否则 `{refKey}.pdf|png`。
+
+
+失败响应
+--------
+404  Not found / Reference file not uploaded yet
+403  Forbidden（图片 download 非管理员）
+500  纯文本错误信息
+
+
+curl 示例
+---------
+curl -sS 'https://english.info-quests.com/api/en-vocab/ref/lesson-12?meta=1'
+
+curl -sS -o /tmp/en-lesson-12.png \
+  'https://english.info-quests.com/api/en-vocab/ref/lesson-12'
+
+
+Python 最小示例
+---------------
+import json
+import urllib.parse
+import urllib.request
+
+REF_KEY = "lesson-12"
+BASE = "https://english.info-quests.com/api/en-vocab/ref"
+
+meta_url = f"{BASE}/{urllib.parse.quote(REF_KEY)}?meta=1"
+with urllib.request.urlopen(meta_url, timeout=30) as resp:
+    meta = json.loads(resp.read().decode("utf-8"))
+
+ext = "pdf" if meta.get("media_type") == "pdf" else "png"
+file_url = f"{BASE}/{urllib.parse.quote(REF_KEY)}"
+with urllib.request.urlopen(file_url, timeout=120) as resp:
+    path = f"/tmp/{REF_KEY}.{ext}"
+    open(path, "wb").write(resp.read())
+    print("saved", path)

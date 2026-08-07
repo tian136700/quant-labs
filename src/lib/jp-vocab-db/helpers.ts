@@ -401,6 +401,24 @@ export async function ensureVocabWordSchema(db: D1Database): Promise<void> {
       if (!/duplicate column name/i.test(msg)) throw err;
     }
   }
+  if (!cols.has("pitch_accent")) {
+    try {
+      await db.prepare(`ALTER TABLE jp_vocab_word ADD COLUMN pitch_accent TEXT`).run();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!/duplicate column name/i.test(msg)) throw err;
+    }
+  }
+  if (!cols.has("pitch_accent_source")) {
+    try {
+      await db
+        .prepare(`ALTER TABLE jp_vocab_word ADD COLUMN pitch_accent_source TEXT`)
+        .run();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!/duplicate column name/i.test(msg)) throw err;
+    }
+  }
   jpVocabDbState.vocabWordSchemaReady = true;
 }
 
@@ -412,7 +430,8 @@ export async function ensureJpVocabWordSchema(db: D1Database): Promise<void> {
 export const WORD_SELECT = `SELECT id, word, reading, meaning, pos, kind, ref_key,
   cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, mnemonic, annotation, course_label,
   oral_frequency, exam_frequency, example_sentences,
-  example_sentences_source, meaning_source, pos_source, usage, usage_source, connection, connection_source,
+  example_sentences_source, meaning_source, pos_source, pitch_accent, pitch_accent_source,
+  usage, usage_source, connection, connection_source,
   related_compounds, related_compounds_source,
   last_review_level, last_review_at, srs_interval_days, srs_due_date, created_at, updated_at FROM jp_vocab_word`;
 

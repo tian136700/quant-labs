@@ -66,6 +66,18 @@ REQUIRED: list[tuple[str, str]] = [
         "src/app/api/analytics/worker-1102/route.ts",
         "docs/analytics-worker-1102-api.txt",
     ),
+    (
+        "src/app/api/jp-vocab/ref/[refKey]/route.ts",
+        "docs/jp-vocab-ref-[refKey]-api.txt",
+    ),
+    (
+        "src/app/api/en-vocab/ref/[refKey]/route.ts",
+        "docs/en-vocab-ref-[refKey]-api.txt",
+    ),
+    (
+        "src/app/api/jp-lesson/manual-schedules/route.ts",
+        "docs/jp-lesson-manual-schedules-api.txt",
+    ),
 ]
 
 

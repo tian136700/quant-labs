@@ -240,6 +240,13 @@ export interface JpVocabWord {
   pos_source?: string | null;
   /** 读音/音标来源（英语 IPA；日语读音亦可复用） */
   reading_source?: string | null;
+  /**
+   * OJAD 式音调：JSON {"kana":"はたらく","pattern":"LHHH","moras":[{"c":"は","p":"L"},…]}
+   * 仅单词；语法不补。
+   */
+  pitch_accent?: string | null;
+  /** 音调来源（如 OJAD） */
+  pitch_accent_source?: string | null;
   /** 最近一次勾选熟悉程度（用于今日内改选修正） */
   last_review_level?: JpVocabLevel | null;
   last_review_at?: string | null;

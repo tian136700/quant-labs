@@ -1,0 +1,213 @@
+日程管理 · 手动日程 CRUD API（给 Mac / Telegram / 运维脚本）
+==========================================================
+
+用途
+----
+读写「日程管理」页的手动日程（`jp_lesson_manual_schedule`）：
+
+- GET    拉全部手动日程（含关联教材 `linked_lessons`）
+- POST   新建或更新一条
+- DELETE 按 id 删除
+
+保存/更新成功后，响应附带 `teacher_enable`：若开课在 **18 小时内或正在进行**，
+会尝试立刻启用关联老师登录账号（与日语新课「学习中」补启用同逻辑）。
+
+页面入口：`/jp-lesson/schedule` → 手动添加/编辑日程。
+
+
+线上地址
+--------
+GET    https://japanese.info-quests.com/api/jp-lesson/manual-schedules
+POST   https://japanese.info-quests.com/api/jp-lesson/manual-schedules
+DELETE https://japanese.info-quests.com/api/jp-lesson/manual-schedules?id={id}
+
+说明：也可用 finance.info-quests.com 同路径（同一 Worker / 同一 D1）。
+
+
+本机开发（可选）
+---------------
+GET    http://127.0.0.1:3002/api/jp-lesson/manual-schedules
+POST   http://127.0.0.1:3002/api/jp-lesson/manual-schedules
+DELETE http://127.0.0.1:3002/api/jp-lesson/manual-schedules?id=1
+
+
+鉴权
+----
+须满足其一：
+
+1) **管理员** Cookie 会话
+2) Header `Authorization: Bearer <JP_REVIEW_UPLOAD_TOKEN>`
+   （与日语/英语教案上传、STT 脚本共用 token）
+
+未授权 → 403 `{ "ok": false, "error": "forbidden" }`
+
+
+────────────────────────────────
+GET · 列表
+────────────────────────────────
+
+成功响应
+--------
+{
+  "ok": true,
+  "schedules": [
+    {
+      "id": 12,
+      "class_at": "2026-08-07 14:00:00",
+      "duration_minutes": 55,
+      "title": "日语",
+      "teacher": "玉老师",
+      "note": "",
+      "linked_lessons": [
+        { "subject": "jp", "lesson_id": 77 }
+      ],
+      "created_at": "2026-08-01 09:00:00",
+      "updated_at": "2026-08-07 13:00:00"
+    }
+  ]
+}
+
+字段说明：
+| 字段 | 说明 |
+|------|------|
+| class_at | 北京时间 `YYYY-MM-DD HH:MM` 或带 `:SS` |
+| duration_minutes | 课时长（分钟）；null 表示用默认 |
+| title | 日程标题（「日语」「英语」等，影响科目识别） |
+| teacher | 老师姓名（与人员管理里名字匹配） |
+| note | 备注 |
+| linked_lessons | 0～2 条关联教材；`subject`: `jp` \| `en`，`lesson_id`: 新课 id |
+
+关联教材写入后，网页端另走 `syncManualScheduleLinkedLessonToLearning`（不在本 API 内）。
+
+
+────────────────────────────────
+POST · 新建 / 更新
+────────────────────────────────
+
+Content-Type: application/json
+
+新建（默认，不带 action 或 action 非 update）
+----------------------------------------------
+{
+  "class_at": "2026-08-07 14:00:00",
+  "duration_minutes": 55,
+  "title": "日语",
+  "teacher": "玉老师",
+  "note": "备注可选",
+  "linked_lessons": [
+    { "subject": "jp", "lesson_id": 77 }
+  ]
+}
+
+更新
+----
+{
+  "action": "update",
+  "id": 12,
+  "class_at": "2026-08-07 15:00:00",
+  "duration_minutes": 45,
+  "title": "日语",
+  "teacher": "玉老师",
+  "note": "",
+  "linked_lessons": []
+}
+
+成功响应
+--------
+{
+  "ok": true,
+  "schedule": { …同上 schedule 对象… },
+  "teacher_enable": {
+    "triggered": true,
+    "dry_run": false,
+    "within_ms": 64800000,
+    "enabled": [
+      { "user_id": 3, "username": "YuLaoshi", "teacher_id": 5 }
+    ],
+    "skipped": []
+  }
+}
+
+`teacher_enable.triggered=false` 时常见 `reason`：
+  no_teacher / class_at_invalid / class_not_within_window / teacher_not_found / enable_failed
+
+`teacher_enable` 为 best-effort；日程仍算保存成功。
+
+
+失败响应
+--------
+400  schedule_id_invalid   → update 时 id 无效
+400  draft_invalid         → title/class_at 空、时间格式错、duration 非法等
+400  insert_failed
+404  not_found             → update/delete 找不到 id
+403  forbidden
+500  { "ok": false, "error": "…" }
+
+
+────────────────────────────────
+DELETE · 删除
+────────────────────────────────
+
+DELETE …/manual-schedules?id=12
+
+成功：{ "ok": true }
+失败：同上 400/403/404/500
+
+
+curl 示例
+---------
+TOKEN="你的JP_REVIEW_UPLOAD_TOKEN"
+
+# 列表
+curl -sS -H "Authorization: Bearer $TOKEN" \
+  'https://japanese.info-quests.com/api/jp-lesson/manual-schedules'
+
+# 新建
+curl -sS -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"class_at":"2026-08-07 14:00:00","duration_minutes":55,"title":"日语","teacher":"玉老师","note":"","linked_lessons":[]}' \
+  'https://japanese.info-quests.com/api/jp-lesson/manual-schedules'
+
+# 更新
+curl -sS -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"action":"update","id":12,"class_at":"2026-08-07 15:00:00","duration_minutes":45,"title":"日语","teacher":"玉老师","note":"","linked_lessons":[]}' \
+  'https://japanese.info-quests.com/api/jp-lesson/manual-schedules'
+
+# 删除
+curl -sS -X DELETE -H "Authorization: Bearer $TOKEN" \
+  'https://japanese.info-quests.com/api/jp-lesson/manual-schedules?id=12'
+
+
+Python 最小示例
+---------------
+import json
+import urllib.request
+
+BASE = "https://japanese.info-quests.com/api/jp-lesson/manual-schedules"
+TOKEN = "你的TOKEN"
+HEADERS = {
+    "Authorization": f"Bearer {TOKEN}",
+    "Content-Type": "application/json",
+}
+
+req = urllib.request.Request(BASE, headers={"Authorization": HEADERS["Authorization"]})
+with urllib.request.urlopen(req, timeout=30) as resp:
+    data = json.loads(resp.read().decode("utf-8"))
+    print("count", len(data.get("schedules", [])))
+
+body = json.dumps({
+    "class_at": "2026-08-07 14:00:00",
+    "duration_minutes": 55,
+    "title": "日语",
+    "teacher": "玉老师",
+    "note": "",
+    "linked_lessons": [],
+}).encode("utf-8")
+
+req = urllib.request.Request(BASE, data=body, headers=HEADERS, method="POST")
+with urllib.request.urlopen(req, timeout=30) as resp:
+    created = json.loads(resp.read().decode("utf-8"))
+    print(created.get("schedule", {}).get("id"), created.get("teacher_enable"))
