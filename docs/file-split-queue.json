@@ -17,12 +17,6 @@
       "note": ""
     },
     {
-      "path": "src/lib/jp-vocab-connection-ai.ts",
-      "lines": 1007,
-      "status": 0,
-      "note": ""
-    },
-    {
       "path": "src/components/JpLessonTeacherEditModal.tsx",
       "lines": 1006,
       "status": 0,

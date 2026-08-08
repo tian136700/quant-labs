@@ -12,6 +12,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CONN = ROOT / "src/lib/jp-vocab-connection-ai.ts"
+UPLOAD_SPEC = ROOT / "src/lib/jp-vocab-connection-upload-spec.ts"
 UI = ROOT / "src/components/JpVocabUsageExamplesPairedContent.tsx"
 BODY = ROOT / "src/components/JpVocabConnectionBody.tsx"
 SECTION = ROOT / "src/components/JpVocabConnectionSection.tsx"
@@ -102,6 +103,9 @@ def parse_table_rows(raw: str) -> list[tuple[str, str]] | None:
 
 def main() -> None:
     src = CONN.read_text(encoding="utf-8")
+    upload_spec = UPLOAD_SPEC.read_text(encoding="utf-8")
+    # upload_spec 从 connection-ai 抽出；学校用语等规则文案在那边
+    src_with_spec = src + "\n" + upload_spec
     for needle in (
         "parseJpVocabConnectionDisplayParts",
         "expandJpVocabConnectionUsageInlineBreaks",
@@ -111,6 +115,10 @@ def main() -> None:
     ):
         if needle not in src:
             fail(f"connection-ai missing {needle!r}")
+    if "JP_VOCAB_CONNECTION_UPLOAD_SPEC" not in src:
+        fail("connection-ai 须 re-export JP_VOCAB_CONNECTION_UPLOAD_SPEC")
+    if "version: 13" not in upload_spec and "version:13" not in upload_spec:
+        fail("upload-spec 须有 version（含ない形一类通用规则）")
 
     body = BODY.read_text(encoding="utf-8")
     if "JpVocabConnectionBody" not in body:
@@ -177,10 +185,10 @@ def main() -> None:
         "rewriteJpVocabConnectionSchoolVerbClassTerms",
         "一类动词／二类动词／三类动词",
     ):
-        if needle not in src:
+        if needle not in src_with_spec:
             fail(f"connection-ai missing school verb-class guard {needle!r}")
     # 允许在「禁止…」规则里点名坏写法；禁止当正确示例推销
-    for i, line in enumerate(src.splitlines(), 1):
+    for i, line in enumerate(src_with_spec.splitlines(), 1):
         if "一类动词（五段）" not in line:
             continue
         if "禁止" in line or "❌" in line or "括注同义" in line:
@@ -190,11 +198,11 @@ def main() -> None:
             "仅可在「禁止…」规则里点名"
         )
     if (
-        "禁止「五段" not in src
-        and "❌禁止「五段" not in src
-        and "❌ 禁止「五段" not in src
-        and "五段／五段动词" not in src
-        and "禁止左边" not in src
+        "禁止「五段" not in src_with_spec
+        and "❌禁止「五段" not in src_with_spec
+        and "❌ 禁止「五段" not in src_with_spec
+        and "五段／五段动词" not in src_with_spec
+        and "禁止左边" not in src_with_spec
     ):
         fail("接序 prompt 须禁止五段/一段/カ变术语（或写明左右对照）")
     if "五段動詞" not in src:
@@ -216,8 +224,10 @@ def main() -> None:
         fail("对照须含：カ变 → 三类动词")
     if "JP_VOCAB_CONJUGATION_CONNECTION_STYLE_PROMPT" not in prompt:
         fail("connection-prompt 须导出变形课写法对照常量")
-    if "う段改为あ段" not in prompt or "去掉「く」加「かない」" not in prompt:
-        fail("变形课须写明：禁止う段散文 → 改成去掉…加…表行")
+    if "每个词尾各占一行" not in prompt and "う段变あ段" not in prompt:
+        fail("变形课须写明：ない形一类勿按词尾拆行，用う段变あ段通用规则")
+    if "JP_VOCAB_NAI_FORM_CONNECTION_EXAMPLE" not in prompt:
+        fail("connection-prompt 须导出／引用ない形通用规则样例")
     # 学术用语先改写再验：一類動詞（五段動詞）→ 一类动词
     sample_academic = "一類動詞（五段動詞）：词尾う段改あ段＋ない"
     rewritten = sample_academic
@@ -235,16 +245,16 @@ def main() -> None:
     if not rewritten.startswith("一类动词"):
         fail(f"学术用语改写后须以一类动词开头，得到 {rewritten!r}")
     if (
-        "卡片会自动排表" not in src
-        and "卡片自动排表" not in src
-        and "卡片会把复杂接续自动排成表" not in src
-        and "卡片三列" not in src
+        "卡片会自动排表" not in src_with_spec
+        and "卡片自动排表" not in src_with_spec
+        and "卡片会把复杂接续自动排成表" not in src_with_spec
+        and "卡片三列" not in src_with_spec
     ):
         fail("接序 prompt 须要求「；」或多行词类格式以便上表")
     if (
-        "禁止散文" not in src
-        and "禁止写成散文" not in src
-        and "❌禁止散文" not in src
+        "禁止散文" not in src_with_spec
+        and "禁止写成散文" not in src_with_spec
+        and "❌禁止散文" not in src_with_spec
     ):
         fail("接序 prompt 须禁止散文罗列词类")
 

@@ -7,6 +7,7 @@ import {
   connectionHasMissingTableNotes,
   connectionHasRepeatedIdenticalNotes,
 } from "@/lib/jp-vocab-connection-note-diversity";
+import { collapseJpVocabNaiFormType1PerEndingRows } from "@/lib/jp-vocab-connection-nai-form";
 import {
   connectionHasMessyParenPlusSlash,
   expandConnectionTableLabelSlash,
@@ -15,54 +16,7 @@ import {
 
 export const JP_VOCAB_CONNECTION_SECTION_MARKER = "【接序】";
 
-export const JP_VOCAB_CONNECTION_UPLOAD_SPEC = {
-  version: 12,
-  label: "接序",
-  /** 标准标本：jp_vocab_word id=521「～かもしれない」接序；词类／形态＋接什么｜说明 */
-  format_example_grammar:
-    "用法1: 动词辞书形（动词原形）＋かもしれない｜推测将要发生或一般可能；一类形容词原形＋かもしれない｜推测性质或状态；二类形容词词干＋かもしれない（去「だ」）｜推测性质或状态；名词＋かもしれない｜推测是某事物\n用法2: 动词ている形＋かもしれない｜推测正在进行或所处状态\n用法3: 动词た形＋かもしれない｜推测已经发生的事",
-  format_example_word:
-    "一类动词／原形：「書く」；ます形：「書きます」；て形：「書いて」",
-  rules: [
-    "接序单独成段，放在用法/例句之后，以「【接序】」起头",
-    "用法说明里禁止再写接序（接续形态）；接序只写在本字段",
-    "❌ 接序禁止夹用法说明：主语是谁、主语必须、受益者是谁、给予者是谁、恩惠流向、必须是第三方、强调对方好意／我方获益、意思相近可互换、视角不同等——那些只写在「用法」；接序只留形态公式（词类＋形＋本语法）；「｜」后说明列同样禁止写这些",
-    "用中文说明；日语形态用「」短引，禁止 漢字(かな) 假名括注",
-    "词类标签必须简体中文（动词／一类形容词／二类形容词／名词／词干…）；❌禁止日语繁体词类字（動詞／形容詞／名詞／一類／語幹）",
-    "❌词类旁禁止假名读音括注：不要「動詞(どうし)」「普通形(ふつうけい)」；写「动词普通形」即可",
-    "否定形／疑问形／肯定形等变体必须另起一行（如「否定形: …」「疑问形: …」），禁止和主接续挤同一行",
-    "对学生友好：写清词类，如「一类动词／二类动词／三类动词／一类形容词／二类形容词／名词＋本语法」；❌ 禁止只写笼统的「原形＋…」",
-    "形态必须带词类：写「动词た形／动词原形／动词ている形」，❌禁止裸「た形」「原形」「て形」（学生不知道是哪类词）",
-    "动词分类只用「一类动词／二类动词／三类动词」（国内教材）；对照改写（禁止左边、必须用右边）：五段／五段动词／一類動詞 → 一类动词；一段／一段动词 → 二类动词；カ变／カ変動詞／サ变／サ変動詞／する・くる不规则 → 三类动词；❌ 禁止写左边术语，也禁止「一类动词（五段）」括注同义",
-    "卡片三列「词类／形态｜＋接什么｜说明」：多种词类须「词类／形态＋本语法｜短说明」并用全角「；」串同一用法；或分行「词类：说明」",
-    "多种动词形态都能接时：优先写成「动词辞书形（动词原形）＋X；动词た形＋X；动词ている形＋X」（每段都带「＋」），❌ 不要写成「动词原形／动词た形／动词ている形＋X」只在最后加一次「＋」",
-    "标准：每段公式后用全角「｜」加短「说明」列，写清「该形态」差别（时间／肯定否定／词类义／句法角色），标本 id=521：辞书形｜推测将要发生或一般可能、た形｜推测已经发生的事；样态类用「好像（状态）」如「好像（已经发生）」；❌禁止多段都抄同一句用法大意（如每行「好像……、看起来……」）；说明宜短；说明内勿用「／」，改用「、」或「·」；❌禁止只写公式不写「｜说明」（卡片说明列会全是「—」，系统拒收 missing_table_notes）",
-    "❌ 禁止写成散文「接在动词、一类形容词、名词后面」——无法上表，学生难扫读；须改成「词类＋接什么｜短说明」表行",
-    "句首接续词（しかし／でも／ところが等）：❌禁止散文「置于后句句首独立使用」→ ✅「前句（动词句／一类形容词句／二类形容词句／名词句）＋しかし｜后句句首，表示转折」",
-    "涉及多种动词接续时优先分行：一类动词: …／二类动词: …／三类动词: …（「来る」「する」）",
-    "❌ 禁止把一类／二类／三类塞进同一行括号散文（如「动词意志形（一类动词：く→こう；二类动词：る→よう）＋と思う」）——卡片无法上表；须改成多行「一类动词：…」「二类动词：…」",
-    "变形课（て形／ない形等）：❌禁止「う段改为あ段＋ない」散文 → ✅改成「一类动词去掉「く」加「かない」＋かない｜如「書く→書かない」」；❌禁止接序下另写「例：書く→…」行 → ✅说明写在「｜」后「如「…→…」」",
-    "な形容词／名词有特殊接法时，用短句说清（如「不加だ」「加だ」「＋な」「＋の」）",
-    "若仍写「动词辞书形」必须写成「动词辞书形（动词原形）」；不要只写「动词辞书形」",
-    "语法若有多条编号用法：接序必须按「用法1:」「用法2:」分行写（与上面 1. 2. 用法一一对应）；同一行禁止串写多个「用法N」",
-    "各用法接续相同时，可只写共用形态（不必硬凑用法1/2）；有差异则必须分行对应",
-    "否定形/注意等共用说明另起一行（如「否定形: …」「注意: …」）",
-    "单词：写词类与常用活用（原形/ます形/て形或一类·二类形容词等）",
-    "2～6 行即可；不要 markdown、不要行首 1. 2.（用「用法N:」标签）",
-    "❌ 禁止用「1. 2. 3.」给接序编号——会整段挂到用法1下，把句末 (N4)/(N5) 与对应例句隔开，看起来像「没标级别」",
-  ],
-  reject_reasons: [
-    "empty",
-    "too_short",
-    "looks_like_examples",
-    "bare_numbered_lines",
-    "academic_verb_class_terms",
-    "nested_class_colon_prose",
-    "connection_has_usage",
-    "repeated_identical_notes",
-    "no_plus_formula",
-  ],
-} as const;
+export { JP_VOCAB_CONNECTION_UPLOAD_SPEC } from "@/lib/jp-vocab-connection-upload-spec";
 
 const FENCE_RE = /^```(?:\w+)?\s*$/;
 const FURIGANA_PAREN_RE = /\([\u3040-\u309Fー]+\)/;
@@ -876,7 +830,9 @@ export function normalizeJpVocabConnectionText(
     })
     .map((line) => restoreEnglishHaveHasSlash(line));
   if (!lines.length) return null;
-  return lines.join("\n");
+  return lines
+    .map((line) => collapseJpVocabNaiFormType1PerEndingRows(line))
+    .join("\n");
 }
 
 export function normalizeJpVocabConnectionSource(
@@ -921,6 +877,7 @@ export {
   buildJpVocabConnectionOnlyAiPrompt,
   JP_VOCAB_SCHOOL_VERB_CLASS_PROMPT,
   JP_VOCAB_CONJUGATION_CONNECTION_STYLE_PROMPT,
+  JP_VOCAB_NAI_FORM_CONNECTION_EXAMPLE,
 } from "@/lib/jp-vocab-connection-prompt";
 
 export function connectionHasFormulaShape(

@@ -192,10 +192,18 @@ def main() -> int:
         errors.append("usage-ai て形接续表须含一类形容词「去掉い加くて」")
     if "二类形容词去掉「だ」加「で」" not in usage_ai and "名词加「で」" not in usage_ai:
         errors.append("usage-ai て形接续表须含二类形容词／名词「で」")
-    if "ない形课示例" not in usage_ai and "去掉「く」加「かない」" not in usage_ai:
-        errors.append("usage-ai 须含ない形课接续表示例（防五段散文复发）")
-    if "ない形示例" not in script and "去掉「く」加「かない」" not in script:
-        errors.append("Mac CONJ_PAIR_SYSTEM 须含ない形表样例")
+    if "う段变あ段" not in usage_ai and "JP_VOCAB_NAI_FORM_CONNECTION_EXAMPLE" not in usage_ai:
+        errors.append("usage-ai 须含ない形一类通用「う段变あ段」（勿按词尾拆满屏）")
+    if (
+        "JP_VOCAB_NAI_FORM_CONNECTION_EXAMPLE" not in usage_ai
+        and "存在动词特殊" not in usage_ai
+        and "「ある」换成「ない」" not in usage_ai
+    ):
+        errors.append("usage-ai ない形须引用通用样例或含特殊「ある」→「ない」另列")
+    if "う段变あ段" not in script and "词尾う段" not in script:
+        errors.append("Mac CONJ_PAIR_SYSTEM 须含ない形一类通用う段规则")
+    if "每个词尾各占一行" not in script and "勿按く" not in script:
+        errors.append("Mac CONJ_PAIR_SYSTEM 须禁止ない形一类按词尾拆行")
 
     table = (
         ROOT / "src/components/JpVocabContrastDistinctionTable.tsx"

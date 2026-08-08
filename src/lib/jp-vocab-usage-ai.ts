@@ -4,6 +4,7 @@ import {
   JP_VOCAB_CONNECTION_SECTION_MARKER,
   JP_VOCAB_SCHOOL_VERB_CLASS_PROMPT,
   JP_VOCAB_CONJUGATION_CONNECTION_STYLE_PROMPT,
+  JP_VOCAB_NAI_FORM_CONNECTION_EXAMPLE,
   parseJpVocabConnectionTableRows,
   splitJpVocabAiOutputConnectionSection,
 } from "@/lib/jp-vocab-connection-ai";
@@ -286,14 +287,14 @@ export function buildJpVocabUsageAiPrompt(input: JpVocabUsageAiInput): string {
 - ✅ 先输出 2～3 条完整短日语例句；每条下一行「译文：」+ 中文。
 - ✅ 文末必须有「${JP_VOCAB_CONNECTION_SECTION_MARKER}」接续表：标准标本同 id=521「～かもしれない」——每段「词类／形态＋变形结果｜短说明」，多种词类用全角「；」串成一行（或分行「词类：说明」），卡片三列「词类／形态｜＋接什么｜说明」。
 - ✅ て形课示例（第一列写清「去掉…加…」；含动词、一类／二类形容词、名词）：一类动词去掉「く」加「いて」＋いて｜如「書く→書いて」；二类动词去掉「る」加「て」＋て｜如「食べる→食べて」；一类形容词去掉「い」加「くて」＋くて｜如「高い→高くて」；二类形容词去掉「だ」加「で」＋で｜如「静か→静かで」；名词加「で」＋で｜如「学生→学生で」
-- ✅ ない形课示例（按词尾分行）：一类动词去掉「く」加「かない」＋かない｜如「書く→書かない」；一类动词去掉「む」加「まない」＋まない｜如「飲む→飲まない」；二类动词去掉「る」加「ない」＋ない｜如「食べる→食べない」；三类动词「する」换成「しない」＋しない｜如「勉強する→勉強しない」；三类动词「くる」换成「こない」＋こない｜如「来る→来ない」
+- ✅ ない形课示例（一类通用一行 + 特殊例外 + 二类／三类；❌勿把く／む／ぬ…每个词尾各占一行）：${JP_VOCAB_NAI_FORM_CONNECTION_EXAMPLE}
 - ${JP_VOCAB_SCHOOL_VERB_CLASS_PROMPT}
 - ${JP_VOCAB_CONJUGATION_CONNECTION_STYLE_PROMPT}
 - ❌ 说明列禁止多段抄同一句；说明内勿用「／」，改用「、」或「·」。
 - 不要行首编号、不要 markdown、不要总标题。
 - 例句必须 N5 左右：极短、口语、日常词；必须自然用到本变形（如ます形出现「ます」、て形出现「て」连接、ない形出现「ない」）。
 - 每个汉字后半角括号假名；接序里日语形态用「」短引，不要假名括注。
-输出格式示例（例句 + 接续表；无用法；ない形课把「て」换成「ない」按词尾表即可）：
+输出格式示例（例句 + 接续表；无用法；ない形课用一类通用＋特殊表，不要按词尾拆满屏）：
 手(て)を洗(あら)って、ご飯(はん)を食(た)べます。
 译文：洗完手，吃饭。
 音楽(おんがく)を聴(き)いて、寝(ね)ます。
