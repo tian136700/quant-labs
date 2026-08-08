@@ -68,6 +68,16 @@ def main() -> int:
     splits = info.get("splits") or []
     if splits != [381, 630, 870, 1095, 1295]:
         raise SystemExit(f"FAIL: unexpected splits {splits}")
+    if not str(info.get("format") or "").startswith("pitch-overline"):
+        raise SystemExit(f"FAIL: expected pitch-overline format, got {info.get('format')}")
+    if not str(info.get("fingerprint") or "").startswith("v2-"):
+        raise SystemExit(f"FAIL: fingerprint must be v2- for overline rebuild, got {info.get('fingerprint')}")
+    # 禁止旧版 NLLL／头高 文案路径残留
+    build = BUILD.read_text(encoding="utf-8")
+    if "头高" in build and "pitch_type_label" in build:
+        raise SystemExit("FAIL: board docx must not use 头高/NLLL text labels anymore")
+    if "render_ojad_pitch_reading_png" not in build:
+        raise SystemExit("FAIL: missing OJAD overline PNG renderer")
     print("ok: jp-lesson-board-docx")
     return 0
 

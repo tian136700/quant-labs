@@ -6,6 +6,9 @@
 import { parseJpVocabPitchAccent } from "@/lib/jp-vocab-pitch-accent";
 import { JP_VOCAB_REF_R2_PREFIX } from "@/lib/jp-vocab-ref-shared";
 
+/** 与 Python `BOARD_DOCX_FORMAT_VERSION` 同步；变了则全部重建板书 Word */
+export const JP_LESSON_BOARD_DOCX_FORMAT_VERSION = "pitch-overline-v2";
+
 /** R2：与教案图分开，如 vocab-ref/board/lesson-148.docx */
 export function jpLessonBoardDocxR2Key(lessonId: number): string {
   return `${JP_VOCAB_REF_R2_PREFIX}board/lesson-${lessonId}.docx`;
@@ -19,22 +22,10 @@ export function isLocalJpLessonBoardDocxMarker(r2Key: string): boolean {
   return r2Key.startsWith("local:board:");
 }
 
-/** 平板 / 头高 / 中高 / 尾高（按 L/H/N 模式粗分） */
-export function jpVocabPitchAccentTypeLabel(pattern: string): string {
-  const p = (pattern || "").trim().toUpperCase();
-  if (!p) return "";
-  const n = p.indexOf("N");
-  if (n < 0) {
-    if (p.startsWith("L") && /^LH+$/.test(p)) return "平板";
-    if (p.startsWith("H")) return "头高";
-    return "平板";
-  }
-  if (n === 0) return "头高";
-  if (n === p.length - 1) return "尾高";
-  return "中高";
-}
-
-/** Word 单元格：こども　HLL／头高 */
+/**
+ * 板书单元格文案兜底（无图画时）：只显示日语读音，禁止 NLLL／头高。
+ * 实际 Word 由 Mac 脚本画 OJAD 顶横线图。
+ */
 export function formatJpLessonBoardPitchCell(input: {
   word: string;
   pitchAccentJson?: string | null;
@@ -42,15 +33,9 @@ export function formatJpLessonBoardPitchCell(input: {
 }): string {
   const word = (input.word || "").trim();
   const parsed = parseJpVocabPitchAccent(input.pitchAccentJson);
-  if (!parsed) {
-    const reading = (input.reading || "").trim();
-    return reading ? `${word}\n${reading}` : word;
-  }
-  const type = jpVocabPitchAccentTypeLabel(parsed.pattern);
-  const line2 = type
-    ? `${parsed.kana}　${parsed.pattern}／${type}`
-    : `${parsed.kana}　${parsed.pattern}`;
-  return `${word}\n${line2}`;
+  if (parsed?.kana) return parsed.kana;
+  const reading = (input.reading || "").trim();
+  return reading || word;
 }
 
 export type JpLessonBoardDocxFingerprintInput = {
@@ -61,13 +46,14 @@ export type JpLessonBoardDocxFingerprintInput = {
   pitchDigests: string[];
 };
 
-/** 稳定指纹：教案更新时间 + 内容 + 释义 + 各词音调摘要 */
+/** 稳定指纹：版式版本 + 教案更新时间 + 内容 + 释义 + 各词音调摘要 */
 export function buildJpLessonBoardDocxFingerprint(
   input: JpLessonBoardDocxFingerprintInput
 ): string {
   const meanings = (input.meanings || "").trim();
   const pitches = input.pitchDigests.map((d) => (d || "").trim()).join("\n");
   const raw = [
+    JP_LESSON_BOARD_DOCX_FORMAT_VERSION,
     (input.refUpdatedAt || "").trim(),
     (input.content || "").trim(),
     meanings,
@@ -82,7 +68,7 @@ function fnv1aHex(text: string): string {
     hash ^= text.charCodeAt(i);
     hash = Math.imul(hash, 0x01000193) >>> 0;
   }
-  return `v1-${hash.toString(16).padStart(8, "0")}`;
+  return `v2-${hash.toString(16).padStart(8, "0")}`;
 }
 
 export function pitchDigestFromStored(input: {
