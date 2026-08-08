@@ -22,6 +22,12 @@ if "ensure_on_deploy_branch" not in text:
     errors.append("缺少 detached HEAD 自动切回 main（ensure_on_deploy_branch）")
 if "is_detached_head" not in text:
     errors.append("缺少 detached HEAD 检测（is_detached_head）")
+if "is_next_document_collect_flake" not in text:
+    errors.append("缺少 /_document Collecting page data 偶发失败检测")
+if "run_live_tee" not in text:
+    errors.append("缺少 run_live_tee（捕获输出以便识别 /_document flake）")
+if "retried after /_document flake" not in text:
+    errors.append("缺少 /_document flake 自动重试一次")
 
 if errors:
     print("check_deploy_log_hub_guard FAILED:", file=sys.stderr)

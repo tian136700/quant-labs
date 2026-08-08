@@ -45,12 +45,20 @@ def stop_dev_server(port: int = DEV_PORT) -> bool:
             os.kill(pid, signal.SIGTERM)
         except OSError:
             continue
-    # brief grace for next dev to release .next file handles
-    deadline = time.monotonic() + 3.0
+    # next dev 释放 .next 句柄可能要几秒；过短易与 production build 争用 → /_document ENOENT
+    deadline = time.monotonic() + 8.0
     while time.monotonic() < deadline:
         if not dev_server_pids(port):
             break
-        time.sleep(0.2)
+        time.sleep(0.25)
+    leftover = dev_server_pids(port)
+    if leftover:
+        for pid in leftover:
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except OSError:
+                continue
+        time.sleep(0.5)
     print(
         f"已停止本地 dev (:{port})，避免与 production build 争用 .next/",
         flush=True,

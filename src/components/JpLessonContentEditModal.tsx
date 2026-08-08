@@ -489,7 +489,7 @@ export function JpLessonContentEditModal({
           <p className="jp-lesson-content-edit-hint">
             共 {rows.filter((r) => r.content.trim()).length} 项有效内容
             {someSelected ? ` · 已勾选 ${selectedIds.length} 项` : ""}
-            。删除会立即保存；删光最后一项会去掉整条未完成课。改文字后点「保存」。
+            。删除会立即保存；删光最后一项会去掉整条未完成课。改文字或粘贴教案图后点「保存」。
           </p>
         </div>
 

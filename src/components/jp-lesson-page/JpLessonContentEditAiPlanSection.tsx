@@ -73,15 +73,11 @@ export function JpLessonContentEditAiPlanSection({
   }, []);
 
   useEffect(() => {
-    if (!open) return;
     setLocalError(null);
     setZoomOpen(false);
-    setImageFile(null);
-    setPreviewUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return null;
-    });
-  }, [open, lesson.id]);
+    setImageFromFile(null);
+    // 仅换课时清空待挂图；收起/展开「做教案提示词」须保留粘贴预览
+  }, [lesson.id, setImageFromFile]);
 
   useEffect(() => {
     return () => {
