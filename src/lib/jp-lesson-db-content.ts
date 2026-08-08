@@ -46,9 +46,10 @@ export async function updateJpLessonContentMeanings(
   if (!existing) return { ok: false, error: "not_found" };
 
   const storedContent = items.join(", ");
-  const meanings = normalizeLessonMeaningsForStorage(storedContent, meaningsRaw);
+  // 用 contentRaw 对齐：分隔线项按原下标丢掉对应 meanings / 例句 / 标注
+  const meanings = normalizeLessonMeaningsForStorage(contentRaw, meaningsRaw);
   const annotationsNorm = normalizeLessonAnnotationsForStorage(
-    storedContent,
+    contentRaw,
     existing.annotations
   );
   if (!annotationsNorm.ok) {
@@ -56,7 +57,7 @@ export async function updateJpLessonContentMeanings(
   }
   const annotations = annotationsNorm.value;
   const exampleSentences = normalizeLessonExampleSentencesForStorage(
-    storedContent,
+    contentRaw,
     existing.example_sentences
   );
   const ts = new Date().toISOString();

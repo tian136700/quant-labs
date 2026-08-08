@@ -142,6 +142,22 @@ def main() -> int:
     if 'join("|")' not in edit_lib:
         errors.append("meanings edit must join with | for storage")
 
+    shared = (ROOT / "src/lib/jp-lesson-shared.ts").read_text(encoding="utf-8")
+    if "isJpLessonContentSeparatorJunk" not in shared:
+        errors.append("shared must export isJpLessonContentSeparatorJunk")
+    if "splitLessonContentItems" not in shared:
+        errors.append("shared must export splitLessonContentItems for meaning align")
+    if "isJpLessonContentSeparatorJunk" not in edit_lib:
+        errors.append("content edit must drop separator junk rows on save")
+    # 纯横线 / 长音「ー」不得当词条入库
+    junk_filter = (
+        "isJpLessonContentSeparatorJunk" in shared
+        and "parseLessonContent" in shared
+        and "filter" in shared[shared.find("export function parseLessonContent") : shared.find("export function parseLessonContent") + 400]
+    )
+    if not junk_filter:
+        errors.append("parseLessonContent must filter separator junk")
+
     if errors:
         print("FAIL:")
         for e in errors:

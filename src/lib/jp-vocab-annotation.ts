@@ -1,5 +1,14 @@
-/** 与 parseLessonContent 一致：按逗号拆 content 项（本文件自洽，避免环依赖） */
-function parseContentItems(raw: string): string[] {
+/** OCR / 教案纯横线、长音「ー」等，不是词条（与 jp-lesson-shared 同规则） */
+function isLessonContentSeparatorJunk(item: string): boolean {
+  const t = (item || "").trim();
+  if (!t) return false;
+  return /^[\-－—–─━_＿ー−ｰ]+$/u.test(t);
+}
+
+/**
+ * 按原下标拆 content（含分隔线），供对齐 annotations 后丢弃脏项。
+ */
+function splitContentItemsRaw(raw: string): string[] {
   return (raw || "")
     .split(/[,，、]/)
     .map((s) => s.trim())
@@ -59,9 +68,14 @@ export function alignLessonItemAnnotations(
   content: string,
   annotationsRaw: string | null | undefined
 ): Array<JpVocabAnnotation | null> {
-  const items = parseContentItems(content);
+  const rawItems = splitContentItemsRaw(content);
   const parts = parseLessonAnnotations(annotationsRaw);
-  return items.map((_, index) => normalizeJpVocabAnnotation(parts[index] ?? null));
+  const aligned: Array<JpVocabAnnotation | null> = [];
+  for (let index = 0; index < rawItems.length; index++) {
+    if (isLessonContentSeparatorJunk(rawItems[index]!)) continue;
+    aligned.push(normalizeJpVocabAnnotation(parts[index] ?? null));
+  }
+  return aligned;
 }
 
 /**
@@ -73,11 +87,14 @@ export function normalizeLessonAnnotationsForStorage(
 ):
   | { ok: true; value: string | null }
   | { ok: false; error: "invalid_annotation" } {
-  const items = parseContentItems(content);
-  if (!items.length) return { ok: true, value: null };
+  const rawItems = splitContentItemsRaw(content);
+  if (!rawItems.some((s) => !isLessonContentSeparatorJunk(s))) {
+    return { ok: true, value: null };
+  }
   const parts = parseLessonAnnotations(annotationsRaw);
   const aligned: Array<JpVocabAnnotation | null> = [];
-  for (let i = 0; i < items.length; i++) {
+  for (let i = 0; i < rawItems.length; i++) {
+    if (isLessonContentSeparatorJunk(rawItems[i]!)) continue;
     const raw = parts[i] ?? "";
     const parsed = parseJpVocabAnnotationInput(raw);
     if (!parsed.ok) return parsed;

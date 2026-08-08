@@ -1,9 +1,16 @@
-/** 将上传时的 content 拆成单个单词/语法项（与后端入库逻辑一致） */
+/** OCR / 教案纯横线、长音「ー」等，不是词条 */
+export function isEnLessonContentSeparatorJunk(item: string): boolean {
+  const t = (item || "").trim();
+  if (!t) return false;
+  return /^[\-－—–─━_＿ー−ｰ]+$/u.test(t);
+}
+
+/** 将上传时的 content 拆成单个单词/语法项（与后端入库逻辑一致；丢弃纯分隔线） */
 export function parseLessonContent(raw: string): string[] {
   return (raw || "")
     .split(/[,，、]/)
     .map((s) => s.trim())
-    .filter(Boolean);
+    .filter((s) => s && !isEnLessonContentSeparatorJunk(s));
 }
 
 /** 规范化学习内容存储格式（与入库一致，用于去重比对） */

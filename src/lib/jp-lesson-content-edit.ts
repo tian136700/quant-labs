@@ -5,6 +5,7 @@
 
 import {
   alignLessonItemMeanings,
+  isJpLessonContentSeparatorJunk,
   normalizeLessonMeaningsForStorage,
   parseLessonContent,
 } from "@/lib/jp-lesson-shared";
@@ -31,12 +32,12 @@ export function stripJpLessonEditLineIndex(line: string): string {
   return line.replace(LINE_INDEX_PREFIX_RE, "").trim();
 }
 
-/** 编辑框 → 条目列表（空行跳过） */
+/** 编辑框 → 条目列表（空行跳过；纯分隔线丢弃） */
 export function parseJpLessonNumberedEditLines(raw: string): string[] {
   return (raw || "")
     .split(/\r?\n/)
     .map((line) => stripJpLessonEditLineIndex(line))
-    .filter(Boolean);
+    .filter((line) => line && !isJpLessonContentSeparatorJunk(line));
 }
 
 /** 入库 content → 编号换行文本（兼容旧双框 / 测试） */
@@ -133,7 +134,10 @@ export function buildJpLessonContentMeaningsFromRows(
 ):
   | { ok: true; value: JpLessonContentEditParsed }
   | { ok: false; error: "content_empty" } {
-  const kept = (rows || []).filter((row) => (row.content || "").trim());
+  const kept = (rows || []).filter((row) => {
+    const t = (row.content || "").trim();
+    return t && !isJpLessonContentSeparatorJunk(t);
+  });
   if (!kept.length) {
     return { ok: false, error: "content_empty" };
   }

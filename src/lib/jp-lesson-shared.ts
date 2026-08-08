@@ -5,12 +5,29 @@ import {
 } from "@/lib/jp-vocab-example-sentences";
 import type { JpLessonKind, JpVocabKind } from "@/lib/types";
 
-/** 将上传时的 content 拆成单个单词/语法项（与后端入库逻辑一致） */
-export function parseLessonContent(raw: string): string[] {
+/**
+ * OCR / 教案里的纯分隔线（横线、长音「ー」、下划线等），不是词条。
+ * 例：`----------`、`ーーーーー`
+ */
+export function isJpLessonContentSeparatorJunk(item: string): boolean {
+  const t = (item || "").trim();
+  if (!t) return false;
+  return /^[\-－—–─━_＿ー−ｰ]+$/u.test(t);
+}
+
+/** 仅按逗号拆项（不过滤分隔线；对齐 meanings 时用） */
+export function splitLessonContentItems(raw: string): string[] {
   return (raw || "")
     .split(/[,，、]/)
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+/** 将上传时的 content 拆成单个单词/语法项（与后端入库逻辑一致；丢弃纯分隔线） */
+export function parseLessonContent(raw: string): string[] {
+  return splitLessonContentItems(raw).filter(
+    (s) => !isJpLessonContentSeparatorJunk(s)
+  );
 }
 
 /** 规范化日语新课 kind（含单词加语法） */
@@ -107,17 +124,20 @@ export function parseLessonExampleSentenceBlocks(
   return text.split(JP_LESSON_EXAMPLE_ITEM_SEP).map((s) => s.trim());
 }
 
-/** 按 content 项数对齐例句块；缺失项为 null */
+/** 按 content 项数对齐例句块；缺失项为 null（先按原下标对齐，再丢掉分隔线项） */
 export function alignLessonItemExampleSentences(
   content: string,
   examplesRaw: string | null | undefined
 ): (string | null)[] {
-  const items = parseLessonContent(content);
+  const rawItems = splitLessonContentItems(content);
   const blocks = parseLessonExampleSentenceBlocks(examplesRaw);
-  return items.map((_, index) => {
+  const aligned: (string | null)[] = [];
+  for (let index = 0; index < rawItems.length; index++) {
+    if (isJpLessonContentSeparatorJunk(rawItems[index]!)) continue;
     const block = blocks[index];
-    return block && block.trim() ? block.trim() : null;
-  });
+    aligned.push(block && block.trim() ? block.trim() : null);
+  }
+  return aligned;
 }
 
 function normalizeOneLessonExampleBlock(raw: string): string | null {
@@ -168,17 +188,20 @@ export function formatLessonExampleSentencesSummary(
   );
 }
 
-/** 按 content 项数对齐释义；缺失项为 null */
+/** 按 content 项数对齐释义；缺失项为 null（先按原下标对齐，再丢掉分隔线项） */
 export function alignLessonItemMeanings(
   content: string,
   meaningsRaw: string | null | undefined
 ): (string | null)[] {
-  const items = parseLessonContent(content);
+  const rawItems = splitLessonContentItems(content);
   const meanings = parseLessonMeanings(meaningsRaw);
-  return items.map((_, index) => {
+  const aligned: (string | null)[] = [];
+  for (let index = 0; index < rawItems.length; index++) {
+    if (isJpLessonContentSeparatorJunk(rawItems[index]!)) continue;
     const meaning = meanings[index];
-    return meaning && meaning.trim() ? meaning.trim() : null;
-  });
+    aligned.push(meaning && meaning.trim() ? meaning.trim() : null);
+  }
+  return aligned;
 }
 
 /** 入库前规范化 meanings 字符串（与 content 项数对齐，用 | 连接） */
