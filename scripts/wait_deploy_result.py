@@ -199,8 +199,27 @@ def main() -> int:
                         f"--- details ---\n{tail}\n"
                     )
                     FAILURE_FILE.write_text(payload, encoding="utf-8")
+                    # 标 pending：下一轮任意 Agent stop 应立刻 followup 修（勿干等用户）
+                    try:
+                        if PENDING_FILE.is_file():
+                            pending = json.loads(PENDING_FILE.read_text(encoding="utf-8"))
+                            if isinstance(pending, dict):
+                                pending["phase"] = "failed_awaiting_fix"
+                                pending["failed_at"] = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime())
+                                pending["deploy_log_id"] = rid
+                                PENDING_FILE.write_text(
+                                    json.dumps(pending, ensure_ascii=False, indent=2) + "\n",
+                                    encoding="utf-8",
+                                )
+                    except (OSError, json.JSONDecodeError, TypeError):
+                        pass
                     print("[wait-deploy] 部署失败。日志已写入：", flush=True)
                     print(f"  {FAILURE_FILE}", flush=True)
+                    print(
+                        "[wait-deploy] 下一回合 Cursor Agent stop 会 followup 自动修；"
+                        "若对话已停，请在该对话任意回一句以触发（或新开对话靠 sessionStart 提醒）。",
+                        flush=True,
+                    )
                     print("--- 失败摘要（末尾）---", flush=True)
                     print(tail[-3500:], flush=True)
                     return 1

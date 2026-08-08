@@ -56,5 +56,10 @@ export async function getJpLessonBoardDocxBytes(
   if (!hasJpReviewBucket(env)) return null;
   const obj = await env.JP_REVIEW.get(r2Key);
   if (!obj) return null;
-  return obj.arrayBuffer();
+  // Workers R2ObjectBody 有 arrayBuffer()；本地 types 也曾缺声明导致 deploy tsc 失败
+  if (typeof obj.arrayBuffer === "function") {
+    return obj.arrayBuffer();
+  }
+  if (!obj.body) return null;
+  return new Response(obj.body).arrayBuffer();
 }

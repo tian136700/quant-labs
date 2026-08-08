@@ -81,6 +81,8 @@ def main() -> int:
         return fail("wait_deploy_result must write last_deploy_failure.txt")
     if "pending_deploy_followup" not in wait:
         return fail("wait_deploy_result must clear pending on success")
+    if "failed_awaiting_fix" not in wait:
+        return fail("wait_deploy_result must mark pending phase failed_awaiting_fix on failure")
 
     if "notify_deploy_autofix" not in fix and "正在修复" not in fix:
         return fail("deploy-auto-fix-stop must Bark 正在修复 on failure path")

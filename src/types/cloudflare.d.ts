@@ -31,6 +31,8 @@ declare global {
 
   interface R2ObjectBody {
     body: ReadableStream | null;
+    arrayBuffer(): Promise<ArrayBuffer>;
+    text(): Promise<string>;
     json<T>(): Promise<T>;
     httpEtag?: string;
     etag?: string;
