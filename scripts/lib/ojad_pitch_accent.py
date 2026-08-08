@@ -135,29 +135,65 @@ def _collect_jisho_candidates(rows: list[dict[str, Any]]) -> list[dict[str, Any]
     return out
 
 
+def _is_mostly_kana(text: str) -> bool:
+    t = (text or "").strip()
+    if not t:
+        return False
+    kana = 0
+    for ch in t:
+        o = ord(ch)
+        if (
+            0x3040 <= o <= 0x309F  # hiragana
+            or 0x30A0 <= o <= 0x30FF  # katakana
+            or ch in "ーっゃゅょぁぃぅぇぉッャュョァィゥェォ"
+        ):
+            kana += 1
+    return kana / max(len(t), 1) >= 0.55
+
+
 def pick_jisho_form(
     rows: list[dict[str, Any]],
     *,
     word: str | None = None,
     reading: str | None = None,
 ) -> dict[str, Any] | None:
-    """Pick dictionary-form (jisho) accent; reading kana must match exactly when provided."""
+    """Pick dictionary-form (jisho) accent.
+
+    - 有 reading：假名必须完全一致
+    - 词条多为假名：必须与 OJAD kana 一致（すごい ↔ 凄い）
+    - 词条含汉字：必须 headword 命中；禁止落到无关词（お気をつけて ≠ お気に入り）
+    """
     reading_norm = _normalize_kana(reading or "")
     word_trim = (word or "").strip()
+    word_kana = _normalize_kana(word_trim)
 
-    scoped = rows
+    matched_rows: list[dict[str, Any]] = []
     if word_trim:
-        matched = [r for r in rows if _headword_matches(str(r.get("headword") or ""), word_trim)]
-        if matched:
-            scoped = matched
+        matched_rows = [
+            r for r in rows if _headword_matches(str(r.get("headword") or ""), word_trim)
+        ]
 
-    candidates = _collect_jisho_candidates(scoped)
+    # 候选：优先 headword 命中的行；假名查询可扫全表再靠 kana 过滤
+    if matched_rows:
+        candidates = _collect_jisho_candidates(matched_rows)
+    elif word_trim and _is_mostly_kana(word_trim):
+        candidates = _collect_jisho_candidates(rows)
+    else:
+        # 含汉字且 headword 无一命中 → 不瞎选
+        return None
+
     if not candidates:
         return None
 
     if reading_norm:
         for form in candidates:
             if _normalize_kana(form.get("kana") or "") == reading_norm:
+                return form
+        return None
+
+    if word_kana and _is_mostly_kana(word_trim):
+        for form in candidates:
+            if _normalize_kana(form.get("kana") or "") == word_kana:
                 return form
         return None
 
@@ -172,10 +208,13 @@ def fetch_pitch_accent_for_word(
 ) -> dict[str, Any] | None:
     """Return compact pitch accent dict for DB storage, or None if OJAD has no match."""
     sess = session or requests.Session()
-    queries: list[tuple[str, str | None]] = [(word, word)]
+    word_trim = (word or "").strip()
     reading_trim = (reading or "").strip()
-    if reading_trim and reading_trim != word.strip():
-        queries.append((reading_trim, word))
+    queries: list[tuple[str, str | None]] = []
+    if word_trim:
+        queries.append((word_trim, word_trim))
+    if reading_trim and reading_trim != word_trim:
+        queries.append((reading_trim, word_trim or reading_trim))
 
     seen: set[str] = set()
     for query, match_word in queries:
@@ -183,7 +222,11 @@ def fetch_pitch_accent_for_word(
             continue
         seen.add(query)
         rows = fetch_ojad_rows(query, session=sess)
-        form = pick_jisho_form(rows, word=match_word, reading=reading_trim or None)
+        form = pick_jisho_form(
+            rows,
+            word=match_word,
+            reading=reading_trim or (query if _is_mostly_kana(query) else None),
+        )
         if form and form.get("moras"):
             return {
                 "kana": form["kana"],

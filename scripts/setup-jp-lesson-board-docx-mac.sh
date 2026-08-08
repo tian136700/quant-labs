@@ -30,7 +30,7 @@ if [[ ! -x "${VENV}/bin/python" ]]; then
   python3 -m venv "$VENV"
 fi
 "${VENV}/bin/pip" install -q --upgrade pip
-"${VENV}/bin/pip" install -q python-docx pillow beautifulsoup4 requests
+"${VENV}/bin/pip" install -q python-docx pillow beautifulsoup4 requests pykakasi
 
 chmod +x "$ROOT/scripts/jp-lesson-board-docx-stage.sh"
 chmod +x "$ROOT/scripts/jp-lesson-board-docx-api.py"

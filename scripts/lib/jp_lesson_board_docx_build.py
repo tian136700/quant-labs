@@ -20,7 +20,9 @@ from PIL import Image
 WORDS_PER_ROW = 3
 PART_GAP_MM = 25
 # 抬高版本 → 已生成的板书 Word 会因指纹变化全部重建（读音改顶横线）
-BOARD_DOCX_FORMAT_VERSION = "pitch-overline-v2"
+BOARD_DOCX_FORMAT_VERSION = "pitch-overline-v4"
+# OJAD / 词典未命中时的板书读音格文案
+BOARD_PITCH_NOT_FOUND_LABEL = "暂时没有在词典里面查到该词"
 
 # Mac 常见日文字体
 _FONT_CANDIDATES = (
@@ -30,6 +32,34 @@ _FONT_CANDIDATES = (
     "/Library/Fonts/Arial Unicode.ttf",
     "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
 )
+
+_kakasi_converter = None
+
+
+def to_hiragana(text: str) -> str:
+    """汉字/片假名 → 平假名（板书只展示假名）。"""
+    raw = (text or "").strip()
+    if not raw:
+        return ""
+    global _kakasi_converter
+    try:
+        import pykakasi
+
+        if _kakasi_converter is None:
+            _kakasi_converter = pykakasi.kakasi()
+        parts = _kakasi_converter.convert(raw)
+        out = "".join((p.get("hira") or p.get("orig") or "") for p in parts)
+        return out.strip() or raw
+    except Exception:
+        # 仅片假名时简单降写
+        chars: list[str] = []
+        for ch in raw:
+            o = ord(ch)
+            if 0x30A1 <= o <= 0x30F6:
+                chars.append(chr(o - 0x60))
+            else:
+                chars.append(ch)
+        return "".join(chars)
 
 
 def parse_lesson_content(raw: str) -> list[str]:
@@ -108,29 +138,33 @@ def render_ojad_pitch_reading_png(
     word: str | None = None,
     font_size: int = 32,
 ) -> bytes | None:
-    """画 OJAD 式顶横线读音图：H 黑线、N 红线；仅读音，无 NLLL/头高文字。"""
-    from PIL import ImageDraw, ImageFont
+    """画 OJAD 式顶横线读音图：连续高音一段横线；N 核音红线；只显示假名。"""
+    from PIL import ImageDraw
 
+    display = to_hiragana((reading or "").strip() or (word or "").strip())
     parsed = parse_pitch_json(pitch_accent)
-    fallback = (reading or word or "").strip()
-    if not parsed:
-        if not fallback:
-            return None
-        font = _load_jp_font(font_size)
-        # 纯读音、无音调
-        tmp = Image.new("RGB", (8, 8), "white")
-        draw = ImageDraw.Draw(tmp)
-        bbox = draw.textbbox((0, 0), fallback, font=font)
-        tw = max(1, bbox[2] - bbox[0])
-        th = max(1, bbox[3] - bbox[1])
-        pad_x, pad_y = 8, 6
-        img = Image.new("RGB", (tw + pad_x * 2, th + pad_y * 2), "white")
-        ImageDraw.Draw(img).text((pad_x, pad_y - bbox[1]), fallback, font=font, fill="#222222")
-        return _png_bytes(img)
+    moras: list[dict[str, str]] = []
+    if parsed and parsed.get("moras"):
+        # 音调拍须与展示假名长度一致，否则只用假名不画错线
+        joined = "".join(m["c"] for m in parsed["moras"])
+        target = display or to_hiragana(parsed.get("kana") or "")
+        if target and _kana_eq(joined, target):
+            # 用展示假名字形，保留 OJAD 的 L/H/N
+            cursor = 0
+            for m in parsed["moras"]:
+                n = len(m["c"])
+                moras.append({"c": target[cursor : cursor + n], "p": m["p"]})
+                cursor += n
+            display = target
+        elif not display:
+            moras = list(parsed["moras"])
+            display = "".join(m["c"] for m in moras)
 
-    moras = parsed["moras"]
+    if not moras:
+        # 无可用音调：不画裸假名，由 Word 单元格显示「暂时没有在词典里面查到该词」
+        return None
+
     font = _load_jp_font(font_size)
-    # 量宽
     probe = Image.new("RGB", (8, 8), "white")
     pdraw = ImageDraw.Draw(probe)
     mora_widths: list[int] = []
@@ -140,7 +174,7 @@ def render_ojad_pitch_reading_png(
         mora_widths.append(max(int(font_size * 1.05), bbox[2] - bbox[0] + 4))
         mora_heights.append(bbox[3] - bbox[1])
     line_gap = max(4, font_size // 6)
-    bar_h = max(2, font_size // 12)
+    bar_h = max(3, font_size // 10)
     text_h = max(mora_heights) if mora_heights else font_size
     total_w = sum(mora_widths) + 12
     total_h = line_gap + bar_h + 2 + text_h + 10
@@ -148,36 +182,82 @@ def render_ojad_pitch_reading_png(
     draw = ImageDraw.Draw(img)
     x = 6
     text_y = line_gap + bar_h + 2
-    for m, mw in zip(moras, mora_widths):
-        ch = m["c"]
-        pitch = m["p"]
-        bbox = draw.textbbox((0, 0), ch, font=font)
-        cw = bbox[2] - bbox[0]
-        cx = x + (mw - cw) // 2
-        color = "#e85d6f" if pitch == "N" else "#222222"
-        draw.text((cx, text_y - bbox[1]), ch, font=font, fill=color)
-        if pitch in {"H", "N"}:
-            bar_color = "#e85d6f" if pitch == "N" else "#222222"
-            y0 = line_gap
-            # 顶横线略短于字宽、居中
-            inset = max(1, mw // 10)
-            draw.rectangle(
-                [x + inset, y0, x + mw - inset, y0 + bar_h],
-                fill=bar_color,
-            )
+    xs: list[int] = []
+    for mw in mora_widths:
+        xs.append(x)
         x += mw
+
+    # 字
+    for m, mw, x0 in zip(moras, mora_widths, xs):
+        bbox = draw.textbbox((0, 0), m["c"], font=font)
+        cw = bbox[2] - bbox[0]
+        cx = x0 + (mw - cw) // 2
+        color = "#e85d6f" if m["p"] == "N" else "#222222"
+        draw.text((cx, text_y - bbox[1]), m["c"], font=font, fill=color)
+
+    # 连续高音（H/N）画成一条横线；核音段用红色
+    y0 = line_gap
+    i = 0
+    while i < len(moras):
+        if moras[i]["p"] not in {"H", "N"}:
+            i += 1
+            continue
+        j = i
+        while j < len(moras) and moras[j]["p"] in {"H", "N"}:
+            j += 1
+        # 整段底色黑线
+        x_left = xs[i]
+        x_right = xs[j - 1] + mora_widths[j - 1]
+        draw.rectangle([x_left, y0, x_right, y0 + bar_h], fill="#222222")
+        # 核音 mora 覆盖红线
+        for k in range(i, j):
+            if moras[k]["p"] == "N":
+                draw.rectangle(
+                    [xs[k], y0, xs[k] + mora_widths[k], y0 + bar_h],
+                    fill="#e85d6f",
+                )
+        i = j
     return _png_bytes(img)
 
 
+def _kana_eq(a: str, b: str) -> bool:
+    def norm(s: str) -> str:
+        out: list[str] = []
+        for ch in (s or "").replace(" ", ""):
+            o = ord(ch)
+            if 0x30A1 <= o <= 0x30F6:
+                out.append(chr(o - 0x60))
+            else:
+                out.append(ch)
+        return "".join(out)
+
+    return norm(a) == norm(b)
+
+
 def reading_label_for_cell(
-    word: str, pitch_accent: str | None, reading: str | None = None
+    word: str,
+    pitch_accent: str | None,
+    reading: str | None = None,
+    *,
+    pitch_accent_source: str | None = None,
 ) -> str:
-    """无图画时的纯文字兜底：只显示读音/词条，绝不写 NLLL／头高。"""
+    """无图画时的纯文字兜底。
+
+    有合法音调 → 假名；词典未查到（OJAD_NONE / 无 pitch）→ 提示文案。
+    绝不写 NLLL／头高。
+    """
+    src = (pitch_accent_source or "").strip()
+    if src == "OJAD_NONE":
+        return BOARD_PITCH_NOT_FOUND_LABEL
     parsed = parse_pitch_json(pitch_accent)
-    if parsed:
-        return str(parsed["kana"])
-    r = (reading or "").strip()
-    return r or (word or "").strip()
+    if parsed and parsed.get("kana"):
+        display = to_hiragana((reading or "").strip() or (word or "").strip())
+        joined = "".join(m["c"] for m in parsed["moras"])
+        target = display or to_hiragana(str(parsed["kana"]))
+        if target and _kana_eq(joined, target):
+            return target
+        return to_hiragana(str(parsed["kana"]))
+    return BOARD_PITCH_NOT_FOUND_LABEL
 
 
 def fnv1a_hex(text: str) -> str:
@@ -432,6 +512,7 @@ def build_board_docx_bytes(
                 word = str(item.get("word") or "")
                 pitch = item.get("pitch_accent")
                 reading = item.get("reading")
+                pitch_src = item.get("pitch_accent_source")
                 png = render_ojad_pitch_reading_png(
                     pitch if isinstance(pitch, str) else None,
                     reading=reading if isinstance(reading, str) else None,
@@ -442,9 +523,16 @@ def build_board_docx_bytes(
                     # 读音图宽度随列数缩放
                     run.add_picture(io.BytesIO(png), width=Mm(min(48, usable_w_mm / cols - 4)))
                 else:
-                    label = reading_label_for_cell(word, None, reading if isinstance(reading, str) else None)
+                    label = reading_label_for_cell(
+                        word,
+                        pitch if isinstance(pitch, str) else None,
+                        reading if isinstance(reading, str) else None,
+                        pitch_accent_source=(
+                            pitch_src if isinstance(pitch_src, str) else None
+                        ),
+                    )
                     run = p.add_run(label)
-                    run.font.size = Pt(14)
+                    run.font.size = Pt(11 if label == BOARD_PITCH_NOT_FOUND_LABEL else 14)
                     run.font.name = "PingFang SC"
                     r = run._element
                     r.rPr.rFonts.set(qn("w:eastAsia"), "Hiragino Sans")
@@ -486,11 +574,42 @@ def dry_run_lesson_148_fixture(fixture_path: Path, out_path: Path) -> dict[str, 
         "pitch_accent": json.dumps(
             {
                 "kana": "すごい",
-                "pattern": "HLL",
+                "pattern": "LNL",
                 "moras": [
-                    {"c": "す", "p": "H"},
-                    {"c": "ご", "p": "L"},
+                    {"c": "す", "p": "L"},
+                    {"c": "ご", "p": "N"},
                     {"c": "い", "p": "L"},
+                ],
+            },
+            ensure_ascii=False,
+        ),
+    }
+    demo_words[6] = {
+        "word": "お元気で",
+        "reading": None,
+        "pitch_accent": None,
+        "pitch_accent_source": "OJAD_NONE",
+    }
+    demo_words[7] = {
+        "word": "お気をつけて",
+        "reading": None,
+        "pitch_accent": None,
+        "pitch_accent_source": "OJAD_NONE",
+    }
+    # 错配 pitch 不得画成「おきにいり」：假名不一致时只显示课表假名
+    demo_words[8] = {
+        "word": "さようなら",
+        "reading": None,
+        "pitch_accent": json.dumps(
+            {
+                "kana": "おきにいり",
+                "pattern": "LHHHH",
+                "moras": [
+                    {"c": "お", "p": "L"},
+                    {"c": "き", "p": "H"},
+                    {"c": "に", "p": "H"},
+                    {"c": "い", "p": "H"},
+                    {"c": "り", "p": "H"},
                 ],
             },
             ensure_ascii=False,
@@ -500,12 +619,29 @@ def dry_run_lesson_148_fixture(fixture_path: Path, out_path: Path) -> dict[str, 
     blob = build_board_docx_bytes(image=img, words=demo_words)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_bytes(blob)
-    # 顺带写出第一词读音预览 PNG，便于目视回归
+    # 顺带写出读音预览 PNG，便于目视回归
     preview = render_ojad_pitch_reading_png(
         demo_words[0]["pitch_accent"], reading="いっぱい", word="いっぱい"
     )
     if preview:
         (out_path.parent / "lesson-148-pitch-preview.png").write_bytes(preview)
+    preview2 = render_ojad_pitch_reading_png(
+        demo_words[1]["pitch_accent"], reading="すごい", word="すごい"
+    )
+    if preview2:
+        (out_path.parent / "lesson-148-pitch-preview-sugoi.png").write_bytes(preview2)
+    preview_kanji = render_ojad_pitch_reading_png(
+        None, reading=None, word="お気をつけて"
+    )
+    # 无音调应返回 None；文案走 reading_label_for_cell
+    if preview_kanji is not None:
+        raise AssertionError("expected no PNG when pitch missing")
+    not_found = reading_label_for_cell(
+        "お気をつけて", None, None, pitch_accent_source="OJAD_NONE"
+    )
+    (out_path.parent / "lesson-148-pitch-not-found.txt").write_text(
+        not_found, encoding="utf-8"
+    )
     fp = build_fingerprint(
         ref_updated_at="fixture",
         content=",".join(str(w["word"]) for w in demo_words),

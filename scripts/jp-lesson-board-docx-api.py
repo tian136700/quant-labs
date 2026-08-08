@@ -27,6 +27,7 @@ from jp_lesson_board_docx_build import (  # noqa: E402
     build_board_docx_bytes,
     build_fingerprint,
     pitch_digest,
+    to_hiragana,
 )
 from ojad_pitch_accent import fetch_pitch_accent_for_word  # noqa: E402
 from vocab_fill_circuit_breaker import assert_not_killed  # noqa: E402
@@ -182,30 +183,70 @@ def ensure_pitches_for_lesson(
     mark_none: list[int] = []
 
     for i, w in enumerate(updated):
+        surface = str(w.get("word") or "").strip()
+        reading_hint = to_hiragana(
+            str(w.get("reading") or "").strip() or surface
+        )
         digest = pitch_digest(w.get("pitch_accent"), w.get("pitch_accent_source"))
-        if digest:
+        if digest and digest != "OJAD_NONE":
+            # 已有音调：若与课表假名不一致则丢掉重抓（防错配缓存）
+            try:
+                parsed = json.loads(str(w.get("pitch_accent") or ""))
+                stored_kana = to_hiragana(str(parsed.get("kana") or ""))
+            except (json.JSONDecodeError, TypeError, AttributeError):
+                stored_kana = ""
+            if reading_hint and stored_kana and stored_kana != reading_hint:
+                print(
+                    f"  drop mismatched pitch {surface}: {stored_kana} != {reading_hint}",
+                    flush=True,
+                )
+                digest = ""
+                w = dict(w)
+                w["pitch_accent"] = None
+                w["pitch_accent_source"] = None
+                w["pitch_digest"] = ""
+                updated[i] = w
+            else:
+                w = dict(w)
+                w["reading"] = reading_hint or w.get("reading")
+                w["pitch_digest"] = digest
+                updated[i] = w
+                continue
+        elif digest == "OJAD_NONE":
             w = dict(w)
+            w["reading"] = reading_hint or w.get("reading")
             w["pitch_digest"] = digest
             updated[i] = w
             continue
-        surface = str(w.get("word") or "").strip()
         if not surface:
             continue
         if dry_run:
             continue
-        print(f"  OJAD fetch: {surface}", flush=True)
+        print(f"  OJAD fetch: {surface} (hira={reading_hint})", flush=True)
         try:
-            result = fetch_pitch_accent_for_word(surface)
+            result = fetch_pitch_accent_for_word(
+                surface, reading=reading_hint or None
+            )
         except Exception as exc:  # noqa: BLE001
             print(f"  OJAD error {surface}: {exc}", flush=True)
             time.sleep(ojad_gap)
             continue
         time.sleep(ojad_gap)
         word_id = w.get("word_id")
+        # 拒收与课表表面假名对不上的结果（防「お気をつけて」→「おきにいり」）
+        if result:
+            result_kana = to_hiragana(str(result.get("kana") or ""))
+            if reading_hint and result_kana and result_kana != reading_hint:
+                print(
+                    f"  OJAD reject mismatch {surface}: got {result_kana}",
+                    flush=True,
+                )
+                result = None
         if not result:
             if word_id:
                 mark_none.append(int(word_id))
             w = dict(w)
+            w["reading"] = reading_hint or w.get("reading")
             w["pitch_accent_source"] = "OJAD_NONE"
             w["pitch_digest"] = "OJAD_NONE"
             updated[i] = w
@@ -216,6 +257,7 @@ def ensure_pitches_for_lesson(
             "moras": result.get("moras") or [],
         }
         w = dict(w)
+        w["reading"] = reading_hint or str(result.get("kana") or "")
         w["pitch_accent"] = json.dumps(pitch_obj, ensure_ascii=False)
         w["pitch_accent_source"] = "OJAD"
         w["pitch_digest"] = pitch_digest(w["pitch_accent"], "OJAD")

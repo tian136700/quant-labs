@@ -78,6 +78,84 @@ def main() -> int:
         raise SystemExit("FAIL: board docx must not use 头高/NLLL text labels anymore")
     if "render_ojad_pitch_reading_png" not in build:
         raise SystemExit("FAIL: missing OJAD overline PNG renderer")
+    if "to_hiragana" not in build:
+        raise SystemExit("FAIL: board docx must convert kanji to hiragana")
+    if "pitch-overline-v4" not in build:
+        raise SystemExit("FAIL: format version must be pitch-overline-v4")
+    if "暂时没有在词典里面查到该词" not in build:
+        raise SystemExit("FAIL: missing not-found pitch label")
+    ts = (ROOT / "src" / "lib" / "jp-lesson-board-docx.ts").read_text(encoding="utf-8")
+    if "pitch-overline-v4" not in ts:
+        raise SystemExit("FAIL: TS format version must match Python v4")
+    if "暂时没有在词典里面查到该词" not in ts:
+        raise SystemExit("FAIL: TS must share not-found pitch label")
+    setup = SETUP.read_text(encoding="utf-8")
+    if "pykakasi" not in setup:
+        raise SystemExit("FAIL: setup must install pykakasi")
+    api = API.read_text(encoding="utf-8")
+    if "OJAD reject mismatch" not in api:
+        raise SystemExit("FAIL: board cron must reject OJAD kana mismatch")
+
+    # 连续横线 + 假名转换：必须用 board venv（含 pykakasi）
+    check_py = f"""
+import io, json, sys
+sys.path.insert(0, {str(ROOT / "scripts" / "lib")!r})
+from jp_lesson_board_docx_build import render_ojad_pitch_reading_png, to_hiragana
+from PIL import Image
+
+if to_hiragana("お元気で") != "おげんきで":
+    raise SystemExit(f"FAIL: to_hiragana お元気で got {{to_hiragana('お元気で')!r}}")
+if to_hiragana("お気をつけて") != "おきをつけて":
+    raise SystemExit(
+        f"FAIL: to_hiragana お気をつけて got {{to_hiragana('お気をつけて')!r}}"
+    )
+
+multi_h = json.dumps(
+    {{
+        "kana": "おきにいり",
+        "pattern": "LHHHH",
+        "moras": [
+            {{"c": "お", "p": "L"}},
+            {{"c": "き", "p": "H"}},
+            {{"c": "に", "p": "H"}},
+            {{"c": "い", "p": "H"}},
+            {{"c": "り", "p": "H"}},
+        ],
+    }},
+    ensure_ascii=False,
+)
+png = render_ojad_pitch_reading_png(multi_h, reading="おきにいり", word="おきにいり")
+if not png:
+    raise SystemExit("FAIL: expected pitch PNG for LHHHH")
+img = Image.open(io.BytesIO(png)).convert("RGB")
+w, h = img.size
+bar_row = None
+for y in range(min(h, 20)):
+    row = [img.getpixel((x, y)) for x in range(w)]
+    dark = [i for i, px in enumerate(row) if px[0] < 80 and px[1] < 80 and px[2] < 80]
+    if len(dark) >= 8:
+        bar_row = dark
+        break
+if not bar_row:
+    raise SystemExit("FAIL: no continuous dark bar row found in pitch PNG")
+gaps = 0
+for a, b in zip(bar_row, bar_row[1:]):
+    if b - a > 2:
+        gaps += 1
+if gaps > 0:
+    raise SystemExit(f"FAIL: pitch overline fragmented gaps={{gaps}} dark_xs={{bar_row[:20]}}")
+print("ok-render")
+"""
+    proc2 = subprocess.run(
+        [py, "-c", check_py],
+        cwd=str(ROOT),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc2.returncode != 0:
+        raise SystemExit(f"FAIL render checks: {proc2.stderr or proc2.stdout}")
+
     print("ok: jp-lesson-board-docx")
     return 0
 
