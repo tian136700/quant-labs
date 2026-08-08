@@ -20,9 +20,9 @@ from PIL import Image
 WORDS_PER_ROW = 3
 PART_GAP_MM = 25
 # 抬高版本 → 已生成的板书 Word 会因指纹变化全部重建（读音改顶横线）
-BOARD_DOCX_FORMAT_VERSION = "pitch-overline-v4"
-# OJAD / 词典未命中时的板书读音格文案
-BOARD_PITCH_NOT_FOUND_LABEL = "暂时没有在词典里面查到该词"
+BOARD_DOCX_FORMAT_VERSION = "pitch-overline-v5"
+# OJAD / 词典未命中时的板书读音格：空白（不写提示文案）
+BOARD_PITCH_NOT_FOUND_LABEL = ""
 
 # Mac 常见日文字体
 _FONT_CANDIDATES = (
@@ -161,7 +161,7 @@ def render_ojad_pitch_reading_png(
             display = "".join(m["c"] for m in moras)
 
     if not moras:
-        # 无可用音调：不画裸假名，由 Word 单元格显示「暂时没有在词典里面查到该词」
+        # 无可用音调：不画裸假名，读音格留空
         return None
 
     font = _load_jp_font(font_size)
@@ -243,7 +243,7 @@ def reading_label_for_cell(
 ) -> str:
     """无图画时的纯文字兜底。
 
-    有合法音调 → 假名；词典未查到（OJAD_NONE / 无 pitch）→ 提示文案。
+    有合法音调 → 假名；词典未查到（OJAD_NONE / 无 pitch）→ 空白。
     绝不写 NLLL／头高。
     """
     src = (pitch_accent_source or "").strip()
@@ -531,8 +531,10 @@ def build_board_docx_bytes(
                             pitch_src if isinstance(pitch_src, str) else None
                         ),
                     )
+                    if not label:
+                        continue
                     run = p.add_run(label)
-                    run.font.size = Pt(11 if label == BOARD_PITCH_NOT_FOUND_LABEL else 14)
+                    run.font.size = Pt(14)
                     run.font.name = "PingFang SC"
                     r = run._element
                     r.rPr.rFonts.set(qn("w:eastAsia"), "Hiragino Sans")
@@ -633,12 +635,14 @@ def dry_run_lesson_148_fixture(fixture_path: Path, out_path: Path) -> dict[str, 
     preview_kanji = render_ojad_pitch_reading_png(
         None, reading=None, word="お気をつけて"
     )
-    # 无音调应返回 None；文案走 reading_label_for_cell
+    # 无音调应返回 None；文案走 reading_label_for_cell（空白）
     if preview_kanji is not None:
         raise AssertionError("expected no PNG when pitch missing")
     not_found = reading_label_for_cell(
         "お気をつけて", None, None, pitch_accent_source="OJAD_NONE"
     )
+    if not_found != "":
+        raise AssertionError(f"expected blank not-found label, got {not_found!r}")
     (out_path.parent / "lesson-148-pitch-not-found.txt").write_text(
         not_found, encoding="utf-8"
     )

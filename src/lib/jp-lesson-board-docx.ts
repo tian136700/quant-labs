@@ -7,11 +7,10 @@ import { parseJpVocabPitchAccent } from "@/lib/jp-vocab-pitch-accent";
 import { JP_VOCAB_REF_R2_PREFIX } from "@/lib/jp-vocab-ref-shared";
 
 /** 与 Python `BOARD_DOCX_FORMAT_VERSION` 同步；变了则全部重建板书 Word */
-export const JP_LESSON_BOARD_DOCX_FORMAT_VERSION = "pitch-overline-v4";
+export const JP_LESSON_BOARD_DOCX_FORMAT_VERSION = "pitch-overline-v5";
 
-/** 与 Python `BOARD_PITCH_NOT_FOUND_LABEL` 同步 */
-export const JP_LESSON_BOARD_PITCH_NOT_FOUND_LABEL =
-  "暂时没有在词典里面查到该词";
+/** 词典未命中：空白（与 Python BOARD_PITCH_NOT_FOUND_LABEL 同步） */
+export const JP_LESSON_BOARD_PITCH_NOT_FOUND_LABEL = "";
 
 /** R2：与教案图分开，如 vocab-ref/board/lesson-148.docx */
 export function jpLessonBoardDocxR2Key(lessonId: number): string {
@@ -28,7 +27,7 @@ export function isLocalJpLessonBoardDocxMarker(r2Key: string): boolean {
 
 /**
  * 板书单元格文案兜底（无图画时）。
- * 有音调 → 假名；词典未查到 →「暂时没有在词典里面查到该词」。禁止 NLLL／头高。
+ * 有音调 → 假名；词典未查到 → 空白。禁止 NLLL／头高。
  * 实际 Word 由 Mac 脚本画 OJAD 顶横线图。
  */
 export function formatJpLessonBoardPitchCell(input: {
