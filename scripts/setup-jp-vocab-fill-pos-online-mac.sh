@@ -14,7 +14,7 @@ LABEL="com.infoquests.jp-vocab-fill-pos-online"
 PLIST_DST="${HOME}/Library/LaunchAgents/${LABEL}.plist"
 DONE_PATH="${CONFIG_DIR}/jp-vocab-fill-pos-online-DONE.switch"
 EXAMPLE="$ROOT/scripts/com.infoquests.jp-vocab-fill-pos-online.plist.example"
-INTERVAL="${JP_VOCAB_FILL_POS_ONLINE_INTERVAL_SECONDS:-60}"
+INTERVAL="${JP_VOCAB_FILL_POS_ONLINE_INTERVAL_SECONDS:-180}"
 
 mkdir -p "$CONFIG_DIR" "$LOG_DIR" "${HOME}/Library/LaunchAgents"
 

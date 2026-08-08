@@ -1,5 +1,5 @@
 #!/bin/bash
-# Mac 安装：OJAD 音调补全 launchd（默认每 60 秒，每轮 3 条）
+# Mac 安装：OJAD 音调补全 launchd（默认每 180 秒，每轮 3 条）
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -21,7 +21,7 @@ set -a
 source "$ENV_FILE"
 set +a
 
-RUN_INTERVAL="${JP_VOCAB_FILL_PITCH_ACCENT_INTERVAL_SECONDS:-60}"
+RUN_INTERVAL="${JP_VOCAB_FILL_PITCH_ACCENT_INTERVAL_SECONDS:-180}"
 
 chmod +x "$ROOT/scripts/jp-vocab-fill-pitch-accent-stage.sh"
 chmod +x "$ROOT/scripts/jp-vocab-fill-pitch-accent-api.py"

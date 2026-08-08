@@ -12,9 +12,9 @@
   <key>RunAtLoad</key>
   <true/>
   <key>StartInterval</key>
-  <integer>60</integer>
+  <integer>180</integer>
   <key>ThrottleInterval</key>
-  <integer>60</integer>
+  <integer>180</integer>
   <key>StandardOutPath</key>
   <string>/Users/Admin/Library/Logs/com.infoquests.jp-vocab-fill-single-usage-examples-online.log</string>
   <key>StandardErrorPath</key>

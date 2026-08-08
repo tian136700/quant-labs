@@ -70,6 +70,22 @@ async function readQuizDayAgg(
   };
 }
 
+/** isolate 内短缓存：抽查中多 launchd 每分钟打门禁时少打 D1（Mac 侧另有文件缓存） */
+const GATE_QUIET_CACHE_MS = 60_000;
+const GATE_OK_CACHE_MS = 15_000;
+
+type GateCacheEntry = {
+  atMs: number;
+  cooldownMs: number;
+  result: JpVocabFillScheduleGateResult;
+};
+
+let gateIsolateCache: GateCacheEntry | null = null;
+
+function gateCacheTtlMs(result: JpVocabFillScheduleGateResult): number {
+  return result.quiet ? GATE_QUIET_CACHE_MS : GATE_OK_CACHE_MS;
+}
+
 /**
  * 日语+英语词表补全门禁（例句 / 统一 online / 英语 online 等共用）：
  * - 老师点「开始抽查」写入 live 词 → 立刻静默（即使尚未勾选）
@@ -82,18 +98,28 @@ export async function evaluateJpVocabFillScheduleGate(
   now = new Date(),
   cooldownMs = JP_VOCAB_FILL_QUIZ_COOLDOWN_MS
 ): Promise<JpVocabFillScheduleGateResult> {
+  const nowMs = now.getTime();
+  const cached = gateIsolateCache;
+  if (
+    cached &&
+    cached.cooldownMs === cooldownMs &&
+    nowMs - cached.atMs < gateCacheTtlMs(cached.result)
+  ) {
+    return cached.result;
+  }
+
   await ensureJpVocabTeacherQuizDaySchema(db);
   await ensureEnVocabTeacherQuizDaySchema(db);
 
   const quizDate = beijingDateString(now);
   const cooldownMinutes = Math.max(1, Math.round(cooldownMs / 60000));
-  const nowMs = now.getTime();
 
+  // 门禁本身有 isolate 短缓存；live 用默认短缓存即可（勿每分钟 bypass 扫 D1）
   const [jpDay, enDay, jpLive, enLive] = await Promise.all([
     readQuizDayAgg(db, "jp_vocab_teacher_quiz_day", quizDate),
     readQuizDayAgg(db, "en_vocab_teacher_quiz_day", quizDate),
-    getJpVocabTeacherQuizLive(db, now, { bypassCache: true }),
-    getEnVocabTeacherQuizLive(db, now, { bypassCache: true }),
+    getJpVocabTeacherQuizLive(db, now),
+    getEnVocabTeacherQuizLive(db, now),
   ]);
 
   const jpLiveOpen =
@@ -136,8 +162,10 @@ export async function evaluateJpVocabFillScheduleGate(
   const midQuiz =
     (jpLiveOpen && !jpCompleted) || (enLiveOpen && !enCompleted);
 
+  let result: JpVocabFillScheduleGateResult;
+
   if (lastMs == null && !liveOpen) {
-    return {
+    result = {
       quiet: false,
       reason: "no_quiz_today",
       detail: `北京日期 ${quizDate} 尚无老师抽查记录，允许补全`,
@@ -148,55 +176,56 @@ export async function evaluateJpVocabFillScheduleGate(
       live_open: false,
       subjects,
     };
+  } else {
+    const anchorMs = lastMs ?? nowMs;
+    const runAfterMs = anchorMs + cooldownMs;
+    const lastIso = new Date(anchorMs).toISOString();
+    const runAfterIso = new Date(runAfterMs).toISOString();
+
+    if (midQuiz) {
+      result = {
+        quiet: true,
+        reason: "quiz_in_progress",
+        detail:
+          `老师抽查进行中（live 开着且今日未抽完），日/英语词表补全全部跳过` +
+          `（last=${lastIso}）`,
+        quiz_date: quizDate,
+        last_quiz_at: lastIso,
+        run_after: runAfterIso,
+        cooldown_minutes: cooldownMinutes,
+        live_open: liveOpen,
+        subjects,
+      };
+    } else if (nowMs < runAfterMs) {
+      const remainMin = Math.max(1, Math.ceil((runAfterMs - nowMs) / 60000));
+      result = {
+        quiet: true,
+        reason: "quiz_cooldown",
+        detail:
+          `今日最后抽查 ${lastIso}，需再等 ${cooldownMinutes} 分钟后才跑` +
+          `（约 ${remainMin} 分钟后 / run_after=${runAfterIso}）`,
+        quiz_date: quizDate,
+        last_quiz_at: lastIso,
+        run_after: runAfterIso,
+        cooldown_minutes: cooldownMinutes,
+        live_open: liveOpen,
+        subjects,
+      };
+    } else {
+      result = {
+        quiet: false,
+        reason: "ok_to_run",
+        detail: `今日最后抽查 ${lastIso}，已超过 ${cooldownMinutes} 分钟冷却，允许补全`,
+        quiz_date: quizDate,
+        last_quiz_at: lastIso,
+        run_after: runAfterIso,
+        cooldown_minutes: cooldownMinutes,
+        live_open: liveOpen,
+        subjects,
+      };
+    }
   }
 
-  const anchorMs = lastMs ?? nowMs;
-  const runAfterMs = anchorMs + cooldownMs;
-  const lastIso = new Date(anchorMs).toISOString();
-  const runAfterIso = new Date(runAfterMs).toISOString();
-
-  if (midQuiz) {
-    return {
-      quiet: true,
-      reason: "quiz_in_progress",
-      detail:
-        `老师抽查进行中（live 开着且今日未抽完），日/英语词表补全全部跳过` +
-        `（last=${lastIso}）`,
-      quiz_date: quizDate,
-      last_quiz_at: lastIso,
-      run_after: runAfterIso,
-      cooldown_minutes: cooldownMinutes,
-      live_open: liveOpen,
-      subjects,
-    };
-  }
-
-  if (nowMs < runAfterMs) {
-    const remainMin = Math.max(1, Math.ceil((runAfterMs - nowMs) / 60000));
-    return {
-      quiet: true,
-      reason: "quiz_cooldown",
-      detail:
-        `今日最后抽查 ${lastIso}，需再等 ${cooldownMinutes} 分钟后才跑` +
-        `（约 ${remainMin} 分钟后 / run_after=${runAfterIso}）`,
-      quiz_date: quizDate,
-      last_quiz_at: lastIso,
-      run_after: runAfterIso,
-      cooldown_minutes: cooldownMinutes,
-      live_open: liveOpen,
-      subjects,
-    };
-  }
-
-  return {
-    quiet: false,
-    reason: "ok_to_run",
-    detail: `今日最后抽查 ${lastIso}，已超过 ${cooldownMinutes} 分钟冷却，允许补全`,
-    quiz_date: quizDate,
-    last_quiz_at: lastIso,
-    run_after: runAfterIso,
-    cooldown_minutes: cooldownMinutes,
-    live_open: liveOpen,
-    subjects,
-  };
+  gateIsolateCache = { atMs: nowMs, cooldownMs, result };
+  return result;
 }

@@ -16,6 +16,14 @@
 
 调用方：quiet=true 时本轮 exit 0 跳过，不要打 fill-* / 付费模型。
 
+Mac 客户端缓存（scripts/lib/vocab_fill_quiz_gate.py）
+-------------------------------------------------
+多任务 StartInterval 较短时，禁止每个进程每分钟都 POST 门禁（会与 shared/进页抢 isolate → 1102）。
+本机文件缓存：~/.config/info-quests/vocab-fill-quiz-gate.cache.json
+- quiet（抽查中/冷却）默认约 120s 共享命中
+- ok_to_run 仅约 20s（尽快感知「开始抽查」）
+关闭：VOCAB_FILL_QUIZ_GATE_CACHE=0
+
 
 线上地址
 --------
@@ -24,6 +32,7 @@ POST https://finance.info-quests.com/api/jp-vocab/fill-schedule-gate
 说明：
 - 也可用 japanese.info-quests.com 同路径（同一 Worker / 同一 D1）。
 - 路径名带 jp-vocab，但门禁已覆盖日语 + 英语抽查状态。
+- Worker 侧对门禁结果另有 isolate 短缓存（quiet≈60s / ok≈15s）。
 
 
 本机开发（可选）

@@ -13,7 +13,7 @@ LABEL="com.infoquests.jp-vocab-fill-single-usage-examples-online"
 PLIST_DST="${HOME}/Library/LaunchAgents/${LABEL}.plist"
 DONE_PATH="${CONFIG_DIR}/jp-vocab-fill-single-usage-examples-online-DONE.switch"
 EXAMPLE="$ROOT/scripts/com.infoquests.jp-vocab-fill-single-usage-examples-online.plist.example"
-INTERVAL="${JP_VOCAB_FILL_SINGLE_USAGE_EXAMPLES_INTERVAL_SECONDS:-60}"
+INTERVAL="${JP_VOCAB_FILL_SINGLE_USAGE_EXAMPLES_INTERVAL_SECONDS:-180}"
 
 mkdir -p "$CONFIG_DIR" "$LOG_DIR" "${HOME}/Library/LaunchAgents"
 

@@ -30,9 +30,15 @@ def main() -> int:
         "jp_vocab_teacher_quiz_day",
         "quiz_in_progress",
         "live_open",
+        "GATE_QUIET_CACHE_MS",
+        "gateIsolateCache",
     ):
         if needle not in gate_ts:
             errors.append(f"gate ts missing {needle}")
+    if "bypassCache: true" in gate_ts:
+        errors.append(
+            "fill-schedule-gate must not bypassCache live every call (use isolate cache)"
+        )
 
     route = read("src/app/api/jp-vocab/fill-schedule-gate/route.ts")
     if "默认 30" not in route and "半小时" not in route:
@@ -44,6 +50,11 @@ def main() -> int:
         "skip_if_quiz_gate_quiet",
         "fill-schedule-gate",
         "return 75",
+        "DEFAULT_QUIET_CACHE_SEC = 120",
+        "DEFAULT_OK_CACHE_SEC = 20",
+        "vocab-fill-quiz-gate.cache.json",
+        "_read_cache",
+        "_write_cache",
     ):
         if needle not in helper:
             errors.append(f"quiz gate helper missing {needle}")
