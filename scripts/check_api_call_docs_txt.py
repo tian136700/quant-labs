@@ -78,6 +78,10 @@ REQUIRED: list[tuple[str, str]] = [
         "src/app/api/jp-lesson/manual-schedules/route.ts",
         "docs/jp-lesson-manual-schedules-api.txt",
     ),
+    (
+        "src/app/api/jp-lesson/board-docx/route.ts",
+        "docs/jp-lesson-board-docx-api.txt",
+    ),
 ]
 
 

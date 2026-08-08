@@ -51,6 +51,9 @@ let jpLessonLinkCopyCountColumnReady = false;
 let jpLessonGrammarItemCountColumnReady = false;
 let jpLessonCourseLabelColumnReady = false;
 let jpLessonCourseGroupIdColumnReady = false;
+let jpLessonBoardDocxR2KeyColumnReady = false;
+let jpLessonBoardDocxFingerprintColumnReady = false;
+let jpLessonBoardDocxUpdatedAtColumnReady = false;
 /** 热路径 list 用：整表列已核对后跳过逐列 ALTER（冷 isolate 上 7 次失败 ALTER 易顶 1102） */
 let jpLessonSchemaColumnsReady = false;
 
@@ -106,6 +109,27 @@ const JP_LESSON_OPTIONAL_COLUMNS: ReadonlyArray<{
     ddl: `ALTER TABLE jp_lesson ADD COLUMN course_group_id TEXT`,
     markReady: () => {
       jpLessonCourseGroupIdColumnReady = true;
+    },
+  },
+  {
+    name: "board_docx_r2_key",
+    ddl: `ALTER TABLE jp_lesson ADD COLUMN board_docx_r2_key TEXT`,
+    markReady: () => {
+      jpLessonBoardDocxR2KeyColumnReady = true;
+    },
+  },
+  {
+    name: "board_docx_fingerprint",
+    ddl: `ALTER TABLE jp_lesson ADD COLUMN board_docx_fingerprint TEXT`,
+    markReady: () => {
+      jpLessonBoardDocxFingerprintColumnReady = true;
+    },
+  },
+  {
+    name: "board_docx_updated_at",
+    ddl: `ALTER TABLE jp_lesson ADD COLUMN board_docx_updated_at TEXT`,
+    markReady: () => {
+      jpLessonBoardDocxUpdatedAtColumnReady = true;
     },
   },
 ];
@@ -193,7 +217,7 @@ async function ensureJpLessonCourseGroupIdColumn(db: D1Database): Promise<void> 
   jpLessonCourseGroupIdColumnReady = true;
 }
 
-async function ensureJpLessonSchemaColumns(db: D1Database): Promise<void> {
+export async function ensureJpLessonSchemaColumns(db: D1Database): Promise<void> {
   if (devStoreEnabled || jpLessonSchemaColumnsReady) return;
   const info = await db
     .prepare(`PRAGMA table_info(jp_lesson)`)

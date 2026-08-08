@@ -82,6 +82,7 @@ scripts/jp-review-sync.py
 scripts/jp-vocab-sync.py
 scripts/.venv-jp-review/
 scripts/.venv-schedule-caldav/
+scripts/.venv-board-docx/
 scripts/jp-review-sync.env
 scripts/jp-vocab-fill-reading.env
 scripts/en-vocab-fill-reading.env

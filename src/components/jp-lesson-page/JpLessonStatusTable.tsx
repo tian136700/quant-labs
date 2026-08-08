@@ -248,6 +248,7 @@ export function JpLessonStatusTable({
         fixedPanel
         allowOriginalDownload={isAdmin}
         cropKind={jpLessonCropKind(lesson.kind)}
+        lessonId={lesson.id}
       />
     );
     actionItems.push(

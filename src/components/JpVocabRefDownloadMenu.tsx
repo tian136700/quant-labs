@@ -28,6 +28,11 @@ type Props = {
   cropKind?: "word" | "grammar" | null;
   /** 保存/下载结果短提示（可接 CopyToast） */
   onStatus?: (message: string) => void;
+  /**
+   * 日语新课 id：有则优先拉预生成板书 Word（含 OJAD 读音）；
+   * 未就绪则 fallback 浏览器现场分页（无读音）。
+   */
+  lessonId?: number | null;
 };
 
 type BusyKind = "image" | "pdf" | "word" | "copyPdf";
@@ -168,8 +173,10 @@ function PaginatedFormatMenu({
               onWord();
             }}
           >
-            <span className="jp-ref-download-item-title">分页 Word</span>
-            <span className="jp-ref-download-item-desc">两部分同页，中间留白供板书</span>
+            <span className="jp-ref-download-item-title">分页 Word（含读音）</span>
+            <span className="jp-ref-download-item-desc">
+              优先预生成读音版；未就绪则普通分页
+            </span>
           </button>
         </div>
       ) : null}
@@ -189,6 +196,7 @@ export function JpVocabRefDownloadMenu({
   allowOriginalDownload = false,
   cropKind = null,
   onStatus,
+  lessonId = null,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<BusyKind | null>(null);
@@ -308,7 +316,35 @@ export function JpVocabRefDownloadMenu({
     setBusy("word");
     setOpen(false);
     try {
-      const { exportJpVocabRefPaginatedDocx } = await import("@/lib/jp-vocab-ref-pdf-export");
+      const id = typeof lessonId === "number" && lessonId > 0 ? lessonId : null;
+      if (id != null && cropKind !== "grammar") {
+        const res = await fetch(
+          `/api/jp-lesson/board-docx?lesson_id=${id}&download=1`,
+          { credentials: "include" }
+        );
+        if (res.ok) {
+          const blob = await res.blob();
+          const cd = res.headers.get("Content-Disposition") || "";
+          let outName = `${filename.replace(/\.(png|pdf|jpe?g|docx)$/i, "")}-分页-读音.docx`;
+          const m = /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i.exec(cd);
+          if (m) {
+            try {
+              outName = decodeURIComponent((m[1] || m[2] || "").trim());
+            } catch {
+              /* keep default */
+            }
+          }
+          await downloadBlobAsFile(blob, outName);
+          onStatus?.("已下载分页 Word（含读音）");
+          return;
+        }
+        if (res.status === 404) {
+          onStatus?.("读音版生成中，先下普通分页");
+        }
+      }
+      const { exportJpVocabRefPaginatedDocx } = await import(
+        "@/lib/jp-vocab-ref-pdf-export"
+      );
       await exportJpVocabRefPaginatedDocx(mediaUrl, filename, cropKind);
     } catch (err) {
       window.alert(
@@ -317,7 +353,7 @@ export function JpVocabRefDownloadMenu({
     } finally {
       setBusy(null);
     }
-  }, [busy, mediaUrl, filename, cropKind]);
+  }, [busy, mediaUrl, filename, cropKind, lessonId, onStatus]);
 
   const isImage = mediaType === "image";
   const label =

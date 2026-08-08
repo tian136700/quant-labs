@@ -1,0 +1,135 @@
+日语新课 · 预生成板书 Word（含 OJAD 读音）API
+================================================
+
+用途
+----
+Mac 定时任务为「单词课 + 已有教案图 + 未完成/学习中」预切分页 Word，并在每行词卡图下贴上 OJAD 音调读音。
+老师在日语新课列表点「分页 Word」时优先下载现成文件；尚未生成时前端 fallback 为普通分页 Word（无读音）。
+
+覆盖范围
+--------
+- kind = word
+- 有 ref_key（教案图；PDF 教案跳过）
+- completed = 0（未完成或学习中）
+
+
+线上地址
+--------
+POST https://japanese.info-quests.com/api/jp-lesson/board-docx
+GET  https://japanese.info-quests.com/api/jp-lesson/board-docx?lesson_id=148
+GET  https://japanese.info-quests.com/api/jp-lesson/board-docx?lesson_id=148&download=1
+
+说明：也可用 finance.info-quests.com 同路径（同一 Worker / 同一 D1）。
+
+
+本机开发（可选）
+---------------
+POST http://127.0.0.1:3002/api/jp-lesson/board-docx
+GET  http://127.0.0.1:3002/api/jp-lesson/board-docx?lesson_id=148&download=1
+
+
+鉴权
+----
+POST（list_missing / upload）：
+  Header: Authorization: Bearer <JP_REVIEW_UPLOAD_TOKEN>
+  与现有教案 / 日语 fill 上传共用。
+
+GET（状态 / 下载）：
+  会话 Cookie；须具备日语新课读权限（访客策略与 requireJpLessonRead 一致）。
+
+
+POST · list_missing
+-------------------
+JSON：
+
+{
+  "mode": "list_missing",
+  "limit": 10
+}
+
+成功响应含 missing[]，每项大致字段：
+  lesson_id, content, meanings, title, course_label,
+  ref_key, ref_updated_at, ref_media_type, ref_r2_key,
+  current_fingerprint, expected_fingerprint,
+  words[]: { word, word_id, reading, pitch_accent, pitch_accent_source,
+             pitch_digest, needs_ojad }
+
+仅返回「指纹过期或缺预生成」的课。指纹 = 教案 updated_at + content + meanings + 各词音调摘要。
+
+
+POST · upload
+-------------
+multipart/form-data：
+
+  mode          upload（可省略，默认 upload）
+  lesson_id     课 id
+  fingerprint   须与 list_missing 的 expected_fingerprint 一致
+  file          .docx 文件（最大 25MB）
+
+成功：
+
+{
+  "ok": true,
+  "mode": "upload",
+  "lesson_id": 148,
+  "r2_key": "vocab-ref/board/lesson-148.docx",
+  "storage": "r2",
+  "fingerprint": "v1-…",
+  "board_docx_updated_at": "…"
+}
+
+
+GET · 状态
+----------
+?lesson_id=148
+
+{
+  "ok": true,
+  "lesson_id": 148,
+  "ready": true,
+  "board_docx_r2_key": "vocab-ref/board/lesson-148.docx",
+  "board_docx_fingerprint": "v1-…",
+  "board_docx_updated_at": "…"
+}
+
+
+GET · 下载
+----------
+?lesson_id=148&download=1
+
+成功：直接返回 docx 二进制（Content-Disposition 附件）。
+未就绪：404 JSON { "ok": false, "error": "board_docx_not_ready" }
+
+
+curl 示例
+---------
+# 列出需重建
+curl -sS -X POST "https://japanese.info-quests.com/api/jp-lesson/board-docx" \
+  -H "Authorization: Bearer $JP_REVIEW_UPLOAD_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"list_missing","limit":5}'
+
+# 上传
+curl -sS -X POST "https://japanese.info-quests.com/api/jp-lesson/board-docx" \
+  -H "Authorization: Bearer $JP_REVIEW_UPLOAD_TOKEN" \
+  -F "mode=upload" \
+  -F "lesson_id=148" \
+  -F "fingerprint=v1-abcd" \
+  -F "file=@/tmp/lesson-148-board.docx"
+
+
+Python（定时客户端）
+--------------------
+见 scripts/jp-lesson-board-docx-api.py
+安装：bash scripts/setup-jp-lesson-board-docx-mac.sh
+
+
+抽查门禁
+--------
+Mac stage 脚本接 vocab_fill_assert_quiz_gate_ok：日语/英语抽查中跳过本任务。
+
+
+D1 字段（jp_lesson）
+-------------------
+board_docx_r2_key / board_docx_fingerprint / board_docx_updated_at
+（ensureJpLessonSchemaColumns 自动 ALTER）
