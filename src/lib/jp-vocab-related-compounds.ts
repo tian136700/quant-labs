@@ -39,13 +39,17 @@ const RELATED_POS_ALLOWED = new Set([
 ]);
 
 export const JP_VOCAB_RELATED_COMPOUNDS_PROMPT_HINT = `相关构词（仅单词；与读音/释义/例句同一次输出；语法填 ""）：
-- 目的：拆部件 / 同读构词，帮记本词读音与汉字。
+- 目的：把本词的汉字拆开，用学生已经学过的基础词反推本词；不是给本词扩展新词组。
 - 【单汉字】用含本字、且读音相同的简单词（例：口(くち) → 入口(いりぐち)：入口｜名词）。读音必须一致（允许连浊：くち→ぐち、こと→ごと）；禁止不同音读（事=こと 勿写 食事/大事 的「じ」）。
-- 【多字词·拆分助记】先拆成自然部件词，再给能产字旁举 1 个常见词。例：会社員(かいしゃいん) →
+- 【多字词·逐字拆分】原则上每个汉字各选 1 个含该字的 N5～N4 基础常用词；候选不得包含完整原词，禁止把原词加前后缀变成新词组。例：自然(しぜん) →
+  自分(じぶん)：自己｜名词
+  全然(ぜんぜん)：完全，根本｜副词
+  ✅ 用「自分」联想「自」、用「全然」联想「然」；❌ 自然界、自然科学（都只是给「自然」扩词，学生仍无法拆字记忆）。
+- 较长词可先拆成学生熟悉的自然部件，再给剩余字举基础词。例：会社員(かいしゃいん) →
   会社(かいしゃ)：公司｜名词
   店員(てんいん)：店员｜名词
   （会＋社＝会社；员旁同读「いん」→店員。学生已知かいしゃ/促音，就易记かいしゃいん。）
-  部件词读音须是本词读音的一段；同旁其它词须该字读音与本词一致（員=いん，勿配读「いん」以外的员）。
+  部件词读音须是本词读音的一段；逐字词允许同位置首字清浊变化（自：し→じ）；同旁其它词须该字读音与本词一致。
 - 条数：没有自然相关词 → 填 ""（禁止硬凑）；只有 1～2 个就写 1～2；多则最多 4～5 条。
 - 须含本词汉字；优先 N5～N4 日常词，禁止商务/难词。
 - 【禁止本词】不要把词条本身写进相关构词（研修生≠再写研修生；企業≠再写企業）。相关=别的词。
@@ -194,6 +198,15 @@ const VOICE_PAIRS: Array<[string, string]> = [
   ["ほ", "ぽ"],
 ];
 
+function kanaSharesVoice(a: string, b: string): boolean {
+  if (!a || !b) return false;
+  if (a === b) return true;
+  return VOICE_PAIRS.some(
+    ([plain, voiced]) =>
+      (a === plain && b === voiced) || (a === voiced && b === plain)
+  );
+}
+
 function toHiragana(text: string): string {
   return String(text || "")
     .replace(/[ァ-ン]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0x60))
@@ -314,6 +327,8 @@ export function compoundSharesLemmaSameReading(
   const kanjis = lemmaKanjiChars(lemmaTrim);
   if (kanjis.length === 0) return false;
   if (!kanjis.some((k) => surfaceTrim.includes(k))) return false;
+  // 多字词必须真正拆字；「自然→自然界／自然科学」只是扩展原词，不能帮助初学者记住「自」「然」。
+  if (kanjis.length >= 2 && surfaceTrim.includes(lemmaTrim)) return false;
   const base = toHiragana(lemmaReading || "");
   if (!base) {
     // 无本词读音时无法验同读，只要求含汉字
@@ -341,6 +356,21 @@ export function compoundSharesLemmaSameReading(
   // 3) 同旁助记：共汉字，且读音有 ≥2 假名的共同词头或词尾（員→いん）
   const surfaceKanjis = lemmaKanjiChars(surfaceTrim);
   if (!surfaceKanjis.some((k) => kanjis.includes(k))) return false;
+
+  // 4) 多字逐字联想：同一个汉字都在词首，首假名相同或仅清浊变化。
+  // 例：自然(しぜん)→自分(じぶん)，用基础词「自分」记「自」。
+  const sharedFirstKanji =
+    kanjis[0] != null &&
+    surfaceKanjis[0] === kanjis[0] &&
+    surfaceTrim.startsWith(kanjis[0]);
+  if (
+    kanjis.length >= 2 &&
+    sharedFirstKanji &&
+    kanaSharesVoice(base[0] || "", compound[0] || "")
+  ) {
+    return true;
+  }
+
   const edge = Math.min(base.length, compound.length);
   for (let n = edge; n >= 2; n--) {
     if (base.slice(-n) === compound.slice(-n)) return true;

@@ -39,6 +39,8 @@ def main() -> int:
     must_contain(lib, "入口", "入口 example")
     must_contain(lib, "いりぐち", "rendaku reading")
     must_contain(lib, "禁止不同音读", "prompt same reading")
+    must_contain(lib, "自然界、自然科学", "forbid whole-lemma extensions")
+    must_contain(lib, "自然(しぜん)→自分(じぶん)", "natural split mnemonic")
     must_contain(helpers, "related_compounds", "schema/select")
     must_contain(helpers, "related_compounds_source", "source col")
     must_contain(share, "w.related_compounds", "shared select")
@@ -172,6 +174,7 @@ def main() -> int:
     must_contain(online, "禁止硬凑", "no forced compounds")
     must_contain(online, "同一次", "same request")
     must_contain(online, "禁止不同音读", "online same reading")
+    must_contain(online, "❌自然界／自然科学", "online forbid whole-lemma extensions")
     must_contain(online, "mark_related_compounds_checked", "empty → mark source")
     online_text = online.read_text(encoding="utf-8")
     # 曾假成功：空 related 却 done.append("related_compounds") 且不写 source
@@ -222,6 +225,18 @@ def main() -> int:
     must_contain(lib, "会社員", "multi-kanji decomp example")
     must_contain(lib, "店員", "suffix family example")
     must_contain(lib, "部件", "decomp prompt")
+    must_contain(lib, "surfaceTrim.includes(lemmaTrim)", "reject whole lemma extension")
+    must_contain(lib, "kanaSharesVoice", "allow per-kanji voiced mnemonic")
+    must_contain(
+        ROOT / "src/lib/jp-vocab-related-compounds-fill.ts",
+        "❌ 自然界／自然科学",
+        "list prompt forbids whole-lemma extensions",
+    )
+    must_contain(
+        ROOT / "scripts/jp-vocab-fill-related-compounds-online-api.py",
+        "❌自然界／自然科学",
+        "standalone prompt forbids whole-lemma extensions",
+    )
     must_contain(
         ROOT / "src/lib/jp-vocab-related-compounds-fill.ts",
         "single_kanji_only === true",
@@ -275,6 +290,8 @@ def main() -> int:
         kanjis = [c for c in lemma if "\u4e00" <= c <= "\u9fff" or c in "々"]
         if not kanjis or not any(k in surface for k in kanjis):
             return False
+        if len(kanjis) >= 2 and lemma in surface:
+            return False
         base = to_hira(lemma_reading)
         compound = to_hira(compound_reading)
         if not base:
@@ -282,6 +299,26 @@ def main() -> int:
         if any(v and v in compound for v in [base]):  # smoke: base containment
             return True
         if len(lemma) >= 2 and surface in lemma and len(compound) >= 2 and compound in base:
+            return True
+        voice_pairs = [
+            ("か", "が"), ("き", "ぎ"), ("く", "ぐ"), ("け", "げ"), ("こ", "ご"),
+            ("さ", "ざ"), ("し", "じ"), ("す", "ず"), ("せ", "ぜ"), ("そ", "ぞ"),
+            ("た", "だ"), ("ち", "ぢ"), ("つ", "づ"), ("て", "で"), ("と", "ど"),
+            ("は", "ば"), ("ひ", "び"), ("ふ", "ぶ"), ("へ", "べ"), ("ほ", "ぼ"),
+        ]
+        surface_kanjis = [
+            c for c in surface if "\u4e00" <= c <= "\u9fff" or c in "々"
+        ]
+        same_first_kanji = (
+            len(kanjis) >= 2
+            and bool(surface_kanjis)
+            and surface_kanjis[0] == kanjis[0]
+            and surface.startswith(kanjis[0])
+        )
+        first_voice_match = base[:1] == compound[:1] or any(
+            {base[:1], compound[:1]} == {a, b} for a, b in voice_pairs
+        )
+        if same_first_kanji and first_voice_match:
             return True
         edge = min(len(base), len(compound))
         for n in range(edge, 1, -1):
@@ -296,6 +333,14 @@ def main() -> int:
         raise SystemExit("FAIL: 会社員→会社 component should pass")
     if not shares("店員", "てんいん", "会社員", "かいしゃいん"):
         raise SystemExit("FAIL: 会社員→店員 same-suffix いん should pass")
+    if not shares("自分", "じぶん", "自然", "しぜん"):
+        raise SystemExit("FAIL: 自然→自分 per-kanji voiced mnemonic should pass")
+    if not shares("全然", "ぜんぜん", "自然", "しぜん"):
+        raise SystemExit("FAIL: 自然→全然 per-kanji mnemonic should pass")
+    if shares("自然界", "しぜんかい", "自然", "しぜん"):
+        raise SystemExit("FAIL: 自然→自然界 whole-lemma extension must fail")
+    if shares("自然科学", "しぜんかがく", "自然", "しぜん"):
+        raise SystemExit("FAIL: 自然→自然科学 whole-lemma extension must fail")
     if shares("食事", "しょくじ", "事", "こと"):
         raise SystemExit("FAIL: 事→食事 different reading must fail")
 
