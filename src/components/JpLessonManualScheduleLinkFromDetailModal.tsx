@@ -11,13 +11,19 @@ import {
 } from "@/lib/jp-lesson-manual-schedule-linked";
 import type { JpLessonManualSchedule } from "@/lib/jp-lesson-manual-schedule";
 import { detectScheduleTeacherSubjectFromTitle } from "@/lib/jp-lesson-teacher-rate";
-import type { EnLessonRecord, EnLessonTeacher, JpLessonRecord } from "@/lib/types";
+import type {
+  EnLessonRecord,
+  EnLessonTeacher,
+  JpLessonRecord,
+  JpLessonTeacher,
+} from "@/lib/types";
 
 type Props = {
   open: boolean;
   manual: JpLessonManualSchedule | null;
   jpLessons: JpLessonRecord[];
   enLessons: EnLessonRecord[];
+  jpTeachers?: JpLessonTeacher[];
   enTeachers?: EnLessonTeacher[];
   syncing?: boolean;
   progressPercent?: number | null;
@@ -34,6 +40,7 @@ export function JpLessonManualScheduleLinkFromDetailModal({
   manual,
   jpLessons,
   enLessons,
+  jpTeachers = [],
   enTeachers = [],
   syncing = false,
   progressPercent = null,
@@ -42,8 +49,15 @@ export function JpLessonManualScheduleLinkFromDetailModal({
 }: Props) {
   const titleSubject = detectScheduleTeacherSubjectFromTitle(manual?.title ?? "");
   const { options, fieldLabel, emptyHint } = useMemo(
-    () => resolveManualScheduleLessonPickOptions(titleSubject, jpLessons, enLessons),
-    [titleSubject, jpLessons, enLessons]
+    () =>
+      resolveManualScheduleLessonPickOptions(
+        titleSubject,
+        jpLessons,
+        enLessons,
+        jpTeachers,
+        enTeachers
+      ),
+    [titleSubject, jpLessons, enLessons, jpTeachers, enTeachers]
   );
   const selectedKeys = useMemo(
     () =>

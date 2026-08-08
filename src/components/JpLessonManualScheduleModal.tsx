@@ -534,6 +534,7 @@ export function JpLessonManualScheduleModal({
                         titleSubject={teacherSubject}
                         jpLessons={jpLessons}
                         enLessons={enLessons}
+                        jpTeachers={jpTeachers}
                         enTeachers={enTeachers}
                         disabled={saving || addingTeacher}
                         syncing={false}

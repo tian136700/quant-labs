@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { EnLessonScheduleLinkPickModal } from "@/components/en-lesson-page/EnLessonScheduleLinkPickModal";
 import { JpLessonManualScheduleLessonPickModal } from "@/components/JpLessonManualScheduleLessonPickModal";
+import { formatLessonTeacherNames } from "@/components/jp-lesson-schedule-page/jp-lesson-schedule-page-helpers";
 import {
   formatManualScheduleLessonOptionLabel,
   linkedLessonKey,
@@ -24,6 +25,7 @@ type Props = {
   titleSubject: ScheduleTeacherSubjectFromTitle;
   jpLessons: JpLessonRecord[];
   enLessons: EnLessonRecord[];
+  jpTeachers?: EnLessonTeacher[];
   enTeachers?: EnLessonTeacher[];
   disabled?: boolean;
   /** 正在同步到新课时禁用再选 */
@@ -32,8 +34,10 @@ type Props = {
 
 function toOptions(
   subject: ManualScheduleLinkedLessonSubject,
-  lessons: Array<JpLessonRecord | EnLessonRecord>
+  lessons: Array<JpLessonRecord | EnLessonRecord>,
+  teachers: EnLessonTeacher[]
 ): ManualScheduleLessonOption[] {
+  const teacherNameById = new Map(teachers.map((teacher) => [teacher.id, teacher.name]));
   return lessons.map((lesson) => {
     const rawKind = lesson.kind;
     const kind: ManualScheduleLessonOption["kind"] =
@@ -52,6 +56,7 @@ function toOptions(
       uploaded_at: lesson.uploaded_at || lesson.created_at || "",
       completed: lesson.completed,
       learning: lesson.learning,
+      teacher_names: formatLessonTeacherNames(lesson, teacherNameById),
     };
   });
 }
@@ -59,7 +64,9 @@ function toOptions(
 function resolveOptionsForSubject(
   titleSubject: ScheduleTeacherSubjectFromTitle,
   jpLessons: JpLessonRecord[],
-  enLessons: EnLessonRecord[]
+  enLessons: EnLessonRecord[],
+  jpTeachers: EnLessonTeacher[],
+  enTeachers: EnLessonTeacher[]
 ): {
   options: ManualScheduleLessonOption[];
   fieldLabel: string;
@@ -74,7 +81,7 @@ function resolveOptionsForSubject(
   }
   if (titleSubject === "jp") {
     return {
-      options: sortManualScheduleLessonOptions(toOptions("jp", jpLessons)),
+      options: sortManualScheduleLessonOptions(toOptions("jp", jpLessons, jpTeachers)),
       fieldLabel: "教材（可选，最多 2 个 · 日语新课）",
       emptyHint: jpLessons.length ? null : "日语新课列表为空，请先在「日语新课」上传教材。",
     };
@@ -82,7 +89,7 @@ function resolveOptionsForSubject(
   if (titleSubject === "en") {
     const linkable = filterEnLessonsForScheduleLink(enLessons);
     return {
-      options: sortManualScheduleLessonOptions(toOptions("en", linkable)),
+      options: sortManualScheduleLessonOptions(toOptions("en", linkable, enTeachers)),
       fieldLabel: "教材（可选，最多 2 个 · 英语新课 · 未完成/上课中）",
       emptyHint: linkable.length
         ? null
@@ -93,8 +100,8 @@ function resolveOptionsForSubject(
   }
   return {
     options: sortManualScheduleLessonOptions([
-      ...toOptions("jp", jpLessons),
-      ...toOptions("en", filterEnLessonsForScheduleLink(enLessons)),
+      ...toOptions("jp", jpLessons, jpTeachers),
+      ...toOptions("en", filterEnLessonsForScheduleLink(enLessons), enTeachers),
     ]),
     fieldLabel: "教材（可选，最多 2 个）",
     emptyHint:
@@ -106,9 +113,17 @@ function resolveOptionsForSubject(
 export function resolveManualScheduleLessonPickOptions(
   titleSubject: ScheduleTeacherSubjectFromTitle,
   jpLessons: JpLessonRecord[],
-  enLessons: EnLessonRecord[]
+  enLessons: EnLessonRecord[],
+  jpTeachers: EnLessonTeacher[] = [],
+  enTeachers: EnLessonTeacher[] = []
 ) {
-  return resolveOptionsForSubject(titleSubject, jpLessons, enLessons);
+  return resolveOptionsForSubject(
+    titleSubject,
+    jpLessons,
+    enLessons,
+    jpTeachers,
+    enTeachers
+  );
 }
 
 export function JpLessonManualScheduleLessonPicker({
@@ -118,6 +133,7 @@ export function JpLessonManualScheduleLessonPicker({
   titleSubject,
   jpLessons,
   enLessons,
+  jpTeachers = [],
   enTeachers = [],
   disabled = false,
   syncing = false,
@@ -125,8 +141,15 @@ export function JpLessonManualScheduleLessonPicker({
   const [pickOpen, setPickOpen] = useState(false);
 
   const { options, fieldLabel, emptyHint } = useMemo(
-    () => resolveOptionsForSubject(titleSubject, jpLessons, enLessons),
-    [titleSubject, jpLessons, enLessons]
+    () =>
+      resolveOptionsForSubject(
+        titleSubject,
+        jpLessons,
+        enLessons,
+        jpTeachers,
+        enTeachers
+      ),
+    [titleSubject, jpLessons, enLessons, jpTeachers, enTeachers]
   );
 
   const optionByKey = useMemo(() => {
@@ -197,6 +220,7 @@ export function JpLessonManualScheduleLessonPicker({
                 course_label: null,
                 uploaded_at: "",
                 completed: false,
+                teacher_names: "",
               } satisfies ManualScheduleLessonOption);
             return (
               <li key={linkedLessonKey(link)} className="jp-lesson-manual-lesson-chip">

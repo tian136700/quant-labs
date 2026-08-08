@@ -85,6 +85,7 @@ export function JpLessonManualScheduleLessonPickModal({
         option.content,
         option.course_label || "",
         option.title || "",
+        option.teacher_names || "",
         String(option.id),
       ]
         .join(" ")
@@ -176,6 +177,14 @@ export function JpLessonManualScheduleLessonPickModal({
                         上传 {formatBeijingDateTimeCompact(option.uploaded_at) || "—"}
                       </span>
                     </div>
+                    {option.learning &&
+                    option.teacher_names &&
+                    option.teacher_names !== "未指定" ? (
+                      <div className="jp-manual-lesson-pick-teacher">
+                        <span>上课老师</span>
+                        <strong>{option.teacher_names}</strong>
+                      </div>
+                    ) : null}
                     <div className="jp-manual-lesson-pick-words" aria-label="学习内容">
                       {preview.items.length === 0 ? (
                         <span className="jp-manual-lesson-pick-words-empty">（无单词内容）</span>
@@ -351,6 +360,30 @@ export function JpLessonManualScheduleLessonPickModal({
           font-size: 0.75rem;
           color: var(--muted);
           line-height: 1.35;
+        }
+
+        .jp-manual-lesson-pick-teacher {
+          display: flex;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 0.35rem;
+          font-size: 0.78rem;
+          line-height: 1.35;
+          color: var(--text);
+        }
+
+        .jp-manual-lesson-pick-teacher > span {
+          padding: 0.12rem 0.38rem;
+          border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--border));
+          border-radius: 999px;
+          color: var(--accent);
+          font-size: 0.68rem;
+          font-weight: 600;
+        }
+
+        .jp-manual-lesson-pick-teacher > strong {
+          font-weight: 600;
+          overflow-wrap: anywhere;
         }
 
         .jp-manual-lesson-pick-words {

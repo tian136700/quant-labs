@@ -80,6 +80,8 @@ export type ManualScheduleLessonOption = {
   uploaded_at: string;
   completed: boolean;
   learning?: boolean;
+  /** 当前教材已关联的上课老师；供日程选择教材卡片展示 */
+  teacher_names?: string;
 };
 
 /** 弹窗列表用：教材显示名（course_label → title → 内容首词） */

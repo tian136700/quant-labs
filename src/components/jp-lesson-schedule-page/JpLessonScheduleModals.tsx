@@ -101,6 +101,7 @@ export function JpLessonScheduleModals(props: JpLessonScheduleModalsProps) {
         manual={selectedManualSchedule}
         jpLessons={jpLessons}
         enLessons={enLessons}
+        jpTeachers={teachers}
         enTeachers={enTeachers}
         syncing={linkingManualLesson}
         progressPercent={linkLessonProgressPercent}

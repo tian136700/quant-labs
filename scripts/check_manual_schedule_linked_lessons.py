@@ -119,6 +119,10 @@ def main() -> int:
         errors.append("picker must enforce max linked lessons")
     if "JpLessonManualScheduleLessonPickModal" not in picker:
         errors.append("picker must open JpLessonManualScheduleLessonPickModal")
+    if "teacher_names: formatLessonTeacherNames" not in picker:
+        errors.append("picker options must carry the lesson's existing teacher names")
+    if "jpTeachers={jpTeachers}" not in modal:
+        errors.append("manual schedule modal must pass Japanese teachers to lesson picker")
     if "EnLessonScheduleLinkPickModal" not in picker:
         errors.append(
             "picker must open EnLessonScheduleLinkPickModal for English title"
@@ -133,6 +137,10 @@ def main() -> int:
         errors.append("pick modal must show word content via parseLessonContent")
     if "manualScheduleLessonDisplayName" not in pick_modal:
         errors.append("pick modal must show textbook display name")
+    if "option.learning &&" not in pick_modal:
+        errors.append("teacher names must only be shown on learning lesson cards")
+    if "option.teacher_names" not in pick_modal or "上课老师" not in pick_modal:
+        errors.append("learning lesson card must show its existing teacher names")
 
     sync = SYNC.read_text(encoding="utf-8")
     if "progress_status" not in sync or '"learning"' not in sync:
@@ -199,6 +207,14 @@ def main() -> int:
     ).read_text(encoding="utf-8")
     if "JpLessonManualScheduleLessonPickModal" not in link_modal:
         errors.append("detail link modal must reuse JpLessonManualScheduleLessonPickModal")
+    if "jpTeachers" not in link_modal:
+        errors.append("detail link modal must pass Japanese teachers into lesson options")
+
+    modals = (
+        ROOT / "src/components/jp-lesson-schedule-page/JpLessonScheduleModals.tsx"
+    ).read_text(encoding="utf-8")
+    if "jpTeachers={teachers}" not in modals:
+        errors.append("schedule modal bridge must provide Japanese teacher records")
 
     actions = ACTIONS.read_text(encoding="utf-8")
     if "syncManualScheduleLinkedLessonToLearning" not in actions:
