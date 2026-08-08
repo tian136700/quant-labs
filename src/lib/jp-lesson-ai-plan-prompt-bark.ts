@@ -305,18 +305,7 @@ export async function fireDueJpLessonAiPlanPromptBark(
     `上次复制：${copied || "（未记录）"}`,
   ].filter(Boolean) as string[];
 
-  // 先清 pending，避免 Cron 重入双推；推送失败也视为已消费（与 STT token 一次性一致）
-  await upsertRow(db, {
-    token: null,
-    fire_at: null,
-    fire_display: null,
-    delay_min: null,
-    last_copied_at: row.last_copied_at || new Date().toISOString(),
-    last_copied_display: row.last_copied_display || "",
-    lesson_id: lessonId,
-    course_label: courseLabel || null,
-  });
-
+  // 推送成功后再清 pending；失败保留以便下轮 Cron 重试（缺 key 已在上面提前 return）
   const result = await sendBarkPush({
     deviceKey,
     title,
@@ -342,5 +331,17 @@ export async function fireDueJpLessonAiPlanPromptBark(
       notified: 0,
     };
   }
+
+  await upsertRow(db, {
+    token: null,
+    fire_at: null,
+    fire_display: null,
+    delay_min: null,
+    last_copied_at: row.last_copied_at || new Date().toISOString(),
+    last_copied_display: row.last_copied_display || "",
+    lesson_id: lessonId,
+    course_label: courseLabel || null,
+  });
+
   return { ok: true, fired: true, notified: 1 };
 }
