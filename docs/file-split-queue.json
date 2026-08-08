@@ -27,6 +27,12 @@
       "lines": 1006,
       "status": 0,
       "note": ""
+    },
+    {
+      "path": "src/components/jp-lesson-page/JpLessonStatusTable.tsx",
+      "lines": 1001,
+      "status": 0,
+      "note": ""
     }
   ],
   "completed_since_last_refresh": [],
