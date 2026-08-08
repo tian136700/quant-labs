@@ -103,9 +103,24 @@ def main() -> int:
         "jp-lesson-ai-plan-zoom",
         "canZoomImage",
         "setZoomOpen",
+        "JpLessonAiPlanImageZoomOverlay",
     ):
         if needle not in modal:
             errors.append(f"modal missing {needle}")
+
+    zoom_overlay = (
+        ROOT
+        / "src/components/jp-lesson-page/JpLessonAiPlanImageZoomOverlay.tsx"
+    ).read_text(encoding="utf-8")
+    for needle in (
+        "useVocabRefImageZoom",
+        "VocabRefImageZoomButtons",
+        "VocabRefImageZoomStage",
+        "± 可再缩放",
+        "jp-lesson-ai-plan-image-zoom-stage",
+    ):
+        if needle not in zoom_overlay:
+            errors.append(f"zoom overlay missing {needle}")
 
     sections = (
         ROOT / "src/components/jp-lesson-page/JpLessonPageSections.tsx"
@@ -140,6 +155,7 @@ def main() -> int:
         "jp-lesson-content-edit-ai-plan-grid",
         "点击放大预览",
         "jp-lesson-content-edit-ai-plan-zoom",
+        "JpLessonAiPlanImageZoomOverlay",
         "min-height: 300px",
         "min-height: 220px",
         "grid-template-columns: minmax(0, 1fr) minmax(0, 1fr)",

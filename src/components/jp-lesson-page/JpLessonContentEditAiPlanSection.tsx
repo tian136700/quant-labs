@@ -9,8 +9,8 @@ import {
   useState,
   type ClipboardEvent,
 } from "react";
-import { createPortal } from "react-dom";
 import { CopyToast } from "@/components/CopyToast";
+import { JpLessonAiPlanImageZoomOverlay } from "@/components/jp-lesson-page/JpLessonAiPlanImageZoomOverlay";
 import { useJpLessonAiPlanPromptTemplate } from "@/hooks/useJpLessonAiPlanPromptTemplate";
 import { copyTextToClipboard } from "@/lib/copy-text";
 import { buildJpLessonAiPlanCopyText } from "@/lib/jp-lesson-ai-plan-prompt";
@@ -61,7 +61,6 @@ export const JpLessonContentEditAiPlanSection = forwardRef<
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [zoomOpen, setZoomOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageFileRef = useRef<File | null>(null);
   const busy = disabled;
@@ -102,10 +101,6 @@ export const JpLessonContentEditAiPlanSection = forwardRef<
   );
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
     setLocalError(null);
     setZoomOpen(false);
     setImageFromFile(null);
@@ -118,15 +113,6 @@ export const JpLessonContentEditAiPlanSection = forwardRef<
       if (previewUrl) URL.revokeObjectURL(previewUrl);
     };
   }, [previewUrl]);
-
-  useEffect(() => {
-    if (!zoomOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setZoomOpen(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [zoomOpen]);
 
   const groups = useMemo(
     () => [
@@ -307,40 +293,12 @@ export const JpLessonContentEditAiPlanSection = forwardRef<
         className="copy-toast--above-modal"
       />
 
-      {mounted &&
-      zoomOpen &&
-      canZoomImage &&
-      displayUrl &&
-      createPortal(
-        <div
-          className="jp-lesson-content-edit-ai-plan-zoom"
-          role="dialog"
-          aria-modal="true"
-          aria-label="教案大图预览"
-          onClick={() => setZoomOpen(false)}
-        >
-          <div className="jp-lesson-content-edit-ai-plan-zoom-bar">
-            <span>教案图 · 点击空白处或按 Esc 关闭</span>
-            <button
-              type="button"
-              className="jp-lesson-content-edit-ai-plan-zoom-close"
-              onClick={() => setZoomOpen(false)}
-              aria-label="关闭大图预览"
-            >
-              ×
-            </button>
-          </div>
-          <div className="jp-lesson-content-edit-ai-plan-zoom-stage">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={displayUrl}
-              alt="教案大图预览"
-              onClick={(e) => e.stopPropagation()}
-            />
-          </div>
-        </div>,
-        document.body
-      )}
+      <JpLessonAiPlanImageZoomOverlay
+        open={zoomOpen && canZoomImage}
+        imageUrl={displayUrl}
+        onClose={() => setZoomOpen(false)}
+        rootClassName="jp-lesson-content-edit-ai-plan-zoom"
+      />
 
       <style jsx global>{`
         /* PC：左右两个独立框；禁止靠 flex+min-height:0 把 textarea/粘贴区压成 0 高 */
@@ -492,53 +450,6 @@ export const JpLessonContentEditAiPlanSection = forwardRef<
           color: #e85d6f;
           font-size: 0.85rem;
           font-weight: 500;
-        }
-        .jp-lesson-content-edit-ai-plan-zoom {
-          position: fixed;
-          inset: 0;
-          z-index: 1300;
-          display: flex;
-          flex-direction: column;
-          background: rgba(0, 0, 0, 0.78);
-          padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0)
-            env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0);
-        }
-        .jp-lesson-content-edit-ai-plan-zoom-bar {
-          flex-shrink: 0;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 0.75rem;
-          padding: 0.75rem 1rem;
-          color: #f3f5f8;
-          font-size: 0.9rem;
-        }
-        .jp-lesson-content-edit-ai-plan-zoom-close {
-          width: 2.2rem;
-          height: 2.2rem;
-          border: 1px solid rgba(255, 255, 255, 0.35);
-          border-radius: 8px;
-          background: rgba(255, 255, 255, 0.08);
-          color: #fff;
-          font-size: 1.35rem;
-          line-height: 1;
-          cursor: pointer;
-        }
-        .jp-lesson-content-edit-ai-plan-zoom-stage {
-          flex: 1;
-          min-height: 0;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 0.5rem 1rem 1rem;
-          overflow: auto;
-        }
-        .jp-lesson-content-edit-ai-plan-zoom-stage img {
-          max-width: min(96vw, 1100px);
-          max-height: min(88dvh, 920px);
-          object-fit: contain;
-          border-radius: 8px;
-          box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
         }
         @media (max-width: 767px) {
           .jp-lesson-content-edit-ai-plan {
