@@ -1,5 +1,10 @@
 /** 教案长图按「第 N 部分」标题栏切分，并导出带页码的分页 PDF / Word（留白供老师备注） */
 
+import {
+  cardGridSplitsToSectionBounds,
+  detectWordCardGridRowSplits,
+} from "@/lib/jp-vocab-ref-card-grid-crop";
+
 export type LessonSectionBounds = { y0: number; y1: number };
 
 function calcSectionDrawSize(
@@ -242,12 +247,18 @@ export function detectLessonSectionBounds(
   ctx.drawImage(img, 0, 0);
   const { data } = ctx.getImageData(0, 0, w, h);
 
-  const peaks =
-    cropKind === "grammar"
-      ? detectGrammarSectionPeaks(data, w, h)
-      : detectWordSectionPeaks(data, w, h);
+  if (cropKind === "grammar") {
+    return peaksToSectionBounds(detectGrammarSectionPeaks(data, w, h), h);
+  }
 
-  return peaksToSectionBounds(peaks, h);
+  // 标日图片版单词教案：词卡网格按行间通栏白缝横切（优先）
+  const gridSplits = detectWordCardGridRowSplits(data, w, h);
+  if (gridSplits) {
+    return cardGridSplitsToSectionBounds(gridSplits, h);
+  }
+
+  // 旧版「第 N 部分」标题栏色分峰
+  return peaksToSectionBounds(detectWordSectionPeaks(data, w, h), h);
 }
 
 /** 第一部分单词区若有两行卡片，按行间空白切成上下两块（5+5） */
