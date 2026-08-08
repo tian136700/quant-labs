@@ -44,6 +44,7 @@ export async function sendBarkPush(options: {
   body: string;
   group?: string;
   level?: string;
+  sound?: string | null;
   icon?: string | null;
   call?: boolean;
   volume?: number | null;
@@ -62,6 +63,8 @@ export async function sendBarkPush(options: {
   const group = (options.group || "").trim();
   // 调用方显式传 group（如「上课提醒」）；不要默认塞「维护中心」标签
   if (group) payload.group = group;
+  const sound = (options.sound || "").trim();
+  if (sound) payload.sound = sound;
   const icon = (options.icon || "").trim();
   if (icon) payload.icon = icon;
   if (options.call) {

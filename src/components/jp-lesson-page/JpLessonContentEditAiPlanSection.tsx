@@ -16,6 +16,7 @@ import { copyTextToClipboard } from "@/lib/copy-text";
 import {
   buildJpLessonAiPlanCopyText,
 } from "@/lib/jp-lesson-ai-plan-prompt";
+import { afterJpLessonAiPlanPromptCopySuccess } from "@/lib/jp-lesson-ai-plan-prompt-bark-client";
 import { jpLessonKindLabel } from "@/lib/jp-lesson-shared";
 import { jpVocabSaveProgressLabel } from "@/lib/jp-vocab-save-progress";
 import type { JpLessonRecord, JpVocabRef } from "@/lib/types";
@@ -139,9 +140,17 @@ export function JpLessonContentEditAiPlanSection({
   const handleCopy = () => {
     const text = buildJpLessonAiPlanCopyText(groups, prompt);
     flushPrompt();
-    void copyTextToClipboard(text).then((ok) =>
-      setCopyToast(ok ? "复制成功" : "复制失败")
-    );
+    void copyTextToClipboard(text).then(async (ok) => {
+      if (!ok) {
+        setCopyToast("复制失败");
+        return;
+      }
+      const msg = await afterJpLessonAiPlanPromptCopySuccess({
+        lessonId: lesson.id,
+        courseLabel: lesson.course_label,
+      });
+      setCopyToast(msg);
+    });
   };
 
   const handleAttach = async () => {

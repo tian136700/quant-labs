@@ -1,0 +1,91 @@
+日语新课 · 复制 AI 提示词后 Bark 提醒 API
+========================================
+
+用途
+----
+管理员在「编辑学习内容」或「做教案提示词」点「复制单词+提示词」后，
+可选预约约 7 分钟后 Bark 通知「教案图可能已做好」（对齐 STT 标日/英语口语交互）。
+
+调度：D1 记 pending → Worker 每分钟 Cron 扫到期 → 推 Bark。
+不在 Worker 请求里 sleep；不依赖本机 Mac 进程。
+
+
+页面入口
+--------
+- /jp-lesson → 未完成 → 勾选 →「做教案提示词」→「复制单词+提示词」
+- /jp-lesson → 编辑内容 →「做教案提示词」展开 →「复制单词+提示词」
+
+
+1) 管理员预约（浏览器会话）
+--------------------------
+POST https://finance.info-quests.com/api/jp-lesson/ai-plan-prompt-bark
+（japanese.info-quests.com 同路径亦可）
+
+本机：POST http://127.0.0.1:3002/api/jp-lesson/ai-plan-prompt-bark
+
+鉴权：须管理员登录（Cookie）。
+
+请求 JSON：
+  schedule_bark   true = 从本次起 delay_min 分钟后提醒；false = 只记复制并取消旧预约
+  delay_min       可选，默认 7，范围 1–120
+  lesson_id       可选，课 ID
+  course_label    可选，教材课次文案
+
+成功（预约）：
+{
+  "ok": true,
+  "scheduled": true,
+  "notify_pending": true,
+  "notify_fire_display": "2026年8月8日 11点26分（北京时间）",
+  "notify_delay_min": 7,
+  "last_copied_display": "…",
+  …
+}
+
+成功（不预约）：
+{ "ok": true, "notify_pending": false, "last_copied_display": "…", … }
+
+失败：401 非管理员；500 服务端错误
+
+
+curl 示例
+---------
+curl -sS -X POST "https://finance.info-quests.com/api/jp-lesson/ai-plan-prompt-bark" \
+  -H "Cookie: …" \
+  -H "Content-Type: application/json" \
+  -d '{"schedule_bark":true,"delay_min":7,"lesson_id":148,"course_label":"标日初级上册第23课"}'
+
+
+2) Cron 到期推送（Bearer）
+-------------------------
+POST https://finance.info-quests.com/api/admin/jp-lesson-ai-plan-prompt-bark
+
+鉴权：Authorization: Bearer $JP_REVIEW_UPLOAD_TOKEN
+（与上课 Bark Cron 相同）
+
+接线：cloudflare-worker.ts 每分钟与 schedule-class-bark-remind 一并调用。
+
+成功无到期：{ "ok": true, "skipped": true, "reason": "none_pending"|"not_due", "notified": 0 }
+成功已推：{ "ok": true, "fired": true, "notified": 1 }
+Bark 未配：{ "ok": true, "skipped": true, "reason": "BARK_DEVICE_KEY not configured", "notified": 0 }
+
+Bark 文案：标题「日语教案图可能已做好」；group=日语新课；level=active；sound=paymentsuccess
+（禁止 critical / call）
+
+
+Python 最小例（预约）
+-------------------
+import requests
+
+r = requests.post(
+    "https://finance.info-quests.com/api/jp-lesson/ai-plan-prompt-bark",
+    cookies={"…": "…"},
+    json={
+        "schedule_bark": True,
+        "delay_min": 7,
+        "lesson_id": 148,
+        "course_label": "标日初级上册第23课",
+    },
+    timeout=30,
+)
+print(r.status_code, r.text)

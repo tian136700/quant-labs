@@ -58,6 +58,8 @@ def main() -> int:
         "しかし",
         "usage_not_chinese",
         "用(も)",
+        "i_adj_past_deshita",
+        "かったでした",
     ):
         if needle not in rule_text:
             fail(f"rule missing {needle!r}")
@@ -82,6 +84,25 @@ def main() -> int:
         fail("example-sentences-ai 假名核表记须含 あたり↔辺り")
     if "grammar_not_used" not in ai:
         fail("example-sentences-ai 须拒 grammar_not_used")
+    if "i_adj_past_deshita" not in ai:
+        fail("example-sentences-ai 须拒 i_adj_past_deshita（かったでした）")
+    if "jpVocabExampleHasIAdjPastDeshita" not in ai:
+        fail("example-sentences-ai 须有 jpVocabExampleHasIAdjPastDeshita")
+
+    i_adj_check = ROOT / "scripts/check_jp_vocab_example_i_adj_past_deshita.py"
+    if not i_adj_check.is_file():
+        fail("missing check_jp_vocab_example_i_adj_past_deshita.py")
+    i_adj_run = subprocess.run(
+        [sys.executable, str(i_adj_check)],
+        capture_output=True,
+        text=True,
+        timeout=90,
+        cwd=ROOT,
+    )
+    if i_adj_run.returncode != 0:
+        fail(
+            f"i_adj_past_deshita check failed: {i_adj_run.stderr or i_adj_run.stdout}"
+        )
 
     conn = (ROOT / "src/lib/jp-vocab-connection-ai.ts").read_text(encoding="utf-8")
     if "bare_numbered_lines" not in conn:

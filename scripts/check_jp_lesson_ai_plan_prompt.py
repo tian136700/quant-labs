@@ -180,13 +180,105 @@ def main() -> int:
     if not docs.is_file():
         errors.append("missing docs/jp-lesson-ref-attach-batch-api.txt")
 
+    bark_doc = ROOT / "docs/jp-lesson-ai-plan-prompt-bark-api.txt"
+    if not bark_doc.is_file():
+        errors.append("missing docs/jp-lesson-ai-plan-prompt-bark-api.txt")
+    else:
+        bark_txt = bark_doc.read_text(encoding="utf-8")
+        for needle in (
+            "/api/jp-lesson/ai-plan-prompt-bark",
+            "/api/admin/jp-lesson-ai-plan-prompt-bark",
+            "delay_min",
+            "schedule_bark",
+            "paymentsuccess",
+            "禁止 critical",
+        ):
+            if needle not in bark_txt:
+                errors.append(f"bark api doc missing {needle}")
+
+    bark_lib = (
+        ROOT / "src/lib/jp-lesson-ai-plan-prompt-bark.ts"
+    ).read_text(encoding="utf-8")
+    for needle in (
+        "JP_LESSON_AI_PLAN_PROMPT_BARK_DEFAULT_DELAY_MIN = 7",
+        "recordJpLessonAiPlanPromptCopied",
+        "fireDueJpLessonAiPlanPromptBark",
+        'level: "active"',
+        'sound: "paymentsuccess"',
+        "jp_lesson_ai_plan_prompt_bark",
+    ):
+        if needle not in bark_lib:
+            errors.append(f"bark lib missing {needle}")
+    if "critical" in bark_lib and 'level: "critical"' in bark_lib:
+        errors.append("ai-plan prompt bark must not use level critical")
+    if "call: true" in bark_lib:
+        errors.append("ai-plan prompt bark must not use call")
+
+    bark_client = (
+        ROOT / "src/lib/jp-lesson-ai-plan-prompt-bark-client.ts"
+    ).read_text(encoding="utf-8")
+    for needle in (
+        "JP_LESSON_AI_PLAN_PROMPT_BARK_DELAY_MIN = 7",
+        "afterJpLessonAiPlanPromptCopySuccess",
+        "window.confirm",
+        "/api/jp-lesson/ai-plan-prompt-bark",
+    ):
+        if needle not in bark_client:
+            errors.append(f"bark client missing {needle}")
+
+    admin_route = (
+        ROOT / "src/app/api/admin/jp-lesson-ai-plan-prompt-bark/route.ts"
+    ).read_text(encoding="utf-8")
+    if "verifyUploadAuth" not in admin_route:
+        errors.append("admin fire route must verifyUploadAuth")
+    if "fireDueJpLessonAiPlanPromptBark" not in admin_route:
+        errors.append("admin fire route must call fireDue")
+
+    sched_route = (
+        ROOT / "src/app/api/jp-lesson/ai-plan-prompt-bark/route.ts"
+    ).read_text(encoding="utf-8")
+    if "requireAdmin" not in sched_route:
+        errors.append("schedule route must requireAdmin")
+    if "recordJpLessonAiPlanPromptCopied" not in sched_route:
+        errors.append("schedule route must record copied")
+
+    worker = (ROOT / "cloudflare-worker.ts").read_text(encoding="utf-8")
+    for needle in (
+        "/api/admin/jp-lesson-ai-plan-prompt-bark",
+        "runJpLessonAiPlanPromptBark",
+        "jp-lesson-ai-plan-prompt-bark",
+    ):
+        if needle not in worker:
+            errors.append(f"cloudflare-worker missing {needle}")
+
+    for path in (
+        ROOT / "src/components/JpLessonAiPlanPromptModal.tsx",
+        ROOT
+        / "src/components/jp-lesson-page/JpLessonContentEditAiPlanSection.tsx",
+    ):
+        text = path.read_text(encoding="utf-8")
+        if "afterJpLessonAiPlanPromptCopySuccess" not in text:
+            errors.append(f"{path.name} must call afterJpLessonAiPlanPromptCopySuccess")
+
     index = (ROOT / "docs/external-apis-for-copy.txt").read_text(encoding="utf-8")
     if "jp-lesson-ref-attach-batch-api.txt" not in index:
         errors.append("external-apis index must list attach-batch doc")
+    if "jp-lesson-ai-plan-prompt-bark-api.txt" not in index:
+        errors.append("external-apis index must list ai-plan-prompt-bark doc")
+
+    feature = (ROOT / "docs/feature-index.md").read_text(encoding="utf-8")
+    if "jp-lesson-ai-plan-prompt-bark" not in feature:
+        errors.append("feature-index must mention ai-plan-prompt-bark")
 
     rule = ROOT / ".cursor/rules/jp-lesson-ai-plan-prompt.mdc"
     if not rule.is_file():
         errors.append("missing jp-lesson-ai-plan-prompt.mdc")
+    else:
+        rule_txt = rule.read_text(encoding="utf-8")
+        if "7 分钟 Bark" not in rule_txt and "7分钟 Bark" not in rule_txt:
+            errors.append("jp-lesson-ai-plan-prompt.mdc must document 7 min Bark")
+        if "sleep" not in rule_txt:
+            errors.append("rule must forbid sleep in Worker")
 
     if errors:
         print("FAIL:")

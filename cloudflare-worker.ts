@@ -13,6 +13,8 @@
 import { default as handler } from "./.open-next/worker.js";
 
 const REMIND_PATH = "/api/admin/schedule-class-bark-remind";
+/** 日语教案提示词：复制后约 7 分钟 Bark（到期扫 D1） */
+const AI_PLAN_PROMPT_BARK_PATH = "/api/admin/jp-lesson-ai-plan-prompt-bark";
 /** 开课前启用老师账号（日语 2h / 韩英 30min）；每 10 分钟一次，不依赖 Mac */
 const PRE_CLASS_ENABLE_PATH = "/api/admin/teacher-user-pre-class-enable";
 /** 北京 05/06/07：今日有课启用；补 Mac launchd 漏跑 / 1102 */
@@ -105,6 +107,14 @@ async function runClassBarkRemind(env: CronEnv): Promise<void> {
   await postAdminCronJob(env, REMIND_PATH, "schedule-class-bark-remind");
 }
 
+async function runJpLessonAiPlanPromptBark(env: CronEnv): Promise<void> {
+  await postAdminCronJob(
+    env,
+    AI_PLAN_PROMPT_BARK_PATH,
+    "jp-lesson-ai-plan-prompt-bark"
+  );
+}
+
 /** 开课前启用：每 10 分钟（与 Mac StartInterval=600 同频；双跑幂等） */
 async function runTeacherPreClassEnable(env: CronEnv): Promise<void> {
   await postAdminCronJob(
@@ -133,6 +143,7 @@ export default {
   ): Promise<void> {
     const { hour, minute } = beijingHourMinute();
     ctx.waitUntil(runClassBarkRemind(env));
+    ctx.waitUntil(runJpLessonAiPlanPromptBark(env));
     // 老师开号：不依赖本机 launchd（漏装 / Mac 睡眠 / 早上 1102 仍能开）
     if (minute % 10 === 0) {
       ctx.waitUntil(runTeacherPreClassEnable(env));
