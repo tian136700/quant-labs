@@ -759,6 +759,7 @@ export function JpLessonPage() {
         editingLesson={editingLesson}
         editingRef={editingRef}
         editingContentLesson={editingContentLesson}
+        refs={refs}
         savingContentId={savingContentId}
         viewingWordsLesson={viewingWordsLesson}
         annotatingLesson={annotatingLesson}

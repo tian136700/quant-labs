@@ -3,7 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
-import { JpLessonContentEditAiPlanSection } from "@/components/jp-lesson-page/JpLessonContentEditAiPlanSection";
+import {
+  JpLessonContentEditAiPlanSection,
+  type JpLessonContentEditAiPlanSectionHandle,
+} from "@/components/jp-lesson-page/JpLessonContentEditAiPlanSection";
+import { postJpLessonRefAttachBatch } from "@/lib/jp-lesson-ref-attach-client";
 import type { JpLessonCompleteContentItemsResult } from "@/components/jp-lesson-page/completeJpLessonContentItems";
 import type { JpLessonContentSaveResult } from "@/components/jp-lesson-page/saveJpLessonContentMeanings";
 import { useSaveProgressBar } from "@/hooks/useSaveProgressBar";
@@ -25,6 +29,9 @@ type Props = {
   saving?: boolean;
   /** 管理员：可展开 AI 教案提示词与粘贴挂图 */
   showAiPlanTools?: boolean;
+  /** 本课已挂教案预览（jpVocabRefApiPath） */
+  attachedPreviewUrl?: string | null;
+  attachedIsPdf?: boolean;
   onClose: () => void;
   onSave: (
     content: string,
@@ -55,6 +62,8 @@ export function JpLessonContentEditModal({
   lesson,
   saving = false,
   showAiPlanTools = false,
+  attachedPreviewUrl = null,
+  attachedIsPdf = false,
   onClose,
   onSave,
   onDeleteLesson,
@@ -66,8 +75,10 @@ export function JpLessonContentEditModal({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [localError, setLocalError] = useState<string | null>(null);
   const [aiPlanOpen, setAiPlanOpen] = useState(false);
+  const [attachBusy, setAttachBusy] = useState(false);
   const errorRef = useRef<HTMLParagraphElement | null>(null);
-  const saveBusy = saving;
+  const aiPlanRef = useRef<JpLessonContentEditAiPlanSectionHandle | null>(null);
+  const saveBusy = saving || attachBusy;
   const saveProgress = useSaveProgressBar(saveBusy);
 
   useEffect(() => {
@@ -291,7 +302,53 @@ export function JpLessonContentEditModal({
       return;
     }
     setLocalError(null);
-    void onSave(parsed.value.content, parsed.value.meanings);
+    if (!lesson) return;
+
+    const pendingFile = aiPlanRef.current?.getPendingImageFile() ?? null;
+    aiPlanRef.current?.flushPrompt();
+
+    if (!pendingFile || !onAiPlanAttached) {
+      void onSave(parsed.value.content, parsed.value.meanings);
+      return;
+    }
+
+    void (async () => {
+      setAttachBusy(true);
+      try {
+        const saveResult = await onSave(
+          parsed.value.content,
+          parsed.value.meanings,
+          { keepOpen: true }
+        );
+        if (
+          saveResult &&
+          typeof saveResult === "object" &&
+          "ok" in saveResult &&
+          !saveResult.ok
+        ) {
+          setLocalError(saveResult.error || "保存失败");
+          return;
+        }
+        const attached = await postJpLessonRefAttachBatch(
+          [lesson.id],
+          pendingFile
+        );
+        if (!attached.ok) {
+          setLocalError(attached.error || "挂教案失败");
+          return;
+        }
+        onAiPlanAttached({
+          lessons: attached.lessons,
+          refs: attached.refs,
+        });
+        aiPlanRef.current?.clearPendingImage();
+        onClose();
+      } catch (err) {
+        setLocalError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setAttachBusy(false);
+      }
+    })();
   };
 
   return createPortal(
@@ -354,7 +411,7 @@ export function JpLessonContentEditModal({
                 disabled={saveBusy}
                 aria-expanded={aiPlanOpen}
                 onClick={() => setAiPlanOpen((v) => !v)}
-                title="复制 AI 教案提示词，并粘贴图片挂到本课"
+                title="复制 AI 教案提示词；粘贴图片后点右下角「保存」挂到本课"
               >
                 {aiPlanOpen ? "收起教案提示词" : "做教案提示词"}
               </button>
@@ -382,12 +439,14 @@ export function JpLessonContentEditModal({
 
         {showAiPlanTools && onAiPlanAttached ? (
           <JpLessonContentEditAiPlanSection
+            ref={aiPlanRef}
             open={aiPlanOpen}
             lesson={lesson}
             words={aiPlanWords}
             meanings={aiPlanMeanings}
             disabled={saveBusy}
-            onAttached={onAiPlanAttached}
+            attachedPreviewUrl={attachedPreviewUrl}
+            attachedIsPdf={attachedIsPdf}
           />
         ) : null}
 
@@ -489,7 +548,7 @@ export function JpLessonContentEditModal({
           <p className="jp-lesson-content-edit-hint">
             共 {rows.filter((r) => r.content.trim()).length} 项有效内容
             {someSelected ? ` · 已勾选 ${selectedIds.length} 项` : ""}
-            。删除会立即保存；删光最后一项会去掉整条未完成课。改文字或粘贴教案图后点「保存」。
+            。删除会立即保存；删光最后一项会去掉整条未完成课。改文字后点「保存」；粘贴教案图后也点「保存」一并挂到本课。
           </p>
         </div>
 

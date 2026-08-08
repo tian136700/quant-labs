@@ -11,6 +11,7 @@ import { JpLessonWordsViewModal } from "@/components/JpLessonWordsViewModal";
 import { JpVocabRefEditModal } from "@/components/JpVocabRefEditModal";
 import type { Locale } from "@/i18n/messages";
 import type { JpLessonProgressStatus } from "@/lib/jp-lesson-shared";
+import { jpVocabRefApiPath } from "@/lib/jp-vocab-ref-shared";
 import type { JpLessonClassScheduleInput, JpLessonRecord, JpLessonTeacher, JpVocabRef } from "@/lib/types";
 import { refViewUrl } from "@/components/jp-lesson-page/jp-lesson-page-helpers";
 import type { JpLessonCompleteContentItemsResult } from "@/components/jp-lesson-page/completeJpLessonContentItems";
@@ -40,6 +41,7 @@ export type JpLessonPageModalsProps = {
   editingLesson: JpLessonRecord | null;
   editingRef: JpVocabRef | undefined;
   editingContentLesson: JpLessonRecord | null;
+  refs: Record<string, JpVocabRef>;
   savingContentId: number | null;
   viewingWordsLesson: JpLessonRecord | null;
   annotatingLesson: {
@@ -113,6 +115,7 @@ export function JpLessonPageModals(props: JpLessonPageModalsProps) {
     editingLesson,
     editingRef,
     editingContentLesson,
+    refs,
     savingContentId,
     deletingId,
     deleteLesson,
@@ -217,6 +220,21 @@ export function JpLessonPageModals(props: JpLessonPageModalsProps) {
           deletingId === editingContentLesson?.id
         }
         showAiPlanTools={isAdmin}
+        attachedPreviewUrl={
+          editingContentLesson?.ref_key
+            ? jpVocabRefApiPath(editingContentLesson.ref_key, {
+                v:
+                  refs[editingContentLesson.ref_key]?.updated_at ??
+                  editingContentLesson.updated_at ??
+                  null,
+              })
+            : null
+        }
+        attachedIsPdf={
+          editingContentLesson?.ref_key
+            ? refs[editingContentLesson.ref_key]?.media_type === "pdf"
+            : false
+        }
         onClose={() => setEditingContentLesson(null)}
         onSave={(content, meanings, options) => {
           if (!editingContentLesson) {

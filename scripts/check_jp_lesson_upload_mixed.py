@@ -56,6 +56,15 @@ def main() -> int:
         errors.append("JpLessonStatusTable must render 教材 column")
     if "course_label" not in table_text:
         errors.append("JpLessonStatusTable must show lesson.course_label")
+    if "jp-lesson-course-label--has-ref" not in table_text:
+        errors.append(
+            "JpLessonStatusTable must mark course_label when lesson.ref_key (教案) exists"
+        )
+
+    styles = ROOT / "src/components/jp-lesson-page/JpLessonPageStyles.tsx"
+    styles_text = styles.read_text(encoding="utf-8") if styles.is_file() else ""
+    if "jp-lesson-course-label--has-ref" not in styles_text:
+        errors.append("JpLessonPageStyles must color .jp-lesson-course-label--has-ref")
 
     docs = ROOT / "docs/jp-lesson-upload-mixed-api.txt"
     if not docs.is_file():

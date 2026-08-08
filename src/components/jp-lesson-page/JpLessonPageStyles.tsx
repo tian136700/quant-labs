@@ -343,6 +343,11 @@ export function JpLessonPageStyles() {
           font-weight: 500;
           line-height: 1.25;
         }
+        /* 已有教案（上传 PDF / 挂图）与未做教案区分 */
+        :global(.jp-lesson-course-label--has-ref) {
+          color: #6ec8a0;
+          font-weight: 650;
+        }
         :global(.jp-lesson-course-label--empty) {
           color: var(--muted);
           font-weight: 400;

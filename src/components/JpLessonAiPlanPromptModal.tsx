@@ -71,7 +71,8 @@ export function JpLessonAiPlanPromptModal({
   const pasteZoneRef = useRef<HTMLDivElement>(null);
   const busy = attaching || attachBusy;
   const saveProgress = useSaveProgressBar(busy);
-  const { prompt, setPrompt, flushPrompt } = useJpLessonAiPlanPromptTemplate(open);
+  const { prompt, setPrompt, flushPrompt, saveHint } =
+    useJpLessonAiPlanPromptTemplate(open);
   const canZoomImage = Boolean(
     previewUrl && imageFile && imageFile.type.startsWith("image/")
   );
@@ -283,7 +284,7 @@ export function JpLessonAiPlanPromptModal({
                 <div className="jp-lesson-ai-plan-prompt-head">
                   <h3>
                     AI 提示词模板
-                    <span className="jp-lesson-ai-plan-autosave">改后自动保存</span>
+                    <span className="jp-lesson-ai-plan-autosave">{saveHint === "saved" ? "已自动保存" : "改后自动保存"}</span>
                   </h3>
                   <button
                     type="button"

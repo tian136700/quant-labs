@@ -630,11 +630,21 @@ export function JpLessonStatusTable({
                       >
                         {lesson.course_label ? (
                           <span
-                            className="jp-lesson-course-label"
+                            className={`jp-lesson-course-label${
+                              lesson.ref_key
+                                ? " jp-lesson-course-label--has-ref"
+                                : ""
+                            }`}
                             title={
-                              lesson.course_group_id
-                                ? `同一课 ${lesson.course_label}`
-                                : lesson.course_label
+                              lesson.ref_key
+                                ? `${
+                                    lesson.course_group_id
+                                      ? `同一课 ${lesson.course_label}`
+                                      : lesson.course_label
+                                  } · 已有教案`
+                                : lesson.course_group_id
+                                  ? `同一课 ${lesson.course_label}`
+                                  : lesson.course_label
                             }
                           >
                             {lesson.course_label}
@@ -693,11 +703,21 @@ export function JpLessonStatusTable({
                               </span>
                               {lesson.course_label ? (
                                 <span
-                                  className="jp-lesson-course-label jp-lesson-mobile-course-label"
+                                  className={`jp-lesson-course-label jp-lesson-mobile-course-label${
+                                    lesson.ref_key
+                                      ? " jp-lesson-course-label--has-ref"
+                                      : ""
+                                  }`}
                                   title={
-                                    lesson.course_group_id
-                                      ? `同一课 ${lesson.course_label}`
-                                      : lesson.course_label
+                                    lesson.ref_key
+                                      ? `${
+                                          lesson.course_group_id
+                                            ? `同一课 ${lesson.course_label}`
+                                            : lesson.course_label
+                                        } · 已有教案`
+                                      : lesson.course_group_id
+                                        ? `同一课 ${lesson.course_label}`
+                                        : lesson.course_label
                                   }
                                 >
                                   {lesson.course_label}

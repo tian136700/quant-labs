@@ -1,7 +1,9 @@
 "use client";
 
 import {
+  forwardRef,
   useEffect,
+  useImperativeHandle,
   useMemo,
   useRef,
   useState,
@@ -9,23 +11,17 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { CopyToast } from "@/components/CopyToast";
-import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import { useJpLessonAiPlanPromptTemplate } from "@/hooks/useJpLessonAiPlanPromptTemplate";
-import { useSaveProgressBar } from "@/hooks/useSaveProgressBar";
 import { copyTextToClipboard } from "@/lib/copy-text";
-import {
-  buildJpLessonAiPlanCopyText,
-} from "@/lib/jp-lesson-ai-plan-prompt";
+import { buildJpLessonAiPlanCopyText } from "@/lib/jp-lesson-ai-plan-prompt";
 import { afterJpLessonAiPlanPromptCopySuccess } from "@/lib/jp-lesson-ai-plan-prompt-bark-client";
 import { jpLessonKindLabel } from "@/lib/jp-lesson-shared";
-import { jpVocabSaveProgressLabel } from "@/lib/jp-vocab-save-progress";
-import type { JpLessonRecord, JpVocabRef } from "@/lib/types";
+import type { JpLessonRecord } from "@/lib/types";
 
-type AttachBatchOk = {
-  ok: true;
-  lessons: JpLessonRecord[];
-  refs: Record<string, JpVocabRef>;
-  count: number;
+export type JpLessonContentEditAiPlanSectionHandle = {
+  getPendingImageFile: () => File | null;
+  clearPendingImage: () => void;
+  flushPrompt: () => void;
 };
 
 type Props = {
@@ -36,36 +32,73 @@ type Props = {
   /** 与 words 对齐的释义 */
   meanings?: Array<string | null | undefined>;
   disabled?: boolean;
-  onAttached: (payload: {
-    lessons: JpLessonRecord[];
-    refs: Record<string, JpVocabRef>;
-  }) => void;
+  /** 本课已挂教案时的预览 URL（jpVocabRefApiPath） */
+  attachedPreviewUrl?: string | null;
+  attachedIsPdf?: boolean;
 };
 
 /**
  * 「编辑学习内容」弹窗内：左 AI 提示词 / 右粘贴教案图；图可点放大预览。
+ * 挂图由弹窗底栏「保存」统一提交（postJpLessonRefAttachBatch），此处只预览待挂文件。
  */
-export function JpLessonContentEditAiPlanSection({
-  open,
-  lesson,
-  words,
-  meanings,
-  disabled = false,
-  onAttached,
-}: Props) {
+export const JpLessonContentEditAiPlanSection = forwardRef<
+  JpLessonContentEditAiPlanSectionHandle,
+  Props
+>(function JpLessonContentEditAiPlanSection(
+  {
+    open,
+    lesson,
+    words,
+    meanings,
+    disabled = false,
+    attachedPreviewUrl = null,
+    attachedIsPdf = false,
+  },
+  ref
+) {
   const [copyToast, setCopyToast] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [zoomOpen, setZoomOpen] = useState(false);
-  const [attachBusy, setAttachBusy] = useState(false);
   const [mounted, setMounted] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const busy = disabled || attachBusy;
-  const saveProgress = useSaveProgressBar(attachBusy);
-  const { prompt, setPrompt, flushPrompt } = useJpLessonAiPlanPromptTemplate(open);
+  const imageFileRef = useRef<File | null>(null);
+  const busy = disabled;
+  const { prompt, setPrompt, flushPrompt, saveHint } =
+    useJpLessonAiPlanPromptTemplate(open);
+
+  const setImageFromFile = (file: File | null) => {
+    imageFileRef.current = file;
+    setImageFile(file);
+    setZoomOpen(false);
+    setPreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return file ? URL.createObjectURL(file) : null;
+    });
+    setLocalError(null);
+  };
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      getPendingImageFile: () => imageFileRef.current,
+      clearPendingImage: () => setImageFromFile(null),
+      flushPrompt,
+    }),
+    [flushPrompt]
+  );
+
+  const displayUrl =
+    previewUrl || (!imageFile ? attachedPreviewUrl || null : null);
+  const showingAttached = Boolean(
+    displayUrl && !imageFile && !previewUrl && attachedPreviewUrl
+  );
   const canZoomImage = Boolean(
-    previewUrl && imageFile && imageFile.type.startsWith("image/")
+    displayUrl &&
+      (imageFile
+        ? imageFile.type.startsWith("image/")
+        : Boolean(attachedPreviewUrl) && !attachedIsPdf)
   );
 
   useEffect(() => {
@@ -77,7 +110,8 @@ export function JpLessonContentEditAiPlanSection({
     setZoomOpen(false);
     setImageFromFile(null);
     // 仅换课时清空待挂图；收起/展开「做教案提示词」须保留粘贴预览
-  }, [lesson.id, setImageFromFile]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: only lesson.id
+  }, [lesson.id]);
 
   useEffect(() => {
     return () => {
@@ -109,16 +143,6 @@ export function JpLessonContentEditAiPlanSection({
 
   if (!open) return null;
 
-  const setImageFromFile = (file: File | null) => {
-    setImageFile(file);
-    setZoomOpen(false);
-    setPreviewUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return file ? URL.createObjectURL(file) : null;
-    });
-    setLocalError(null);
-  };
-
   const handlePaste = (e: ClipboardEvent<HTMLDivElement>) => {
     if (busy) return;
     const items = e.clipboardData?.items;
@@ -149,45 +173,6 @@ export function JpLessonContentEditAiPlanSection({
     });
   };
 
-  const handleAttach = async () => {
-    if (!imageFile) {
-      setLocalError("请先粘贴或选择教案图片。");
-      return;
-    }
-    setAttachBusy(true);
-    setLocalError(null);
-    flushPrompt();
-    try {
-      const form = new FormData();
-      form.set("lesson_ids", JSON.stringify([lesson.id]));
-      form.set("file", imageFile, imageFile.name || "plan.png");
-      if (imageFile.type === "application/pdf") {
-        form.set("media_type", "pdf");
-      } else {
-        form.set("media_type", "image");
-      }
-
-      const res = await fetch("/api/jp-lesson/ref/attach-batch", {
-        method: "POST",
-        body: form,
-        credentials: "include",
-      });
-      const data = (await res.json()) as AttachBatchOk & {
-        ok?: boolean;
-        error?: string;
-      };
-      if (!res.ok || !data.ok) {
-        throw new Error(data.error || `挂教案失败（${res.status}）`);
-      }
-      onAttached({ lessons: data.lessons, refs: data.refs });
-      setImageFromFile(null);
-    } catch (err) {
-      setLocalError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setAttachBusy(false);
-    }
-  };
-
   return (
     <section
       className="jp-lesson-content-edit-ai-plan"
@@ -199,7 +184,7 @@ export function JpLessonContentEditAiPlanSection({
             <h3 className="jp-lesson-content-edit-ai-plan-title">
               AI 提示词模板
               <span className="jp-lesson-content-edit-ai-plan-autosave">
-                改后自动保存
+                {saveHint === "saved" ? "已自动保存" : "改后自动保存"}
               </span>
             </h3>
             <button
@@ -226,7 +211,12 @@ export function JpLessonContentEditAiPlanSection({
 
         <div className="jp-lesson-content-edit-ai-plan-col">
           <h3 className="jp-lesson-content-edit-ai-plan-title">
-            粘贴教案图（挂到本课）
+            粘贴教案图
+            {showingAttached ? (
+              <span className="jp-lesson-content-edit-ai-plan-attached-badge">
+                已挂本课
+              </span>
+            ) : null}
           </h3>
           <div className="jp-lesson-content-edit-ai-plan-paste-actions">
             <input
@@ -258,14 +248,6 @@ export function JpLessonContentEditAiPlanSection({
                 清除图片
               </button>
             ) : null}
-            <button
-              type="button"
-              className="jp-lesson-action-btn jp-lesson-action-btn--primary"
-              disabled={busy || !imageFile}
-              onClick={() => void handleAttach()}
-            >
-              挂到本课
-            </button>
           </div>
           <div
             className="jp-lesson-content-edit-ai-plan-paste-zone"
@@ -274,8 +256,10 @@ export function JpLessonContentEditAiPlanSection({
             role="region"
             aria-label="粘贴教案图片区域"
           >
-            {previewUrl ? (
-              canZoomImage ? (
+            {displayUrl ? (
+              attachedIsPdf && showingAttached ? (
+                <p>本课已挂 PDF 教案。另选图片后点右下角「保存」可替换。</p>
+              ) : canZoomImage ? (
                 <button
                   type="button"
                   className="jp-lesson-content-edit-ai-plan-thumb"
@@ -286,7 +270,7 @@ export function JpLessonContentEditAiPlanSection({
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={previewUrl}
+                    src={displayUrl}
                     alt="教案预览"
                     className="jp-lesson-content-edit-ai-plan-preview"
                   />
@@ -297,13 +281,15 @@ export function JpLessonContentEditAiPlanSection({
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={previewUrl}
+                  src={displayUrl}
                   alt="教案预览"
                   className="jp-lesson-content-edit-ai-plan-preview"
                 />
               )
             ) : (
-              <p>在此点击后粘贴图片（Ctrl/⌘+V），或上方选文件，再点「挂到本课」。</p>
+              <p>
+                在此点击后粘贴图片（Ctrl/⌘+V），或上方选文件；点右下角「保存」挂到本课。
+              </p>
             )}
           </div>
         </div>
@@ -315,14 +301,6 @@ export function JpLessonContentEditAiPlanSection({
         </p>
       ) : null}
 
-      {saveProgress.visible ? (
-        <JpVocabSaveProgressBar
-          label={jpVocabSaveProgressLabel("save")}
-          percent={saveProgress.percent}
-          fullWidth
-        />
-      ) : null}
-
       <CopyToast
         message={copyToast}
         onDismiss={() => setCopyToast(null)}
@@ -332,7 +310,7 @@ export function JpLessonContentEditAiPlanSection({
       {mounted &&
       zoomOpen &&
       canZoomImage &&
-      previewUrl &&
+      displayUrl &&
       createPortal(
         <div
           className="jp-lesson-content-edit-ai-plan-zoom"
@@ -355,7 +333,7 @@ export function JpLessonContentEditAiPlanSection({
           <div className="jp-lesson-content-edit-ai-plan-zoom-stage">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={previewUrl}
+              src={displayUrl}
               alt="教案大图预览"
               onClick={(e) => e.stopPropagation()}
             />
@@ -405,6 +383,15 @@ export function JpLessonContentEditAiPlanSection({
           flex-wrap: wrap;
           align-items: baseline;
           gap: 0.4rem 0.55rem;
+        }
+        .jp-lesson-content-edit-ai-plan-attached-badge {
+          font-size: 0.75rem;
+          font-weight: 600;
+          color: color-mix(in srgb, var(--accent) 85%, #1a7f37);
+          background: color-mix(in srgb, var(--accent) 14%, transparent);
+          border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+          border-radius: 999px;
+          padding: 0.12rem 0.5rem;
         }
         .jp-lesson-content-edit-ai-plan-autosave {
           font-size: 0.75rem;
@@ -579,4 +566,4 @@ export function JpLessonContentEditAiPlanSection({
       `}</style>
     </section>
   );
-}
+});

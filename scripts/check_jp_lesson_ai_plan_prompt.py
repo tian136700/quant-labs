@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -41,9 +42,22 @@ def main() -> int:
         "readStoredJpLessonAiPlanPrompt",
         "AUTOSAVE_MS",
         "flushPrompt",
+        "sessionOpenRef",
+        "saveHint",
     ):
         if needle not in auto_hook:
             errors.append(f"missing {needle} in useJpLessonAiPlanPromptTemplate")
+    # 禁止：open=false 挂载时无默认文案覆盖已存模板
+    if "sessionOpenRef" not in auto_hook:
+        errors.append("autosave must gate writes with sessionOpenRef")
+    bad_wipe = (
+        "if (!open) {\n"
+        "      writeStoredJpLessonAiPlanPrompt(promptRef.current);"
+    )
+    if bad_wipe in auto_hook:
+        errors.append(
+            "must not writeStored on every !open (wipes saved prompt with default)"
+        )
 
     attach = (ROOT / "src/lib/jp-lesson-ref-attach.ts").read_text(encoding="utf-8")
     for needle in (
@@ -119,12 +133,10 @@ def main() -> int:
     ).read_text(encoding="utf-8")
     for needle in (
         "复制单词+提示词",
-        "挂到本课",
+        "粘贴教案图",
         "copyTextToClipboard",
         "CopyToast",
         "copy-toast--above-modal",
-        "JpVocabSaveProgressBar",
-        "/api/jp-lesson/ref/attach-batch",
         "jp-lesson-content-edit-ai-plan-grid",
         "点击放大预览",
         "jp-lesson-content-edit-ai-plan-zoom",
@@ -134,9 +146,32 @@ def main() -> int:
         "useJpLessonAiPlanPromptTemplate",
         "改后自动保存",
         "onBlur",
+        "attachedPreviewUrl",
+        "已挂本课",
+        "点右下角「保存」挂到本课",
+        "getPendingImageFile",
     ):
         if needle not in inline:
             errors.append(f"content-edit AI plan section missing {needle}")
+    if "挂到本课" in inline and '挂到本课"' in inline:
+        # 文案可提「保存挂到本课」，禁止单独「挂到本课」按钮
+        if '">挂到本课</button>' in inline or ">挂到本课<" in inline.replace(
+            "点右下角「保存」挂到本课", ""
+        ).replace("已挂本课", ""):
+            # looser: button with only 挂到本课
+            pass
+    if re.search(r">\s*挂到本课\s*<", inline):
+        errors.append(
+            "content-edit AI plan must not have standalone「挂到本课」button; save attaches"
+        )
+    if "/api/jp-lesson/ref/attach-batch" in inline:
+        errors.append(
+            "attach-batch must run from content edit Save, not AI plan section"
+        )
+    if "JpVocabSaveProgressBar" in inline:
+        errors.append(
+            "AI plan section should not own save progress; modal Save owns it"
+        )
     if "max-height: min(42dvh, 360px)" in inline:
         errors.append(
             "AI plan must not use max-height:42dvh that collapses prompt/paste boxes"
@@ -146,11 +181,23 @@ def main() -> int:
         pass
     if "border: 1px solid var(--border)" not in inline:
         errors.append("AI plan columns must look like bordered boxes")
-    # 「挂到本课」须在预览区上方，禁止沉底被裁切
+    # 选择图片等操作须在预览区上方
     actions_i = inline.find("jp-lesson-content-edit-ai-plan-paste-actions")
     zone_i = inline.find("jp-lesson-content-edit-ai-plan-paste-zone")
     if not (0 <= actions_i < zone_i):
         errors.append("paste-actions must sit above paste-zone (attach buttons visible)")
+
+    content_edit = (
+        ROOT / "src/components/JpLessonContentEditModal.tsx"
+    ).read_text(encoding="utf-8")
+    for needle in (
+        "postJpLessonRefAttachBatch",
+        "keepOpen: true",
+        "getPendingImageFile",
+        "attachedPreviewUrl",
+    ):
+        if needle not in content_edit:
+            errors.append(f"content edit modal missing {needle}")
 
     # PC 必须两列；手机才单列
     pc_grid = inline.find(
@@ -159,7 +206,6 @@ def main() -> int:
         "          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);"
     )
     if pc_grid < 0:
-        # looser fallback already checked needle above
         pc_grid = inline.find("grid-template-columns: minmax(0, 1fr) minmax(0, 1fr)")
     mobile_at = inline.find("@media (max-width: 767px)")
     if mobile_at < 0:
@@ -167,14 +213,17 @@ def main() -> int:
     elif "grid-template-columns: 1fr" not in inline[mobile_at:]:
         errors.append("mobile AI plan must use single-column grid")
 
-    content_edit = (
-        ROOT / "src/components/JpLessonContentEditModal.tsx"
-    ).read_text(encoding="utf-8")
     # 教案区不得塞进 flex-shrink:0 的 header（会撑爆弹窗裁掉底栏）
     ai_pos = content_edit.find("<JpLessonContentEditAiPlanSection")
     body_pos = content_edit.find('className="jp-lesson-content-edit-body"')
     if not (0 <= ai_pos < body_pos):
         errors.append("AiPlanSection must sit above body, outside non-scrolling header")
+
+    client_attach = (
+        ROOT / "src/lib/jp-lesson-ref-attach-client.ts"
+    ).read_text(encoding="utf-8")
+    if "postJpLessonRefAttachBatch" not in client_attach:
+        errors.append("missing postJpLessonRefAttachBatch client helper")
 
     docs = ROOT / "docs/jp-lesson-ref-attach-batch-api.txt"
     if not docs.is_file():
