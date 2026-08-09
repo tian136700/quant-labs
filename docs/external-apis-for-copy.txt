@@ -139,6 +139,10 @@
    文件：docs/jp-vocab-teacher-visible-api.txt
    调用：GET https://japanese.info-quests.com/api/jp-vocab/teacher-visible
 
+34. 日程管理 · 长期固定手动日程续期 API
+   文件：docs/manual-schedule-recurring-expand-api.txt
+   调用：POST https://finance.info-quests.com/api/admin/manual-schedule-recurring-expand
+
 —— 其它跨项目说明（*-howto.txt）——
 
 1. 本机 Bark 推送 — 跨项目复制说明（整段可复制给别的项目 Agent）

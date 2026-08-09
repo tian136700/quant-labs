@@ -18,6 +18,7 @@ import {
   type ManualScheduleLinkedLesson,
   type ManualScheduleLessonOption,
 } from "@/lib/jp-lesson-manual-schedule-linked";
+import { manualScheduleWeekdayLabelZh } from "@/lib/jp-lesson-manual-schedule-recurring";
 import { jpVocabSaveProgressLabel } from "@/lib/jp-vocab-save-progress";
 import {
   detectScheduleTeacherSubjectFromTitle,
@@ -154,8 +155,14 @@ export function JpLessonManualScheduleModal({
   const [teacher, setTeacher] = useState("");
   const [note, setNote] = useState("");
   const [linkedLessons, setLinkedLessons] = useState<ManualScheduleLinkedLesson[]>([]);
+  /** 新建默认关；编辑已有长期系列时为 true 且不可关掉 */
+  const [recurring, setRecurring] = useState(false);
   const [error, setError] = useState("");
   const [addingTeacher, setAddingTeacher] = useState(false);
+  const editingIsRecurringSeries =
+    editing != null &&
+    editing.recurring_id != null &&
+    Number(editing.recurring_id) > 0;
   const saveInitiatedRef = useRef(false);
   const formInitKeyRef = useRef<string | null>(null);
   const teacherPickerRef = useRef<JpLessonTeacherSinglePickerHandle>(null);
@@ -192,6 +199,11 @@ export function JpLessonManualScheduleModal({
     setTeacher(next.teacher);
     setNote(next.note);
     setLinkedLessons(next.linked_lessons);
+    setRecurring(
+      editing != null &&
+        editing.recurring_id != null &&
+        Number(editing.recurring_id) > 0
+    );
     setError("");
     setAddingTeacher(false);
     saveInitiatedRef.current = false;
@@ -366,15 +378,26 @@ export function JpLessonManualScheduleModal({
       teacher: teacherName,
       note: note.trim(),
       linked_lessons: normalizeManualScheduleLinkedLessons(linkedLessons),
+      recurring: editingIsRecurringSeries ? true : recurring,
     });
   };
 
   const modalTitle = editing
     ? mode === "time"
-      ? "改时"
-      : "编辑手动日程"
+      ? editingIsRecurringSeries
+        ? "改时（整条长期固定）"
+        : "改时"
+      : editingIsRecurringSeries
+        ? "编辑长期固定日程"
+        : "编辑手动日程"
     : "手动添加日程";
   const showFullFields = mode === "full";
+  const recurringWeekdayHint = useMemo(() => {
+    if (!date.trim()) return "";
+    const d = new Date(`${date.trim()}T12:00:00+08:00`);
+    if (Number.isNaN(d.getTime())) return "";
+    return manualScheduleWeekdayLabelZh(d.getUTCDay());
+  }, [date]);
 
   if (!open || !mounted) return null;
 
@@ -484,6 +507,27 @@ export function JpLessonManualScheduleModal({
                       onChange={setTime}
                     />
                   </div>
+                  <label className="jp-lesson-next-class-field jp-lesson-manual-recurring-field">
+                    <span>长期固定</span>
+                    <span className="jp-lesson-manual-recurring-toggle">
+                      <input
+                        type="checkbox"
+                        checked={recurring || editingIsRecurringSeries}
+                        disabled={saving || addingTeacher || editingIsRecurringSeries}
+                        onChange={(e) => {
+                          if (editingIsRecurringSeries) return;
+                          setRecurring(e.target.checked);
+                        }}
+                      />
+                      <span>
+                        {editingIsRecurringSeries
+                          ? "已是长期固定：保存将更新整条每周规则（不是只改这一次）"
+                          : recurring
+                            ? `每周${recurringWeekdayHint || "同一天"}同一时间自动排课（约未来 12 周）`
+                            : "默认不固定（只排这一次）"}
+                      </span>
+                    </span>
+                  </label>
                   <label className="jp-lesson-next-class-field">
                     <span>时长</span>
                     <select
@@ -562,7 +606,9 @@ export function JpLessonManualScheduleModal({
               </p>
             ) : (
               <p className="jp-lesson-next-class-hint">
-                选教材只加入本条日程；点「保存」后才会写入，并同步到新课「学习中」（上课时间与老师一并带上）。
+                {editingIsRecurringSeries || recurring
+                  ? "长期固定：保存后按所选日期的星期与时间每周排课；改时间或删除都会作用于整条长期规则。"
+                  : "选教材只加入本条日程；点「保存」后才会写入，并同步到新课「学习中」（上课时间与老师一并带上）。"}
               </p>
             )}
           </fieldset>
@@ -806,6 +852,33 @@ export function JpLessonManualScheduleModal({
           resize: vertical;
           min-height: 4.5rem;
           line-height: 1.45;
+        }
+
+        .jp-lesson-manual-recurring-toggle {
+          display: flex;
+          align-items: flex-start;
+          gap: 0.55rem;
+          min-height: 2.5rem;
+          padding: 0.55rem 0.65rem;
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          background: color-mix(in srgb, var(--bg) 35%, var(--panel));
+          font-size: 0.875rem;
+          line-height: 1.4;
+          cursor: pointer;
+        }
+
+        .jp-lesson-manual-recurring-toggle input {
+          width: 1.15rem;
+          height: 1.15rem;
+          margin-top: 0.1rem;
+          flex-shrink: 0;
+          accent-color: var(--accent);
+        }
+
+        .jp-lesson-manual-recurring-field span:first-child {
+          font-size: 0.8125rem;
+          color: var(--muted);
         }
 
         :global(.jp-lesson-action-btn) {

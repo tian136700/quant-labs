@@ -28,6 +28,7 @@ import {
 import type { Locale } from "@/i18n/messages";
 import type { JpLessonManualSchedule } from "@/lib/jp-lesson-manual-schedule";
 import { MANUAL_SCHEDULE_LINKED_LESSONS_MAX } from "@/lib/jp-lesson-manual-schedule-linked";
+import { formatManualScheduleRecurringBadge } from "@/lib/jp-lesson-manual-schedule-recurring";
 import { detectScheduleTeacherSubjectFromTitle } from "@/lib/jp-lesson-teacher-rate";
 import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import {
@@ -377,6 +378,14 @@ export function JpLessonScheduleLayout({
                               ? "手动日程 · 不同步到新课列表"
                               : `${scheduleSubjectLabel(selectedEvent.subject)}新课`}
                           </span>
+                          {selectedManualSchedule?.recurring &&
+                          selectedManualSchedule.recurring.active ? (
+                            <span className="jpls-status-badge jpls-status-badge--recurring">
+                              {formatManualScheduleRecurringBadge(
+                                selectedManualSchedule.recurring
+                              )}
+                            </span>
+                          ) : null}
                         </dd>
                       </div>
                       <div>

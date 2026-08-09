@@ -5,9 +5,9 @@
 ----
 读写「日程管理」页的手动日程（`jp_lesson_manual_schedule`）：
 
-- GET    拉全部手动日程（含关联教材 `linked_lessons`）
-- POST   新建或更新一条
-- DELETE 按 id 删除
+- GET    拉全部手动日程（含关联教材 `linked_lessons`、长期固定 `recurring_id` / `recurring`）
+- POST   新建或更新一条（可选 `recurring: true` 建每周长期固定）
+- DELETE 按 id 删除（长期固定 → 取消整系列未来课）
 
 保存/更新成功后，响应附带 `teacher_enable`：若开课在 **18 小时内或正在进行**，
 会尝试立刻启用关联老师登录账号（与日语新课「学习中」补启用同逻辑）。
@@ -61,6 +61,8 @@ GET · 列表
       "linked_lessons": [
         { "subject": "jp", "lesson_id": 77 }
       ],
+      "recurring_id": null,
+      "recurring": null,
       "created_at": "2026-08-01 09:00:00",
       "updated_at": "2026-08-07 13:00:00"
     }
@@ -76,8 +78,11 @@ GET · 列表
 | teacher | 老师姓名（与人员管理里名字匹配） |
 | note | 备注 |
 | linked_lessons | 0～2 条关联教材；`subject`: `jp` \| `en`，`lesson_id`: 新课 id |
+| recurring_id | 长期固定规则 id；一次性课为 null |
+| recurring | 规则摘要：`{ id, weekday, time_hm, active }`；weekday 0=周日…6=周六 |
 
 关联教材写入后，网页端另走 `syncManualScheduleLinkedLessonToLearning`（不在本 API 内）。
+长期固定系列同步教材时，只取「今天起最近一堂」做一次 sync（避免一次写 12 段）。
 
 
 ────────────────────────────────
@@ -96,7 +101,23 @@ Content-Type: application/json
   "note": "备注可选",
   "linked_lessons": [
     { "subject": "jp", "lesson_id": 77 }
-  ]
+  ],
+  "recurring": false
+}
+
+长期固定新建（`recurring: true`，默认 false）
+--------------------------------------------
+按 `class_at` 的星期几 + 时间，预生成约未来 12 周具体课节。
+响应多 `created_count`、`recurring_id`；`schedule` 为系列中第一堂。
+
+{
+  "class_at": "2026-08-09 21:00:00",
+  "duration_minutes": 55,
+  "title": "日语",
+  "teacher": "秦老师",
+  "note": "",
+  "linked_lessons": [],
+  "recurring": true
 }
 
 更新
@@ -112,11 +133,16 @@ Content-Type: application/json
   "linked_lessons": []
 }
 
+若该条带 `recurring_id`：更新 = **整条长期规则**（重写今天及以后实例；过去保留）。
+响应可含 `rewritten_count`。
+
 成功响应
 --------
 {
   "ok": true,
   "schedule": { …同上 schedule 对象… },
+  "created_count": 12,
+  "recurring_id": 3,
   "teacher_enable": {
     "triggered": true,
     "dry_run": false,
@@ -150,8 +176,14 @@ DELETE · 删除
 
 DELETE …/manual-schedules?id=12
 
-成功：{ "ok": true }
+一次性课：删该条。
+长期固定：取消规则 + 删除该系列**今天及以后**实例（过去保留）。
+
+成功：{ "ok": true, "recurring_id": 3, "deleted_future": 10 }
+（一次性课 `recurring_id` 为 null，`deleted_future` 为 1）
 失败：同上 400/403/404/500
+
+续期 Cron（Worker 日跑）：见 docs/manual-schedule-recurring-expand-api.txt
 
 
 curl 示例

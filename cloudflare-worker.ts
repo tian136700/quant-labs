@@ -19,6 +19,9 @@ const AI_PLAN_PROMPT_BARK_PATH = "/api/admin/jp-lesson-ai-plan-prompt-bark";
 const PRE_CLASS_ENABLE_PATH = "/api/admin/teacher-user-pre-class-enable";
 /** 北京 05/06/07：今日有课启用；补 Mac launchd 漏跑 / 1102 */
 const SCHEDULE_ENABLE_PATH = "/api/admin/teacher-user-schedule-enable";
+/** 长期固定手动日程：补齐约 12 周窗口缺的实例（日跑一次） */
+const MANUAL_RECURRING_EXPAND_PATH =
+  "/api/admin/manual-schedule-recurring-expand";
 const DEFAULT_ORIGIN = "https://finance.info-quests.com";
 
 type CronEnv = {
@@ -133,6 +136,15 @@ async function runTeacherScheduleEnable(env: CronEnv): Promise<void> {
   );
 }
 
+/** 长期固定续期：北京 03:15 日跑一次（避开 05–07 开号高峰） */
+async function runManualScheduleRecurringExpand(env: CronEnv): Promise<void> {
+  await postAdminCronJob(
+    env,
+    MANUAL_RECURRING_EXPAND_PATH,
+    "manual-schedule-recurring-expand"
+  );
+}
+
 export default {
   fetch: handler.fetch,
 
@@ -150,6 +162,9 @@ export default {
     }
     if ((hour === 5 || hour === 6 || hour === 7) && minute === 0) {
       ctx.waitUntil(runTeacherScheduleEnable(env));
+    }
+    if (hour === 3 && minute === 15) {
+      ctx.waitUntil(runManualScheduleRecurringExpand(env));
     }
   },
 };

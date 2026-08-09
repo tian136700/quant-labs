@@ -1,0 +1,68 @@
+日程管理 · 长期固定手动日程续期 API
+====================================
+
+用途
+----
+把每条 **active** 的长期固定规则，补齐「北京今天起约 12 周」仍缺的具体课节。
+保存长期固定时已预生成约 12 周；本接口由 Worker 日 Cron 调用，避免窗口缩光。
+
+不自动 sync 关联教材；不改过去已上过的实例。
+
+
+线上地址
+--------
+POST https://finance.info-quests.com/api/admin/manual-schedule-recurring-expand
+
+（japanese / english 等同路径亦可；同一 Worker / 同一 D1）
+
+
+本机
+----
+POST http://127.0.0.1:3002/api/admin/manual-schedule-recurring-expand
+
+
+鉴权
+----
+Header `Authorization: Bearer <JP_REVIEW_UPLOAD_TOKEN>`
+
+
+请求
+----
+POST JSON 体可空：`{}`
+
+
+成功
+----
+{
+  "ok": true,
+  "rules": 2,
+  "inserted": 3
+}
+
+| 字段 | 说明 |
+|------|------|
+| rules | 扫描到的 active 规则数 |
+| inserted | 本次新插入的实例数（已存在则跳过） |
+
+
+失败
+----
+401 Unauthorized
+500 { "ok": false, "error": "…" }
+
+
+curl
+----
+TOKEN="你的JP_REVIEW_UPLOAD_TOKEN"
+curl -sS -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{}' \
+  'https://finance.info-quests.com/api/admin/manual-schedule-recurring-expand'
+
+
+说明
+----
+- 展开逻辑：`src/lib/jp-lesson-manual-schedule-recurring.ts`
+- 写库：`expandActiveJpLessonManualRecurring`
+- Worker：`cloudflare-worker.ts` 北京时间 **每日 03:15** 调用一次

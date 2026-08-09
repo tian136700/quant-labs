@@ -8,10 +8,12 @@ import {
   type ManualScheduleLinkedLesson,
 } from "@/lib/jp-lesson-manual-schedule-linked";
 import { detectScheduleTeacherSubjectFromTitle } from "@/lib/jp-lesson-teacher-rate";
+import type { JpLessonManualScheduleRecurringMeta } from "@/lib/jp-lesson-manual-schedule-recurring";
 
 export const JP_LESSON_MANUAL_SCHEDULE_STORAGE_KEY = "jp-lesson-manual-schedules";
 
 export type { ManualScheduleLinkedLesson };
+export type { JpLessonManualScheduleRecurringMeta };
 
 export type JpLessonManualSchedule = {
   id: number;
@@ -22,6 +24,10 @@ export type JpLessonManualSchedule = {
   note: string;
   /** 关联日语/英语新课教材，最多 2 条（可选） */
   linked_lessons: ManualScheduleLinkedLesson[];
+  /** 长期固定规则 id；一次性课为 null */
+  recurring_id: number | null;
+  /** 列表附带的规则摘要（可选） */
+  recurring?: JpLessonManualScheduleRecurringMeta | null;
   created_at: string;
   updated_at: string;
 };
@@ -33,6 +39,8 @@ export type JpLessonManualScheduleDraft = {
   teacher: string;
   note: string;
   linked_lessons?: ManualScheduleLinkedLesson[];
+  /** 新建时：是否长期固定（每周同一星期几+时间）；默认 false */
+  recurring?: boolean;
 };
 
 type LegacyJpLessonManualSchedule = {
@@ -106,6 +114,31 @@ function coerceJpLessonManualSchedule(
   const row = raw as Partial<JpLessonManualSchedule>;
   const id = Number(row.id);
   if (!Number.isInteger(id) || id <= 0) return null;
+  const recurringIdRaw = row.recurring_id;
+  const recurringId =
+    recurringIdRaw == null || recurringIdRaw === ""
+      ? null
+      : Number(recurringIdRaw);
+  let recurring: JpLessonManualScheduleRecurringMeta | null | undefined;
+  if (row.recurring && typeof row.recurring === "object") {
+    const meta = row.recurring as Partial<JpLessonManualScheduleRecurringMeta>;
+    const mid = Number(meta.id);
+    const weekday = Number(meta.weekday);
+    if (
+      Number.isInteger(mid) &&
+      mid > 0 &&
+      Number.isInteger(weekday) &&
+      weekday >= 0 &&
+      weekday <= 6
+    ) {
+      recurring = {
+        id: mid,
+        weekday: weekday as JpLessonManualScheduleRecurringMeta["weekday"],
+        time_hm: String(meta.time_hm ?? ""),
+        active: meta.active !== false,
+      };
+    }
+  }
   return {
     id,
     class_at: String(row.class_at ?? ""),
@@ -115,6 +148,11 @@ function coerceJpLessonManualSchedule(
     teacher: String(row.teacher ?? ""),
     note: String(row.note ?? ""),
     linked_lessons: normalizeManualScheduleLinkedLessons(row.linked_lessons),
+    recurring_id:
+      recurringId != null && Number.isInteger(recurringId) && recurringId > 0
+        ? recurringId
+        : null,
+    recurring: recurring ?? null,
     created_at: String(row.created_at ?? ""),
     updated_at: String(row.updated_at ?? ""),
   };

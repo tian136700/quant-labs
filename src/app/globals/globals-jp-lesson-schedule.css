@@ -784,6 +784,17 @@ input.jpls-date-input {
   background: color-mix(in srgb, var(--rise) 16%, transparent);
   color: var(--rise);
 }
+.jpls-status-badge--recurring {
+  margin-left: 0.35rem;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+}
+.jpls-detail-list dd:has(.jpls-status-badge--recurring) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
 .jpls-detail-actions,
 .jpls-manual-actions {
   display: flex;

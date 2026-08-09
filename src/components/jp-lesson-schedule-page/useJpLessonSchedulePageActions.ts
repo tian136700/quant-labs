@@ -99,6 +99,7 @@ export type UseJpLessonSchedulePageActionsOptions = {
   setEditingEnNextClassLesson: Dispatch<SetStateAction<EnLessonRecord | null>>;
   loadLessons: (opts?: { force?: boolean }) => Promise<void>;
   loadEnLessons: (opts?: { force?: boolean }) => Promise<void>;
+  loadManualSchedules: (opts?: { force?: boolean }) => Promise<void>;
   linkingManualLessonRef: MutableRefObject<boolean>;
 };
 
@@ -144,6 +145,7 @@ export function useJpLessonSchedulePageActions(options: UseJpLessonSchedulePageA
     setEditingEnNextClassLesson,
     loadLessons,
     loadEnLessons,
+    loadManualSchedules,
   } = options;
 
   const applyLinkedLessonSynced = (
@@ -330,6 +332,10 @@ export function useJpLessonSchedulePageActions(options: UseJpLessonSchedulePageA
     setSavingManualSchedule(true);
     setError("");
     const isEditing = editingManual != null;
+    const isRecurringSeries =
+      draft.recurring === true ||
+      (editingManual?.recurring_id != null &&
+        Number(editingManual.recurring_id) > 0);
     try {
       const saved = isEditing
         ? await updateJpLessonManualSchedule(editingManual.id, draft)
@@ -338,16 +344,23 @@ export function useJpLessonSchedulePageActions(options: UseJpLessonSchedulePageA
         setError("保存手动日程失败");
         return;
       }
-      setManualSchedules((prev) => {
-        const next = isEditing
-          ? prev.map((item) => (item.id === saved.id ? saved : item))
-          : [...prev, saved];
-        const sorted = next.sort((a, b) => a.class_at.localeCompare(b.class_at));
-        syncJpLessonManualScheduleCache(sorted);
-        return sorted;
-      });
+
+      // 长期固定会一次写多条 / 重写未来实例，须 force 重拉列表
+      if (isRecurringSeries) {
+        await loadManualSchedules({ force: true });
+      } else {
+        setManualSchedules((prev) => {
+          const next = isEditing
+            ? prev.map((item) => (item.id === saved.id ? saved : item))
+            : [...prev, saved];
+          const sorted = next.sort((a, b) => a.class_at.localeCompare(b.class_at));
+          syncJpLessonManualScheduleCache(sorted);
+          return sorted;
+        });
+      }
 
       // 保存后再对齐一次：关联教材 → 学习中 + 时间/老师（防选后改过时间）
+      // 长期固定只同步本条（服务端已挑最近未来堂）对应的时间
       const linked = saved.linked_lessons || [];
       if (isAdmin && linked.length > 0) {
         let syncFailed = "";
@@ -386,20 +399,37 @@ export function useJpLessonSchedulePageActions(options: UseJpLessonSchedulePageA
         }
         if (syncFailed) {
           setStatusMessage(
-            (isEditing ? "手动日程已保存" : "手动日程已添加") +
-              `，但教材同步失败：${syncFailed}`
+            (isEditing
+              ? isRecurringSeries
+                ? "长期固定已更新"
+                : "手动日程已保存"
+              : isRecurringSeries
+                ? "长期固定已添加"
+                : "手动日程已添加") + `，但教材同步失败：${syncFailed}`
           );
         } else {
           setStatusMessage(
             isEditing
-              ? "手动日程已保存，教材已同步为学习中"
-              : "手动日程已添加，教材已同步为学习中"
+              ? isRecurringSeries
+                ? "长期固定已更新，教材已同步为学习中"
+                : "手动日程已保存，教材已同步为学习中"
+              : isRecurringSeries
+                ? "长期固定已添加，教材已同步为学习中"
+                : "手动日程已添加，教材已同步为学习中"
           );
           if (syncedJp) void loadLessons({ force: true });
           if (syncedEn) void loadEnLessons({ force: true });
         }
       } else {
-        setStatusMessage(isEditing ? "手动日程已保存" : "手动日程已添加");
+        setStatusMessage(
+          isEditing
+            ? isRecurringSeries
+              ? "长期固定已更新（整条每周规则）"
+              : "手动日程已保存"
+            : isRecurringSeries
+              ? "长期固定已添加（约未来 12 周）"
+              : "手动日程已添加"
+        );
       }
 
       setSelectedEventKey(`manual-${saved.id}`);
@@ -415,16 +445,33 @@ export function useJpLessonSchedulePageActions(options: UseJpLessonSchedulePageA
 
   const handleDeleteManualSchedule = async () => {
     if (!selectedManualSchedule) return;
-    if (!window.confirm("确定删除这条手动日程吗？")) return;
+    const isRecurring =
+      selectedManualSchedule.recurring_id != null &&
+      Number(selectedManualSchedule.recurring_id) > 0;
+    const ok = window.confirm(
+      isRecurring
+        ? "确定取消整条长期固定吗？今天及以后每周将不再排课（过去已上过的保留）。"
+        : "确定删除这条手动日程吗？"
+    );
+    if (!ok) return;
     setError("");
     try {
+      const recurringId = selectedManualSchedule.recurring_id;
       await deleteJpLessonManualSchedule(selectedManualSchedule.id);
-      setManualSchedules((prev) => {
-        const next = prev.filter((item) => item.id !== selectedManualSchedule.id);
-        syncJpLessonManualScheduleCache(next);
-        return next;
-      });
+      if (isRecurring && recurringId != null) {
+        await loadManualSchedules({ force: true });
+      } else {
+        setManualSchedules((prev) => {
+          const next = prev.filter((item) => item.id !== selectedManualSchedule.id);
+          syncJpLessonManualScheduleCache(next);
+          return next;
+        });
+      }
       setSelectedEventKey(null);
+      if (isRecurring) {
+        setStatusMessage("已取消长期固定");
+        window.setTimeout(() => setStatusMessage(""), 3000);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }

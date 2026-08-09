@@ -592,11 +592,29 @@ CREATE TABLE IF NOT EXISTS jp_lesson_manual_schedule (
   note             TEXT    NOT NULL DEFAULT '',
   /** JSON：关联教材 [{subject:"jp"|"en", lesson_id:number}]，最多 2 条，可选 */
   linked_lessons   TEXT    NOT NULL DEFAULT '[]',
+  /** 长期固定规则 id；一次性课为 NULL */
+  recurring_id     INTEGER,
   created_at       TEXT    NOT NULL DEFAULT (datetime('now')),
   updated_at       TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_jp_lesson_manual_schedule_class_at ON jp_lesson_manual_schedule (class_at ASC, id ASC);
+CREATE INDEX IF NOT EXISTS idx_jp_lesson_manual_schedule_recurring_id ON jp_lesson_manual_schedule (recurring_id ASC, class_at ASC);
+
+-- 手动日程长期固定规则（每周 weekday + time_hm；实例在 jp_lesson_manual_schedule）
+CREATE TABLE IF NOT EXISTS jp_lesson_manual_schedule_recurring (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  weekday          INTEGER NOT NULL,
+  time_hm          TEXT    NOT NULL,
+  duration_minutes INTEGER,
+  title            TEXT    NOT NULL,
+  teacher          TEXT    NOT NULL DEFAULT '',
+  note             TEXT    NOT NULL DEFAULT '',
+  linked_lessons   TEXT    NOT NULL DEFAULT '[]',
+  active           INTEGER NOT NULL DEFAULT 1,
+  created_at       TEXT    NOT NULL DEFAULT (datetime('now')),
+  updated_at       TEXT    NOT NULL DEFAULT (datetime('now'))
+);
 
 -- 英语单词抽问：共用参考资料（图片/PDF，多条词条可指向同一 ref_key）
 CREATE TABLE IF NOT EXISTS en_vocab_ref (

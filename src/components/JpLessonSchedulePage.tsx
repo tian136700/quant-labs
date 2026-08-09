@@ -676,6 +676,7 @@ export function JpLessonSchedulePage() {
     setEditingEnNextClassLesson,
     loadLessons,
     loadEnLessons,
+    loadManualSchedules,
   });
 
   const todayStr = beijingTodayDateString(now);
