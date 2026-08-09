@@ -6,6 +6,7 @@ import {
   EN_VOCAB_USAGE_UPLOAD_SPEC,
   enVocabUsageHasCompleteFrequency,
   enVocabUsageHasExamLabel,
+  enVocabUsagePointHasCompleteFrequency,
   normalizeEnVocabUsageSource,
   parseEnVocabUsagePoints,
   serializeEnVocabUsagePoints,
@@ -27,27 +28,29 @@ export type EnVocabMissingUsageRow = {
   meaning: string | null;
   pos: string | null;
   category: string | null;
-  /** 已有用法正文（仅「缺出现频次」回填时带上） */
+  /** 已有用法正文（仅「缺口语/考试双频次」回填时带上） */
   usage?: string | null;
-  /** true=已有用法但缺 [1]～[10]，只需补分值 */
+  /** true=已有用法但缺 [口语n|考试m]，只需补双分 */
   needs_frequency_only?: boolean;
   /** 当日序号（1-based）；不在日序里则为 null */
   daily_seq?: number | null;
   prompt: string;
 };
 
-/** SQL：用法正文里完全看不到 [1]～[10] 频次括号（旧数据） */
-const EN_VOCAB_USAGE_NO_FREQ_MARKER_SQL = `(
-  usage NOT LIKE '%[1]%'
-  AND usage NOT LIKE '%[2]%'
-  AND usage NOT LIKE '%[3]%'
-  AND usage NOT LIKE '%[4]%'
-  AND usage NOT LIKE '%[5]%'
-  AND usage NOT LIKE '%[6]%'
-  AND usage NOT LIKE '%[7]%'
-  AND usage NOT LIKE '%[8]%'
-  AND usage NOT LIKE '%[9]%'
-  AND usage NOT LIKE '%[10]%'
+/** SQL：看不到双频次，或仍残留旧单分 `[1]`～`[10]`（需回填口语分） */
+const EN_VOCAB_USAGE_NO_DUAL_FREQ_MARKER_SQL = `(
+  usage NOT LIKE '%[口语%'
+  OR usage NOT LIKE '%|考试%'
+  OR usage LIKE '%[1]%'
+  OR usage LIKE '%[2]%'
+  OR usage LIKE '%[3]%'
+  OR usage LIKE '%[4]%'
+  OR usage LIKE '%[5]%'
+  OR usage LIKE '%[6]%'
+  OR usage LIKE '%[7]%'
+  OR usage LIKE '%[8]%'
+  OR usage LIKE '%[9]%'
+  OR usage LIKE '%[10]%'
 )`;
 
 export type EnVocabFillUsageApplied = {
@@ -72,7 +75,7 @@ export type ListEnVocabMissingUsageOptions = {
   kind?: "word" | "grammar";
 };
 
-/** 空用法，或有用法但正文看不到 [1]～[10] 频次标记 */
+/** 空用法，或有用法但正文看不到完整双频次标记 */
 function enVocabUsageMissingWhereSql(kindBindIndex: number | null): string {
   const kindClause =
     kindBindIndex != null ? ` AND kind = ?${kindBindIndex}` : "";
@@ -80,7 +83,7 @@ function enVocabUsageMissingWhereSql(kindBindIndex: number | null): string {
     usage IS NULL OR TRIM(usage) = ''
     OR (
       usage IS NOT NULL AND TRIM(usage) != ''
-      AND ${EN_VOCAB_USAGE_NO_FREQ_MARKER_SQL}
+      AND ${EN_VOCAB_USAGE_NO_DUAL_FREQ_MARKER_SQL}
     )
   )${kindClause}`;
 }
@@ -337,7 +340,7 @@ export async function applyEnVocabUsageUpdates(
       }
       usage = validated.text;
     } else {
-      // 线上 force：条数可放宽，但出现频次 [1]～[10] 仍必填（卡片要展示）
+      // 线上 force：条数可放宽，但口语/考试双频次仍必填（卡片要展示）
       usage = shieldEnVocabUsageUploadText(usage).trim() || usage;
       const points = parseEnVocabUsagePoints(usage);
       if (!points || points.length < 1) {
@@ -348,7 +351,15 @@ export async function applyEnVocabUsageUpdates(
         });
         continue;
       }
-      if (points.some((p) => p.frequency == null)) {
+      if (
+        points.some(
+          (p) =>
+            !enVocabUsagePointHasCompleteFrequency(
+              p.oralFrequency,
+              p.examFrequency
+            )
+        )
+      ) {
         skipped.push({
           id: wordId,
           word: String(row.word),

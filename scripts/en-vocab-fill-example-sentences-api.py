@@ -153,6 +153,99 @@ def word_used(sentence: str, word: str, kind: str) -> bool:
     return False
 
 
+USAGE_LEADING_POS_RE = re.compile(
+    r"^(?:\[\d{1,2}\]\s*)?(名词|动词|形容词|副词|介词|连词|代词|数词|感叹词|限定词)"
+)
+
+
+def _lemma_morph_forms(word: str) -> set[str]:
+    w = word.strip().lower().lstrip("～~")
+    if not w or " " in w or "-" in w:
+        return set()
+    forms = {w + "ed", w + "ing"}
+    if w.endswith("e") and len(w) > 1:
+        forms.add(w + "d")
+        forms.add(w[:-1] + "ing")
+    if len(w) > 2 and w.endswith("y") and w[-2] not in "aeiou":
+        forms.add(w[:-1] + "ied")
+    if len(w) >= 3 and re.search(r"[^aeiou][aeiou][^aeiouwx]$", w):
+        forms.add(w + w[-1] + "ed")
+        forms.add(w + w[-1] + "ing")
+    if w == "get":
+        forms.update({"got", "gotten"})
+    return forms
+
+
+def assess_usage_pos_example_alignment(
+    word: str, usage_point_text: str, example_english: str
+) -> str | None:
+    """与 TS assessEnVocabUsagePosExampleAlignment 对齐；合格返回 None。"""
+    lemma = (word or "").strip()
+    if not lemma or " " in lemma or "-" in lemma:
+        return None
+    usage_body = re.sub(
+        r"^\d+\s*[.、．)\]]\s*", "", (usage_point_text or "").strip()
+    )
+    m = USAGE_LEADING_POS_RE.match(usage_body)
+    if not m:
+        return None
+    pos = m.group(1)
+    en = (example_english or "").strip()
+    if not en:
+        return None
+    base = lemma.lower()
+    morph = _lemma_morph_forms(lemma)
+    has_be_have_morph = any(
+        re.search(
+            rf"\b(?:am|is|are|was|were|be|been|being|have|has|had)\s+{re.escape(f)}\b",
+            en,
+            flags=re.I,
+        )
+        for f in morph
+    )
+    has_noun_cue = bool(
+        re.search(
+            rf"\b(?:a|an|the|my|your|his|her|our|their|this|that)\s+{re.escape(base)}\b",
+            en,
+            flags=re.I,
+        )
+    )
+    has_to_inf = bool(re.search(rf"\bto\s+{re.escape(base)}\b", en, flags=re.I))
+    has_bare_morph = any(
+        re.search(rf"\b{re.escape(f)}\b", en, flags=re.I) for f in morph
+    )
+    if pos == "名词" and has_be_have_morph and not has_noun_cue:
+        return "usage_pos_example_mismatch"
+    if (
+        pos == "动词"
+        and has_noun_cue
+        and not has_be_have_morph
+        and not has_to_inf
+        and not has_bare_morph
+    ):
+        return "usage_pos_example_mismatch"
+    return None
+
+
+def parse_usage_point_texts(usage: str) -> list[str] | None:
+    points: list[tuple[int, str]] = []
+    for ln in (usage or "").splitlines():
+        m = USAGE_POINT_RE.match(ln.strip())
+        if not m:
+            continue
+        n = int(m.group(1))
+        text = m.group(2).strip()
+        if not text:
+            return None
+        points.append((n, text))
+    if not points:
+        return None
+    for i, (n, _) in enumerate(points):
+        if n != i + 1:
+            return None
+    return [t for _, t in points]
+
+
 def resolve_poison_sec() -> int:
     raw = (
         os.environ.get("EN_VOCAB_FILL_EXAMPLE_POISON_SEC", "").strip()
@@ -241,6 +334,7 @@ def validate_examples(
     word: str,
     kind: str,
     expected_count: int,
+    usage: str | None = None,
 ) -> tuple[str | None, str | None]:
     if expected_count < 1:
         return None, "usage_required"
@@ -278,8 +372,10 @@ def validate_examples(
     if len(pairs) != expected_count:
         return None, "wrong_example_count"
 
+    usage_points = parse_usage_point_texts(str(usage or "")) if usage else None
+
     out_lines: list[str] = []
-    for en, gloss in pairs:
+    for idx, (en, gloss) in enumerate(pairs):
         if not gloss:
             return None, "missing_chinese_gloss"
         sentence_err = assess_english_sentence(en, word, gloss)
@@ -287,6 +383,12 @@ def validate_examples(
             return None, sentence_err
         if not word_used(en, word, kind):
             return None, "word_not_used"
+        if usage_points and idx < len(usage_points):
+            pos_err = assess_usage_pos_example_alignment(
+                word, usage_points[idx], en
+            )
+            if pos_err:
+                return None, pos_err
         out_lines.append(en)
         out_lines.append(gloss)
     return "\n".join(out_lines), None
@@ -342,6 +444,7 @@ def generate_for_row(
                     word=word,
                     kind=kind,
                     expected_count=expected,
+                    usage=str(row.get("usage") or "") or None,
                 )
                 if text:
                     return text, None, use_model
@@ -354,6 +457,13 @@ def generate_for_row(
                     extra += (
                         f"\nCRITICAL: 每条英文必须原样出现词条文字「{word}」"
                         f"（可改大小写）。禁止只示范含义/时态却不写词条原文。"
+                    )
+                if last_err == "usage_pos_example_mismatch":
+                    extra += (
+                        "\nCRITICAL: 例句词性必须对应该条用法。"
+                        "用法写「名词：」→ 用名词（It is an honor…）；"
+                        "禁止 are honored / was honored。"
+                        "用法写「动词：」→ 用动词。"
                     )
                 if last_err in {
                     "missing_sentence_final_punct",

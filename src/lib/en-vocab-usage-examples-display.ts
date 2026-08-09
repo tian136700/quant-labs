@@ -21,7 +21,11 @@ export function enVocabUsagePairLabel(n: number): string {
 
 export type EnVocabUsagePointForDisplay = {
   text: string;
-  /** 出现频次 1～10；旧数据无标记时为 null */
+  /** 口语频率 1～10；旧数据无标记时为 null */
+  oralFrequency: number | null;
+  /** 考试频率 1～10；旧单分 `[n]` 落在此字段 */
+  examFrequency: number | null;
+  /** @deprecated = examFrequency */
   frequency: number | null;
 };
 
@@ -50,8 +54,16 @@ export function listEnVocabUsagePointsForDisplay(
     }
     const m = NUMBERED_LINE_RE.exec(trimmed);
     if (m) {
-      const { frequency, text: body } = extractEnVocabUsageFrequency(m[2].trim());
-      if (body) points.push({ text: body, frequency });
+      const { oralFrequency, examFrequency, frequency, text: body } =
+        extractEnVocabUsageFrequency(m[2].trim());
+      if (body) {
+        points.push({
+          text: body,
+          oralFrequency,
+          examFrequency,
+          frequency,
+        });
+      }
       continue;
     }
     leftoverLines.push(trimmed);
@@ -64,7 +76,9 @@ export type EnVocabUsageExamplePair = {
   index: number;
   usageLabel: string;
   usageText: string | null;
-  /** 出现频次 1～10 */
+  oralFrequency: number | null;
+  examFrequency: number | null;
+  /** @deprecated = examFrequency */
   frequency: number | null;
   example: EnVocabExampleSentenceItem | null;
 };
@@ -103,6 +117,8 @@ export function buildEnVocabUsageExamplePairs(
       index: i + 1,
       usageLabel: enVocabUsagePairLabel(i + 1),
       usageText: null,
+      oralFrequency: null,
+      examFrequency: null,
       frequency: null,
       example,
     }));
@@ -118,11 +134,14 @@ export function buildEnVocabUsageExamplePairs(
   const count = Math.max(points.length, examples.length);
   const pairs: EnVocabUsageExamplePair[] = [];
   for (let i = 0; i < count; i++) {
+    const p = points[i];
     pairs.push({
       index: i + 1,
       usageLabel: enVocabUsagePairLabel(i + 1),
-      usageText: points[i]?.text ?? null,
-      frequency: points[i]?.frequency ?? null,
+      usageText: p?.text ?? null,
+      oralFrequency: p?.oralFrequency ?? null,
+      examFrequency: p?.examFrequency ?? null,
+      frequency: p?.frequency ?? p?.examFrequency ?? null,
       example: examples[i] ?? null,
     });
   }
@@ -158,7 +177,10 @@ export function formatEnVocabUsageExamplesCopyText(
   for (const pair of model.pairs) {
     const lines: string[] = [];
     if (pair.usageText) {
-      const freqLabel = formatEnVocabUsageFrequencyLabel(pair.frequency);
+      const freqLabel = formatEnVocabUsageFrequencyLabel(
+        pair.oralFrequency,
+        pair.examFrequency
+      );
       lines.push(
         freqLabel
           ? `${pair.usageLabel}：${pair.usageText}\n${freqLabel}`

@@ -234,6 +234,86 @@ export function enVocabLemmaAppearsInSentence(
   return false;
 }
 
+/** 用法说明开头的单一词性标签（「[8] 名词：…」） */
+const EN_VOCAB_USAGE_LEADING_POS_RE =
+  /^(?:\[\d{1,2}\]\s*)?(名词|动词|形容词|副词|介词|连词|代词|数词|感叹词|限定词)/u;
+
+const EN_VOCAB_BE_HAVE_AUX_RE =
+  /\b(?:am|is|are|was|were|be|been|being|have|has|had)\b/i;
+
+/**
+ * 用法标「名词」却用 be/have + V-ed/V-ing（如 are honored）→ 错配；
+ * 用法标「动词」却只有 a/an/the + 原形名词用法且无动词形态 → 错配。
+ * 多词词条跳过（避免 plenty of 等误伤）。
+ */
+export function assessEnVocabUsagePosExampleAlignment(
+  word: string,
+  usagePointText: string,
+  exampleEnglish: string
+): { ok: true } | { ok: false; reason: "usage_pos_example_mismatch" } {
+  const lemma = String(word ?? "").trim();
+  if (!lemma || /[\s-]/.test(lemma)) return { ok: true };
+
+  const usageBody = String(usagePointText ?? "")
+    .trim()
+    .replace(/^\d+\s*[.、．)\]]\s*/, "");
+  const posMatch = EN_VOCAB_USAGE_LEADING_POS_RE.exec(usageBody);
+  if (!posMatch) return { ok: true };
+  const pos = posMatch[1];
+
+  const en = String(exampleEnglish ?? "").trim();
+  if (!en) return { ok: true };
+  const base = lemma.toLowerCase();
+  const escapedBase = base.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  const morphForms = listEnVocabLemmaSurfaceForms(lemma).filter((f) => {
+    if (f === base) return false;
+    // 复数常仍是名词；只盯明显动词形态
+    if (f === `${base}s` || f === `${base}es`) return false;
+    if (base.endsWith("y") && f === `${base.slice(0, -1)}ies`) return false;
+    return (
+      f.endsWith("ed") ||
+      f.endsWith("ing") ||
+      f.endsWith("ied") ||
+      f === "got" ||
+      f === "gotten"
+    );
+  });
+
+  const hasBeHavePlusMorph = morphForms.some((f) => {
+    const escaped = f.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(
+      `${EN_VOCAB_BE_HAVE_AUX_RE.source}\\s+${escaped}\\b`,
+      "i"
+    ).test(en);
+  });
+
+  const hasNounCue = new RegExp(
+    `\\b(?:a|an|the|my|your|his|her|our|their|this|that)\\s+${escapedBase}\\b`,
+    "i"
+  ).test(en);
+
+  const hasToInfinitive = new RegExp(`\\bto\\s+${escapedBase}\\b`, "i").test(en);
+  const hasBareVerbMorph = morphForms.some((f) => {
+    const escaped = f.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`\\b${escaped}\\b`, "i").test(en);
+  });
+
+  if (pos === "名词" && hasBeHavePlusMorph && !hasNounCue) {
+    return { ok: false, reason: "usage_pos_example_mismatch" };
+  }
+  if (
+    pos === "动词" &&
+    hasNounCue &&
+    !hasBeHavePlusMorph &&
+    !hasToInfinitive &&
+    !hasBareVerbMorph
+  ) {
+    return { ok: false, reason: "usage_pos_example_mismatch" };
+  }
+  return { ok: true };
+}
+
 const EN_SENTENCE_FINAL_PUNCT_RE = /[.!?]["']?\s*$/;
 
 /** 常见助动词 / be / 情态，用来区分「完整小句」与「搭配短语」 */

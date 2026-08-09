@@ -113,11 +113,13 @@ def main() -> int:
             TS_SENT,
             [
                 "assessEnVocabExampleEnglishSentence",
+                "assessEnVocabUsagePosExampleAlignment",
                 "enVocabLemmaAppearsInSentence",
                 "listEnVocabLemmaSurfaceForms",
                 "lemma_only_example",
                 "english_phrase_not_sentence",
                 "missing_sentence_final_punct",
+                "usage_pos_example_mismatch",
                 "enVocabExampleLooksLikeStructuredDump",
                 "tryCoerceEnVocabExampleStructuredDump",
                 "shieldEnVocabExampleSentencesUploadText",
@@ -127,12 +129,15 @@ def main() -> int:
             TS_AI,
             [
                 "assessEnVocabExampleEnglishSentence",
+                "assessEnVocabUsagePosExampleAlignment",
                 "enVocabLemmaAppearsInSentence",
                 "完整句子",
                 "lemma_only_example",
                 "english_phrase_not_sentence",
                 "不要长难从句",
                 "structured_dump",
+                "usage_pos_example_mismatch",
+                "词性必须对齐",
                 "禁止输出 JSON / Python 列表",
             ],
         ),
@@ -140,8 +145,10 @@ def main() -> int:
             PY_SCRIPT,
             [
                 "assess_english_sentence",
+                "assess_usage_pos_example_alignment",
                 "english_phrase_not_sentence",
                 "lemma_only_example",
+                "usage_pos_example_mismatch",
                 "expected",
             ],
         ),
@@ -154,6 +161,8 @@ def main() -> int:
                 "时态/词形可变",
                 "structured_dump",
                 "str(list)",
+                "usage_pos_example_mismatch",
+                "are honored",
             ],
         ),
     ]:
@@ -189,6 +198,51 @@ def main() -> int:
     ]:
         if not lemma_ok(sent, word):
             errors.append(f"lemma_ok failed: {word!r} in {sent!r}")
+
+    # 用法词性 ↔ 例句形态对齐（honor 名词 vs are honored）
+    import importlib.util
+
+    py_path = ROOT / "scripts" / "en-vocab-fill-example-sentences-api.py"
+    spec = importlib.util.spec_from_file_location(
+        "en_vocab_fill_example_sentences_api", py_path
+    )
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assess_usage_pos_example_alignment = mod.assess_usage_pos_example_alignment
+
+    pos_cases = [
+        (
+            "honor",
+            "[8] 名词：荣誉、声誉",
+            "We are honored to work with your company.",
+            "usage_pos_example_mismatch",
+        ),
+        (
+            "honor",
+            "[8] 名词：荣誉、声誉",
+            "It is an honor to work with your company.",
+            None,
+        ),
+        (
+            "honor",
+            "[9] 动词：兑现、履行",
+            "Please honor the terms of the contract by the deadline.",
+            None,
+        ),
+        (
+            "sweat",
+            "[7] 名词：汗水。",
+            "There was sweat on his hands when he signed the contract.",
+            None,
+        ),
+    ]
+    for word, usage, en, expected in pos_cases:
+        got = assess_usage_pos_example_alignment(word, usage, en)
+        if got != expected:
+            errors.append(
+                f"pos_align {word!r}: expected {expected!r} got {got!r} for {en!r}"
+            )
 
     route = ROOT / "src/app/api/en-vocab/fill-example-sentences/route.ts"
     if route.is_file():

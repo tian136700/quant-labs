@@ -1,5 +1,6 @@
 import {
   assessEnVocabExampleEnglishSentence,
+  assessEnVocabUsagePosExampleAlignment,
   enVocabLemmaAppearsInSentence,
   isEnVocabExampleEnglishLine,
   isEnVocabExampleGlossLine,
@@ -43,6 +44,7 @@ export const EN_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
     "english_phrase_not_sentence",
     "english_too_short_vs_gloss",
     "structured_dump",
+    "usage_pos_example_mismatch",
     "already_filled",
   ],
 } as const;
@@ -116,11 +118,12 @@ ${singlePoint.n}. ${singlePoint.text}
 条数规则（必须遵守）：
 - 必须写恰好 1 句，且只体现上列用法 ${usageIndex}。
 - 若该用法是被动（be expected to 等），例句必须用被动；若是短语，例句必须出现该短语。
+- 词性必须对齐：用法写「名词：」→ 例句须作名词（如 It is an honor…）；禁止写成 are honored（那是动词被动）。用法写「动词：」→ 例句须作动词。
 - 禁止另起义项；禁止一次输出多句。
 
 用词与难度：
 - 句子要短、好记；除目标词及其常用搭配外，其余只用最基础词（I / you / the / book / today / school）。
-- 时态可变（过去/现在/进行/完成都可）；expect→expected、get→got/get out 等常见变形或短语都可以。
+- 时态可变（过去/现在/进行/完成都可）；expect→expected、get→got/get out 等常见变形或短语都可以——但须仍符合该条用法的词性。
 - 不要难词、不要长难从句、不要叠很多语法点；抽问焦点必须落在目标词这一条用法上。
 
 格式要求：
@@ -164,11 +167,12 @@ ${usageBlock}
 - 必须写恰好 ${expectedCount} 句（与用法条数相同）。
 - 第 1 句只体现用法 1；第 2 句只体现用法 2；以此类推，一一对应。
 - 用法写被动（如 be expected to）→ 例句必须用被动，禁止写成主动；用法写短语（如 get out）→ 例句必须出现该短语。
+- 词性必须对齐：用法写「名词：」→ 例句须作名词（It is an honor…）；禁止 are honored 这类动词被动配名词用法。用法写「动词：」→ 例句须作动词。
 - 禁止脱离上列用法自由发挥；禁止两句挤同一条用法。
 
 用词与难度：
 - 句子要短、好记；除目标词及其常用搭配外，其余只用最基础词（I / you / the / book / today / school）。
-- 时态可变（过去/现在/进行/完成都可）；词形变化与常用短语（get out 等）都可以。
+- 时态可变（过去/现在/进行/完成都可）；词形变化与常用短语（get out 等）都可以——但须仍符合该条用法的词性。
 - 不要难词、不要长难从句、不要叠很多语法点；抽问焦点必须落在目标词这一条用法上。
 
 格式要求：
@@ -184,10 +188,12 @@ ${usageBlock}
 6. 禁止输出 JSON / Python 列表或对象（如 [{"sentence":"...","translation":"..."}] 或 [{'sentence':...}]）。必须是纯文本交替行。`;
 }
 
-/** 单条例句是否合格（完整句 + 译文 + 用到词条） */
+/** 单条例句是否合格（完整句 + 译文 + 用到词条 + 与用法词性对齐） */
 export function validateEnVocabSingleExampleSentenceItem(
   item: { text: string; gloss: string },
-  input: Pick<EnVocabExampleSentencesAiInput, "word" | "kind">
+  input: Pick<EnVocabExampleSentencesAiInput, "word" | "kind"> & {
+    usagePointText?: string | null;
+  }
 ): { ok: true } | { ok: false; reason: string } {
   if (!isEnVocabExampleEnglishLine(item.text)) {
     return { ok: false, reason: "invalid_english_line" };
@@ -209,13 +215,21 @@ export function validateEnVocabSingleExampleSentenceItem(
   if (!enVocabLemmaAppearsInSentence(item.text, input.word, input.kind)) {
     return { ok: false, reason: "word_not_used" };
   }
+  if (input.usagePointText) {
+    const posAlign = assessEnVocabUsagePosExampleAlignment(
+      input.word,
+      input.usagePointText,
+      item.text
+    );
+    if (!posAlign.ok) return posAlign;
+  }
   return { ok: true };
 }
 
 /** 校验「一次一句」模型输出 */
 export function validateEnVocabSingleExampleSentenceAiOutput(
   raw: string,
-  input: Pick<EnVocabExampleSentencesAiInput, "word" | "kind">
+  input: Pick<EnVocabExampleSentencesAiInput, "word" | "kind" | "usage" | "usageIndex">
 ): { ok: true; text: string } | { ok: false; reason: string } {
   const text = raw.trim();
   if (!text) return { ok: false, reason: "empty" };
@@ -233,8 +247,19 @@ export function validateEnVocabSingleExampleSentenceAiOutput(
     return { ok: false, reason: "wrong_example_count" };
   }
 
+  let usagePointText: string | null = null;
+  if (input.usage && input.usageIndex != null) {
+    const points = parseEnVocabUsagePoints(String(input.usage));
+    const point = points?.find((p) => p.n === input.usageIndex) ?? null;
+    usagePointText = point?.text ?? null;
+  }
+
   const item = items[0];
-  const checked = validateEnVocabSingleExampleSentenceItem(item, input);
+  const checked = validateEnVocabSingleExampleSentenceItem(item, {
+    word: input.word,
+    kind: input.kind,
+    usagePointText,
+  });
   if (!checked.ok) return checked;
 
   return {
@@ -273,8 +298,15 @@ export function validateEnVocabExampleSentencesAiOutput(
     return { ok: false, reason: "wrong_example_count" };
   }
 
-  for (const item of items) {
-    const checked = validateEnVocabSingleExampleSentenceItem(item, input);
+  const points = parseEnVocabUsagePoints(String(input.usage ?? ""));
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    const usagePointText = points?.[i]?.text ?? null;
+    const checked = validateEnVocabSingleExampleSentenceItem(item, {
+      word: input.word,
+      kind: input.kind,
+      usagePointText,
+    });
     if (!checked.ok) return checked;
   }
 

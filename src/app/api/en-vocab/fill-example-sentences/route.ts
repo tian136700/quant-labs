@@ -102,7 +102,8 @@ export async function POST(request: Request) {
     if (updates.length > 0 || body.mode === "apply") {
       const result = await applyEnVocabExampleSentenceUpdates(env.DB, updates, {
         dryRun,
-        validateFormat: !Boolean(body.force),
+        // force 只覆盖已有例句；完整句 / 词性对齐门禁仍须过（与用法 force 拒 missing_frequency 同理）
+        validateFormat: true,
         defaultSource: batchSource || null,
         force: Boolean(body.force),
       });

@@ -1,4 +1,4 @@
-/** 英语用法上传契约：编号中文说明 + 出现频次 1～10（选题按学术考试高频；正文禁考试标签） */
+/** 英语用法上传契约：编号中文说明 + 口语/考试双频次 1～10（对齐日语；选题按分类语境；正文禁考试标签） */
 
 import { normalizeEnVocabCategory } from "@/lib/en-vocab-category";
 
@@ -9,20 +9,31 @@ import { normalizeEnVocabCategory } from "@/lib/en-vocab-category";
 export const EN_VOCAB_USAGE_EXAM_LABEL_RE =
   /雅思|托福|四六级|考研|专四|专八|IELTS|TOEFL|ielts|toefl|\bCET\b|\bGRE\b|\bGMAT\b|\bSAT\b/i;
 
-/** 编号后紧跟的出现频次标记：`[8]` = 1～10 */
+/** 存库标记短名；展示用完整「口语频率／考试频率」 */
+export const EN_VOCAB_USAGE_ORAL_FREQ_LABEL = "口语频率";
+export const EN_VOCAB_USAGE_EXAM_FREQ_LABEL = "考试频率";
+
+/**
+ * 编号后双频次：`[口语7|考试8]`（对齐日语语法用法）。
+ * 兼容旧单分 `[8]`（只认考试分，口语缺 → 不算齐全）。
+ */
+export const EN_VOCAB_USAGE_DUAL_FREQUENCY_PREFIX_RE =
+  /^\[\s*口语\s*[：:]?\s*(\d{1,2})\s*[|｜]\s*考试\s*[：:]?\s*(\d{1,2})\s*\]\s*(.+)$/u;
+
+/** @deprecated 旧单分标记；解析仍认，写回一律双分 */
 export const EN_VOCAB_USAGE_FREQUENCY_PREFIX_RE = /^\[(\d{1,2})\]\s*(.+)$/;
 
 export const EN_VOCAB_USAGE_UPLOAD_SPEC = {
-  version: 4,
+  version: 5,
   count_rule:
     "组数=该词真实不同核心义项数（按分类语境选题，托业偏职场商务）；只有 1 种就 1 条，有几种写几条；同词性且意思差不多必须合并为 1 条；禁止按对象/场景硬拆同一义",
   format_example:
-    "1. [8] 介词：表示「在……之上」；常用于描述位置关系。\n2. [5] 副词：表示「在上方；在上文中」。",
+    "1. [口语7|考试8] 介词：表示「在……之上」；常用于描述位置关系。\n2. [口语4|考试5] 副词：表示「在上方；在上文中」。",
   frequency_rule:
-    "每条用法编号后必须带 [1]～[10] 出现频次分（10=该词最常见用法；相对其它义项打分）",
+    "每条用法编号后必须带 [口语n|考试m]（各 1～10；口语=日常会话常用度；考试=该分类考试语境常用度；可打不同分）",
   rules: [
     "每行必须以「1.」「2.」… 编号开头（半角点号）",
-    "编号后紧跟 [分值]（1～10），再接中文说明，例如：1. [8] 动词：表示「期待」",
+    "编号后紧跟 [口语n|考试m]（各 1～10），再接中文说明，例如：1. [口语6|考试9] 动词：表示「期待」",
     "说明用中文；可在引号内保留英文术语（如「look forward to」）",
     "选题按该词分类语境的高频用法（托业→职场邮件/会议/客户；雅思托福→读写听）",
     "上传接口自动屏蔽考试名称/标签（雅思、托福、IELTS、TOEFL、四六级、考研等）——直接去掉该词，不拒整段",
@@ -48,12 +59,19 @@ export const EN_VOCAB_USAGE_UPLOAD_SPEC = {
 
 /** 用法行开头禁止「动词/名词」这类含糊词性（须单一词性，或拆成两条） */
 export const EN_VOCAB_USAGE_AMBIGUOUS_POS_RE =
-  /^(?:\[\d{1,2}\]\s*)?(?:动词|名词|形容词|副词|介词|连词|代词|数词|感叹词|动词短语|名词短语|形容词短语|系动词|及物动词|不及物动词)\s*[\/／]\s*(?:动词|名词|形容词|副词|介词|连词|代词|数词|感叹词|动词短语|名词短语|形容词短语|系动词|及物动词|不及物动词)/u;
+  /^(?:\[\s*口语\s*[：:]?\s*\d{1,2}\s*[|｜]\s*考试\s*[：:]?\s*\d{1,2}\s*\]\s*|\[\d{1,2}\]\s*)?(?:动词|名词|形容词|副词|介词|连词|代词|数词|感叹词|动词短语|名词短语|形容词短语|系动词|及物动词|不及物动词)\s*[\/／]\s*(?:动词|名词|形容词|副词|介词|连词|代词|数词|感叹词|动词短语|名词短语|形容词短语|系动词|及物动词|不及物动词)/u;
 
 export type EnVocabUsagePoint = {
   n: number;
   text: string;
-  /** 出现频次 1～10；旧数据或人手未填时为 null */
+  /** 口语频率 1～10；旧单分或人手未填时为 null */
+  oralFrequency: number | null;
+  /** 考试频率 1～10（托业/雅思等选题语境）；旧单分 `[n]` 会落到此字段 */
+  examFrequency: number | null;
+  /**
+   * @deprecated 旧「出现频次」= 考试分；请用 examFrequency。
+   * 保留便于过渡期读旧字段名。
+   */
   frequency: number | null;
 };
 
@@ -100,7 +118,7 @@ export function buildEnVocabUsageAiPrompt(input: EnVocabUsageAiInput): string {
 
   return `${meta}
 
-请为上述英语${kindLabel}列出常用用法说明，并为每种用法的出现频次打分。
+请为上述英语${kindLabel}列出常用用法说明，并为每种用法分别打「口语频率」与「考试频率」。
 
 ${buildEnVocabUsageCategoryFocusLine(category)}
 
@@ -118,58 +136,126 @@ ${buildEnVocabUsageCategoryFocusLine(category)}
 - 用中文解释；可在引号内保留英文短语或术语。
 - 每条用法开头必须只标一种词性（如「动词：」「名词：」）。❌ 禁止「动词/名词」「形容词/名词」「名词/动词」等含糊写法。例句实际是哪种词性就标哪种（如 file a claim → 名词；claimed that → 动词）。若名词义与动词义都常用且意思不同，拆成两条，各写清词性并稍后各配例句。
 
-出现频次分值（必须）：
-- 每条用法都必须打 1～10 分：10=该词最常见/最核心用法；1=极少见。
+口语频率 / 考试频率（必须，对齐日语）：
+- 每条用法都必须打两个 1～10 分：口语频率=日常会话/口语里该义常用度；考试频率=该分类考试语境（托业职场 / 雅思托福读写听等）常用度。
+- 10=最常见/最核心；1=极少见。两条可打不同分（口语高考试低、或反过来都行）。
 - 多条时按相对常用度区分，不要全部打同一分。
-- 分值写在编号后的方括号里，形如 [8]。
+- 分值写在编号后的方括号里，形如 [口语7|考试8]（禁止只写旧式单分 [8]）。
 
 格式要求（必须严格遵守）：
-- 只输出编号行；半角「数字.」+ 空格 + [分值] + 空格 + 中文正文；编号从 1 连续递增。
+- 只输出编号行；半角「数字.」+ 空格 + [口语n|考试m] + 空格 + 中文正文；编号从 1 连续递增。
 - 仅 1 种常用用法时只输出一行，例如：
-1. [9] 形容词：表示「有吸引力；讨人喜欢」；可形容方案、价格、外表等。
+1. [口语8|考试9] 形容词：表示「有吸引力；讨人喜欢」；可形容方案、价格、外表等。
 - 多种真正不同的词性/义项时再继续 2. 3. …，例如：
-1. [8] 介词：表示「在……之上」；常用于描述位置关系。
-2. [5] 副词：表示「在上方；在上文中」。
+1. [口语7|考试8] 介词：表示「在……之上」；常用于描述位置关系。
+2. [口语4|考试5] 副词：表示「在上方；在上文中」。
 - 正文中绝对禁止出现任何考试名称或标签（不要写：雅思、托福、IELTS、TOEFL、四六级、考研、专四、专八、GRE、GMAT、SAT、CET、托业、TOEIC 等）。
 - 不要 markdown、不要标题、不要例句、不要额外解释。`;
 }
 
-/** 从编号行正文提取 [1]～[10]；兼容「[频次8]」「【8】」等变体 */
+export type EnVocabUsageLineFrequency = {
+  oralFrequency: number | null;
+  examFrequency: number | null;
+  text: string;
+  /** @deprecated = examFrequency */
+  frequency: number | null;
+};
+
+/** 从编号行正文提取口语/考试双分；兼容旧单分 `[8]` / `[频次8]` / 简写 `[7|8]` */
 export function extractEnVocabUsageFrequency(
   body: string
-): { frequency: number | null; text: string } {
+): EnVocabUsageLineFrequency {
   const raw = String(body ?? "").trim();
-  if (!raw) return { frequency: null, text: "" };
+  if (!raw) {
+    return {
+      oralFrequency: null,
+      examFrequency: null,
+      frequency: null,
+      text: "",
+    };
+  }
 
+  const dual = EN_VOCAB_USAGE_DUAL_FREQUENCY_PREFIX_RE.exec(raw);
+  if (dual) {
+    const oral = clampEnVocabUsageFrequency(dual[1]);
+    const exam = clampEnVocabUsageFrequency(dual[2]);
+    const text = dual[3].trim();
+    if (oral != null && exam != null && text) {
+      return {
+        oralFrequency: oral,
+        examFrequency: exam,
+        frequency: exam,
+        text,
+      };
+    }
+  }
+
+  // 简写 `[7|8]`（口语|考试）
+  const short = /^\[\s*(\d{1,2})\s*[|｜]\s*(\d{1,2})\s*\]\s*(.+)$/u.exec(raw);
+  if (short) {
+    const oral = clampEnVocabUsageFrequency(short[1]);
+    const exam = clampEnVocabUsageFrequency(short[2]);
+    const text = short[3].trim();
+    if (oral != null && exam != null && text) {
+      return {
+        oralFrequency: oral,
+        examFrequency: exam,
+        frequency: exam,
+        text,
+      };
+    }
+  }
+
+  // 旧单分 `[8]` → 只认考试分（口语缺，不算齐全）
   const bracket = EN_VOCAB_USAGE_FREQUENCY_PREFIX_RE.exec(raw);
   if (bracket) {
-    const score = Number(bracket[1]);
+    const exam = clampEnVocabUsageFrequency(bracket[1]);
     const text = bracket[2].trim();
-    if (Number.isInteger(score) && score >= 1 && score <= 10 && text) {
-      return { frequency: score, text };
+    if (exam != null && text) {
+      return {
+        oralFrequency: null,
+        examFrequency: exam,
+        frequency: exam,
+        text,
+      };
     }
   }
 
   const freqLabel = /^\[频次\s*(\d{1,2})\]\s*(.+)$/u.exec(raw);
   if (freqLabel) {
-    const score = Number(freqLabel[1]);
+    const exam = clampEnVocabUsageFrequency(freqLabel[1]);
     const text = freqLabel[2].trim();
-    if (Number.isInteger(score) && score >= 1 && score <= 10 && text) {
-      return { frequency: score, text };
+    if (exam != null && text) {
+      return {
+        oralFrequency: null,
+        examFrequency: exam,
+        frequency: exam,
+        text,
+      };
     }
   }
 
   const trailingFull =
     /^(.+?)\s*[【\[]\s*(?:频次\s*[:：]?\s*)?(\d{1,2})\s*[】\]]\s*$/u.exec(raw);
   if (trailingFull) {
-    const score = Number(trailingFull[2]);
+    const exam = clampEnVocabUsageFrequency(trailingFull[2]);
     const text = trailingFull[1].trim();
-    if (Number.isInteger(score) && score >= 1 && score <= 10 && text) {
-      return { frequency: score, text };
+    if (exam != null && text) {
+      return {
+        oralFrequency: null,
+        examFrequency: exam,
+        frequency: exam,
+        text,
+      };
     }
   }
 
-  return { frequency: null, text: raw };
+  return {
+    oralFrequency: null,
+    examFrequency: null,
+    frequency: null,
+    text: raw,
+  };
 }
 
 export function clampEnVocabUsageFrequency(
@@ -180,28 +266,60 @@ export function clampEnVocabUsageFrequency(
   return n;
 }
 
-/** 展示文案：出现频次 8/10（满分 10） */
+export function formatEnVocabUsageFrequencyMarker(
+  oral: number,
+  exam: number
+): string {
+  const o = clampEnVocabUsageFrequency(oral);
+  const e = clampEnVocabUsageFrequency(exam);
+  if (o == null || e == null) return "";
+  return `[口语${o}|考试${e}]`;
+}
+
+/** 展示文案：口语频率 7/10 · 考试频率 8/10（缺一边则只显示有的） */
 export function formatEnVocabUsageFrequencyLabel(
-  frequency: number | null | undefined
+  oralOrLegacy: number | null | undefined,
+  exam?: number | null | undefined
 ): string | null {
-  const score = clampEnVocabUsageFrequency(frequency);
-  if (score == null) return null;
-  return `出现频次 ${score}/10`;
+  // 兼容旧调用 formatEnVocabUsageFrequencyLabel(frequency) → 只显示考试分
+  if (arguments.length < 2) {
+    const examOnly = clampEnVocabUsageFrequency(oralOrLegacy);
+    if (examOnly == null) return null;
+    return `${EN_VOCAB_USAGE_EXAM_FREQ_LABEL} ${examOnly}/10`;
+  }
+  const o = clampEnVocabUsageFrequency(oralOrLegacy);
+  const e = clampEnVocabUsageFrequency(exam);
+  const parts: string[] = [];
+  if (o != null) parts.push(`${EN_VOCAB_USAGE_ORAL_FREQ_LABEL} ${o}/10`);
+  if (e != null) parts.push(`${EN_VOCAB_USAGE_EXAM_FREQ_LABEL} ${e}/10`);
+  return parts.length ? parts.join(" · ") : null;
+}
+
+export function enVocabUsagePointHasCompleteFrequency(
+  oral: number | null | undefined,
+  exam: number | null | undefined
+): boolean {
+  return (
+    clampEnVocabUsageFrequency(oral) != null &&
+    clampEnVocabUsageFrequency(exam) != null
+  );
 }
 
 /**
- * 编号用法是否每条都有 1～10 出现频次。
- * 无编号点 / 空正文 → false（不算齐全）。
+ * 编号用法是否每条都有口语+考试双分（1～10）。
+ * 无编号点 / 空正文 / 旧单分缺口语 → false。
  */
 export function enVocabUsageHasCompleteFrequency(
   raw: string | null | undefined
 ): boolean {
   const points = parseEnVocabUsagePoints(String(raw ?? ""));
   if (!points || points.length < 1) return false;
-  return points.every((p) => p.frequency != null);
+  return points.every((p) =>
+    enVocabUsagePointHasCompleteFrequency(p.oralFrequency, p.examFrequency)
+  );
 }
 
-/** 已有用法缺 [分值] 时：只补频次，尽量保留原中文说明 */
+/** 已有用法缺双分时：只补口语/考试频次，尽量保留原中文说明 */
 export function buildEnVocabUsageFrequencyBackfillPrompt(input: {
   word: string;
   kind: string;
@@ -232,11 +350,12 @@ export function buildEnVocabUsageFrequencyBackfillPrompt(input: {
 已有用法（请保留每条中文说明的含义与顺序，不要删条、不要新造义项）：
 ${String(input.usage || "").trim()}
 
-任务：仅为每条用法补上出现频次分值 1～10（10=该词最常见用法；多条时按相对常用度区分，不要全打同一分）。
+任务：仅为每条用法补上「口语频率」与「考试频率」各 1～10（口语=日常会话常用度；考试=该分类考试语境常用度；可打不同分；多条时按相对常用度区分，不要全打同一分）。
+若原行已有旧式单分 [n]，把它当作考试分参考，并补上口语分；输出必须一律写成 [口语n|考试m]。
 ${buildEnVocabUsageCategoryFocusLine(category)}
 
 输出格式（必须）：
-- 只输出编号行：数字. [分值] 中文说明
+- 只输出编号行：数字. [口语n|考试m] 中文说明
 - 条数与顺序必须与上面已有用法一致
 - 正文禁止考试名称/标签
 - 不要 markdown、不要例句、不要额外解释`;
@@ -267,17 +386,33 @@ export function parseEnVocabUsagePoints(
     const n = Number(m[1]);
     const body = m[2].trim();
     if (!Number.isInteger(n) || n <= 0 || !body) return null;
-    const { frequency, text } = extractEnVocabUsageFrequency(body);
+    const { oralFrequency, examFrequency, frequency, text } =
+      extractEnVocabUsageFrequency(body);
     if (!text || !HAN_RE.test(text)) return null;
     // 形如 [15] / [0] 的非法分值：方括号数字却不在 1～10 → 拒收
+    // 双分非法：`[口语0|考试8]` / `[口语11|考试8]` 等由 extract 未吃掉前缀时再拒
     if (
-      frequency == null &&
-      /^\[\d{1,2}\]\s*/.test(body) &&
-      !/^\[频次/u.test(body)
+      oralFrequency == null &&
+      examFrequency == null &&
+      /^\[\s*(?:口语|频次)?\s*\d{1,2}/u.test(body)
     ) {
       return null;
     }
-    points.push({ n, text, frequency });
+    if (
+      /^\[\s*口语\s*[：:]?\s*\d{1,2}\s*[|｜]\s*考试\s*[：:]?\s*\d{1,2}\s*\]/u.test(
+        body
+      ) &&
+      (oralFrequency == null || examFrequency == null)
+    ) {
+      return null;
+    }
+    points.push({
+      n,
+      text,
+      oralFrequency,
+      examFrequency,
+      frequency,
+    });
   }
   if (!points.length) return null;
 
@@ -289,12 +424,25 @@ export function parseEnVocabUsagePoints(
 }
 
 export function serializeEnVocabUsagePoints(
-  points: Array<Pick<EnVocabUsagePoint, "text" | "frequency"> & { n?: number }>
+  points: Array<
+    Pick<EnVocabUsagePoint, "text" | "oralFrequency" | "examFrequency" | "frequency"> & {
+      n?: number;
+    }
+  >
 ): string {
   return points
     .map((p, i) => {
-      const score = clampEnVocabUsageFrequency(p.frequency);
-      const freq = score != null ? `[${score}] ` : "";
+      const oral = clampEnVocabUsageFrequency(p.oralFrequency);
+      const exam = clampEnVocabUsageFrequency(
+        p.examFrequency ?? p.frequency
+      );
+      let freq = "";
+      if (oral != null && exam != null) {
+        freq = `${formatEnVocabUsageFrequencyMarker(oral, exam)} `;
+      } else if (exam != null) {
+        // 过渡：只写考试分时仍用旧单分，便于读旧 UI；list_missing 会再补口语
+        freq = `[${exam}] `;
+      }
       return `${i + 1}. ${freq}${String(p.text ?? "").trim()}`;
     })
     .join("\n");
@@ -373,11 +521,22 @@ export function stripEnVocabUsageExamLabels(raw: string): string {
     }
     const m = NUMBERED_LINE_RE.exec(trimmed);
     if (m) {
-      const { frequency, text: body } = extractEnVocabUsageFrequency(m[2].trim());
+      const {
+        oralFrequency,
+        examFrequency,
+        frequency,
+        text: body,
+      } = extractEnVocabUsageFrequency(m[2].trim());
       if (!body || !HAN_RE.test(body)) continue;
       pointIdx += 1;
-      const freq =
-        frequency != null ? `[${frequency}] ` : "";
+      const oral = clampEnVocabUsageFrequency(oralFrequency);
+      const exam = clampEnVocabUsageFrequency(examFrequency ?? frequency);
+      let freq = "";
+      if (oral != null && exam != null) {
+        freq = `${formatEnVocabUsageFrequencyMarker(oral, exam)} `;
+      } else if (exam != null) {
+        freq = `[${exam}] `;
+      }
       out.push(`${pointIdx}. ${freq}${body}`);
       continue;
     }
@@ -446,7 +605,12 @@ export function validateEnVocabUsageAiOutput(
   const requireFrequency = options.requireFrequency !== false;
   if (requireFrequency) {
     for (const p of points) {
-      if (p.frequency == null) {
+      if (
+        !enVocabUsagePointHasCompleteFrequency(
+          p.oralFrequency,
+          p.examFrequency
+        )
+      ) {
         return { ok: false, reason: "missing_frequency" };
       }
     }
