@@ -12,9 +12,11 @@ import { lockBodyScroll } from "@/lib/body-scroll-lock";
 import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
 import { formatBeijingDateTimeCompact } from "@/lib/format-datetime";
 import {
+  defaultEnLessonScheduleLinkPickStatus,
   enLessonToManualScheduleOption,
   filterEnLessonsByLinkPickStatus,
   filterEnLessonsForScheduleLink,
+  sortEnLessonsForScheduleLinkPick,
   type EnLessonScheduleLinkPickStatus,
 } from "@/lib/en-lesson-schedule-link-pick";
 import { getEnLessonProgressStatus, parseLessonContent } from "@/lib/en-lesson-shared";
@@ -27,6 +29,7 @@ const PICK_STATUS_TABS: {
   status: EnLessonScheduleLinkPickStatus;
   title: string;
 }[] = [
+  { status: "all", title: "全部" },
   { status: "pending", title: "未完成" },
   { status: "learning", title: "上课中" },
 ];
@@ -75,7 +78,7 @@ export function EnLessonScheduleLinkPickModal({
 }: Props) {
   const [mounted, setMounted] = useState(false);
   const [statusFilter, setStatusFilter] =
-    useState<EnLessonScheduleLinkPickStatus>("pending");
+    useState<EnLessonScheduleLinkPickStatus>("all");
   const [query, setQuery] = useState("");
   const [expandedContentIds, setExpandedContentIds] = useState<
     Record<number, boolean>
@@ -89,6 +92,11 @@ export function EnLessonScheduleLinkPickModal({
     return map;
   }, [teachers]);
 
+  const linkable = useMemo(
+    () => filterEnLessonsForScheduleLink(lessons),
+    [lessons]
+  );
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -96,29 +104,31 @@ export function EnLessonScheduleLinkPickModal({
   useEffect(() => {
     if (!open) {
       setQuery("");
-      setStatusFilter("pending");
+      setStatusFilter("all");
       setExpandedContentIds({});
       return;
     }
+    setStatusFilter(
+      defaultEnLessonScheduleLinkPickStatus(
+        filterEnLessonsForScheduleLink(lessons)
+      )
+    );
     return lockBodyScroll();
+    // 只在打开瞬间定默认 Tab；lessons 仅取打开当帧，勿列入 deps 以免刷新打回 Tab
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- open-only reset
   }, [open]);
-
-  const linkable = useMemo(
-    () => filterEnLessonsForScheduleLink(lessons),
-    [lessons]
-  );
 
   const counts = useMemo(() => {
     const pending = filterEnLessonsByLinkPickStatus(linkable, "pending").length;
     const learning = filterEnLessonsByLinkPickStatus(linkable, "learning").length;
-    return { pending, learning };
+    return { all: pending + learning, pending, learning };
   }, [linkable]);
 
   const visible = useMemo(() => {
     const byStatus = filterEnLessonsByLinkPickStatus(linkable, statusFilter);
     const q = query.trim().toLowerCase();
-    return byStatus
-      .filter((lesson) => {
+    return sortEnLessonsForScheduleLinkPick(
+      byStatus.filter((lesson) => {
         const key = linkedLessonKey({ subject: "en", lesson_id: lesson.id });
         if (selectedKeys.has(key)) return false;
         if (!q) return true;
@@ -135,7 +145,7 @@ export function EnLessonScheduleLinkPickModal({
           .toLowerCase();
         return haystack.includes(q);
       })
-      .sort((a, b) => b.id - a.id);
+    );
   }, [linkable, statusFilter, query, selectedKeys, teacherNameById]);
 
   if (!open || !mounted) return null;
@@ -162,7 +172,7 @@ export function EnLessonScheduleLinkPickModal({
             <h2 id="en-lesson-schedule-link-title">选择英语教材</h2>
             <p className="en-lesson-schedule-link-sub">{fieldLabel}</p>
             <p className="en-lesson-schedule-link-hint">
-              列表样式同英语新课；仅未完成 / 上课中，已上课完不显示。点「选择」即可关联。
+              未完成与上课中都可选（已上课完不显示）。上课中会显示当前上课老师，方便分辨是哪本教材。
             </p>
           </div>
           <button
@@ -253,8 +263,24 @@ export function EnLessonScheduleLinkPickModal({
                   const schedules = lesson.class_schedules ?? [];
                   const primaryAt =
                     schedules[0]?.class_at ?? lesson.next_class_at ?? "";
+                  const teacherLabel = formatLessonTeacherNames(
+                    lesson,
+                    teacherNameById
+                  );
+                  const isLearning = progress === "learning";
+                  const teacherDisplay =
+                    isLearning && teacherLabel === "—"
+                      ? "未指定老师"
+                      : teacherLabel;
                   return (
-                    <tr key={lesson.id}>
+                    <tr
+                      key={lesson.id}
+                      className={
+                        isLearning
+                          ? "en-lesson-schedule-link-row--learning"
+                          : undefined
+                      }
+                    >
                       <td className="jp-lesson-id-col">{lesson.id}</td>
                       <td className="jp-lesson-kind-col">{kindShort(lesson.kind)}</td>
                       <td
@@ -286,8 +312,27 @@ export function EnLessonScheduleLinkPickModal({
                           lesson.uploaded_at || lesson.created_at || ""
                         ) || "—"}
                       </td>
-                      <td className="jp-lesson-teacher-col">
-                        {formatLessonTeacherNames(lesson, teacherNameById)}
+                      <td
+                        className={`jp-lesson-teacher-col${
+                          isLearning
+                            ? " en-lesson-schedule-link-teacher--learning"
+                            : ""
+                        }`}
+                        title={
+                          isLearning
+                            ? `当前上课老师：${teacherDisplay}`
+                            : teacherDisplay === "—"
+                              ? undefined
+                              : teacherDisplay
+                        }
+                      >
+                        {isLearning ? (
+                          <strong className="en-lesson-schedule-link-teacher-name">
+                            {teacherDisplay}
+                          </strong>
+                        ) : (
+                          teacherDisplay
+                        )}
                       </td>
                       <td className="jp-lesson-next-class-col">
                         {primaryAt
@@ -390,6 +435,11 @@ export function EnLessonScheduleLinkPickModal({
         .en-lesson-schedule-link-tabs {
           flex: 0 0 auto;
         }
+        .en-lesson-schedule-link-tabs .jp-lesson-mobile-status-tab--all.is-active {
+          background: rgba(142, 197, 255, 0.18);
+          border-color: rgba(142, 197, 255, 0.45);
+          color: #8ec5ff;
+        }
         .en-lesson-schedule-link-search {
           width: 100%;
           min-height: 2.4rem;
@@ -427,6 +477,18 @@ export function EnLessonScheduleLinkPickModal({
           -webkit-line-clamp: 2;
           -webkit-box-orient: vertical;
           overflow: hidden;
+        }
+        .en-lesson-schedule-link-row--learning .jp-lesson-complete-col {
+          color: #f0a35a;
+          font-weight: 600;
+        }
+        .en-lesson-schedule-link-teacher--learning {
+          color: var(--text);
+        }
+        .en-lesson-schedule-link-teacher-name {
+          font-weight: 700;
+          color: #8ec5ff;
+          word-break: break-word;
         }
         .en-lesson-schedule-link-footer {
           display: flex;
