@@ -81,6 +81,16 @@ def main() -> int:
         errors.append("draft must include optional recurring?: boolean")
 
     db = DB.read_text(encoding="utf-8")
+    # draft.recurring 是 boolean；schedule.recurring 是规则摘要 —— 禁止把 draft 整包 spread 进 schedule
+    for i, line in enumerate(db.splitlines(), 1):
+        stripped = line.strip()
+        if stripped.startswith("//") or stripped.startswith("*"):
+            continue
+        if "...normalized" in stripped:
+            errors.append(
+                f"jp-lesson-manual-schedule-db.ts:{i} must not spread ...normalized onto schedule "
+                "(draft.recurring is boolean)"
+            )
     if "jp_lesson_manual_schedule_recurring" not in db:
         errors.append("db must create recurring rule table")
     if "recurring_id" not in db:

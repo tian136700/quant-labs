@@ -111,7 +111,7 @@ function coerceJpLessonManualSchedule(
   raw: unknown
 ): JpLessonManualSchedule | null {
   if (!raw || typeof raw !== "object") return null;
-  const row = raw as Partial<JpLessonManualSchedule>;
+  const row = raw as Record<string, unknown>;
   const id = Number(row.id);
   if (!Number.isInteger(id) || id <= 0) return null;
   const recurringIdRaw = row.recurring_id;

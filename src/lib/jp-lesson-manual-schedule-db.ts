@@ -280,9 +280,14 @@ export async function insertJpLessonManualScheduleInstance(
       : null;
 
   if (devStoreEnabled) {
+    // 勿把 draft 整包 spread 进 schedule：draft.recurring 是 boolean，schedule.recurring 是规则摘要
     const schedule: JpLessonManualSchedule = {
       id: devNextId++,
-      ...normalized,
+      class_at: normalized.class_at,
+      duration_minutes: normalized.duration_minutes,
+      title: normalized.title,
+      teacher: normalized.teacher,
+      note: normalized.note,
       linked_lessons: linkedLessons,
       recurring_id: recurringId,
       recurring: null,
@@ -350,9 +355,15 @@ export async function updateJpLessonManualSchedule(
   if (devStoreEnabled) {
     const index = devSchedules.findIndex((item) => item.id === id);
     if (index < 0) return { ok: false, error: "not_found" };
+    // 勿把 draft 整包 spread 进 schedule：draft.recurring 是 boolean，会冲掉规则摘要类型
+    const prev = devSchedules[index];
     devSchedules[index] = {
-      ...devSchedules[index],
-      ...normalized,
+      ...prev,
+      class_at: normalized.class_at,
+      duration_minutes: normalized.duration_minutes,
+      title: normalized.title,
+      teacher: normalized.teacher,
+      note: normalized.note,
       linked_lessons: linkedLessons,
       updated_at: ts,
     };
