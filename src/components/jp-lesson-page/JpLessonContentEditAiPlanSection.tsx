@@ -10,7 +10,9 @@ import {
   type ClipboardEvent,
 } from "react";
 import { CopyToast } from "@/components/CopyToast";
+import { JpLessonAiPlanCopyCountdown } from "@/components/jp-lesson-page/JpLessonAiPlanCopyCountdown";
 import { JpLessonAiPlanImageZoomOverlay } from "@/components/jp-lesson-page/JpLessonAiPlanImageZoomOverlay";
+import { useJpLessonAiPlanCopyCountdown } from "@/hooks/useJpLessonAiPlanCopyCountdown";
 import { useJpLessonAiPlanPromptTemplate } from "@/hooks/useJpLessonAiPlanPromptTemplate";
 import { copyTextToClipboard } from "@/lib/copy-text";
 import { buildJpLessonAiPlanCopyText } from "@/lib/jp-lesson-ai-plan-prompt";
@@ -66,6 +68,12 @@ export const JpLessonContentEditAiPlanSection = forwardRef<
   const busy = disabled;
   const { prompt, setPrompt, flushPrompt, saveHint } =
     useJpLessonAiPlanPromptTemplate(open);
+  const {
+    visible: countdownVisible,
+    finished: countdownFinished,
+    label: countdownLabel,
+    startCountdown,
+  } = useJpLessonAiPlanCopyCountdown({ active: open });
 
   const setImageFromFile = (file: File | null) => {
     imageFileRef.current = file;
@@ -151,6 +159,7 @@ export const JpLessonContentEditAiPlanSection = forwardRef<
         setCopyToast("复制失败");
         return;
       }
+      startCountdown();
       const msg = await afterJpLessonAiPlanPromptCopySuccess({
         lessonId: lesson.id,
         courseLabel: lesson.course_label,
@@ -164,6 +173,11 @@ export const JpLessonContentEditAiPlanSection = forwardRef<
       className="jp-lesson-content-edit-ai-plan"
       aria-label="做教案提示词与粘贴教案"
     >
+      <JpLessonAiPlanCopyCountdown
+        visible={countdownVisible}
+        finished={countdownFinished}
+        label={countdownLabel}
+      />
       <div className="jp-lesson-content-edit-ai-plan-grid">
         <div className="jp-lesson-content-edit-ai-plan-col">
           <div className="jp-lesson-content-edit-ai-plan-prompt-head">

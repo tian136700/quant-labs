@@ -95,6 +95,9 @@ def main() -> int:
         "JpVocabSaveProgressBar",
         "/api/jp-lesson/ref/attach-batch",
         "useJpLessonAiPlanPromptTemplate",
+        "useJpLessonAiPlanCopyCountdown",
+        "JpLessonAiPlanCopyCountdown",
+        "startCountdown",
         "改后自动保存",
         "onBlur",
         "numberedGroups",
@@ -107,6 +110,32 @@ def main() -> int:
     ):
         if needle not in modal:
             errors.append(f"modal missing {needle}")
+
+    countdown_hook = (
+        ROOT / "src/hooks/useJpLessonAiPlanCopyCountdown.ts"
+    ).read_text(encoding="utf-8")
+    for needle in (
+        "useJpLessonAiPlanCopyCountdown",
+        "startCountdown",
+        "clearCountdown",
+        "JP_LESSON_AI_PLAN_PROMPT_BARK_DELAY_MIN",
+        "到点了",
+    ):
+        if needle not in countdown_hook:
+            errors.append(f"countdown hook missing {needle}")
+
+    countdown_ui = (
+        ROOT
+        / "src/components/jp-lesson-page/JpLessonAiPlanCopyCountdown.tsx"
+    ).read_text(encoding="utf-8")
+    for needle in (
+        "JpLessonAiPlanCopyCountdown",
+        "教案提醒",
+        'role="timer"',
+        "aria-live",
+    ):
+        if needle not in countdown_ui:
+            errors.append(f"countdown UI missing {needle}")
 
     zoom_overlay = (
         ROOT
@@ -160,6 +189,9 @@ def main() -> int:
         "min-height: 220px",
         "grid-template-columns: minmax(0, 1fr) minmax(0, 1fr)",
         "useJpLessonAiPlanPromptTemplate",
+        "useJpLessonAiPlanCopyCountdown",
+        "JpLessonAiPlanCopyCountdown",
+        "startCountdown",
         "改后自动保存",
         "onBlur",
         "attachedPreviewUrl",
@@ -285,11 +317,15 @@ def main() -> int:
     for needle in (
         "JP_LESSON_AI_PLAN_PROMPT_BARK_DELAY_MIN = 7",
         "afterJpLessonAiPlanPromptCopySuccess",
-        "window.confirm",
+        "scheduleBark: true",
         "/api/jp-lesson/ai-plan-prompt-bark",
     ):
         if needle not in bark_client:
             errors.append(f"bark client missing {needle}")
+    if "window.confirm" in bark_client:
+        errors.append(
+            "bark client must not use window.confirm; auto-schedule on copy"
+        )
 
     admin_route = (
         ROOT / "src/app/api/admin/jp-lesson-ai-plan-prompt-bark/route.ts"
@@ -342,6 +378,13 @@ def main() -> int:
         rule_txt = rule.read_text(encoding="utf-8")
         if "7 分钟 Bark" not in rule_txt and "7分钟 Bark" not in rule_txt:
             errors.append("jp-lesson-ai-plan-prompt.mdc must document 7 min Bark")
+        if "window.confirm" in rule_txt and "禁止" not in rule_txt:
+            # allow documenting the forbid; require explicit forbid phrase
+            pass
+        if "禁止" not in rule_txt or "confirm" not in rule_txt:
+            errors.append(
+                "jp-lesson-ai-plan-prompt.mdc must forbid confirm for Bark schedule"
+            )
         if "sleep" not in rule_txt:
             errors.append("rule must forbid sleep in Worker")
 

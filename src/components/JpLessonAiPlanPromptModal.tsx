@@ -3,8 +3,10 @@
 import { useEffect, useMemo, useRef, useState, type ClipboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { CopyToast } from "@/components/CopyToast";
+import { JpLessonAiPlanCopyCountdown } from "@/components/jp-lesson-page/JpLessonAiPlanCopyCountdown";
 import { JpLessonAiPlanImageZoomOverlay } from "@/components/jp-lesson-page/JpLessonAiPlanImageZoomOverlay";
 import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
+import { useJpLessonAiPlanCopyCountdown } from "@/hooks/useJpLessonAiPlanCopyCountdown";
 import { useJpLessonAiPlanPromptTemplate } from "@/hooks/useJpLessonAiPlanPromptTemplate";
 import { useSaveProgressBar } from "@/hooks/useSaveProgressBar";
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
@@ -74,6 +76,12 @@ export function JpLessonAiPlanPromptModal({
   const saveProgress = useSaveProgressBar(busy);
   const { prompt, setPrompt, flushPrompt, saveHint } =
     useJpLessonAiPlanPromptTemplate(open);
+  const {
+    visible: countdownVisible,
+    finished: countdownFinished,
+    label: countdownLabel,
+    startCountdown,
+  } = useJpLessonAiPlanCopyCountdown({ active: open });
   const canZoomImage = Boolean(
     previewUrl && imageFile && imageFile.type.startsWith("image/")
   );
@@ -154,6 +162,7 @@ export function JpLessonAiPlanPromptModal({
         setCopyToast("复制失败");
         return;
       }
+      startCountdown();
       const first = lessons[0];
       const labels = Array.from(
         new Set(
@@ -242,6 +251,11 @@ export function JpLessonAiPlanPromptModal({
         </div>
 
         <div className="jp-lesson-ai-plan-body">
+          <JpLessonAiPlanCopyCountdown
+            visible={countdownVisible}
+            finished={countdownFinished}
+            label={countdownLabel}
+          />
           <div className="jp-lesson-ai-plan-grid">
             <section className="jp-lesson-ai-plan-col" aria-label="勾选单词">
               <h3>单词（勾选课）</h3>

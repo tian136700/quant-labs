@@ -1,6 +1,6 @@
 /**
- * 日语新课 · 复制 AI 提示词后可选 7 分钟 Bark（客户端）。
- * 对齐 STT：复制成功 → confirm → POST 预约/取消旧预约。
+ * 日语新课 · 复制 AI 提示词后自动预约 7 分钟 Bark（客户端）。
+ * 与页面顶部倒计时同步：复制成功即预约（覆盖旧预约）；不再弹 confirm。
  */
 
 export const JP_LESSON_AI_PLAN_PROMPT_BARK_DELAY_MIN = 7;
@@ -51,30 +51,14 @@ export async function postJpLessonAiPlanPromptBark(opts: {
 }
 
 /**
- * 复制成功后调用：先记一次（取消旧预约），再问是否 7 分钟 Bark。
- * @returns 给 CopyToast 的文案（复制成功 / 已预约 / 失败等）
+ * 复制成功后调用：立刻预约 delay 分钟后 Bark（覆盖旧预约）。
+ * @returns 给 CopyToast 的文案（已预约 / 失败等）
  */
 export async function afterJpLessonAiPlanPromptCopySuccess(opts: {
   lessonId?: number | null;
   courseLabel?: string | null;
 }): Promise<string> {
   const delayMin = JP_LESSON_AI_PLAN_PROMPT_BARK_DELAY_MIN;
-  // 与 STT 一致：先记复制并清旧预约（须 await，避免与后续预约竞态）
-  await postJpLessonAiPlanPromptBark({
-    scheduleBark: false,
-    lessonId: opts.lessonId,
-    courseLabel: opts.courseLabel,
-    delayMin,
-  });
-
-  const want = window.confirm(
-    `是否从本次复制起，${delayMin} 分钟后 Bark 通知你？\n` +
-      "（若刚才已预约过，会改成以这一次为准重新计时；到点时图片教案可能已做好）"
-  );
-  if (!want) {
-    return "复制成功";
-  }
-
   const res = await postJpLessonAiPlanPromptBark({
     scheduleBark: true,
     lessonId: opts.lessonId,

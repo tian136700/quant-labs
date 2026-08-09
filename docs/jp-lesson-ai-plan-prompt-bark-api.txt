@@ -4,10 +4,12 @@
 用途
 ----
 管理员在「编辑学习内容」或「做教案提示词」点「复制单词+提示词」后，
-可选预约约 7 分钟后 Bark 通知「教案图可能已做好」（对齐 STT 标日/英语口语交互）。
+**自动**预约约 7 分钟后 Bark 通知「教案图可能已做好」（与页面顶部倒计时同步；
+不再弹确认框——避免取消后倒计时在走却无 Bark）。
 
 调度：D1 记 pending → Worker 每分钟 Cron 扫到期 → 推 Bark。
 不在 Worker 请求里 sleep；不依赖本机 Mac 进程。
+再次复制会覆盖旧预约并重新计时。
 
 
 页面入口
@@ -26,10 +28,12 @@ POST https://finance.info-quests.com/api/jp-lesson/ai-plan-prompt-bark
 鉴权：须管理员登录（Cookie）。
 
 请求 JSON：
-  schedule_bark   true = 从本次起 delay_min 分钟后提醒；false = 只记复制并取消旧预约
+  schedule_bark   true = 从本次起 delay_min 分钟后提醒（覆盖旧预约）；false = 只记复制并取消旧预约
   delay_min       可选，默认 7，范围 1–120
   lesson_id       可选，课 ID
   course_label    可选，教材课次文案
+
+页面「复制单词+提示词」成功后会自动以 schedule_bark=true 调用（无 confirm）。
 
 成功（预约）：
 {
