@@ -58,14 +58,20 @@ def main() -> int:
     if "JpVocabUsageExamplesPairedContent" not in flash:
         errors.append("学生/老师卡须用 JpVocabUsageExamplesPairedContent")
 
-    # 缓存版本：加过 usage 后须升 v（避免旧缓存无 usage）
-    if "jp-api:vocab-study:v2" in cache and "jp-api:vocab-study:v3" not in cache:
-        errors.append("study cache 仍停在 v2（加 usage 后须升 v3）")
-    if "jp-api:vocab-study:v3" not in cache:
-        errors.append("study cache key 须为 v3（含 usage）")
+    # 缓存版本：加过 usage 后须升 v；加 pitch_accent 后再升
+    if "jp-api:vocab-study:v4" not in cache:
+        errors.append("study cache key 须为 v4（含 pitch_accent）")
+    if "jp-api:vocab-study:v3" in cache and "jp-api:vocab-study:v4" not in cache:
+        errors.append("study cache 仍停在 v3（加 pitch_accent 后须升 v4）")
 
     if "usage" not in rule or "peek" not in rule:
         errors.append("flashcard-examples-parity 规则须写明 usage + peek")
+
+    # shared / peek 须带音调，否则学生卡只有普通读音
+    if "w.pitch_accent" not in share and "pitch_accent: row.pitch_accent" not in share:
+        errors.append("shared 列表须 SELECT / map pitch_accent")
+    if "pitch_accent" not in live or "pitch_accent_source" not in live:
+        errors.append("live_rollover peek SELECT 须含 pitch_accent / pitch_accent_source")
 
     if errors:
         print("FAIL:")

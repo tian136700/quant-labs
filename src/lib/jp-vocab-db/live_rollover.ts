@@ -434,6 +434,7 @@ async function getJpVocabWordByIdLite(
               course_label,
               oral_frequency,
               exam_frequency,
+              pitch_accent, pitch_accent_source,
               (CASE WHEN class_notes IS NOT NULL THEN 1 ELSE 0 END) AS has_class_notes
        FROM jp_vocab_word
        WHERE id = ?1`

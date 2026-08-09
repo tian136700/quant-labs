@@ -48,7 +48,8 @@ CASES = [
     "焚き火(たきび)と花火(はなび)です。",
 ]
 
-# (raw, expected_after_sanitize) — nested teaching notes must vanish
+# (raw, expected_after_sanitize) — nested teaching notes must vanish;
+# particle+learner-kana must get a space (はいつ → は いつ)
 SANITIZE_CASES = [
     (
         "必要な物(もの)をリストアップする。(必要なは必要だ(ひつようだ)の形容動詞形です)",
@@ -70,7 +71,68 @@ SANITIZE_CASES = [
         "朝(あさ)ごはんにスプーンが必要(ひつよう)です。 / あさごはん / ひつよう",
         "朝(あさ)ごはんにスプーンが必要(ひつよう)です。",
     ),
+    (
+        "今月(こんげつ)の給料(きゅうりょう)はいつ出(で)ますか。(N4)",
+        "今月(こんげつ)の給料(きゅうりょう)は いつ出(で)ますか。(N4)",
+    ),
+    (
+        "先生(せんせい)はいつも丁寧(ていねい)に教(おし)えてくれます。(N4)",
+        "先生(せんせい)は いつも丁寧(ていねい)に教(おし)えてくれます。(N4)",
+    ),
+    (
+        # already spaced → idempotent
+        "給料(きゅうりょう)は いつ出(で)ますか。",
+        "給料(きゅうりょう)は いつ出(で)ますか。",
+    ),
+    (
+        # do not split ではない
+        "それは本(ほん)ではないです。",
+        "それは本(ほん)ではないです。",
+    ),
 ]
+
+_LEARNER_KANA_AFTER_PARTICLE = sorted(
+    [
+        "いつも",
+        "いつ",
+        "どこ",
+        "だれ",
+        "どなた",
+        "なにか",
+        "なに",
+        "なんの",
+        "なんで",
+        "とても",
+        "あまり",
+        "すこし",
+        "ちょっと",
+        "たくさん",
+        "みんな",
+        "いろいろ",
+        "ほんとうに",
+        "はっきり",
+        "ゆっくり",
+        "ちゃんと",
+        "ください",
+        "たぶん",
+        "きっと",
+        "ぜひ",
+        "もう",
+        "まだ",
+        "すぐ",
+        "よく",
+    ],
+    key=len,
+    reverse=True,
+)
+_PARTICLE_BEFORE_LEARNER_KANA_RE = re.compile(
+    rf"([はがをにでともへのや])({'|'.join(map(re.escape, _LEARNER_KANA_AFTER_PARTICLE))})"
+)
+
+
+def insert_jp_vocab_learner_particle_spaces(text: str) -> str:
+    """Mirror of insertJpVocabLearnerParticleSpaces."""
+    return _PARTICLE_BEFORE_LEARNER_KANA_RE.sub(r"\1 \2", text or "")
 
 
 def leftover_paren_kana(text: str) -> str | None:
@@ -105,6 +167,18 @@ def sanitize_jp_vocab_example_japanese_line(text: str) -> str:
         return f"\x00F{idx}\x00"
 
     s = VALID_KANJI_FURIGANA_CHUNK.sub(_protect, s)
+
+    # Mirror JLPT tail peel so particle spacing + (N4) restore match TS
+    jlpt_m = re.match(
+        r"^(.*?)([。！？…])\s*[（(]\s*N\s*([1-5])\s*[）)]\s*$",
+        s.strip(),
+        flags=re.I,
+    )
+    jlpt_suffix = ""
+    if jlpt_m:
+        jlpt_suffix = f"(N{jlpt_m.group(3)})"
+        s = f"{jlpt_m.group(1)}{jlpt_m.group(2)}"
+
     prev = None
     while prev != s:
         prev = s
@@ -116,7 +190,11 @@ def sanitize_jp_vocab_example_japanese_line(text: str) -> str:
         return protected[i] if 0 <= i < len(protected) else ""
 
     s = re.sub(r"\x00F(\d+)\x00", _restore, s)
-    return re.sub(r"\s{2,}", " ", s).strip()
+    s = insert_jp_vocab_learner_particle_spaces(s)
+    s = re.sub(r"\s{2,}", " ", s).strip()
+    if jlpt_suffix:
+        return f"{s}{jlpt_suffix}"
+    return s
 
 
 def has_unannotated_kanji(text: str) -> bool:
@@ -156,6 +234,13 @@ def main() -> int:
             file=sys.stderr,
         )
         return 1
+    if "insertJpVocabLearnerParticleSpaces" not in src:
+        print(
+            "[check_jp_vocab_furigana_parse] FAIL: sanitize must call "
+            "insertJpVocabLearnerParticleSpaces (はいつ → は いつ)",
+            file=sys.stderr,
+        )
+        return 1
     if "protectedChunks" not in src and "\\u0000F" not in src and "\u0000F" not in src:
         # TS source uses `\u0000F${idx}\u0000` — check for protect-strip-restore pattern
         if "protectedChunks" not in src:
@@ -188,7 +273,9 @@ def main() -> int:
             )
             return 1
         # After sanitize + furigana strip, no paren chars may remain
+        # (JLPT 尾标 (N5)/(N4) 存库保留，展示层另处理，不算裸括号)
         plain = PAREN_FURIGANA_RE.sub(r"\1", got)
+        plain = re.sub(r"[（(]\s*N\s*[1-5]\s*[）)]\s*$", "", plain, flags=re.I)
         if re.search(r"[（(]", plain):
             print(
                 "[check_jp_vocab_furigana_parse] FAIL: paren still visible after sanitize:\n"

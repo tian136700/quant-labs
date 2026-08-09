@@ -64,7 +64,22 @@ def main() -> None:
         if "pitchAccent" in m.group(1):
             fail(f"{name} must not pass pitchAccent into hero")
 
-    print("ok: word intact on hero; reading+pitch beside 词性")
+    # 学生 shared / peek 漏 pitch_accent → 卡片只有普通读音（已复发）
+    share = (ROOT / "src/lib/jp-vocab-db/share.ts").read_text(encoding="utf-8")
+    if "w.pitch_accent" not in share:
+        fail("shared list SELECT must include w.pitch_accent")
+    if "pitch_accent: row.pitch_accent" not in share:
+        fail("shared list must map pitch_accent into word")
+    live = (ROOT / "src/lib/jp-vocab-db/live_rollover.ts").read_text(encoding="utf-8")
+    if "pitch_accent, pitch_accent_source" not in live and (
+        "pitch_accent," not in live or "pitch_accent_source," not in live
+    ):
+        fail("peek getJpVocabWordByIdLite SELECT must include pitch_accent")
+    cache = (ROOT / "src/lib/jp-vocab-study-cache.ts").read_text(encoding="utf-8")
+    if "jp-api:vocab-study:v4" not in cache:
+        fail("study cache must bump to v4 when pitch_accent is added to shared")
+
+    print("ok: word intact on hero; reading+pitch beside 词性; study gets pitch")
 
 
 if __name__ == "__main__":

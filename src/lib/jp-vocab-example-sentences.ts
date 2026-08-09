@@ -86,10 +86,60 @@ export function normalizeJpVocabExampleJlptTail(text: string): string | null {
 }
 
 /**
+ * 初学者例句：助词与其后常见假名词粘在一起时插入半角空格。
+ * 例：はいつ → は いつ；はいつも → は いつも。
+ * 汉字词条旁已有假名单元视觉间隔，假名粘连会误当成一个单词。
+ * 仅白名单词，避免误拆「ではない」「でも」等。
+ */
+const JP_VOCAB_LEARNER_KANA_AFTER_PARTICLE = [
+  "いつも",
+  "いつ",
+  "どこ",
+  "だれ",
+  "どなた",
+  "なにか",
+  "なに",
+  "なんの",
+  "なんで",
+  "とても",
+  "あまり",
+  "すこし",
+  "ちょっと",
+  "たくさん",
+  "みんな",
+  "いろいろ",
+  "ほんとうに",
+  "はっきり",
+  "ゆっくり",
+  "ちゃんと",
+  "ください",
+  "たぶん",
+  "きっと",
+  "ぜひ",
+  "もう",
+  "まだ",
+  "すぐ",
+  "よく",
+].sort((a, b) => b.length - a.length);
+
+const JP_VOCAB_PARTICLE_BEFORE_LEARNER_KANA_RE = new RegExp(
+  `([はがをにでともへのや])(${JP_VOCAB_LEARNER_KANA_AFTER_PARTICLE.join("|")})`,
+  "g"
+);
+
+/** 助词后常见假名词粘连 → 插入空格（幂等；已有空格不再插） */
+export function insertJpVocabLearnerParticleSpaces(text: string): string {
+  const s = String(text || "");
+  if (!s) return s;
+  return s.replace(JP_VOCAB_PARTICLE_BEFORE_LEARNER_KANA_RE, "$1 $2");
+}
+
+/**
  * 展示 / 写回前清洗日语行：
  * 1) 先保护合法「漢字(かな)」；
  * 2) 剥掉其余所有括号块（教学说明、整句读音尾注、嵌套 junk）；
- * 3) 还原合法假名括注（存库仍用括号；页面再转下方小字）。
+ * 3) 还原合法假名括注（存库仍用括号；页面再转下方小字）；
+ * 4) 助词与常见假名词粘连处插入空格（はいつ→は いつ）。
  *
  * 目标：页面上永远不该再看到「裸括号」；假名只以 ruby 小字出现。
  */
@@ -148,6 +198,7 @@ export function sanitizeJpVocabExampleJapaneseLine(text: string): string {
       : "";
   });
 
+  s = insertJpVocabLearnerParticleSpaces(s);
   s = s.replace(/\s{2,}/g, " ").trim();
   if (jlptSuffix && jlptTail) {
     return `${s}${jlptSuffix}`;

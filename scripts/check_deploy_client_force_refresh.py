@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""回归：部署后客户端靠顶栏「刷新缓存」拉新（version API + provider；禁止顶部横幅自动刷）。"""
+"""回归：部署后客户端靠顶栏「刷新」拉新（version API + provider；禁止顶部横幅自动刷）。"""
 
 from __future__ import annotations
 
@@ -79,16 +79,18 @@ def main() -> int:
     # 禁止恢复顶部横幅状态机
     for banned in ("bannerVisible", "dismissBanner", "showBanner", "iq-deploy-reload-banner"):
         if banned in provider:
-            errors.append(f"provider must not keep top banner API ({banned}); only top-right 刷新缓存")
+            errors.append(f"provider must not keep top banner API ({banned}); only top-right 刷新")
 
     # 顶部「有新版本 / 点击刷新」横幅组件须已删除
     watcher_path = ROOT / "src/components/DeployVersionWatcher.tsx"
     if watcher_path.is_file():
-        errors.append("DeployVersionWatcher.tsx must be removed (top banner cancelled; use 刷新缓存 only)")
+        errors.append("DeployVersionWatcher.tsx must be removed (top banner cancelled; use 刷新 only)")
 
     cache_btn = FILES["cache_btn"].read_text(encoding="utf-8")
-    if "刷新缓存" not in cache_btn:
-        errors.append("DeployCacheRefreshButton must label 刷新缓存")
+    if "刷新缓存" in cache_btn:
+        errors.append("DeployCacheRefreshButton must NOT label 刷新缓存 (use 刷新)")
+    if re.search(r">\s*刷新\s*<", cache_btn) is None:
+        errors.append("DeployCacheRefreshButton must label 刷新")
     if "hasUpdate" not in cache_btn or "iq-deploy-cache-refresh--lit" not in cache_btn:
         errors.append("cache button must light when hasUpdate")
     if "iq-deploy-cache-refresh--dim" not in cache_btn:
@@ -152,8 +154,10 @@ def main() -> int:
     rule = FILES["rule"].read_text(encoding="utf-8")
     if "alwaysApply: true" not in rule:
         errors.append("deploy-client-force-refresh.mdc must alwaysApply")
-    if "刷新缓存" not in rule:
-        errors.append("rule must document top-right 刷新缓存 button (lit/dim)")
+    if "刷新缓存" in rule:
+        errors.append("rule must NOT say 刷新缓存 (button label is 刷新)")
+    if "顶栏" not in rule or "「刷新」" not in rule:
+        errors.append("rule must document top-right 刷新 button (lit/dim)")
     if "禁止自动刷" not in rule and "绝不自动" not in rule and "只有用户点" not in rule:
         errors.append("rule must forbid auto reload (manual only)")
     if "可见标签页检测到新版立刻 location.reload" not in rule:
@@ -171,7 +175,7 @@ def main() -> int:
             print(f"FAIL: {e}", file=sys.stderr)
         return 1
 
-    print("ok: deploy client force-refresh (version stamp + provider + 刷新缓存 only + predeploy + hook)")
+    print("ok: deploy client force-refresh (version stamp + provider + 刷新 only + predeploy + hook)")
     return 0
 
 

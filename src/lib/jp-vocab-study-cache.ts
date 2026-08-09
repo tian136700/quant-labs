@@ -8,8 +8,8 @@ import {
 } from "@/lib/client-swr-cache";
 import type { JpVocabRef, JpVocabSharedItem } from "@/lib/types";
 
-/** v3：共享列表含 usage / connection，学生卡片可显示用法与接序 */
-export const JP_VOCAB_STUDY_CACHE_KEY = "jp-api:vocab-study:v3";
+/** v4：共享列表含 pitch_accent，学生卡片可读音顶横线 */
+export const JP_VOCAB_STUDY_CACHE_KEY = "jp-api:vocab-study:v4";
 
 /** 本地缓存新鲜期内轮询可跳过网络（减轻 D1）；打开页面仍会后台刷新 */
 export const JP_VOCAB_STUDY_REFRESH_TTL_MS = 12_000;
