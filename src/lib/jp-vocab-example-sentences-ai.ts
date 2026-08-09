@@ -60,6 +60,25 @@ function lemmaSurfacesForExampleHit(
     if (part.length >= 3) {
       push(part.slice(0, -1));
     }
+    // 二字假名五段る动词（なる）：なりたい／なって／なります 都不含完整「なる」
+    // 勿只推词干「な」（会误匹配 など／なに）
+    if (/^[\u3040-\u309F]{2}る$/.test(part)) {
+      const stem = part.slice(0, -1);
+      push(`${stem}り`);
+      push(`${stem}っ`);
+      push(`${stem}れ`);
+      push(`${stem}ろ`);
+    }
+  }
+  // 词条本身亦为二字假名る动词时（reading 空）同样认活用
+  for (const part of splitJpVocabLemmaSlashParts(word)) {
+    if (/^[\u3040-\u309F]{2}る$/.test(part)) {
+      const stem = part.slice(0, -1);
+      push(`${stem}り`);
+      push(`${stem}っ`);
+      push(`${stem}れ`);
+      push(`${stem}ろ`);
+    }
   }
   return out;
 }
@@ -388,6 +407,14 @@ export function jpVocabGrammarLemmaAppearsInExamples(
   if (!n) return false;
   const variants = [n];
   if (n.length >= 3) variants.push(n.slice(0, -1));
+  // ～ようにする／～ようにします：辞书形核在ます形里变成「…し」
+  if (n.endsWith("する") && n.length >= 4) {
+    variants.push(`${n.slice(0, -2)}し`);
+  }
+  // ～ことができる／できます
+  if (n.endsWith("できる") && n.length >= 5) {
+    variants.push(`${n.slice(0, -3)}でき`);
+  }
   for (const v of variants) {
     if (combinedPlain.includes(v) || combinedRaw.includes(v)) return true;
     const aliases = JP_VOCAB_GRAMMAR_KANA_KANJI_ALIASES[v];

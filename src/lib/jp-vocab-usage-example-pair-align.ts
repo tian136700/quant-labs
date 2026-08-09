@@ -81,6 +81,14 @@ function exampleHasForm(plain: string, form: string): boolean {
   if (form.endsWith("だ") && plain.includes(form.slice(0, -1) + "です")) {
     return true;
   }
+  // 「ことができる」↔「ことができます」；「ようにする」↔「ようにします」
+  if (form.endsWith("る") && plain.includes(`${form.slice(0, -1)}ます`)) {
+    return true;
+  }
+  // 「できる」↔「できます」（用法里单独点名「できる」时）
+  if (form.endsWith("できる") && plain.includes(`${form.slice(0, -3)}できます`)) {
+    return true;
+  }
   return false;
 }
 

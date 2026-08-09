@@ -228,6 +228,45 @@ if (daiBad.ok || daiBad.reason !== "word_not_used") {
   process.exit(1);
 }
 
+// なる：活用形なりたい／なって 须算用到（曾 word_not_used id=654）
+const naruExamples = [
+  "医者(いしゃ)になりたいです。(N5)",
+  "译文：我想成为医生。",
+  "春(はる)になって、暖(あたた)かくなりました。(N5)",
+  "译文：到了春天，变暖了。",
+].join("\\n");
+const naruInput = { word: "なる", kind: "word", reading: "なる", meaning: "成为；变成" };
+const naruOnline = normalizeJpVocabExampleSentencesForOnlineApply(naruExamples, naruInput);
+if (!naruOnline.ok) {
+  console.error("FAIL: なる conjugations should pass online, got", naruOnline.reason);
+  process.exit(1);
+}
+const naruStrict = validateJpVocabExampleSentencesAiOutput(naruExamples, naruInput);
+if (!naruStrict.ok) {
+  console.error("FAIL: なる conjugations should pass strict, got", naruStrict.reason);
+  process.exit(1);
+}
+
+// ～ようにする：ます形不得 grammar_not_used（id=679）
+const youni = [
+  "早(はや)く起(お)きるようにしています。(N4)",
+  "译文：我尽量早起。",
+  "静(しず)かに話(はな)すようにしてください。(N4)",
+  "译文：请尽量小声说话。",
+  "毎日(まいにち)勉強(べんきょう)するようにしています。(N4)",
+  "译文：我尽量每天学习。",
+].join("\\n");
+const youniInput = {
+  word: "～ようにする",
+  kind: "grammar",
+  usage: "1. [口语8|考试8] 表示努力做成某事，相当于「尽量……」。(N4)",
+};
+const youniStrict = validateJpVocabExampleSentencesAiOutput(youni, youniInput);
+if (!youniStrict.ok) {
+  console.error("FAIL: ようにします should not be grammar_not_used, got", youniStrict.reason);
+  process.exit(1);
+}
+
 console.log("node smoke ok");
 """,
         ],

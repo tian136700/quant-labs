@@ -14,6 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CONN_AI = ROOT / "src/lib/jp-vocab-connection-ai.ts"
+CONN_PROMPT = ROOT / "src/lib/jp-vocab-connection-prompt.ts"
 BODY = ROOT / "src/components/JpVocabConnectionBody.tsx"
 RULE_QUALITY = ROOT / ".cursor/rules/jp-vocab-content-quality-guard.mdc"
 
@@ -25,6 +26,9 @@ def fail(msg: str) -> None:
 
 def main() -> None:
     src = CONN_AI.read_text(encoding="utf-8")
+    prompt = CONN_PROMPT.read_text(encoding="utf-8") if CONN_PROMPT.is_file() else ""
+    # prompt 文案在 connection-prompt；校验逻辑在 connection-ai
+    src_and_prompt = src + "\n" + prompt
     body = BODY.read_text(encoding="utf-8")
     rule = RULE_QUALITY.read_text(encoding="utf-8") if RULE_QUALITY.is_file() else ""
 
@@ -66,15 +70,15 @@ def main() -> None:
     if "动词原形／动词た形" not in rule and "slash_morphology" not in rule:
         fail("content-quality rule must mention ／ morphology strip pitfall")
 
-    # 优先示例须每形自带「＋」，不要只教「A／B／C＋X」
-    if "动词辞书形（动词原形）＋X；动词た形＋X；动词ている形＋X" not in src:
+    # 优先示例须每形自带「＋」，不要只教「A／B／C＋X」（文案在 prompt）
+    if "动词辞书形（动词原形）＋X；动词た形＋X；动词ている形＋X" not in src_and_prompt:
         fail("prompt must prefer per-form ＋ formulas over A／B／C＋X")
 
     # 标准标本：jp_vocab_word id=521「～かもしれない」（词类／形态＋接什么｜说明）
-    if "＋かもしれない｜推测将要发生" not in src:
+    if "＋かもしれない｜推测将要发生" not in src_and_prompt:
         fail("prompt/upload_spec must use id=521 ～かもしれない as connection format exemplar")
-    if "id=521" not in src:
-        fail("connection-ai must cite specimen word id=521")
+    if "id=521" not in src_and_prompt:
+        fail("connection-ai/prompt must cite specimen word id=521")
 
     if "protectNoteSlash" not in src:
         fail("slash split must protect ／ inside ｜说明 notes")

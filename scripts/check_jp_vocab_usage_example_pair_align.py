@@ -101,6 +101,11 @@ def example_has_form(plain: str, form: str) -> bool:
         return True
     if form.endswith("だ") and (form[:-1] + "です") in plain:
         return True
+    # 「ことができる」↔「ことができます」；「ようにする」↔「ようにします」
+    if form.endswith("る") and (form[:-1] + "ます") in plain:
+        return True
+    if form.endswith("できる") and (form[:-3] + "できます") in plain:
+        return True
     return False
 
 
@@ -239,6 +244,23 @@ def main() -> int:
     ok3, reason3 = align_ok("～それで", sorede_usage, sorede_examples)
     if not ok3:
         errors.append(f"～それで「それで？」尾标点应对齐通过，却拒: {reason3}")
+
+    # 「ことができる」用法点名辞书形，例句用ます形不得误拒（id=678）
+    dekiru_usage = (
+        "1. [口语7|考试9] 表示具备某种能力或条件，能够做某事；"
+        "「できる」单独也可表达相同意思，但「ことができる」更正式。(N5)"
+    )
+    dekiru_examples = (
+        "日本語(にほんご)を話(はな)すことができます。\n"
+        "译文：我会说日语。\n"
+        "自転車(じてんしゃ)に乗(の)ることができます。\n"
+        "译文：我会骑自行车。\n"
+        "一人(ひとり)で来(く)ることができます。\n"
+        "译文：我能一个人来。"
+    )
+    ok4, reason4 = align_ok("～ことができる", dekiru_usage, dekiru_examples)
+    if not ok4:
+        errors.append(f"ことができる ます形应对齐通过，却拒: {reason4}")
 
     if errors:
         for e in errors:
