@@ -21,6 +21,7 @@ import {
   jpVocabUsagePerUsageFrequencyPromptAppendix,
   jpVocabUsagePointHasCompleteFrequency,
 } from "@/lib/jp-vocab-usage-frequency";
+import { jpVocabUsageHasOverstrongCausalClaim } from "@/lib/jp-vocab-usage-overstrong-causal";
 
 export {
   isJpVocabContrastGrammar,
@@ -81,6 +82,7 @@ export const JP_VOCAB_USAGE_UPLOAD_SPEC = {
     "pair_incomplete",
     "examples_invalid",
     "pair_semantic_mismatch",
+    "usage_overstrong_causal",
     "connection_required",
     "connection_invalid",
   ],
@@ -328,6 +330,7 @@ ${jpVocabConnectionPromptAppendix("grammar")}`;
 - ❌ 用法禁止写「接在…之后」「构成「…＋…」」等接续说明；这些只写在【接序】。
 - ❌ 用法正文禁止以「接在…」开头（会被剥光 → usage_empty_after_strip）。应直接写义项：✅「表示某人所在的地方…」❌「接在人物名词后，表示…」。
 - ❌ 禁止把「作定语／作状语／句尾」或「みたいな／みたいに／みたいだ」「ような／ように／ようだ」等形态差拆成独立用法编号；形态写进【接序】表格。
+- ❌ 列举/并列类（～し、～たり 等）：禁止写成「由多方面因素共同导致结论/决定」「共同导致」等过强因果。✅「列举多个理由或情况，表示又…又…／而且…；后文常接感想或结论」；❌「暗示后面结论是由多方面因素共同导致的」。
 - 每条中文用法在句末句号后，必须紧跟该用法大概对应的 JLPT 等级，半角括号：。(N5) 或 .(N4) .(N3) .(N2) .(N1)。按该条用法的常见考试难度估，不要整词条只标一个级；不要写「JLPT」「能力考」等字样。
 - 只用本词条本身的用法。❌ 禁止把其它语法点塞进来凑组数（词条「～がある」时，不要写「～たことがある」「～ことがある」等别的句型当独立用法；那些是别的词条）。
 - 例句才是日语：简单词；不要再叠另一个更难的语法；每个汉字后半角括号假名；「译文：」后中文。
@@ -791,6 +794,9 @@ export function validateJpVocabUsageAiOutput(
     }
     if (lineBody && JP_VOCAB_USAGE_EXAM_BOILERPLATE_RE.test(lineBody)) {
       return { ok: false, reason: "usage_missing_level" };
+    }
+    if (lineBody && jpVocabUsageHasOverstrongCausalClaim(lineBody)) {
+      return { ok: false, reason: "usage_overstrong_causal" };
     }
   }
   if (isContrast && !lead?.trim()) {

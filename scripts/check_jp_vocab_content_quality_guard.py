@@ -61,6 +61,8 @@ def main() -> int:
         "しかし",
         "usage_not_chinese",
         "用(も)",
+        "usage_overstrong_causal",
+        "共同导致",
         "i_adj_past_deshita",
         "かったでした",
     ):
@@ -189,6 +191,22 @@ def main() -> int:
         fail(
             "usage_not_chinese guard check failed: "
             f"{usage_run.stderr or usage_run.stdout}"
+        )
+
+    usage_causal = ROOT / "scripts/check_jp_vocab_usage_overstrong_causal.py"
+    if not usage_causal.is_file():
+        fail("missing check_jp_vocab_usage_overstrong_causal.py")
+    causal_run = subprocess.run(
+        [sys.executable, str(usage_causal)],
+        capture_output=True,
+        text=True,
+        timeout=20,
+        cwd=ROOT,
+    )
+    if causal_run.returncode != 0:
+        fail(
+            "usage_overstrong_causal guard check failed: "
+            f"{causal_run.stderr or causal_run.stdout}"
         )
 
     notes = (ROOT / "src/lib/jp-vocab-db/notes_fields.ts").read_text(encoding="utf-8")
