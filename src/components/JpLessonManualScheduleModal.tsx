@@ -413,170 +413,172 @@ export function JpLessonManualScheduleModal({
           </button>
         </div>
 
-        <fieldset className="jp-lesson-next-class-fieldset" disabled={saving || addingTeacher}>
-          <legend>
-            {showFullFields ? "日程信息（北京时间，整点 / 半点）" : "上课时间（北京时间，整点 / 半点）"}
-          </legend>
-          <div className="jp-lesson-next-class-rows">
-            <div className="jp-lesson-next-class-row">
-              <div className="jp-lesson-next-class-fields">
-                {showFullFields ? (
-                  <div className="jp-lesson-next-class-field">
-                    <span>标题</span>
-                    <select
-                      className="jp-lesson-next-class-input"
-                      aria-label="日程标题"
-                      value={
-                        titleChoice === "custom"
-                          ? "custom"
-                          : titleChoice || ""
-                      }
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        if (v === "custom") {
-                          activateCustomTitle();
-                          return;
-                        }
-                        if (isManualScheduleTitlePreset(v)) {
-                          selectTitlePreset(v);
-                        }
-                      }}
-                    >
-                      <option value="" disabled>
-                        请选择标题…
-                      </option>
-                      {MANUAL_SCHEDULE_TITLE_PRESETS.map((preset) => (
-                        <option key={preset} value={preset}>
-                          {preset}
-                        </option>
-                      ))}
-                      <option value="custom">自己输入…</option>
-                    </select>
-                    {titleChoice === "custom" ? (
-                      <input
-                        type="text"
+        <div className="jp-lesson-next-class-body">
+          <fieldset className="jp-lesson-next-class-fieldset" disabled={saving || addingTeacher}>
+            <legend>
+              {showFullFields ? "日程信息（北京时间，整点 / 半点）" : "上课时间（北京时间，整点 / 半点）"}
+            </legend>
+            <div className="jp-lesson-next-class-rows">
+              <div className="jp-lesson-next-class-row">
+                <div className="jp-lesson-next-class-fields">
+                  {showFullFields ? (
+                    <div className="jp-lesson-next-class-field">
+                      <span>标题</span>
+                      <select
                         className="jp-lesson-next-class-input"
-                        style={{ marginTop: "0.35rem" }}
-                        value={customTitle}
-                        placeholder="自定义标题"
+                        aria-label="日程标题"
+                        value={
+                          titleChoice === "custom"
+                            ? "custom"
+                            : titleChoice || ""
+                        }
                         onChange={(e) => {
-                          activateCustomTitle();
-                          setCustomTitle(e.target.value);
+                          const v = e.target.value;
+                          if (v === "custom") {
+                            activateCustomTitle();
+                            return;
+                          }
+                          if (isManualScheduleTitlePreset(v)) {
+                            selectTitlePreset(v);
+                          }
                         }}
-                      />
-                    ) : null}
-                  </div>
-                ) : null}
-                <label className="jp-lesson-next-class-field">
-                  <span>日期</span>
-                  <input
-                    type="date"
-                    className="jp-lesson-next-class-input"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                  />
-                </label>
-                <div className="jp-lesson-next-class-field">
-                  <span>时间</span>
-                  <JpLessonHalfHourTimeGridPicker
-                    value={time}
-                    onChange={setTime}
-                  />
-                </div>
-                <label className="jp-lesson-next-class-field">
-                  <span>时长</span>
-                  <select
-                    className="jp-lesson-next-class-input jp-lesson-next-class-time-select"
-                    value={duration}
-                    onChange={(e) => setDuration(e.target.value)}
-                  >
-                    <option value="">
-                      {teacherSubject === "en"
-                        ? `默认 ${DEFAULT_EN_LESSON_CLASS_DURATION_MINUTES} 分钟`
-                        : `默认 ${DEFAULT_JP_LESSON_CLASS_DURATION_MINUTES} 分钟`}
-                    </option>
-                    {DURATION_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {showFullFields ? (
-                  <>
-                    <label className="jp-lesson-next-class-field">
-                      <span>{teacherFieldLabel}</span>
-                      {onAddTeacher ? (
-                        <JpLessonTeacherSinglePicker
-                          ref={teacherPickerRef}
-                          value={teacher}
-                          teachers={pickerTeachers}
-                          placeholder={teacherPlaceholder}
-                          onChange={applyTeacherName}
-                          onAddTeacher={onAddTeacher}
-                          disabled={saving || addingTeacher}
-                        />
-                      ) : (
+                      >
+                        <option value="" disabled>
+                          请选择标题…
+                        </option>
+                        {MANUAL_SCHEDULE_TITLE_PRESETS.map((preset) => (
+                          <option key={preset} value={preset}>
+                            {preset}
+                          </option>
+                        ))}
+                        <option value="custom">自己输入…</option>
+                      </select>
+                      {titleChoice === "custom" ? (
                         <input
                           type="text"
                           className="jp-lesson-next-class-input"
-                          value={teacher}
-                          placeholder="例如：张老师"
-                          onChange={(e) => applyTeacherName(e.target.value)}
+                          style={{ marginTop: "0.35rem" }}
+                          value={customTitle}
+                          placeholder="自定义标题"
+                          onChange={(e) => {
+                            activateCustomTitle();
+                            setCustomTitle(e.target.value);
+                          }}
                         />
-                      )}
-                    </label>
-                    <div className="jp-lesson-next-class-field jp-lesson-next-class-field--full">
-                      <JpLessonManualScheduleLessonPicker
-                        value={linkedLessons}
-                        onChange={setLinkedLessons}
-                        onPickLesson={handlePickLesson}
-                        titleSubject={teacherSubject}
-                        jpLessons={jpLessons}
-                        enLessons={enLessons}
-                        jpTeachers={jpTeachers}
-                        enTeachers={enTeachers}
-                        disabled={saving || addingTeacher}
-                        syncing={false}
-                      />
+                      ) : null}
                     </div>
-                    <label className="jp-lesson-next-class-field jp-lesson-next-class-field--full">
-                      <span>备注（可选）</span>
-                      <textarea
-                        className="jp-lesson-next-class-input jp-lesson-manual-note"
-                        value={note}
-                        rows={3}
-                        placeholder="补充说明、链接等"
-                        onChange={(e) => setNote(e.target.value)}
-                      />
-                    </label>
-                  </>
-                ) : null}
+                  ) : null}
+                  <label className="jp-lesson-next-class-field">
+                    <span>日期</span>
+                    <input
+                      type="date"
+                      className="jp-lesson-next-class-input"
+                      value={date}
+                      onChange={(e) => setDate(e.target.value)}
+                    />
+                  </label>
+                  <div className="jp-lesson-next-class-field">
+                    <span>时间</span>
+                    <JpLessonHalfHourTimeGridPicker
+                      value={time}
+                      onChange={setTime}
+                    />
+                  </div>
+                  <label className="jp-lesson-next-class-field">
+                    <span>时长</span>
+                    <select
+                      className="jp-lesson-next-class-input jp-lesson-next-class-time-select"
+                      value={duration}
+                      onChange={(e) => setDuration(e.target.value)}
+                    >
+                      <option value="">
+                        {teacherSubject === "en"
+                          ? `默认 ${DEFAULT_EN_LESSON_CLASS_DURATION_MINUTES} 分钟`
+                          : `默认 ${DEFAULT_JP_LESSON_CLASS_DURATION_MINUTES} 分钟`}
+                      </option>
+                      {DURATION_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {showFullFields ? (
+                    <>
+                      <label className="jp-lesson-next-class-field">
+                        <span>{teacherFieldLabel}</span>
+                        {onAddTeacher ? (
+                          <JpLessonTeacherSinglePicker
+                            ref={teacherPickerRef}
+                            value={teacher}
+                            teachers={pickerTeachers}
+                            placeholder={teacherPlaceholder}
+                            onChange={applyTeacherName}
+                            onAddTeacher={onAddTeacher}
+                            disabled={saving || addingTeacher}
+                          />
+                        ) : (
+                          <input
+                            type="text"
+                            className="jp-lesson-next-class-input"
+                            value={teacher}
+                            placeholder="例如：张老师"
+                            onChange={(e) => applyTeacherName(e.target.value)}
+                          />
+                        )}
+                      </label>
+                      <div className="jp-lesson-next-class-field jp-lesson-next-class-field--full">
+                        <JpLessonManualScheduleLessonPicker
+                          value={linkedLessons}
+                          onChange={setLinkedLessons}
+                          onPickLesson={handlePickLesson}
+                          titleSubject={teacherSubject}
+                          jpLessons={jpLessons}
+                          enLessons={enLessons}
+                          jpTeachers={jpTeachers}
+                          enTeachers={enTeachers}
+                          disabled={saving || addingTeacher}
+                          syncing={false}
+                        />
+                      </div>
+                      <label className="jp-lesson-next-class-field jp-lesson-next-class-field--full">
+                        <span>备注（可选）</span>
+                        <textarea
+                          className="jp-lesson-next-class-input jp-lesson-manual-note"
+                          value={note}
+                          rows={3}
+                          placeholder="补充说明、链接等"
+                          onChange={(e) => setNote(e.target.value)}
+                        />
+                      </label>
+                    </>
+                  ) : null}
+                </div>
               </div>
             </div>
-          </div>
-          {error ? (
-            <p className="jp-lesson-next-class-hint" role="alert">
-              {error}
-            </p>
-          ) : (
-            <p className="jp-lesson-next-class-hint">
-              选教材只加入本条日程；点「保存」后才会写入，并同步到新课「学习中」（上课时间与老师一并带上）。
-            </p>
-          )}
-        </fieldset>
+            {error ? (
+              <p className="jp-lesson-next-class-hint" role="alert">
+                {error}
+              </p>
+            ) : (
+              <p className="jp-lesson-next-class-hint">
+                选教材只加入本条日程；点「保存」后才会写入，并同步到新课「学习中」（上课时间与老师一并带上）。
+              </p>
+            )}
+          </fieldset>
 
-        {saveProgress.visible || addingTeacher ? (
-          <JpVocabSaveProgressBar
-            label={
-              addingTeacher
-                ? "正在添加老师…"
-                : jpVocabSaveProgressLabel("save")
-            }
-            percent={saveProgress.percent}
-            fullWidth
-          />
-        ) : null}
+          {saveProgress.visible || addingTeacher ? (
+            <JpVocabSaveProgressBar
+              label={
+                addingTeacher
+                  ? "正在添加老师…"
+                  : jpVocabSaveProgressLabel("save")
+              }
+              percent={saveProgress.percent}
+              fullWidth
+            />
+          ) : null}
+        </div>
 
         <div className="jp-lesson-next-class-actions">
           <button
@@ -610,12 +612,17 @@ export function JpLessonManualScheduleModal({
           background: rgba(0, 0, 0, 0.55);
           backdrop-filter: blur(3px);
           -webkit-backdrop-filter: blur(3px);
+          overflow-y: auto;
+          overscroll-behavior: contain;
+          -webkit-overflow-scrolling: touch;
         }
 
         .jp-lesson-next-class-modal {
+          display: flex;
+          flex-direction: column;
           width: min(720px, 100%);
-          max-height: min(94vh, 900px);
-          overflow: auto;
+          max-height: min(calc(100dvh - 2rem), 900px);
+          overflow: hidden;
           padding: 1.15rem 1.25rem;
           border: 1px solid var(--border);
           border-radius: 12px;
@@ -623,7 +630,17 @@ export function JpLessonManualScheduleModal({
           box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
         }
 
+        .jp-lesson-next-class-body {
+          flex: 1 1 auto;
+          min-height: 0;
+          overflow-y: auto;
+          overscroll-behavior: contain;
+          -webkit-overflow-scrolling: touch;
+          padding-right: 0.1rem;
+        }
+
         .jp-lesson-next-class-header {
+          flex-shrink: 0;
           display: flex;
           align-items: flex-start;
           justify-content: space-between;
@@ -771,9 +788,14 @@ export function JpLessonManualScheduleModal({
         }
 
         .jp-lesson-next-class-actions {
+          flex-shrink: 0;
           display: flex;
           justify-content: flex-end;
           gap: 0.5rem;
+          margin-top: 0.75rem;
+          padding-top: 0.75rem;
+          border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+          background: var(--panel);
         }
 
         .jp-lesson-next-class-field--full {

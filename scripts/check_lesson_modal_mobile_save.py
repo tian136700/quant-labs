@@ -19,6 +19,7 @@ MODALS = [
     ROOT / "src/components/JpLessonNextClassEditModal.tsx",
     ROOT / "src/components/EnLessonTeacherEditModal.tsx",
     ROOT / "src/components/JpLessonTeacherEditModal.tsx",
+    ROOT / "src/components/JpLessonManualScheduleModal.tsx",
 ]
 
 MOBILE = ROOT / "src/app/mobile/mobile-modals.css"
@@ -39,7 +40,7 @@ def main() -> int:
                 f"{path.name}: modal max-height must reserve overlay "
                 "padding (100dvh - 2rem)"
             )
-        is_next = "NextClass" in path.name
+        is_next = "NextClass" in path.name or "ManualSchedule" in path.name
         body = (
             "jp-lesson-next-class-body"
             if is_next
