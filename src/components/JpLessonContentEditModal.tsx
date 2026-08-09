@@ -122,6 +122,11 @@ export function JpLessonContentEditModal({
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const allSelected = rows.length > 0 && selectedIds.length === rows.length;
   const someSelected = selectedIds.length > 0;
+  /** 已填写学习内容的行数（空行 / 占位行不计入） */
+  const wordCount = useMemo(
+    () => rows.filter((row) => (row.content || "").trim()).length,
+    [rows]
+  );
 
   if (!mounted || !open || !lesson) return null;
 
@@ -370,6 +375,10 @@ export function JpLessonContentEditModal({
           <p className="jp-lesson-content-edit-sub">
             课程 #{lesson.id}
             {lesson.course_label ? ` · ${lesson.course_label}` : ""}
+            {" · "}
+            <span className="jp-lesson-content-edit-word-count">
+              当前共 {wordCount} 词
+            </span>
             {" · "}
             每行一词与释义对应；勾选后点上方「删除所选」或「标所选完成」。
           </p>
@@ -622,6 +631,10 @@ export function JpLessonContentEditModal({
           color: var(--muted);
           font-size: 0.85rem;
           line-height: 1.45;
+        }
+        .jp-lesson-content-edit-word-count {
+          color: var(--text);
+          font-weight: 600;
         }
         .jp-lesson-content-edit-toolbar {
           display: flex !important;

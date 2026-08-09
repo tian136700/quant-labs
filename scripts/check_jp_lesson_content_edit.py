@@ -67,6 +67,8 @@ def main() -> int:
         errors.append("modal must have row checkboxes for multi-select")
     if "添加一项" not in modal:
         errors.append("modal must allow adding a row")
+    if "当前共" not in modal or "jp-lesson-content-edit-word-count" not in modal:
+        errors.append("modal header must show current word count")
     if "标完成" not in modal or "标所选完成" not in modal:
         errors.append("modal must support mark-complete per row and batch")
     if "onCompleteItems" not in modal:
