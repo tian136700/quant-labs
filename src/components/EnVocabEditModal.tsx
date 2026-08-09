@@ -18,6 +18,7 @@ import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
 import { enVocabSaveQueue } from "@/lib/request-queue";
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
 import { formatJpVocabSourceDisplay } from "@/lib/jp-vocab-source-display";
+import { useEnVocabWordContentFetch } from "@/hooks/useEnVocabWordContentFetch";
 
 type Props = {
   open: boolean;
@@ -61,27 +62,34 @@ export function EnVocabEditModal({
   const [exampleSentences, setExampleSentences] = useState("");
   const [classNotes, setClassNotes] = useState("");
   const [error, setError] = useState("");
+  const { contentWord } = useEnVocabWordContentFetch({
+    open,
+    word,
+    locale,
+    onWordUpdated: onSaved,
+  });
+  const formWord = contentWord?.id === word?.id ? contentWord : word;
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
   useEffect(() => {
-    if (open && word) {
-      setKind(word.kind);
-      setWordText(word.word);
-      setReading(word.reading || "");
-      setMeaning(word.meaning || "");
-      setPos(word.pos || "");
-      setCategory(displayEnVocabCategory(word.category));
-      setMnemonic(word.mnemonic || "");
-      setUsage(word.usage || "");
-      setConnection(word.connection || "");
-      setExampleSentences(word.example_sentences || "");
-      setClassNotes(word.class_notes || "");
+    if (open && formWord) {
+      setKind(formWord.kind);
+      setWordText(formWord.word);
+      setReading(formWord.reading || "");
+      setMeaning(formWord.meaning || "");
+      setPos(formWord.pos || "");
+      setCategory(displayEnVocabCategory(formWord.category));
+      setMnemonic(formWord.mnemonic || "");
+      setUsage(formWord.usage || "");
+      setConnection(formWord.connection || "");
+      setExampleSentences(formWord.example_sentences || "");
+      setClassNotes(formWord.class_notes || "");
       setError("");
     }
-  }, [open, word]);
+  }, [open, formWord]);
 
   useEffect(() => {
     if (!open) return;

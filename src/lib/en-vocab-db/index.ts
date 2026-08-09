@@ -12,6 +12,7 @@ export {
 } from "./helpers";
 
 export * from "./words";
+export * from "./pool";
 export * from "./lesson";
 export * from "./notes_fields";
 export * from "./daily_settings";

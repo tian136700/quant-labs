@@ -87,6 +87,7 @@ import {
   nowIso,
   listEnVocabRefs,
   listEnVocabRefsByKeys,
+  mapRow,
   mapSharedListWordRow,
 } from "./helpers";
 import {
@@ -261,6 +262,14 @@ export async function getEnVocabWordByIdLite(
       ...word,
       class_notes: null,
       class_notes_present: hasNotes,
+      usage_present:
+        word.usage_present === true || Boolean((word.usage || "").trim()),
+      example_sentences_present:
+        word.example_sentences_present === true ||
+        Boolean((word.example_sentences || "").trim()),
+      connection_present:
+        word.connection_present === true ||
+        Boolean((word.connection || "").trim()),
     };
   }
   const row = await db
@@ -277,7 +286,16 @@ export async function getEnVocabWordByIdLite(
     .bind(wordId)
     .first<Record<string, unknown>>();
   if (!row) return null;
-  return mapSharedListWordRow(row);
+  // 单条详情须带回 usage/例句/接序正文（列表已省略）；勿走 mapEnVocabListWordRow 再剥掉
+  const word = mapRow({ ...row, class_notes: null });
+  return {
+    ...word,
+    class_notes: null,
+    class_notes_present: Boolean(Number(row.has_class_notes)),
+    usage_present: Boolean((word.usage || "").trim()),
+    example_sentences_present: Boolean((word.example_sentences || "").trim()),
+    connection_present: Boolean((word.connection || "").trim()),
+  };
 }
 
 export type EnVocabTeacherQuizLivePeekResult =

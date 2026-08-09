@@ -82,7 +82,7 @@ def main() -> int:
     )
     errors += must_contain(
         "src/components/EnVocabUsageViewModal.tsx",
-        ["connection={word.connection}"],
+        ["connection={displayWord.connection}"],
         "view modal",
     )
 

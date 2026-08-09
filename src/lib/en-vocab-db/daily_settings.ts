@@ -89,8 +89,8 @@ import {
   nowIso,
 } from "./helpers";
 import {
-  listEnVocabWords,
-} from "./words";
+  listEnVocabWordsForPool,
+} from "./pool";
 
 /**
  * fill list_missing 专用：只读当日日序 ids，不触发重算 / 可见池物化。
@@ -449,7 +449,7 @@ export async function ensureEnVocabTeacherVisibleLimit(
   db: D1Database,
   ctx?: { words?: EnVocabWord[]; display_order?: EnVocabDailyDisplayOrder }
 ): Promise<EnVocabTeacherVisibleLimit> {
-  const words = ctx?.words ?? (await listEnVocabWords(db));
+  const words = ctx?.words ?? (await listEnVocabWordsForPool(db));
   const display_order =
     ctx?.display_order ?? (await ensureEnVocabDailyDisplayOrder(db, words));
   const current = await getEnVocabTeacherVisibleLimit(db);
@@ -493,7 +493,7 @@ export async function setEnVocabDailyQuizTarget(
   db: D1Database,
   targetCount: number
 ): Promise<EnVocabTeacherVisibleLimit> {
-  const words = await listEnVocabWords(db);
+  const words = await listEnVocabWordsForPool(db);
   if (!words.length) {
     throw new Error("empty_quiz_pool");
   }

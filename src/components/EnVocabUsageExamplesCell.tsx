@@ -5,6 +5,8 @@ import { buildEnVocabUsageExamplePairs } from "@/lib/en-vocab-usage-examples-dis
 type Props = {
   usage: string | null | undefined;
   exampleSentences: string | null | undefined;
+  /** 列表省略正文时：usage_present || example_sentences_present */
+  contentPresent?: boolean;
   emptyPlaceholder?: string;
   onOpen: () => void;
 };
@@ -15,12 +17,13 @@ type Props = {
 export function EnVocabUsageExamplesCell({
   usage,
   exampleSentences,
+  contentPresent = false,
   emptyPlaceholder = "—",
   onOpen,
 }: Props) {
   const model = buildEnVocabUsageExamplePairs(usage, exampleSentences);
 
-  if (!model.hasContent) {
+  if (!model.hasContent && !contentPresent) {
     return (
       <span className="jp-vocab-mnemonic-empty" title="可在「编辑」中填写用法与例句">
         {emptyPlaceholder}
@@ -29,6 +32,8 @@ export function EnVocabUsageExamplesCell({
   }
 
   const count = model.pairCount;
+  const label =
+    model.hasContent && count > 0 ? `查看 (${count})` : "查看";
 
   return (
     <div className="en-vocab-usage-ex-cell">
@@ -38,7 +43,7 @@ export function EnVocabUsageExamplesCell({
         title="查看用法与例句"
         onClick={onOpen}
       >
-        {`查看 (${count})`}
+        {label}
       </button>
       <style jsx>{`
         .en-vocab-usage-ex-cell {

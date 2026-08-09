@@ -254,7 +254,9 @@ export function EnVocabPageModals(props: EnVocabPageModalsProps) {
       <EnVocabUsageViewModal
         open={props.viewingUsageWord != null}
         word={props.viewingUsageWord}
+        locale={props.locale === "en" ? "en" : "zh"}
         onClose={props.onCloseViewingUsage}
+        onWordUpdated={props.onWordSaved}
       />
 
       <EnVocabRefPreviewModal

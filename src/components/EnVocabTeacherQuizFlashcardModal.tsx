@@ -37,6 +37,7 @@ import { JpVocabTeacherQuizFlashcardStyles } from "@/components/JpVocabTeacherQu
 import type { EnVocabLevel, EnVocabRef, EnVocabWord } from "@/lib/types";
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
 import { useEnVocabFlashcardClassNotesFetch } from "@/hooks/useEnVocabFlashcardClassNotesFetch";
+import { useEnVocabWordContentFetch } from "@/hooks/useEnVocabWordContentFetch";
 
 import {
   EN_VOCAB_LEVEL_SYNC_HINT,
@@ -161,9 +162,15 @@ export function EnVocabTeacherQuizFlashcardModal({
       ? session.wordIds[session.currentIndex]
       : null;
   const word = currentWordId != null ? wordsById.get(currentWordId) ?? null : null;
-  const { notesWord, notesLoading } = useEnVocabFlashcardClassNotesFetch({
+  const { contentWord } = useEnVocabWordContentFetch({
     open,
     word,
+    locale,
+    onWordUpdated,
+  });
+  const { notesWord, notesLoading } = useEnVocabFlashcardClassNotesFetch({
+    open,
+    word: contentWord?.id === word?.id ? contentWord : word,
     locale,
     onWordUpdated,
   });
@@ -377,7 +384,17 @@ export function EnVocabTeacherQuizFlashcardModal({
 
   const isStudy = isStudyMode;
   // 换词后 notesWord 可能仍是上一词：禁止拿旧备注盖住新词正文（否则像「下一个不出现」）
-  const w = notesWord?.id === word.id ? notesWord : word;
+  const hydrated =
+    contentWord?.id === word.id ? contentWord : word;
+  const w =
+    notesWord?.id === word.id
+      ? {
+          ...hydrated,
+          class_notes: notesWord.class_notes,
+          class_notes_present: notesWord.class_notes_present,
+          updated_at: notesWord.updated_at || hydrated.updated_at,
+        }
+      : hydrated;
   const ref = w.ref_key ? refs[w.ref_key] : undefined;
   const readingTrim = (w.reading || "").trim();
   const wordTrim = w.word.trim();

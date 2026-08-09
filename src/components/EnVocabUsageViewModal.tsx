@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { CopyToast } from "@/components/CopyToast";
 import { EnVocabUsageExamplesPairedContent } from "@/components/EnVocabUsageExamplesPairedContent";
+import { useEnVocabWordContentFetch } from "@/hooks/useEnVocabWordContentFetch";
 import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
 import { copyTextToClipboard } from "@/lib/copy-text";
 import {
@@ -17,11 +18,27 @@ type Props = {
   open: boolean;
   word: EnVocabWord | null;
   onClose: () => void;
+  /** 列表省略正文后，拉齐 usage/例句写回父级缓存 */
+  onWordUpdated?: (word: EnVocabWord) => void;
+  locale?: "zh" | "en";
 };
 
-export function EnVocabUsageViewModal({ open, word, onClose }: Props) {
+export function EnVocabUsageViewModal({
+  open,
+  word,
+  onClose,
+  onWordUpdated,
+  locale = "zh",
+}: Props) {
   const [mounted, setMounted] = useState(false);
   const [copyToast, setCopyToast] = useState<string | null>(null);
+  const { contentWord, contentLoading } = useEnVocabWordContentFetch({
+    open,
+    word,
+    locale,
+    onWordUpdated,
+  });
+  const displayWord = contentWord ?? word;
 
   useEffect(() => {
     setMounted(true);
@@ -46,12 +63,12 @@ export function EnVocabUsageViewModal({ open, word, onClose }: Props) {
   }, [open]);
 
   const handleCopyAll = useCallback(() => {
-    if (!word) return;
+    if (!displayWord) return;
     const model = buildEnVocabUsageExamplePairs(
-      word.usage,
-      word.example_sentences
+      displayWord.usage,
+      displayWord.example_sentences
     );
-    const text = formatEnVocabUsageExamplesCopyText(model, word.word);
+    const text = formatEnVocabUsageExamplesCopyText(model, displayWord.word);
     if (!text) {
       setCopyToast("暂无可复制内容");
       return;
@@ -59,12 +76,15 @@ export function EnVocabUsageViewModal({ open, word, onClose }: Props) {
     void copyTextToClipboard(text).then((ok) =>
       setCopyToast(ok ? "复制成功" : "复制失败")
     );
-  }, [word]);
+  }, [displayWord]);
 
-  if (!open || !mounted || !word) return null;
+  if (!open || !mounted || !displayWord) return null;
 
-  const model = buildEnVocabUsageExamplePairs(word.usage, word.example_sentences);
-  const copyText = formatEnVocabUsageExamplesCopyText(model, word.word);
+  const model = buildEnVocabUsageExamplePairs(
+    displayWord.usage,
+    displayWord.example_sentences
+  );
+  const copyText = formatEnVocabUsageExamplesCopyText(model, displayWord.word);
 
   return createPortal(
     <>
@@ -85,7 +105,7 @@ export function EnVocabUsageViewModal({ open, word, onClose }: Props) {
               <h2 id="en-usage-view-title" className="en-usage-view-title">
                 用法与例句
               </h2>
-              <p className="en-usage-view-subtitle">{word.word}</p>
+              <p className="en-usage-view-subtitle">{displayWord.word}</p>
             </div>
             <button
               type="button"
@@ -98,16 +118,20 @@ export function EnVocabUsageViewModal({ open, word, onClose }: Props) {
           </div>
 
           <div className="en-usage-view-body">
-            <EnVocabUsageExamplesPairedContent
-              usage={word.usage}
-              exampleSentences={word.example_sentences}
-              usageSource={word.usage_source}
-              exampleSource={word.example_sentences_source}
-              connection={word.connection}
-              connectionSource={word.connection_source}
-              model={model}
-              emptyText="暂未填写用法与例句，可在「编辑」中补充，或等待定时补全。"
-            />
+            {contentLoading && !model.hasContent ? (
+              <p style={{ color: "var(--muted)", margin: 0 }}>加载中…</p>
+            ) : (
+              <EnVocabUsageExamplesPairedContent
+                usage={displayWord.usage}
+                exampleSentences={displayWord.example_sentences}
+                usageSource={displayWord.usage_source}
+                exampleSource={displayWord.example_sentences_source}
+                connection={displayWord.connection}
+                connectionSource={displayWord.connection_source}
+                model={model}
+                emptyText="暂未填写用法与例句，可在「编辑」中补充，或等待定时补全。"
+              />
+            )}
           </div>
 
           <div className="en-usage-view-footer">

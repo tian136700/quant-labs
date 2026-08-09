@@ -1,16 +1,21 @@
-英语抽背 · 熟悉程度 / 同步学生 API
-================================
+英语抽背 · 词表读取 / 熟悉程度 / 同步学生 API
+============================================
 
 用途
 ----
-老师端抽查卡相关写库接口（网页主路径；其它项目也可按同约定调用）：
+网页主路径与其它项目可按同约定调用：
 
-1) POST /api/en-vocab
+1) GET /api/en-vocab
+   - 无 query：全库列表（**瘦身**：不含备注/用法/例句/接序正文）
+   - ?word_id=N：单条详情（**含** usage / example_sentences / connection 正文）
+
+2) POST /api/en-vocab
    - 整词勾选：`level`
    - 或按用法勾齐：`usage_levels`（有编号用法时）
    → **只写熟悉程度 / 用法档**，不同步学生
+   - 管理员另可：`set_daily_quiz_target` / `daily_quiz_style` / `reset` / `reset_today`
 
-2) POST /api/en-vocab/share
+3) POST /api/en-vocab/share
    把该词同步到学生「今日背英语单词」→ **每词今日只成功一次**
    （产品约定：老师点「下一个」/「完成抽查」时再调；已共享则勿重复发）
 
@@ -20,6 +25,8 @@
 
 线上地址
 --------
+GET  https://english.info-quests.com/api/en-vocab
+GET  https://english.info-quests.com/api/en-vocab?word_id=45
 POST https://english.info-quests.com/api/en-vocab
 POST https://english.info-quests.com/api/en-vocab/share
 
@@ -28,17 +35,163 @@ POST https://english.info-quests.com/api/en-vocab/share
 
 本机开发（可选）
 ---------------
-POST http://127.0.0.1:3002/api/en-vocab
-POST http://127.0.0.1:3002/api/en-vocab/share
+GET/POST http://127.0.0.1:3002/api/en-vocab
+POST     http://127.0.0.1:3002/api/en-vocab/share
 
 
 鉴权
 ----
-须登录 Cookie 会话（英语老师 operate / 管理员）。
+须登录 Cookie 会话：
+- GET：英语词表读权限（老师 / 管理员）
+- POST 勾选 / share：英语 operate（或管理员）
+- POST set_daily_quiz_target / daily_quiz_style / reset*：管理员
 
 Header（可选，影响错误文案语言）：
   x-locale: zh | en
-  Content-Type: application/json
+  Content-Type: application/json   （仅 POST）
+
+
+────────────────────────────────
+GET · 全库列表（瘦身，防 Worker 1102）
+────────────────────────────────
+
+Query
+-----
+（无）
+
+成功响应（节选）
+----------------
+{
+  "ok": true,
+  "words": [
+    {
+      "id": 45,
+      "word": "condition",
+      "reading": "/kənˈdɪʃn/",
+      "meaning": "…",
+      "pos": "n.",
+      "kind": "word",
+      "class_notes": null,
+      "class_notes_present": true,
+      "usage": null,
+      "usage_present": true,
+      "example_sentences": null,
+      "example_sentences_present": true,
+      "connection": null,
+      "connection_present": false,
+      "mnemonic": "…",          // 非管理员可能被 redact 为空
+      "cnt_very": 0,
+      "cnt_normal": 1,
+      "cnt_weak": 0,
+      …
+    }
+  ],
+  "refs": { … },
+  "daily_quiz_style": { … },
+  "display_order": { "date": "YYYY-MM-DD", "ids": […], … },
+  "shared_today_word_ids": [12, 45],
+  "teacher_visible_limit": { "quiz_target": 20, "visible_ids": […], … }
+}
+
+重要（1102）
+------------
+- 全库列表 **不返回** `class_notes` / `usage` / `example_sentences` / `connection` 正文。
+- 用 `*_present`（如 `usage_present`）判断「有没有内容」；需要正文时再调
+  `GET ?word_id=` 或 `GET /api/en-vocab/class-notes?word_id=`（备注）。
+- **禁止**为展示用法/例句再全表扫大字段。
+
+
+失败响应
+--------
+401  { "ok": false, "error": "…" }   // 未登录
+
+
+curl 示例
+---------
+curl -sS 'https://english.info-quests.com/api/en-vocab' \
+  -H 'Cookie: 你的登录 Cookie' \
+  -H 'x-locale: zh'
+
+
+Python 最小例
+-------------
+import requests
+
+BASE = "https://english.info-quests.com"
+COOKIE = "你的登录 Cookie"
+
+r = requests.get(
+    f"{BASE}/api/en-vocab",
+    headers={"Cookie": COOKIE, "x-locale": "zh"},
+    timeout=60,
+)
+print(r.status_code, r.json().get("ok"), len(r.json().get("words") or []))
+
+
+────────────────────────────────
+GET · 单条详情（含用法/例句/接序正文）
+────────────────────────────────
+
+Query
+-----
+word_id   必填。正整数词条 id。
+
+
+成功响应（节选）
+----------------
+{
+  "ok": true,
+  "word": {
+    "id": 45,
+    "word": "condition",
+    "usage": "1. [口语7|考试8] …",
+    "usage_source": "Claude",
+    "example_sentences": "…\n译文：…",
+    "example_sentences_source": "Claude",
+    "connection": null,
+    "connection_source": null,
+    "class_notes": null,
+    "class_notes_present": true,
+    "usage_present": true,
+    "example_sentences_present": true,
+    …
+  }
+}
+
+说明：
+- 单条会带回 usage / example_sentences / connection 正文（若库中有）。
+- 备注正文仍可能省略；备注请用 docs/en-vocab-class-notes-api.txt。
+- 非管理员 mnemonic 可能被 redact。
+
+
+失败响应
+--------
+401  { "ok": false, "error": "…" }
+400  { "ok": false, "error": "word_id_invalid" }
+404  { "ok": false, "error": "not_found" }
+
+
+curl 示例
+---------
+curl -sS 'https://english.info-quests.com/api/en-vocab?word_id=45' \
+  -H 'Cookie: 你的登录 Cookie' \
+  -H 'x-locale: zh'
+
+
+Python 最小例
+-------------
+import requests
+
+BASE = "https://english.info-quests.com"
+COOKIE = "你的登录 Cookie"
+
+r = requests.get(
+    f"{BASE}/api/en-vocab",
+    params={"word_id": 45},
+    headers={"Cookie": COOKIE, "x-locale": "zh"},
+    timeout=60,
+)
+print(r.status_code, r.json())
 
 
 ────────────────────────────────
@@ -73,6 +226,7 @@ POST · 勾选熟悉程度（不共享）
 说明：
 - 当前实现固定 **不** 在勾选时写入今日共享；`shared` / `shared_new` 一般为 false。
 - 勿再假定「勾齐用法 = 已同步给学生」。
+- 响应里的 word 多为列表形（大字段可能省略）；本地已拉过的正文勿被 null 冲掉。
 
 
 失败响应
@@ -121,6 +275,50 @@ r = requests.post(
     timeout=60,
 )
 print(r.status_code, r.json())
+
+
+────────────────────────────────
+POST · 管理员设今日抽查数量
+────────────────────────────────
+
+请求体
+------
+{
+  "action": "set_daily_quiz_target",
+  "count": 20
+}
+
+说明：服务端用轻量 POOL 列表 rematerialize 可见池（不含 usage/例句等大字段），防 1102。
+
+
+成功响应（节选）
+----------------
+{
+  "ok": true,
+  "teacher_visible_limit": {
+    "quiz_target": 20,
+    "visible_ids": […],
+    "released_today": true,
+    …
+  }
+}
+
+
+失败响应
+--------
+401 / 403
+400  { "ok": false, "error": "invalid count" }   // 非 1～999
+400  { "ok": false, "error": "empty_quiz_pool" }
+400  { "ok": false, "error": "no_release_candidates" }
+
+
+curl 示例
+---------
+curl -sS -X POST 'https://english.info-quests.com/api/en-vocab' \
+  -H 'Cookie: 你的登录 Cookie' \
+  -H 'Content-Type: application/json' \
+  -H 'x-locale: zh' \
+  -d '{"action":"set_daily_quiz_target","count":20}'
 
 
 ────────────────────────────────
@@ -183,13 +381,18 @@ print(r.status_code, r.json())
 
 推荐调用顺序（对齐老师端抽查卡）
 --------------------------------
-1. 用法/熟悉程度勾完 → POST /api/en-vocab 写库（不共享）
-2. 老师点「下一个」→ 若今日未共享 → POST /api/en-vocab/share
-3. 已共享（或 409 already_shared_today）→ 直接进下一词，勿重复 POST share
+1. 进页：GET /api/en-vocab 拉瘦身列表
+2. 打开用法弹窗 / 抽查卡：GET /api/en-vocab?word_id=N 补正文（备注另走 class-notes）
+3. 用法/熟悉程度勾完 → POST /api/en-vocab 写库（不共享）
+4. 老师点「下一个」→ 若今日未共享 → POST /api/en-vocab/share
+5. 已共享（或 409 already_shared_today）→ 直接进下一词，勿重复 POST share
 
 
 相关
 ----
 - 本地上传词条：docs/en-vocab-local-upload-api.txt
-- 产品规则：.cursor/rules/jp-vocab-share-on-next.mdc、en-vocab-usage-level-aggregate.mdc
+- 按需备注：docs/en-vocab-class-notes-api.txt
+- 学生共享列表：docs/en-vocab-shared-api.txt
+- 今日抽查数量读：docs/en-vocab-teacher-visible-api.txt
+- 产品规则：.cursor/rules/jp-vocab-share-on-next.mdc、en-vocab-usage-level-aggregate.mdc、shared-list-no-notes-blob.mdc
 - 实现：src/app/api/en-vocab/route.ts、src/app/api/en-vocab/share/route.ts

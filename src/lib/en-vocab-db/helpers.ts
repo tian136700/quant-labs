@@ -354,28 +354,82 @@ export function mapSharedListWordRow(row: Record<string, unknown>): EnVocabWord 
   return mapEnVocabListWordRow(row);
 }
 
-/** 词表 / sync 列表：不读 class_notes 正文（含贴图时易 1102），只带 has_class_notes */
+/** 词表 / sync 列表：不读 class_notes / usage / 例句 / 接序正文（全库易 1102） */
 export function mapEnVocabListWordRow(row: Record<string, unknown>): EnVocabWord {
-  const word = mapRow({ ...row, class_notes: null });
+  const word = mapRow({
+    ...row,
+    class_notes: null,
+    usage: null,
+    usage_source: null,
+    connection: null,
+    connection_source: null,
+    example_sentences: null,
+    example_sentences_source: null,
+  });
+  const hasUsage =
+    row.has_usage !== undefined
+      ? Boolean(Number(row.has_usage))
+      : Boolean((row.usage != null && String(row.usage).trim()) || word.usage);
+  const hasExamples =
+    row.has_example_sentences !== undefined
+      ? Boolean(Number(row.has_example_sentences))
+      : Boolean(
+          (row.example_sentences != null &&
+            String(row.example_sentences).trim()) ||
+            word.example_sentences
+        );
+  const hasConnection =
+    row.has_connection !== undefined
+      ? Boolean(Number(row.has_connection))
+      : Boolean(
+          (row.connection != null && String(row.connection).trim()) ||
+            word.connection
+        );
   return {
     ...word,
     class_notes: null,
     class_notes_present: Boolean(Number(row.has_class_notes)),
+    usage: null,
+    usage_source: null,
+    usage_present: hasUsage,
+    connection: null,
+    connection_source: null,
+    connection_present: hasConnection,
+    example_sentences: null,
+    example_sentences_source: null,
+    example_sentences_present: hasExamples,
   };
 }
 
-/** 勾选熟悉程度 / share 读单条：用 LIST 形（无 class_notes 正文），防把备注全文塞回列表 → 1102 */
+/** 勾选熟悉程度 / share 读单条：用 LIST 形（无大字段正文），防塞回列表 → 1102 */
 export function mapReviewWordRow(row: Record<string, unknown>): EnVocabWord {
   return mapEnVocabListWordRow(row);
 }
 
-/** dev store 列表与 D1 列表对齐：省略备注正文 */
+/** dev store 列表与 D1 列表对齐：省略备注 / 用法 / 例句 / 接序正文 */
 export function stripEnVocabWordNotesForList(word: EnVocabWord): EnVocabWord {
-  const present = Boolean((word.class_notes || "").trim());
+  const notesPresent = Boolean((word.class_notes || "").trim());
+  const usagePresent =
+    word.usage_present === true || Boolean((word.usage || "").trim());
+  const examplesPresent =
+    word.example_sentences_present === true ||
+    Boolean((word.example_sentences || "").trim());
+  const connectionPresent =
+    word.connection_present === true ||
+    Boolean((word.connection || "").trim());
   return {
     ...word,
     class_notes: null,
-    class_notes_present: present,
+    class_notes_present: notesPresent,
+    usage: null,
+    usage_source: null,
+    usage_present: usagePresent,
+    connection: null,
+    connection_source: null,
+    connection_present: connectionPresent,
+    example_sentences: null,
+    example_sentences_source: null,
+    example_sentences_present: examplesPresent,
   };
 }
 
@@ -408,12 +462,26 @@ export const WORD_SELECT = `SELECT id, word, reading, reading_source, meaning, m
   usage, usage_source, connection, connection_source, example_sentences, example_sentences_source,
   last_review_level, last_review_at, last_usage_levels, created_at, updated_at FROM en_vocab_word`;
 
-/** 全库列表 / 增量 sync：省略 class_notes 正文，用 has_class_notes 标记 */
+/**
+ * 全库列表 / 增量 sync：省略 class_notes / usage / 例句 / 接序正文（全库扫易 Worker 1102）。
+ * 正文按需：GET /api/en-vocab?word_id= 或 class-notes。
+ */
 export const WORD_SELECT_LIST = `SELECT id, word, reading, reading_source, meaning, meaning_source, pos, kind, category, upload_source, ref_key,
   cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date,
   (CASE WHEN class_notes IS NOT NULL THEN 1 ELSE 0 END) AS has_class_notes, mnemonic,
-  usage, usage_source, connection, connection_source, example_sentences, example_sentences_source,
+  (CASE WHEN usage IS NOT NULL THEN 1 ELSE 0 END) AS has_usage,
+  (CASE WHEN example_sentences IS NOT NULL THEN 1 ELSE 0 END) AS has_example_sentences,
+  (CASE WHEN connection IS NOT NULL THEN 1 ELSE 0 END) AS has_connection,
   last_review_level, last_review_at, last_usage_levels, created_at, updated_at FROM en_vocab_word`;
+
+/**
+ * 可见池 / 日序 rematerialize / set-target：禁止扫 mnemonic 与 usage/例句/接序/备注正文。
+ * 对齐日语 WORD_SELECT_POOL；管理员改今日抽查数量若用全表 LIST 仍易 1102。
+ */
+export const WORD_SELECT_POOL = `SELECT id, word, reading, meaning, pos, kind, category, upload_source, ref_key,
+  cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date,
+  last_review_level, last_review_at, last_usage_levels, created_at, updated_at
+  FROM en_vocab_word`;
 
 export function refsRecord(refs: EnVocabRef[]): Record<string, EnVocabRef> {
   return Object.fromEntries(refs.map((r) => [r.ref_key, r]));

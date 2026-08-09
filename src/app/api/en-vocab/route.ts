@@ -3,6 +3,7 @@ import {
   ensureEnVocabDailyDisplayOrder,
   ensureEnVocabTeacherVisibleLimit,
   getEnVocabDailyQuizStyle,
+  getEnVocabWordByIdLite,
   listEnVocabSharedTodayWordIds,
   listEnVocabWordsWithRefs,
   recordEnVocabReview,
@@ -50,6 +51,21 @@ export async function GET(request: Request) {
       return jsonResponse({ ok: false, error: READ_AUTH_MSG[locale] }, 401);
     }
     const { isAdmin } = await requireAdmin(request);
+
+    const wordIdRaw = new URL(request.url).searchParams.get("word_id");
+    if (wordIdRaw != null && wordIdRaw.trim() !== "") {
+      const wordId = Number(wordIdRaw);
+      if (!Number.isInteger(wordId) || wordId <= 0) {
+        return jsonResponse({ ok: false, error: "word_id_invalid" }, 400);
+      }
+      const word = await getEnVocabWordByIdLite(env.DB, wordId);
+      if (!word) {
+        return jsonResponse({ ok: false, error: "not_found" }, 404);
+      }
+      const [redacted] = redactJpVocabWordsMnemonicForClient([word], isAdmin);
+      return jsonResponse({ ok: true, word: redacted });
+    }
+
     const [{ words, refs }, daily_quiz_style, shared_today_word_ids] =
       await Promise.all([
         listEnVocabWordsWithRefs(env.DB),

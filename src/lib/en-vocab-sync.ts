@@ -37,22 +37,56 @@ export function maxEnVocabUpdatedAt(words: EnVocabWord[]): string {
   return max;
 }
 
-/** 列表 / sync 补丁省略备注正文时，勿用 null 冲掉本地已拉取的 class_notes */
+/** 列表 / sync 补丁省略备注 / 用法 / 例句 / 接序正文时，勿用 null 冲掉本地已拉取的正文 */
 function mergeEnVocabWordSyncPatch(
   current: EnVocabWord,
   patch: EnVocabWord
 ): EnVocabWord {
   const merged: EnVocabWord = { ...current, ...patch };
   const patchHasNotesBody = hasEnVocabClassNotes(patch.class_notes);
-  if (patchHasNotesBody) return merged;
-  if (patch.class_notes_present === false) return merged;
-  if (
-    patch.class_notes_present === true ||
-    hasEnVocabClassNotes(current.class_notes, current.class_notes_present)
-  ) {
-    merged.class_notes = current.class_notes;
-    merged.class_notes_present =
-      patch.class_notes_present ?? current.class_notes_present;
+  if (!patchHasNotesBody) {
+    if (patch.class_notes_present === false) {
+      /* keep cleared */
+    } else if (
+      patch.class_notes_present === true ||
+      hasEnVocabClassNotes(current.class_notes, current.class_notes_present)
+    ) {
+      merged.class_notes = current.class_notes;
+      merged.class_notes_present =
+        patch.class_notes_present ?? current.class_notes_present;
+    }
+  }
+
+  if (!(patch.usage || "").trim()) {
+    if (patch.usage_present !== false && (current.usage || current.usage_present)) {
+      merged.usage = current.usage;
+      merged.usage_source = current.usage_source ?? patch.usage_source;
+      merged.usage_present = patch.usage_present ?? current.usage_present;
+    }
+  }
+  if (!(patch.example_sentences || "").trim()) {
+    if (
+      patch.example_sentences_present !== false &&
+      (current.example_sentences || current.example_sentences_present)
+    ) {
+      merged.example_sentences = current.example_sentences;
+      merged.example_sentences_source =
+        current.example_sentences_source ?? patch.example_sentences_source;
+      merged.example_sentences_present =
+        patch.example_sentences_present ?? current.example_sentences_present;
+    }
+  }
+  if (!(patch.connection || "").trim()) {
+    if (
+      patch.connection_present !== false &&
+      (current.connection || current.connection_present)
+    ) {
+      merged.connection = current.connection;
+      merged.connection_source =
+        current.connection_source ?? patch.connection_source;
+      merged.connection_present =
+        patch.connection_present ?? current.connection_present;
+    }
   }
   return merged;
 }

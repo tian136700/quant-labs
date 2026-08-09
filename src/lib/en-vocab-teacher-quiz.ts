@@ -52,7 +52,7 @@ export function mergeEnVocabWordAfterClassNotesFetch(
 }
 
 /**
- * 勾选熟悉程度 / share 响应合并进列表项：响应常省略 class_notes 正文，勿整词替换冲掉本地已拉备注。
+ * 勾选熟悉程度 / share 响应合并进列表项：响应常省略大字段正文，勿整词替换冲掉本地已拉内容。
  */
 export function mergeEnVocabWordAfterReviewResponse(
   base: EnVocabWord,
@@ -74,10 +74,31 @@ export function mergeEnVocabWordAfterReviewResponse(
       fetched.example_sentences_source ??
       base.example_sentences_source ??
       null,
+    example_sentences_present:
+      fetched.example_sentences != null
+        ? Boolean(String(fetched.example_sentences).trim())
+        : (fetched.example_sentences_present ??
+          base.example_sentences_present ??
+          Boolean((base.example_sentences || "").trim())),
     meaning_source: fetched.meaning_source ?? base.meaning_source ?? null,
     reading_source: fetched.reading_source ?? base.reading_source ?? null,
     usage: fetched.usage ?? base.usage ?? null,
     usage_source: fetched.usage_source ?? base.usage_source ?? null,
+    usage_present:
+      fetched.usage != null
+        ? Boolean(String(fetched.usage).trim())
+        : (fetched.usage_present ??
+          base.usage_present ??
+          Boolean((base.usage || "").trim())),
+    connection: fetched.connection ?? base.connection ?? null,
+    connection_source:
+      fetched.connection_source ?? base.connection_source ?? null,
+    connection_present:
+      fetched.connection != null
+        ? Boolean(String(fetched.connection).trim())
+        : (fetched.connection_present ??
+          base.connection_present ??
+          Boolean((base.connection || "").trim())),
     mnemonic: fetched.mnemonic ?? base.mnemonic ?? null,
     last_usage_levels:
       fetched.last_usage_levels ?? base.last_usage_levels ?? null,

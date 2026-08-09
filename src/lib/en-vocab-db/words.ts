@@ -119,8 +119,11 @@ import {
 import {
   setEnVocabTeacherQuizLiveWord,
 } from "./live";
+import { listEnVocabWordsForPool } from "./pool";
 
-export async function listEnVocabWords(db: D1Database): Promise<EnVocabWord[]> {
+export async function listEnVocabWordsForClientList(
+  db: D1Database
+): Promise<EnVocabWord[]> {
   await seedIfEmpty(db);
   await ensureVocabWordSchema(db);
 
@@ -140,12 +143,17 @@ export async function listEnVocabWords(db: D1Database): Promise<EnVocabWord[]> {
   return (result.results || []).map(mapEnVocabListWordRow);
 }
 
+/** 兼容旧调用：全库列表走客户端瘦身 SELECT（无 usage/例句/接序正文） */
+export async function listEnVocabWords(db: D1Database): Promise<EnVocabWord[]> {
+  return listEnVocabWordsForClientList(db);
+}
+
 export async function listEnVocabWordsWithRefs(db: D1Database): Promise<{
   words: EnVocabWord[];
   refs: Record<string, EnVocabRef>;
 }> {
   const [words, refs] = await Promise.all([
-    listEnVocabWords(db),
+    listEnVocabWordsForClientList(db),
     listEnVocabRefs(db),
   ]);
   return { words, refs: refsRecord(refs) };
@@ -533,14 +541,15 @@ export async function resetAllEnVocabReviews(
 
   await clearEnVocabSharedOnReset(db, "all");
 
-  const words = await listEnVocabWords(db);
-  const display_order = await refreshEnVocabDailyDisplayOrder(db, words);
+  const poolWords = await listEnVocabWordsForPool(db);
+  const display_order = await refreshEnVocabDailyDisplayOrder(db, poolWords);
   // 强制按新日序重算可见池（ensure 在已有 visible_ids 时会短路）
   const current = await getEnVocabTeacherVisibleLimit(db);
   await saveEnVocabTeacherVisibleLimit(
     db,
-    materializeEnVocabTeacherVisible(current, words, display_order)
+    materializeEnVocabTeacherVisible(current, poolWords, display_order)
   );
+  const words = await listEnVocabWordsForClientList(db);
   return { ok: true, words, display_order };
 }
 
@@ -550,13 +559,14 @@ export async function resetTodayEnVocabRound(
   await seedIfEmpty(db);
   // 今日重置也要清今日共享，否则「已共享」锁仍挡住下午再抽 / 再勾熟悉程度
   await clearEnVocabSharedOnReset(db, "today");
-  const words = await listEnVocabWords(db);
-  const display_order = await refreshEnVocabDailyDisplayOrder(db, words);
+  const poolWords = await listEnVocabWordsForPool(db);
+  const display_order = await refreshEnVocabDailyDisplayOrder(db, poolWords);
   const current = await getEnVocabTeacherVisibleLimit(db);
   await saveEnVocabTeacherVisibleLimit(
     db,
-    materializeEnVocabTeacherVisible(current, words, display_order)
+    materializeEnVocabTeacherVisible(current, poolWords, display_order)
   );
+  const words = await listEnVocabWordsForClientList(db);
   return { ok: true, words, display_order };
 }
 

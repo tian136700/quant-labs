@@ -557,7 +557,9 @@ export function EnVocabWordTable({
                       <td
                         className={`jp-vocab-usage-ex-col${
                           !(w.usage || "").trim() &&
-                          !(w.example_sentences || "").trim()
+                          !(w.example_sentences || "").trim() &&
+                          w.usage_present !== true &&
+                          w.example_sentences_present !== true
                             ? " jp-vocab-field-empty"
                             : ""
                         }`}
@@ -567,6 +569,10 @@ export function EnVocabWordTable({
                         <EnVocabUsageExamplesCell
                           usage={w.usage}
                           exampleSentences={w.example_sentences}
+                          contentPresent={
+                            w.usage_present === true ||
+                            w.example_sentences_present === true
+                          }
                           onOpen={() => onViewUsage(w)}
                         />
                       </td>

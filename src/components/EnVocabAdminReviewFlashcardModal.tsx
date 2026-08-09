@@ -34,6 +34,7 @@ import { computeEnVocabReviewRoundProgress } from "@/lib/en-vocab-review-session
 import type { EnVocabReviewSession } from "@/lib/en-vocab-review-session";
 import type { EnVocabRef, EnVocabWord } from "@/lib/types";
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
+import { useEnVocabWordContentFetch } from "@/hooks/useEnVocabWordContentFetch";
 
 type Props = {
   open: boolean;
@@ -89,6 +90,12 @@ export function EnVocabAdminReviewFlashcardModal({
       ? session.wordIds[session.currentIndex]
       : null;
   const word = currentWordId != null ? wordsById.get(currentWordId) ?? null : null;
+  const { contentWord } = useEnVocabWordContentFetch({
+    open,
+    word,
+    locale,
+    onWordUpdated,
+  });
   const sessionWordIdsKey = session?.wordIds.join(",") ?? "";
   const contentExpanded =
     currentWordId != null && expandedWordIds.has(currentWordId);
@@ -110,8 +117,8 @@ export function EnVocabAdminReviewFlashcardModal({
       setNotesWord(null);
       return;
     }
-    setNotesWord(word);
-  }, [open, word?.id, word?.updated_at, word]);
+    setNotesWord(contentWord?.id === word.id ? contentWord : word);
+  }, [open, word?.id, word?.updated_at, word, contentWord]);
 
   useEffect(() => {
     if (!open || !word) return;

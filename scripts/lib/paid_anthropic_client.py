@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import ssl
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -17,6 +18,10 @@ from typing import Any
 
 DEFAULT_BASE = "https://tokken.cc"
 DEFAULT_MODEL = "claude-sonnet-4-6"
+
+# 中转账号池空 / 网关 5xx：同一次 call 内短退避再试，避免队首词立刻 poison
+TRANSIENT_ANTHROPIC_HTTP_RETRY_MAX = 3
+TRANSIENT_ANTHROPIC_HTTP_RETRY_BASE_SEC = 20
 
 
 def build_ssl_context() -> ssl.SSLContext | None:
@@ -118,6 +123,18 @@ def extract_anthropic_text(data: dict[str, Any]) -> str:
     return "\n".join(p for p in parts if p).strip()
 
 
+def _is_retryable_anthropic_http(code: int, detail: str) -> bool:
+    """账号池空 / 限流 / 网关抖动：同一次 call 内可短退避再试。"""
+    if int(code) in {429, 502, 503, 504}:
+        return True
+    lower = (detail or "").lower()
+    return (
+        "no available accounts" in lower
+        or "temporarily unavailable" in lower
+        or "overloaded" in lower
+    )
+
+
 def call_anthropic(
     prompt: str,
     *,
@@ -126,8 +143,13 @@ def call_anthropic(
     temperature: float = 0.3,
     timeout: int = 180,
     model: str | None = None,
+    retries: int | None = None,
 ) -> str:
-    """POST {base}/v1/messages；返回助手纯文本。"""
+    """POST {base}/v1/messages；返回助手纯文本。
+
+    对 429/502/503/504（含「No available accounts」）默认最多再试 2 次，
+    短退避后再打；仍失败则抛错，由上层走短 poison（非 6h）。
+    """
     token = anthropic_token()
     if not token:
         raise RuntimeError(
@@ -151,26 +173,66 @@ def call_anthropic(
     if system.strip():
         body["system"] = system.strip()
 
-    req = urllib.request.Request(
-        url,
-        data=json.dumps(body).encode("utf-8"),
-        headers=headers,
-        method="POST",
+    max_attempts = (
+        TRANSIENT_ANTHROPIC_HTTP_RETRY_MAX
+        if retries is None
+        else max(1, int(retries))
     )
-    try:
-        with urllib.request.urlopen(req, timeout=timeout, context=_SSL) as resp:
-            raw = resp.read().decode("utf-8", errors="replace")
-    except urllib.error.HTTPError as err:
-        detail = err.read().decode("utf-8", errors="replace")[:400]
-        raise RuntimeError(f"Anthropic 中转 HTTP {err.code}: {detail}") from err
-    except Exception as err:
-        raise RuntimeError(f"Anthropic 中转请求失败: {err}") from err
+    last_err: Exception | None = None
 
-    data = json.loads(raw)
-    out = extract_anthropic_text(data)
-    if not out:
-        raise RuntimeError(f"Anthropic 返回空内容: {str(data)[:300]}")
-    return out
+    for attempt in range(1, max_attempts + 1):
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(body).encode("utf-8"),
+            headers=headers,
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=timeout, context=_SSL) as resp:
+                raw = resp.read().decode("utf-8", errors="replace")
+        except urllib.error.HTTPError as err:
+            detail = err.read().decode("utf-8", errors="replace")[:400]
+            msg = f"Anthropic 中转 HTTP {err.code}: {detail}"
+            last_err = RuntimeError(msg)
+            if attempt < max_attempts and _is_retryable_anthropic_http(
+                err.code, detail
+            ):
+                wait = min(
+                    90, TRANSIENT_ANTHROPIC_HTTP_RETRY_BASE_SEC * attempt
+                )
+                print(
+                    f"[paid-anthropic] HTTP {err.code} "
+                    f"(attempt {attempt}/{max_attempts})，"
+                    f"{wait}s 后重试…",
+                    flush=True,
+                )
+                time.sleep(wait)
+                continue
+            raise last_err from err
+        except Exception as err:
+            msg = f"Anthropic 中转请求失败: {err}"
+            last_err = RuntimeError(msg)
+            if attempt < max_attempts and is_transient_anthropic_error(msg):
+                wait = min(
+                    90, TRANSIENT_ANTHROPIC_HTTP_RETRY_BASE_SEC * attempt
+                )
+                print(
+                    f"[paid-anthropic] 网络抖动 "
+                    f"(attempt {attempt}/{max_attempts})，"
+                    f"{wait}s 后重试… {err}",
+                    flush=True,
+                )
+                time.sleep(wait)
+                continue
+            raise last_err from err
+
+        data = json.loads(raw)
+        out = extract_anthropic_text(data)
+        if not out:
+            raise RuntimeError(f"Anthropic 返回空内容: {str(data)[:300]}")
+        return out
+
+    raise last_err or RuntimeError("Anthropic 中转请求失败")
 
 
 def probe_anthropic(*, timeout: int = 15) -> bool:
@@ -210,6 +272,8 @@ def is_transient_anthropic_error(err: BaseException | str) -> bool:
         "timed out",
         "timeout",
         "temporarily unavailable",
+        "no available accounts",
+        "overloaded",
         "connection reset",
         "remote end closed",
         "network is unreachable",
