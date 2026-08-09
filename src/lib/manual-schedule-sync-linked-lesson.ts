@@ -2,6 +2,9 @@
  * 日程关联教材 → 新课「学习中」+ 上课时间/老师。
  * 日语 / 英语 POST 形状相同，仅 API 路径不同。
  * 上课时间默认与已有时段合并去重（追加），避免覆盖多时段。
+ *
+ * 老师名未在人员管理命中时：自动 POST 创建正式老师再 set_teacher，
+ * 禁止再写 teacher_other（否则名单里永远没有此人）。
  */
 
 import type { Locale } from "@/i18n/messages";
@@ -36,6 +39,8 @@ export type SyncManualScheduleLinkedLessonInput = {
 type SyncOk = {
   ok: true;
   lesson: JpLessonRecord | EnLessonRecord;
+  /** 本次为写课次而新建/命中的正式老师（供前端合并进人员列表） */
+  ensuredTeacher?: JpLessonTeacher;
 };
 
 type SyncFail = {
@@ -45,6 +50,12 @@ type SyncFail = {
 
 function apiPath(subject: ManualScheduleLinkedLessonSubject): string {
   return subject === "en" ? "/api/en-lesson" : "/api/jp-lesson";
+}
+
+function teacherAdminApiPath(subject: ManualScheduleLinkedLessonSubject): string {
+  return subject === "en"
+    ? "/api/admin/en-lesson-teachers"
+    : "/api/admin/jp-lesson-teachers";
 }
 
 async function postLessonJson(
@@ -69,7 +80,57 @@ async function postLessonJson(
 }
 
 /**
- * 顺序：上课时间（合并追加）→ 老师（可选保留）→ 学习中。
+ * 人员管理命中则返回；否则创建正式老师（日程/新课入口须同一张表）。
+ */
+export async function ensureLessonTeacherInPersonnel(
+  subject: ManualScheduleLinkedLessonSubject,
+  teacherName: string,
+  teachers: JpLessonTeacher[]
+): Promise<
+  | { ok: true; teacher: JpLessonTeacher; created: boolean }
+  | { ok: false; error: string }
+> {
+  const name = teacherName.trim();
+  if (!name) {
+    return { ok: false, error: "teacher_name_required" };
+  }
+
+  const matched = findLessonTeacherByPickerName(teachers, name);
+  if (matched) {
+    return { ok: true, teacher: matched, created: false };
+  }
+
+  try {
+    const res = await fetch(teacherAdminApiPath(subject), {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    const data = (await res.json()) as {
+      ok?: boolean;
+      teacher?: JpLessonTeacher;
+      error?: string;
+    };
+    if (data.ok && data.teacher) {
+      return { ok: true, teacher: data.teacher, created: true };
+    }
+    if (data.error === "name_duplicate") {
+      // 并发/缓存落后：再按当前列表精确名碰一次
+      const again =
+        findLessonTeacherByPickerName(teachers, name) ??
+        teachers.find((t) => t.name.trim() === name) ??
+        null;
+      if (again) return { ok: true, teacher: again, created: false };
+    }
+    return { ok: false, error: data.error || "create_teacher_failed" };
+  } catch {
+    return { ok: false, error: "create_teacher_failed" };
+  }
+}
+
+/**
+ * 顺序：上课时间（合并追加）→ 老师（可选保留；未匹配则入库人员管理）→ 学习中。
  */
 export async function syncManualScheduleLinkedLessonToLearning(
   input: SyncManualScheduleLinkedLessonInput
@@ -101,15 +162,25 @@ export async function syncManualScheduleLinkedLessonToLearning(
 
   const teacherName = input.teacherName.trim();
   let latest = scheduleRes.lesson;
+  let ensuredTeacher: JpLessonTeacher | undefined;
   const skipTeacher =
     Boolean(input.preserveExistingTeachers) && Boolean(input.lessonHasTeachers);
   if (teacherName && !skipTeacher) {
-    const matched = findLessonTeacherByPickerName(input.teachers, teacherName);
+    const ensured = await ensureLessonTeacherInPersonnel(
+      input.subject,
+      teacherName,
+      input.teachers
+    );
+    if (!ensured.ok) {
+      return { ok: false, error: ensured.error };
+    }
+    ensuredTeacher = ensured.teacher;
+
     const teacherRes = await postLessonJson(input.subject, input.locale, {
       action: "set_teacher",
       lesson_id: input.lessonId,
-      teacher_ids: matched ? [matched.id] : [],
-      teacher_other: matched ? null : teacherName,
+      teacher_ids: [ensured.teacher.id],
+      teacher_other: null,
     });
     if (!teacherRes.ok || !teacherRes.lesson) {
       return {
@@ -131,7 +202,11 @@ export async function syncManualScheduleLinkedLessonToLearning(
     };
   }
 
-  return { ok: true, lesson: progressRes.lesson };
+  return {
+    ok: true,
+    lesson: progressRes.lesson,
+    ...(ensuredTeacher ? { ensuredTeacher } : {}),
+  };
 }
 
 export function syncManualScheduleLinkedLessonErrorMessage(error: string): string {
@@ -147,7 +222,12 @@ export function syncManualScheduleLinkedLessonErrorMessage(error: string): strin
       return "上课时间或时长无效";
     case "teacher_not_found":
       return "老师不存在";
+    case "teacher_name_required":
+      return "老师名称不能为空";
+    case "create_teacher_failed":
+    case "name_invalid":
+      return "无法把老师写入人员管理，请重试或到人员管理手动添加";
     default:
-      return error || "同步教材到新课失败";
+      return error || "同步失败";
   }
 }

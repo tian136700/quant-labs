@@ -149,6 +149,10 @@ def main() -> int:
         errors.append("sync helper must set_class_schedules")
     if "set_teacher" not in sync:
         errors.append("sync helper must set_teacher")
+    if "ensureLessonTeacherInPersonnel" not in sync:
+        errors.append("sync must ensure unmatched teacher names enter personnel tables")
+    if "teacher_other: matched" in sync:
+        errors.append("sync must not fall back unmatched names to teacher_other")
 
     api = API.read_text(encoding="utf-8")
     if "linked_lessons" not in api:

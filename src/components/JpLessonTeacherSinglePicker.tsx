@@ -211,11 +211,19 @@ export const JpLessonTeacherSinglePicker = forwardRef<
         if (exactMatch) {
           return { ok: true, name: lessonTeacherPickerName(exactMatch) };
         }
-        // 未点「新增老师」就直接写了姓名：只当文本，不自动入库
-        return { ok: true, name: trimmedQuery };
+        // 未点「新增老师」就直接写了姓名：仍须进人员管理（与英语新课「保存时新建」一致）
+        const input = buildLessonTeacherAddInput(trimmedQuery, "", "");
+        if (!input) {
+          return { ok: false, error: "请填写老师称呼" };
+        }
+        const teacher = await runAddTeacher(input);
+        if (!teacher) {
+          return { ok: false, error: "添加老师失败，请重试" };
+        }
+        return { ok: true, name: lessonTeacherPickerName(teacher) };
       },
     }),
-    [addFormOpen, exactMatch, trimmedQuery]
+    [addFormOpen, exactMatch, runAddTeacher, trimmedQuery]
   );
 
   const clearSelection = () => {

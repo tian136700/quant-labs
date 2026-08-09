@@ -148,10 +148,61 @@ export function useJpLessonSchedulePageActions(options: UseJpLessonSchedulePageA
     loadManualSchedules,
   } = options;
 
+  const mergeEnsuredTeacherIntoSubjectList = (
+    subject: "jp" | "en",
+    teacher: JpLessonTeacher | EnLessonTeacher | undefined
+  ) => {
+    if (!teacher) return;
+    if (subject === "jp") {
+      setTeachers((prev) => {
+        if (prev.some((item) => item.id === teacher.id)) {
+          return prev.map((item) =>
+            item.id === teacher.id ? (teacher as JpLessonTeacher) : item
+          );
+        }
+        const next = sortJpLessonTeachersByLessonCount([
+          ...prev,
+          teacher as JpLessonTeacher,
+        ]);
+        const cache = readLessonCache();
+        writeClientCache(JP_LESSON_CACHE_KEY, {
+          lessons,
+          refs,
+          notes: cache?.notes ?? [],
+          note_counts: cache?.note_counts ?? {},
+          teachers: next,
+        });
+        return next;
+      });
+      return;
+    }
+    setEnTeachers((prev) => {
+      if (prev.some((item) => item.id === teacher.id)) {
+        return prev.map((item) =>
+          item.id === teacher.id ? (teacher as EnLessonTeacher) : item
+        );
+      }
+      const next = sortJpLessonTeachersByLessonCount([
+        ...prev,
+        teacher as EnLessonTeacher,
+      ]);
+      const cache = readEnLessonCache();
+      writeClientCache(EN_LESSON_CACHE_KEY, {
+        lessons: enLessons,
+        refs: enRefs,
+        notes: cache?.notes ?? [],
+        teachers: next,
+      });
+      return next;
+    });
+  };
+
   const applyLinkedLessonSynced = (
     subject: "jp" | "en",
-    lesson: JpLessonRecord | EnLessonRecord
+    lesson: JpLessonRecord | EnLessonRecord,
+    ensuredTeacher?: JpLessonTeacher | EnLessonTeacher
   ) => {
+    mergeEnsuredTeacherIntoSubjectList(subject, ensuredTeacher);
     if (subject === "jp") {
       setLessons((prev) => {
         const next = prev.map((item) =>
@@ -282,7 +333,11 @@ export function useJpLessonSchedulePageActions(options: UseJpLessonSchedulePageA
       if (!syncResult.ok) {
         throw new Error(syncManualScheduleLinkedLessonErrorMessage(syncResult.error));
       }
-      applyLinkedLessonSynced(option.subject, syncResult.lesson);
+      applyLinkedLessonSynced(
+        option.subject,
+        syncResult.lesson,
+        syncResult.ensuredTeacher
+      );
 
       const saved = await updateJpLessonManualSchedule(manual.id, {
         title: manual.title,
@@ -393,7 +448,11 @@ export function useJpLessonSchedulePageActions(options: UseJpLessonSchedulePageA
             syncFailed = syncManualScheduleLinkedLessonErrorMessage(result.error);
             break;
           }
-          applyLinkedLessonSynced(link.subject, result.lesson);
+          applyLinkedLessonSynced(
+            link.subject,
+            result.lesson,
+            result.ensuredTeacher
+          );
           if (link.subject === "jp") syncedJp = true;
           else syncedEn = true;
         }
