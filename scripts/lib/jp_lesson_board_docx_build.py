@@ -17,10 +17,10 @@ from typing import Any
 
 from PIL import Image
 
-WORDS_PER_ROW = 3
-PART_GAP_MM = 25
-# 抬高版本 → 已生成的板书 Word 会因指纹变化全部重建（读音改顶横线）
-BOARD_DOCX_FORMAT_VERSION = "pitch-overline-v5"
+WORDS_PER_ROW_DEFAULT = 3
+PART_GAP_MM = 32
+# 抬高版本 → 已生成的板书 Word 会因指纹变化全部重建（双列行切 + 每页两行）
+BOARD_DOCX_FORMAT_VERSION = "pitch-overline-v6"
 # OJAD / 词典未命中时的板书读音格：空白（不写提示文案）
 BOARD_PITCH_NOT_FOUND_LABEL = ""
 
@@ -296,24 +296,24 @@ def _png_bytes(img: Image.Image) -> bytes:
     return buf.getvalue()
 
 
-def _row_ink_fraction(px, w: int, y: int) -> float:
-    x0 = max(0, int(w * 0.04))
-    x1 = min(w, int(w * 0.96))
+def _band_ink_fraction(px, w: int, y: int, x0: int, x1: int) -> float:
+    a = max(0, int(x0))
+    b = min(w, int(x1))
     ink = total = 0
-    for x in range(x0, x1, 2):
-        r, g, b = px[x, y][:3]
+    for x in range(a, b, 2):
+        r, g, bch = px[x, y][:3]
         total += 1
-        if not (r > 245 and g > 245 and b > 245):
+        if not (r > 245 and g > 245 and bch > 245):
             ink += 1
     return ink / total if total else 0.0
 
 
-def _mean_ink(px, w: int, h: int, y0: int, y1: int) -> float:
+def _mean_band_ink(px, w: int, h: int, y0: int, y1: int, x0: int, x1: int) -> float:
     a = max(0, y0)
     b = min(h, y1)
     if b <= a:
         return 0.0
-    return sum(_row_ink_fraction(px, w, y) for y in range(a, b)) / (b - a)
+    return sum(_band_ink_fraction(px, w, y, x0, x1) for y in range(a, b)) / (b - a)
 
 
 def _dark_frac(px, w: int, h: int, y0: int, y1: int) -> float:
@@ -333,24 +333,81 @@ def _dark_frac(px, w: int, h: int, y0: int, y1: int) -> float:
     return dark / total if total else 0.0
 
 
+def estimate_word_card_columns(img: Image.Image) -> int:
+    """2 = 左右对照；3 = 标日三卡一行。"""
+    img = img.convert("RGB")
+    w, h = img.size
+    px = img.load()
+    y0, y1 = int(h * 0.22), int(h * 0.45)
+    prof = []
+    for x in range(w):
+        ink = total = 0
+        for y in range(y0, y1, 2):
+            r, g, b = px[x, y][:3]
+            total += 1
+            if not (r > 245 and g > 245 and b > 245):
+                ink += 1
+        prof.append(ink / total if total else 0.0)
+    sm = []
+    for x in range(w):
+        a = max(0, x - 1)
+        b = min(w, x + 2)
+        sm.append(sum(prof[a:b]) / (b - a))
+    runs: list[tuple[int, int, int]] = []
+    run = None
+    x_lo, x_hi = int(w * 0.2), int(w * 0.8)
+    for x in range(x_lo, x_hi):
+        on = sm[x] < 0.06
+        if on:
+            if run is None:
+                run = x
+        elif run is not None:
+            runs.append((run, x - 1, x - run))
+            run = None
+    if run is not None:
+        runs.append((run, x_hi - 1, x_hi - run))
+    if not runs:
+        return 3
+    runs.sort(key=lambda t: -t[2])
+    best_mid = ((runs[0][0] + runs[0][1]) / 2) / w
+    if abs(best_mid - 0.5) < 0.08:
+        return 2
+    mids = [((a + b) / 2) / w for a, b, L in runs[:4] if L >= 3]
+    if any(abs(m - 1 / 3) < 0.08 for m in mids) and any(abs(m - 2 / 3) < 0.08 for m in mids):
+        return 3
+    return 3
+
+
 def detect_word_card_grid_row_splits(img: Image.Image) -> list[int] | None:
+    """左右插图区同时近白才算行缝；第一节须够高（含课头+第一行）。"""
     img = img.convert("RGB")
     w, h = img.size
     px = img.load()
     if w < 200 or h < 280:
         return None
 
-    ink = [_row_ink_fraction(px, w, y) for y in range(h)]
-    smooth = []
+    L0, L1 = w * 0.05, w * 0.32
+    R0, R1 = w * 0.52, w * 0.79
+    gutter_thr = 0.10
+    ink_floor = 0.12
+    min_gap = max(80, int(h * 0.065))
+    min_first = max(140, int(h * 0.12))
+    band = max(24, int(h * 0.032))
+
+    ink_l = [_band_ink_fraction(px, w, y, L0, L1) for y in range(h)]
+    ink_r = [_band_ink_fraction(px, w, y, R0, R1) for y in range(h)]
+    smooth_l = []
+    smooth_r = []
     for y in range(h):
         a = max(0, y - 1)
         b = min(h, y + 2)
-        smooth.append(sum(ink[a:b]) / (b - a))
+        smooth_l.append(sum(ink_l[a:b]) / (b - a))
+        smooth_r.append(sum(ink_r[a:b]) / (b - a))
 
     gutters: list[tuple[int, int]] = []
     run_start = None
     for y in range(h):
-        on = smooth[y] < 0.08
+        on = smooth_l[y] < gutter_thr and smooth_r[y] < gutter_thr
         if on:
             if run_start is None:
                 run_start = y
@@ -362,18 +419,27 @@ def detect_word_card_grid_row_splits(img: Image.Image) -> list[int] | None:
         gutters.append((run_start, h - 1))
 
     splits: list[int] = []
+    skipped_header = False
     for start, end in gutters:
         mid = (start + end) // 2
-        if mid <= 40:
+        if mid <= max(40, int(h * 0.03)):
             continue
-        above = _mean_ink(px, w, h, mid - 90, mid - 8)
-        below = _mean_ink(px, w, h, mid + 8, mid + 90)
-        if above < 0.25 or below < 0.25:
+        if not splits and mid < min_first:
+            dark_above = _dark_frac(px, w, h, mid - int(h * 0.065), mid - 8)
+            if (not skipped_header) and dark_above > 0.12 and mid < h * 0.22:
+                skipped_header = True
             continue
-        dark_above = _dark_frac(px, w, h, mid - 120, mid - 8)
-        if mid < h * 0.28 and dark_above > 0.25:
+        above_l = _mean_band_ink(px, w, h, mid - band, mid - 10, L0, L1)
+        below_l = _mean_band_ink(px, w, h, mid + 10, mid + band, L0, L1)
+        above_r = _mean_band_ink(px, w, h, mid - band, mid - 10, R0, R1)
+        below_r = _mean_band_ink(px, w, h, mid + 10, mid + band, R0, R1)
+        if min(above_l, above_r, below_l, below_r) < ink_floor:
             continue
-        if splits and mid - splits[-1] < 80:
+        dark_above = _dark_frac(px, w, h, mid - int(h * 0.065), mid - 8)
+        if (not skipped_header) and dark_above > 0.12 and mid < h * 0.22:
+            skipped_header = True
+            continue
+        if splits and mid - splits[-1] < min_gap:
             continue
         splits.append(mid)
 
@@ -395,6 +461,34 @@ def detect_word_card_grid_row_splits(img: Image.Image) -> list[int] | None:
     return splits
 
 
+def refine_card_grid_splits_for_row_count(
+    candidates: list[int], height: int, n_rows: int
+) -> list[int] | None:
+    if n_rows < 2 or not candidates:
+        return None
+    n_splits = n_rows - 1
+    min_first = max(140, int(height * 0.12))
+    span = max(1, height - min_first)
+    targets = [int(min_first + (span * (i + 1)) / n_rows) for i in range(n_splits)]
+    cand = sorted(candidates)
+    used: list[int] = []
+    max_snap = span / n_rows / 2
+    min_sep = max(60, int(height * 0.045))
+    for t in targets:
+        best = None
+        best_d = float("inf")
+        for c in cand:
+            if used and c <= used[-1] + min_sep:
+                continue
+            d = abs(c - t)
+            if d < best_d:
+                best_d = d
+                best = c
+        if best is not None and best_d <= max_snap:
+            used.append(best)
+    return used if len(used) >= max(1, n_splits - 1) else None
+
+
 def card_grid_splits_to_bounds(splits: list[int], height: int) -> list[tuple[int, int]]:
     if not splits:
         return [(0, height)]
@@ -410,13 +504,67 @@ def card_grid_splits_to_bounds(splits: list[int], height: int) -> list[tuple[int
 
 
 def group_sections_into_pages(sections: list[tuple[int, int]]) -> list[list[tuple[int, int]]]:
-    """两行一块页（与 exportJpVocabRefPaginatedDocx 一致）。"""
+    """每页两行词卡，中间留白板书（与 exportJpVocabRefPaginatedDocx 一致）。"""
     pages: list[list[tuple[int, int]]] = []
     i = 0
     while i < len(sections):
         pages.append(sections[i : i + 2])
         i += 2
     return pages or [[(0, 1)]]
+
+
+def _collect_split_candidates(img: Image.Image) -> list[int]:
+    """宽松收集行缝候选，供已知行数时吸附。"""
+    base = detect_word_card_grid_row_splits(img) or []
+    # 再扫一遍更松的阈值，合并去重
+    img = img.convert("RGB")
+    w, h = img.size
+    px = img.load()
+    L0, L1 = w * 0.05, w * 0.32
+    R0, R1 = w * 0.52, w * 0.79
+    ink_l = [_band_ink_fraction(px, w, y, L0, L1) for y in range(h)]
+    ink_r = [_band_ink_fraction(px, w, y, R0, R1) for y in range(h)]
+    sm_l = [
+        sum(ink_l[max(0, y - 1) : min(h, y + 2)]) / (min(h, y + 2) - max(0, y - 1))
+        for y in range(h)
+    ]
+    sm_r = [
+        sum(ink_r[max(0, y - 1) : min(h, y + 2)]) / (min(h, y + 2) - max(0, y - 1))
+        for y in range(h)
+    ]
+    extra: list[int] = []
+    run = None
+    for y in range(h):
+        on = sm_l[y] < 0.13 and sm_r[y] < 0.13
+        if on:
+            if run is None:
+                run = y
+        elif run is not None:
+            if y - run >= 2:
+                extra.append((run + y - 1) // 2)
+            run = None
+    if run is not None and h - run >= 2:
+        extra.append((run + h - 1) // 2)
+    merged = sorted(set([*base, *[c for c in extra if c > int(h * 0.1)]]))
+    return merged
+
+
+def resolve_card_grid_sections(
+    img: Image.Image, *, n_words: int | None = None
+) -> tuple[list[tuple[int, int]], int]:
+    """返回 (sections, words_per_row)。"""
+    w, h = img.size
+    cols = estimate_word_card_columns(img)
+    splits = detect_word_card_grid_row_splits(img)
+    if n_words and n_words > 0:
+        n_rows = max(1, (n_words + cols - 1) // cols)
+        cands = _collect_split_candidates(img)
+        refined = refine_card_grid_splits_for_row_count(cands, h, n_rows)
+        if refined:
+            splits = refined
+    if splits is None:
+        return [(0, h)], cols
+    return card_grid_splits_to_bounds(splits, h), cols
 
 
 def build_board_docx_bytes(
@@ -437,20 +585,23 @@ def build_board_docx_bytes(
 
     img = image.convert("RGB")
     w, h = img.size
-    splits = detect_word_card_grid_row_splits(img)
-    if splits is None:
-        # 整图一页兜底
-        sections = [(0, h)]
-    else:
-        sections = card_grid_splits_to_bounds(splits, h)
-
+    sections, words_per_row = resolve_card_grid_sections(img, n_words=len(words))
     pages = group_sections_into_pages(sections)
-    surfaces = [str(x.get("word") or "").strip() for x in words]
-    # 按行对齐：第 i 行对应 words[i*3 : i*3+3]
+    n_rows = len(sections)
+    # 三卡一行：从左到右逐行；双列对照：先整列左 1…N 再右 N+1…（与编号一致）
     row_words: list[list[dict[str, Any]]] = []
-    for ri in range(len(sections)):
-        start = ri * WORDS_PER_ROW
-        row_words.append(words[start : start + WORDS_PER_ROW])
+    if words_per_row == 2:
+        for ri in range(n_rows):
+            row: list[dict[str, Any]] = []
+            for ci in range(2):
+                idx = ci * n_rows + ri
+                if idx < len(words):
+                    row.append(words[idx])
+            row_words.append(row)
+    else:
+        for ri in range(n_rows):
+            start = ri * words_per_row
+            row_words.append(words[start : start + words_per_row])
 
     doc = Document()
     section = doc.sections[0]

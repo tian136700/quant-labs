@@ -80,15 +80,15 @@ def main() -> int:
         raise SystemExit("FAIL: missing OJAD overline PNG renderer")
     if "to_hiragana" not in build:
         raise SystemExit("FAIL: board docx must convert kanji to hiragana")
-    if "pitch-overline-v5" not in build:
-        raise SystemExit("FAIL: format version must be pitch-overline-v5")
+    if "pitch-overline-v6" not in build:
+        raise SystemExit("FAIL: format version must be pitch-overline-v6")
     if 'BOARD_PITCH_NOT_FOUND_LABEL = ""' not in build and "BOARD_PITCH_NOT_FOUND_LABEL = ''" not in build:
         raise SystemExit("FAIL: not-found pitch label must be blank")
     if "暂时没有在词典里面查到该词" in build:
         raise SystemExit("FAIL: must not show not-found tip text anymore")
     ts = (ROOT / "src" / "lib" / "jp-lesson-board-docx.ts").read_text(encoding="utf-8")
-    if "pitch-overline-v5" not in ts:
-        raise SystemExit("FAIL: TS format version must match Python v5")
+    if "pitch-overline-v6" not in ts:
+        raise SystemExit("FAIL: TS format version must match Python v6")
     if 'JP_LESSON_BOARD_PITCH_NOT_FOUND_LABEL = ""' not in ts:
         raise SystemExit("FAIL: TS not-found label must be blank")
     if "暂时没有在词典里面查到该词" in ts:

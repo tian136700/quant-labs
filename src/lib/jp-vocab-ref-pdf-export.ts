@@ -639,7 +639,7 @@ export async function exportJpVocabRefPaginatedDocx(
   const pageWpx = 794;
   const pageHpx = 1123;
   const marginPx = 45;
-  const partGapMm = 25;
+  const partGapMm = 32;
   const partGapPx = (partGapMm / 25.4) * 96;
   const maxImgH =
     (pageHpx - marginPx * 2 - partGapPx) /
