@@ -3,6 +3,13 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import type { EnVocabMediaType } from "@/lib/types";
 import { saveVocabRefImageToDevice, vocabRefSaveResultToast } from "@/lib/vocab-ref-save-image";
+import {
+  saveVocabRefPdfToDevice,
+  vocabRefPdfSaveResultToast,
+} from "@/lib/vocab-ref-save-pdf";
+
+/** 暂不提供切割分页 PDF/Word；整图 PDF 优先进「文件」 */
+const SHOW_PAGINATED_EXPORTS = false;
 
 async function downloadBlobAsFile(blob: Blob, filename: string): Promise<void> {
   const url = URL.createObjectURL(blob);
@@ -42,6 +49,7 @@ function ImageExportFormatMenu({
   fixedPanel,
   showOriginal,
   onOriginal,
+  showPaginated,
 }: {
   onSaveImage: () => void;
   onFullPdf: () => void;
@@ -53,6 +61,7 @@ function ImageExportFormatMenu({
   fixedPanel: boolean;
   showOriginal?: boolean;
   onOriginal?: () => void;
+  showPaginated: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [panelStyle, setPanelStyle] = useState<CSSProperties>({});
@@ -158,32 +167,38 @@ function ImageExportFormatMenu({
             }}
           >
             <span className="jp-ref-download-item-title">整图 PDF</span>
-            <span className="jp-ref-download-item-desc">整张图片嵌入 PDF，不拆分</span>
+            <span className="jp-ref-download-item-desc">
+              完整一页不拆分；手机分享里选「存储到文件」
+            </span>
           </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="jp-ref-download-item"
-            onClick={() => {
-              setOpen(false);
-              onPaginatedPdf();
-            }}
-          >
-            <span className="jp-ref-download-item-title">分页 PDF</span>
-            <span className="jp-ref-download-item-desc">按部分分页，留白供备注</span>
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="jp-ref-download-item"
-            onClick={() => {
-              setOpen(false);
-              onWord();
-            }}
-          >
-            <span className="jp-ref-download-item-title">分页 Word</span>
-            <span className="jp-ref-download-item-desc">两部分同页，中间留白供板书</span>
-          </button>
+          {showPaginated ? (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                className="jp-ref-download-item"
+                onClick={() => {
+                  setOpen(false);
+                  onPaginatedPdf();
+                }}
+              >
+                <span className="jp-ref-download-item-title">分页 PDF</span>
+                <span className="jp-ref-download-item-desc">按部分分页，留白供备注</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="jp-ref-download-item"
+                onClick={() => {
+                  setOpen(false);
+                  onWord();
+                }}
+              >
+                <span className="jp-ref-download-item-title">分页 Word</span>
+                <span className="jp-ref-download-item-desc">两部分同页，中间留白供板书</span>
+              </button>
+            </>
+          ) : null}
         </div>
       ) : null}
       <style jsx>{downloadMenuStyles}</style>
@@ -242,10 +257,21 @@ export function EnVocabRefDownloadMenu({
     if (busy) return;
     setBusy("fullPdf");
     try {
-      const { exportEnVocabRefFullImagePdf } = await import(
+      const { buildEnVocabRefFullImagePdf } = await import(
         "@/lib/en-vocab-ref-pdf-export"
       );
-      await exportEnVocabRefFullImagePdf(mediaUrl, filename);
+      const { blob, filename: pdfName } = await buildEnVocabRefFullImagePdf(
+        mediaUrl,
+        filename
+      );
+      // 生成后再确认：点「确定」保住 iPhone 用户手势，才能弹出系统分享 →「存储到文件」
+      const ok = window.confirm(
+        "PDF 已生成。确定保存到手机吗？\n\n在 iPhone 上请点「存储到文件」（不要选 Google 云端硬盘）。"
+      );
+      if (!ok) return;
+      const result = await saveVocabRefPdfToDevice({ blob, filename: pdfName });
+      const toast = vocabRefPdfSaveResultToast(result);
+      if (toast) onStatus?.(toast);
     } catch (err) {
       window.alert(
         err instanceof Error ? err.message : "整图 PDF 生成失败，请稍后重试"
@@ -253,7 +279,7 @@ export function EnVocabRefDownloadMenu({
     } finally {
       setBusy(null);
     }
-  }, [busy, mediaUrl, filename]);
+  }, [busy, mediaUrl, filename, onStatus]);
 
   const downloadPaginatedPdf = useCallback(async () => {
     if (busy) return;
@@ -312,6 +338,7 @@ export function EnVocabRefDownloadMenu({
         fixedPanel={fixedPanel}
         showOriginal={allowOriginalDownload}
         onOriginal={allowOriginalDownload ? () => void downloadOriginal() : undefined}
+        showPaginated={SHOW_PAGINATED_EXPORTS}
       />
     );
   }

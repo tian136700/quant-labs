@@ -1,5 +1,7 @@
 /** 教案长图按「第 N 部分」标题栏切分，并导出带页码的分页 PDF / Word（留白供老师备注） */
 
+import type { SaveVocabRefPdfResult } from "@/lib/vocab-ref-save-pdf";
+
 export type LessonSectionBounds = { y0: number; y1: number };
 
 function calcSectionDrawSize(
@@ -399,13 +401,19 @@ function imageToPngDataUrl(img: HTMLImageElement): string {
   return canvas.toDataURL("image/png");
 }
 
+export type EnVocabRefFullImagePdfBuild = {
+  blob: Blob;
+  filename: string;
+};
+
 /**
- * 整图 PDF：不拆分，按图片像素尺寸建一页，把整张图嵌入 PDF（图片转 PDF）。
+ * 整图 PDF：不拆分，按图片像素尺寸建一页（不触发下载）。
+ * iPhone 须再走 saveVocabRefPdfToDevice（系统分享 →「存储到文件」），勿直接 pdf.save()。
  */
-export async function exportEnVocabRefFullImagePdf(
+export async function buildEnVocabRefFullImagePdf(
   imageUrl: string,
   filenameBase: string
-): Promise<void> {
+): Promise<EnVocabRefFullImagePdfBuild> {
   const [{ jsPDF }, img] = await Promise.all([
     import("jspdf"),
     loadImage(imageUrl),
@@ -426,7 +434,26 @@ export async function exportEnVocabRefFullImagePdf(
     format: [pageW, pageH],
   });
   pdf.addImage(imageToPngDataUrl(img), "PNG", 0, 0, pageW, pageH);
-  pdf.save(`${paginatedExportBasename(filenameBase)}.pdf`);
+  const filename = `${paginatedExportBasename(filenameBase)}.pdf`;
+  const arrayBuffer = pdf.output("arraybuffer");
+  const blob = new Blob([arrayBuffer], { type: "application/pdf" });
+  return { blob, filename };
+}
+
+/**
+ * 整图 PDF 导出：生成后优先系统分享（iPhone「存储到文件」），否则下载。
+ * 桌面可直接调；iPhone 菜单路径会在确认手势后再 share，见 EnVocabRefDownloadMenu。
+ */
+export async function exportEnVocabRefFullImagePdf(
+  imageUrl: string,
+  filenameBase: string
+): Promise<SaveVocabRefPdfResult> {
+  const { saveVocabRefPdfToDevice } = await import("@/lib/vocab-ref-save-pdf");
+  const { blob, filename } = await buildEnVocabRefFullImagePdf(
+    imageUrl,
+    filenameBase
+  );
+  return saveVocabRefPdfToDevice({ blob, filename });
 }
 
 function resolveEnVocabRefCropKind(

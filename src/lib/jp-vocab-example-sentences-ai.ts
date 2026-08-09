@@ -33,6 +33,14 @@ import {
 } from "@/lib/jp-vocab-connection-ai";
 import { validateJpVocabUsageExamplePairAlignment } from "@/lib/jp-vocab-usage-example-pair-align";
 
+/** 读音/词条多写：半角 `/` 与全角 `／` 均分段（戴 reading=かぶる／つける）。 */
+function splitJpVocabLemmaSlashParts(raw: string): string[] {
+  return String(raw || "")
+    .split(/[/／]/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+}
+
 /** 例句「是否用到词条」：汉字写法 + 读音假名（貰う / もらう / もらっ… 都算用到）。 */
 function lemmaSurfacesForExampleHit(
   word: string,
@@ -46,9 +54,9 @@ function lemmaSurfacesForExampleHit(
     seen.add(t);
     out.push(t);
   };
-  for (const part of String(reading || "").split("/")) {
+  for (const part of splitJpVocabLemmaSlashParts(String(reading || ""))) {
     push(part);
-    // 活用：もらった 不含完整「もらう」，但含词干「もら」
+    // 活用：もらった 不含完整「もらう」，但含词干「もら」；かぶって 含「かぶ」
     if (part.length >= 3) {
       push(part.slice(0, -1));
     }
@@ -69,7 +77,7 @@ export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
     "中文译文必须自然通顺（口语）；禁止逐词硬译（如「について話す」→「关于…说话」；应作「谈谈…」或「聊聊…」）",
     "释义栏的「关于……」等只是义项提示，不要每句译文都机械套同一套壳",
     "句中每一个汉字都必须立刻半角括号假名（不能只标词条本身）：如 今日(きょう)は気分(きぶん)がいいです；词尾假名如 静か(しずか)、落(お)ち着(つ)き；括号内只能是假名、不要空格、不要整句读音尾注；禁止句末语法说明括号；页面展示会转成汉字下方小字",
-    "N5～N4、口语、短句；必须自然用到该词条 / 语法点",
+    "N5～N4、口语、短句；必须自然用到该词条 / 语法点（词条汉字或其读音假名活用皆可：戴＋reading かぶる／つける → 例「かぶって／つける」算用到；勿只写无关句）",
     "语法例句：多用法时第 N 句对应第 N 条用法；仅 1 种用法时造 3 句，分别覆盖接续里不同词类/形态（如一类形容词／二类形容词／名词），不要三句同一接续；只用简单词、不要叠更难的语法（避免多焦点）；有课数时勿超纲（标日初级勿写中级/N2 词）",
     "初学者友好：一句尽量只用一个话题助词「は」；时间/场景已用「今は」等时，主语改用「が」或省略，不要叠「今は傘は…」这类双は（语法虽对但 N5 易误判）",
     "一类形容词过去式后接「です／ですね」，禁止再叠「でした」（双过去）：❌面白かったでしたね → ✅面白かったですね；名词／二类形容词才用「でした／でしたね」",

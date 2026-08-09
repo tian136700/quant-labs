@@ -64,7 +64,7 @@ export function jpVocabExampleLemmaSurfaces(word: string): string[] {
     seen.add(t);
     out.push(t);
   };
-  for (const part of full.split("/")) push(part);
+  for (const part of full.split(/[/／]/)) push(part);
   push(full);
   if (hasDa) push(stem);
   return out;

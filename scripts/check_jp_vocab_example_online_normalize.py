@@ -204,7 +204,14 @@ def main() -> int:
         '"validate_format": False',
         "online batch examples apply must use online normalize",
     )
-    must_contain(ai, "wrong_jukugo_furigana", "ai online reject wrong jukugo")
+    must_contain(ai, "splitJpVocabLemmaSlashParts", "ai splits fullwidth reading slash")
+    must_contain(ai, "[/／]", "ai lemma hit must split ／")
+    must_contain(ai, "かぶって／つける", "ai prompt allows reading-form examples for 戴")
+    must_contain(
+        ROOT / "scripts/jp-vocab-fill-online-batch-api.py",
+        "かぶる／つける",
+        "online batch allows kana reading forms for kanji lemmas",
+    )
     must_contain(ai, "bad_furigana_paren", "ai online reject bad paren")
     must_contain(ai, "gloss_not_chinese", "ai reject Japanese-in-gloss")
     must_contain(ai, "jpVocabExampleGlossLooksNonChinese", "ai gloss chinese helper")
