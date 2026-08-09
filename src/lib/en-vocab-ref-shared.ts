@@ -99,9 +99,9 @@ export function normalizeEnVocabRefKey(raw: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-/** 新课教案：每条 lesson 独占一个 ref_key，由系统生成，不依赖用户输入 */
+/** 新课教案：英语独占 ref_key，禁止再用 lesson-{id}（会与日语同名，历史上同 R2 路径互相覆盖） */
 export function enLessonRefKey(lessonId: number): string {
-  return `lesson-${lessonId}`;
+  return `en-lesson-${lessonId}`;
 }
 
 export function enVocabRefR2Key(refKey: string, mediaType: EnVocabMediaType): string {

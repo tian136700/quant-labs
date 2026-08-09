@@ -26,6 +26,14 @@ def main() -> int:
         errors.append("jp-vocab-ref-shared must keep JP_VOCAB_REF_R2_PREFIX = vocab-ref/")
     if 'EN_VOCAB_REF_R2_PREFIX = "en-vocab-ref/"' not in en:
         errors.append("en-vocab-ref-shared must set EN_VOCAB_REF_R2_PREFIX = en-vocab-ref/")
+    if 'return `en-lesson-${lessonId}`' not in en and 'return "en-lesson-"' not in en:
+        if "en-lesson-${lessonId}" not in en:
+            errors.append("enLessonRefKey must return en-lesson-{id}, not lesson-{id}")
+    if re.search(
+        r"export function enLessonRefKey[\s\S]*?return `lesson-\$\{lessonId\}`",
+        en,
+    ):
+        errors.append("enLessonRefKey must NOT return bare lesson-{id}")
     if re.search(r'JP_VOCAB_REF_R2_PREFIX\s*=\s*"vocab-ref/"', en):
         errors.append("en-vocab-ref-shared must NOT redefine JP prefix as vocab-ref/")
     if "EN_VOCAB_REF_R2_PREFIX" not in en or "enVocabRefR2Key" not in en:
