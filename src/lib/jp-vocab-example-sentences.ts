@@ -127,11 +127,39 @@ const JP_VOCAB_PARTICLE_BEFORE_LEARNER_KANA_RE = new RegExp(
   "g"
 );
 
-/** 助词后常见假名词粘连 → 插入空格（幂等；已有空格不再插） */
+/** 助词后常见假名词粘连 → 插入空格（幂等；已有空格不再插）。
+ * 先保护「漢字(かな)」读音，避免误拆读音里的「やまだ」→「や まだ」。
+ * 不拆「ないでください／遊んでください」等て形＋ください固定搭配。
+ */
 export function insertJpVocabLearnerParticleSpaces(text: string): string {
   const s = String(text || "");
   if (!s) return s;
-  return s.replace(JP_VOCAB_PARTICLE_BEFORE_LEARNER_KANA_RE, "$1 $2");
+
+  const protectedChunks: string[] = [];
+  let work = s.replace(VALID_KANJI_FURIGANA_CHUNK, (chunk) => {
+    const idx = protectedChunks.length;
+    protectedChunks.push(chunk);
+    return `\u0000P${idx}\u0000`;
+  });
+
+  work = work.replace(
+    JP_VOCAB_PARTICLE_BEFORE_LEARNER_KANA_RE,
+    (full, particle: string, word: string, offset: number) => {
+      if (word === "ください" && particle === "で") {
+        const prev = offset > 0 ? work[offset - 1]! : "";
+        // ないでください・遊んでください・急いでください・見てください（て音便）
+        if ("なんいてり".includes(prev)) return full;
+      }
+      return `${particle} ${word}`;
+    }
+  );
+
+  return work.replace(/\u0000P(\d+)\u0000/g, (_m, idx: string) => {
+    const i = Number(idx);
+    return Number.isFinite(i) && protectedChunks[i] != null
+      ? protectedChunks[i]!
+      : "";
+  });
 }
 
 /**

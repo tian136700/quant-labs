@@ -89,6 +89,29 @@ SANITIZE_CASES = [
         "それは本(ほん)ではないです。",
         "それは本(ほん)ではないです。",
     ),
+    (
+        # て形＋ください 不拆
+        "遅(おく)れないでください。",
+        "遅(おく)れないでください。",
+    ),
+    (
+        "遊(あそ)んでください。",
+        "遊(あそ)んでください。",
+    ),
+    (
+        # をください 要拆
+        "水(みず)をください。",
+        "水(みず)を ください。",
+    ),
+    (
+        # 读音里的「やまだ」禁止拆成「や まだ」
+        "山田(やまだ)さんが働(はたら)く会社(かいしゃ)は東京(とうきょう)にあります。",
+        "山田(やまだ)さんが働(はたら)く会社(かいしゃ)は東京(とうきょう)にあります。",
+    ),
+    (
+        "私(わたし)がいつも行(い)く店(みせ)はここです。",
+        "私(わたし)が いつも行(い)く店(みせ)はここです。",
+    ),
 ]
 
 _LEARNER_KANA_AFTER_PARTICLE = sorted(
@@ -132,7 +155,30 @@ _PARTICLE_BEFORE_LEARNER_KANA_RE = re.compile(
 
 def insert_jp_vocab_learner_particle_spaces(text: str) -> str:
     """Mirror of insertJpVocabLearnerParticleSpaces."""
-    return _PARTICLE_BEFORE_LEARNER_KANA_RE.sub(r"\1 \2", text or "")
+    s = text or ""
+    protected: list[str] = []
+
+    def _protect(m: re.Match[str]) -> str:
+        protected.append(m.group(0))
+        return f"\x00P{len(protected) - 1}\x00"
+
+    work = VALID_KANJI_FURIGANA_CHUNK.sub(_protect, s)
+
+    def _repl(m: re.Match[str]) -> str:
+        particle, word = m.group(1), m.group(2)
+        if word == "ください" and particle == "で":
+            prev = work[m.start() - 1] if m.start() > 0 else ""
+            if prev in "なんいてり":
+                return m.group(0)
+        return f"{particle} {word}"
+
+    work = _PARTICLE_BEFORE_LEARNER_KANA_RE.sub(_repl, work)
+
+    def _restore(m: re.Match[str]) -> str:
+        i = int(m.group(1))
+        return protected[i] if 0 <= i < len(protected) else ""
+
+    return re.sub(r"\x00P(\d+)\x00", _restore, work)
 
 
 def leftover_paren_kana(text: str) -> str | None:
