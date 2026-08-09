@@ -9,6 +9,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
+import { fixedDropdownPanelStyle } from "@/lib/fixed-dropdown-panel";
 
 type CopyMode = "withText" | "linkOnly";
 
@@ -47,20 +48,11 @@ export function JpLessonBatchCopyMenu({
 
   const updatePanelStyle = useCallback(() => {
     if (!wrapRef.current) return;
-    const rect = wrapRef.current.getBoundingClientRect();
-    const panelHeight = 132;
-    const gap = 4;
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const openUp = spaceBelow < panelHeight + gap;
-    setPanelStyle({
-      position: "fixed",
-      ...(openUp
-        ? { bottom: window.innerHeight - rect.top + gap, top: "auto" }
-        : { top: rect.bottom + gap, bottom: "auto" }),
-      right: Math.max(8, window.innerWidth - rect.right),
-      left: "auto",
-      zIndex: 10000,
-    });
+    setPanelStyle(
+      fixedDropdownPanelStyle(wrapRef.current.getBoundingClientRect(), 132, {
+        zIndex: 10000,
+      })
+    );
   }, []);
 
   const toggleOpen = useCallback(
