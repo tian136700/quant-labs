@@ -93,6 +93,17 @@ def main() -> int:
         raise SystemExit("FAIL: format version must be pitch-overline-v7")
     if "PART_GAP_MM = 99" not in build:
         raise SystemExit("FAIL: board docx PART_GAP_MM must be 99 (~1/3 A4)")
+    export_ts = (ROOT / "src" / "lib" / "jp-vocab-ref-pdf-export.ts").read_text(
+        encoding="utf-8"
+    )
+    if "JP_VOCAB_REF_WORD_PAGE_BOARD_GAP_MM = 99" not in export_ts:
+        raise SystemExit(
+            "FAIL: client Word gap must stay JP_VOCAB_REF_WORD_PAGE_BOARD_GAP_MM = 99"
+        )
+    if "usable_h_mm - PART_GAP_MM" not in build:
+        raise SystemExit(
+            "FAIL: board docx must shrink row images so 99mm gap fits on the page"
+        )
     if 'BOARD_PITCH_NOT_FOUND_LABEL = ""' not in build and "BOARD_PITCH_NOT_FOUND_LABEL = ''" not in build:
         raise SystemExit("FAIL: not-found pitch label must be blank")
     if "暂时没有在词典里面查到该词" in build:
