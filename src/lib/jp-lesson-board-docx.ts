@@ -7,7 +7,7 @@ import { parseJpVocabPitchAccent } from "@/lib/jp-vocab-pitch-accent";
 import { JP_VOCAB_REF_R2_PREFIX } from "@/lib/jp-vocab-ref-shared";
 
 /** 与 Python `BOARD_DOCX_FORMAT_VERSION` 同步；变了则全部重建板书 Word */
-export const JP_LESSON_BOARD_DOCX_FORMAT_VERSION = "pitch-overline-v6";
+export const JP_LESSON_BOARD_DOCX_FORMAT_VERSION = "pitch-overline-v7";
 
 /** 词典未命中：空白（与 Python BOARD_PITCH_NOT_FOUND_LABEL 同步） */
 export const JP_LESSON_BOARD_PITCH_NOT_FOUND_LABEL = "";

@@ -7,6 +7,12 @@ import {
 
 export type LessonSectionBounds = { y0: number; y1: number };
 
+/**
+ * 单词分页 Word：同一页上下两行词卡之间留约整页 1/3 空白（A4≈297mm → 99mm）供板书。
+ * 禁止再缩回 32mm 之类「几乎贴在一起」的空隙。
+ */
+export const JP_VOCAB_REF_WORD_PAGE_BOARD_GAP_MM = 99;
+
 function calcSectionDrawSize(
   imgW: number,
   imgH: number,
@@ -602,7 +608,7 @@ export async function copyJpVocabRefPaginatedPdf(
   return "downloaded";
 }
 
-/** 导出分页 Word；10 词时第一页上下两块，其余各一页；中间留白供板书 */
+/** 导出分页 Word：单词课每页恰好两行词卡，中间约 1/3 页空白供板书 */
 export async function exportJpVocabRefPaginatedDocx(
   imageUrl: string,
   filenameBase: string,
@@ -639,11 +645,9 @@ export async function exportJpVocabRefPaginatedDocx(
   const pageWpx = 794;
   const pageHpx = 1123;
   const marginPx = 45;
-  const partGapMm = 32;
+  const partGapMm = JP_VOCAB_REF_WORD_PAGE_BOARD_GAP_MM;
   const partGapPx = (partGapMm / 25.4) * 96;
-  const maxImgH =
-    (pageHpx - marginPx * 2 - partGapPx) /
-    Math.max(...sectionPages.map((p) => p.length));
+  const usableHpx = pageHpx - marginPx * 2;
   const maxImgW = pageWpx - marginPx * 2;
   const children: Array<InstanceType<typeof Paragraph>> = [];
 
@@ -653,6 +657,11 @@ export async function exportJpVocabRefPaginatedDocx(
     }
 
     const pageSections = sectionPages[pageIdx];
+    // 两行页：两图高度 + 中间 1/3 页空隙 ≈ 可用页高；单行页可更大
+    const maxImgH =
+      pageSections.length > 1
+        ? (usableHpx - partGapPx) / pageSections.length
+        : pageHpx * 0.52;
     for (let partIdx = 0; partIdx < pageSections.length; partIdx++) {
       if (partIdx > 0) {
         children.push(

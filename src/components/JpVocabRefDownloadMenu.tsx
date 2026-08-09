@@ -34,11 +34,17 @@ type Props = {
   /** 保存/下载结果短提示（可接 CopyToast） */
   onStatus?: (message: string) => void;
   /**
-   * 日语新课 id：有则优先拉预生成板书 Word（含 OJAD 读音）；
-   * 未就绪则 fallback 浏览器现场分页（无读音）。
+   * 日语新课 id：读音版板书 Word（OJAD）就绪后可再开优先下载。
+   * 当前 `JP_LESSON_BOARD_DOCX_PITCH_ENABLED=false`，一律走浏览器现场分页版式。
    */
   lessonId?: number | null;
 };
+
+/**
+ * 暂缓 OJAD 读音版板书 Word：先只做「每页两行 + 中间约 1/3 空白」。
+ * 重新开启时改为 true，并同步菜单文案 / 回归脚本。
+ */
+export const JP_LESSON_BOARD_DOCX_PITCH_ENABLED = false;
 
 type BusyKind = "image" | "pdf" | "word" | "copyPdf";
 
@@ -187,9 +193,9 @@ function PaginatedFormatMenu({
               onWord();
             }}
           >
-            <span className="jp-ref-download-item-title">分页 Word（含读音）</span>
+            <span className="jp-ref-download-item-title">分页 Word</span>
             <span className="jp-ref-download-item-desc">
-              优先预生成读音版；未就绪则普通分页
+              每页两行单词，中间约 1/3 页空白供板书
             </span>
           </button>
         </div>
@@ -340,7 +346,12 @@ export function JpVocabRefDownloadMenu({
     setOpen(false);
     try {
       const id = typeof lessonId === "number" && lessonId > 0 ? lessonId : null;
-      if (id != null && cropKind !== "grammar") {
+      // 读音版暂缓：开关打开后再优先拉预生成 board-docx
+      if (
+        JP_LESSON_BOARD_DOCX_PITCH_ENABLED &&
+        id != null &&
+        cropKind !== "grammar"
+      ) {
         const res = await fetch(
           `/api/jp-lesson/board-docx?lesson_id=${id}&download=1`,
           { credentials: "include" }
@@ -486,7 +497,9 @@ export function JpVocabRefDownloadMenu({
             onClick={() => void downloadPaginatedWord()}
           >
             <span className="jp-ref-download-item-title">分页 Word</span>
-            <span className="jp-ref-download-item-desc">两部分同页，中间留白供板书</span>
+            <span className="jp-ref-download-item-desc">
+              每页两行单词，中间约 1/3 页空白供板书
+            </span>
           </button>
         </div>
       ) : null}

@@ -26,9 +26,18 @@ def main() -> int:
 
     menu = MENU.read_text(encoding="utf-8")
     if "board-docx?lesson_id=" not in menu:
-        raise SystemExit("FAIL: download menu must prefer prebuilt board-docx")
+        raise SystemExit("FAIL: download menu must keep board-docx URL for when pitch re-enabled")
+    if "JP_LESSON_BOARD_DOCX_PITCH_ENABLED" not in menu:
+        raise SystemExit("FAIL: download menu must expose JP_LESSON_BOARD_DOCX_PITCH_ENABLED flag")
     if "读音版生成中" not in menu:
-        raise SystemExit("FAIL: download menu must fallback with status hint")
+        raise SystemExit("FAIL: download menu must keep pitch fallback hint for re-enable")
+    # 用户暂缓读音版：开关须为 false，菜单勿再标「含读音」为主路径
+    if "JP_LESSON_BOARD_DOCX_PITCH_ENABLED = false" not in menu and "JP_LESSON_BOARD_DOCX_PITCH_ENABLED=false" not in menu:
+        raise SystemExit("FAIL: pitch board-docx must stay paused (ENABLED = false) until user asks")
+    if 'jp-ref-download-item-title">分页 Word（含读音）' in menu:
+        raise SystemExit("FAIL: while pitch paused, menu must not title Word as 含读音")
+    if "每页两行单词，中间约 1/3 页空白供板书" not in menu:
+        raise SystemExit("FAIL: Word menu desc must mention 每页两行 + 1/3 空白")
 
     stage = STAGE.read_text(encoding="utf-8")
     if "vocab_fill_assert_quiz_gate_ok" not in stage:
@@ -80,15 +89,17 @@ def main() -> int:
         raise SystemExit("FAIL: missing OJAD overline PNG renderer")
     if "to_hiragana" not in build:
         raise SystemExit("FAIL: board docx must convert kanji to hiragana")
-    if "pitch-overline-v6" not in build:
-        raise SystemExit("FAIL: format version must be pitch-overline-v6")
+    if "pitch-overline-v7" not in build:
+        raise SystemExit("FAIL: format version must be pitch-overline-v7")
+    if "PART_GAP_MM = 99" not in build:
+        raise SystemExit("FAIL: board docx PART_GAP_MM must be 99 (~1/3 A4)")
     if 'BOARD_PITCH_NOT_FOUND_LABEL = ""' not in build and "BOARD_PITCH_NOT_FOUND_LABEL = ''" not in build:
         raise SystemExit("FAIL: not-found pitch label must be blank")
     if "暂时没有在词典里面查到该词" in build:
         raise SystemExit("FAIL: must not show not-found tip text anymore")
     ts = (ROOT / "src" / "lib" / "jp-lesson-board-docx.ts").read_text(encoding="utf-8")
-    if "pitch-overline-v6" not in ts:
-        raise SystemExit("FAIL: TS format version must match Python v6")
+    if "pitch-overline-v7" not in ts:
+        raise SystemExit("FAIL: TS format version must match Python v7")
     if 'JP_LESSON_BOARD_PITCH_NOT_FOUND_LABEL = ""' not in ts:
         raise SystemExit("FAIL: TS not-found label must be blank")
     if "暂时没有在词典里面查到该词" in ts:

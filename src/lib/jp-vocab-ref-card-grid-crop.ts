@@ -238,38 +238,99 @@ export function detectWordCardGridRowSplits(
 }
 
 /**
- * 已知词卡行数时，把候选缝吸附到均匀目标行（板书 Word 有 content 词表时用）。
+ * 已知词卡行数时补全切点；优先保留 baseSplits，缺行则填最大空隙（可几何中分）。
  */
 export function refineCardGridSplitsForRowCount(
   candidates: number[],
   height: number,
-  nRows: number
+  nRows: number,
+  baseSplits?: number[] | null
 ): number[] | null {
-  if (nRows < 2 || !candidates.length) return null;
+  if (nRows < 2) return null;
   const nSplits = nRows - 1;
-  const minFirst = Math.max(140, Math.floor(height * 0.12));
-  const span = Math.max(1, height - minFirst);
-  const targets: number[] = [];
-  for (let i = 0; i < nSplits; i++) {
-    targets.push(Math.floor(minFirst + (span * (i + 1)) / nRows));
+  const cand = [...new Set(candidates)].sort((a, b) => a - b);
+  const minSep = Math.max(70, Math.floor(height * 0.05));
+  const base = [...(baseSplits ?? [])];
+  let used: number[];
+
+  if (Math.abs(base.length + 1 - nRows) <= 1 && base.length >= Math.max(1, nSplits - 1)) {
+    used = [...base];
+  } else {
+    if (!cand.length) return null;
+    const minFirst = Math.max(140, Math.floor(height * 0.12));
+    const span = Math.max(1, height - minFirst);
+    const targets: number[] = [];
+    for (let i = 0; i < nSplits; i++) {
+      targets.push(Math.floor(minFirst + (span * (i + 1)) / nRows));
+    }
+    used = [];
+    const maxSnap = span / nRows / 2;
+    for (const t of targets) {
+      let best: number | null = null;
+      let bestD = Infinity;
+      for (const c of cand) {
+        if (used.length && c <= used[used.length - 1] + minSep) continue;
+        const d = Math.abs(c - t);
+        if (d < bestD) {
+          bestD = d;
+          best = c;
+        }
+      }
+      if (best != null && bestD <= maxSnap) used.push(best);
+    }
   }
-  const cand = [...candidates].sort((a, b) => a - b);
-  const used: number[] = [];
-  const maxSnap = span / nRows / 2;
-  const minSep = Math.max(60, Math.floor(height * 0.045));
-  for (const t of targets) {
+
+  const sectionHeights = (splits: number[]) => {
+    const edges = [0, ...splits, height];
+    const out: number[] = [];
+    for (let i = 0; i < edges.length - 1; i++) out.push(edges[i + 1] - edges[i]);
+    return out;
+  };
+
+  for (let guard = 0; guard < 6; guard++) {
+    if (used.length >= nSplits) break;
+    const hs = sectionHeights(used);
+    const body = hs.length > 1 ? hs.slice(1) : hs;
+    let med: number;
+    if (body.length >= 3) {
+      const sorted = [...body].sort((a, b) => a - b);
+      const trimmed = sorted.slice(0, -1);
+      med = trimmed[Math.floor(trimmed.length / 2)];
+    } else if (body.length) {
+      med = body[Math.floor(body.length / 2)];
+    } else {
+      med = height / nRows;
+    }
+    const edges = [0, ...used, height];
+    const gaps: { gapH: number; a: number; b: number }[] = [];
+    for (let i = 1; i < edges.length - 1; i++) {
+      const a = edges[i];
+      const b = edges[i + 1];
+      if (b - a >= med * 1.35) gaps.push({ gapH: b - a, a, b });
+    }
+    if (!gaps.length) break;
+    gaps.sort((x, y) => y.gapH - x.gapH);
+    const { a, b } = gaps[0];
+    const midTarget = Math.floor((a + b) / 2);
+    const lo = a + Math.floor(med * 0.4);
+    const hi = b - Math.floor(med * 0.4);
     let best: number | null = null;
     let bestD = Infinity;
     for (const c of cand) {
-      if (used.length && c <= used[used.length - 1] + minSep) continue;
-      const d = Math.abs(c - t);
+      if (c <= lo || c >= hi) continue;
+      if (used.some((u) => Math.abs(c - u) < minSep)) continue;
+      const d = Math.abs(c - midTarget);
       if (d < bestD) {
         bestD = d;
         best = c;
       }
     }
-    if (best != null && bestD <= maxSnap) used.push(best);
+    if (best == null && lo < midTarget && midTarget < hi) best = midTarget;
+    if (best == null) break;
+    used.push(best);
+    used.sort((x, y) => x - y);
   }
+
   return used.length >= Math.max(1, nSplits - 1) ? used : null;
 }
 

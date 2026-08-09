@@ -18,9 +18,10 @@ from typing import Any
 from PIL import Image
 
 WORDS_PER_ROW_DEFAULT = 3
-PART_GAP_MM = 32
-# 抬高版本 → 已生成的板书 Word 会因指纹变化全部重建（双列行切 + 每页两行）
-BOARD_DOCX_FORMAT_VERSION = "pitch-overline-v6"
+# 与客户端 JP_VOCAB_REF_WORD_PAGE_BOARD_GAP_MM 对齐：约整页 A4 的 1/3
+PART_GAP_MM = 99
+# 抬高版本 → 已生成的板书 Word 会因指纹变化全部重建（双列行切 + 每页两行 + 1/3 空隙）
+BOARD_DOCX_FORMAT_VERSION = "pitch-overline-v7"
 # OJAD / 词典未命中时的板书读音格：空白（不写提示文案）
 BOARD_PITCH_NOT_FOUND_LABEL = ""
 
@@ -462,30 +463,91 @@ def detect_word_card_grid_row_splits(img: Image.Image) -> list[int] | None:
 
 
 def refine_card_grid_splits_for_row_count(
-    candidates: list[int], height: int, n_rows: int
+    candidates: list[int],
+    height: int,
+    n_rows: int,
+    *,
+    base_splits: list[int] | None = None,
 ) -> list[int] | None:
-    if n_rows < 2 or not candidates:
+    """已知词卡行数时补全切点；优先保留 detect 结果，缺行则填最大空隙（可几何中分）。"""
+    import statistics
+
+    if n_rows < 2:
         return None
     n_splits = n_rows - 1
-    min_first = max(140, int(height * 0.12))
-    span = max(1, height - min_first)
-    targets = [int(min_first + (span * (i + 1)) / n_rows) for i in range(n_splits)]
-    cand = sorted(candidates)
-    used: list[int] = []
-    max_snap = span / n_rows / 2
-    min_sep = max(60, int(height * 0.045))
-    for t in targets:
+    cand = sorted(set(candidates or []))
+    min_sep = max(70, int(height * 0.05))
+    base = list(base_splits or [])
+
+    if abs(len(base) + 1 - n_rows) <= 1 and len(base) >= max(1, n_splits - 1):
+        used = list(base)
+    else:
+        if not cand:
+            return None
+        min_first = max(140, int(height * 0.12))
+        span = max(1, height - min_first)
+        targets = [int(min_first + (span * (i + 1)) / n_rows) for i in range(n_splits)]
+        used = []
+        max_snap = span / n_rows / 2
+        for t in targets:
+            best = None
+            best_d = float("inf")
+            for c in cand:
+                if used and c <= used[-1] + min_sep:
+                    continue
+                d = abs(c - t)
+                if d < best_d:
+                    best_d = d
+                    best = c
+            if best is not None and best_d <= max_snap:
+                used.append(best)
+
+    def section_heights(splits: list[int]) -> list[int]:
+        edges = [0, *splits, height]
+        return [edges[i + 1] - edges[i] for i in range(len(edges) - 1)]
+
+    for _ in range(6):
+        if len(used) >= n_splits:
+            break
+        hs = section_heights(used)
+        body = hs[1:] if len(hs) > 1 else hs
+        if len(body) >= 3:
+            med = statistics.median(sorted(body)[:-1])
+        else:
+            med = statistics.median(body) if body else height / n_rows
+        edges = [0, *used, height]
+        gaps: list[tuple[int, int, int, int]] = []
+        for i in range(len(edges) - 1):
+            if i == 0:
+                continue
+            a, b = edges[i], edges[i + 1]
+            if b - a >= med * 1.35:
+                gaps.append((b - a, a, b, i))
+        if not gaps:
+            break
+        gaps.sort(reverse=True)
+        _gap_h, a, b, _idx = gaps[0]
+        mid_target = (a + b) // 2
+        lo = a + int(med * 0.4)
+        hi = b - int(med * 0.4)
         best = None
         best_d = float("inf")
         for c in cand:
-            if used and c <= used[-1] + min_sep:
+            if c <= lo or c >= hi:
                 continue
-            d = abs(c - t)
+            if any(abs(c - u) < min_sep for u in used):
+                continue
+            d = abs(c - mid_target)
             if d < best_d:
                 best_d = d
                 best = c
-        if best is not None and best_d <= max_snap:
-            used.append(best)
+        if best is None and lo < mid_target < hi:
+            best = mid_target
+        if best is None:
+            break
+        used.append(best)
+        used.sort()
+
     return used if len(used) >= max(1, n_splits - 1) else None
 
 
@@ -552,14 +614,16 @@ def _collect_split_candidates(img: Image.Image) -> list[int]:
 def resolve_card_grid_sections(
     img: Image.Image, *, n_words: int | None = None
 ) -> tuple[list[tuple[int, int]], int]:
-    """返回 (sections, words_per_row)。"""
-    w, h = img.size
+    """返回 (sections, words_per_row)。words_per_row = 列数（2 或 3）。"""
+    _w, h = img.size
     cols = estimate_word_card_columns(img)
     splits = detect_word_card_grid_row_splits(img)
     if n_words and n_words > 0:
         n_rows = max(1, (n_words + cols - 1) // cols)
         cands = _collect_split_candidates(img)
-        refined = refine_card_grid_splits_for_row_count(cands, h, n_rows)
+        refined = refine_card_grid_splits_for_row_count(
+            cands, h, n_rows, base_splits=splits
+        )
         if refined:
             splits = refined
     if splits is None:
@@ -611,6 +675,7 @@ def build_board_docx_bytes(
     section.right_margin = Mm(12)
 
     usable_w_mm = 210 - 24  # A4 approx minus margins
+    usable_h_mm = 297 - 24
     max_img_w = Mm(usable_w_mm)
 
     for page_idx, page_secs in enumerate(pages):
@@ -627,8 +692,11 @@ def build_board_docx_bytes(
             crop_w, crop_h = crop.size
             target_w_mm = usable_w_mm
             target_h_mm = target_w_mm * (crop_h / max(crop_w, 1))
-            # 两行页时限制高度
-            max_h_mm = 110 if len(page_secs) > 1 else 180
+            # 两行页：两图 + 中间约 1/3 页空隙须塞进可用页高
+            if len(page_secs) > 1:
+                max_h_mm = (usable_h_mm - PART_GAP_MM) / len(page_secs)
+            else:
+                max_h_mm = 180
             if target_h_mm > max_h_mm:
                 scale = max_h_mm / target_h_mm
                 target_w_mm *= scale
