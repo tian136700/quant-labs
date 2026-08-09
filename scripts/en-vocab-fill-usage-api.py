@@ -86,17 +86,28 @@ def shield_usage_upload(raw: str) -> str:
         m = NUMBERED_LINE_RE.match(trimmed)
         if m:
             body = m.group(2).strip()
-            freq, body_text = _extract_frequency(body)
+            oral, exam, body_text = _extract_frequency(body)
             if not body_text or not HAN_RE.search(body_text):
                 continue
             point_idx += 1
-            freq_s = f"[{freq}] " if freq is not None else ""
+            if oral is not None and exam is not None:
+                freq_s = f"[口语{oral}|考试{exam}] "
+            elif exam is not None:
+                freq_s = f"[{exam}] "
+            else:
+                freq_s = ""
             out.append(f"{point_idx}. {freq_s}{body_text}")
             continue
         out.append(trimmed)
     return "\n".join(out).strip()
 
 
+FREQ_DUAL_RE = re.compile(
+    r"^\[\s*口语\s*[：:]?\s*(\d{1,2})\s*[|｜]\s*考试\s*[：:]?\s*(\d{1,2})\s*\]\s*(.+)$"
+)
+FREQ_SHORT_DUAL_RE = re.compile(
+    r"^\[\s*(\d{1,2})\s*[|｜]\s*(\d{1,2})\s*\]\s*(.+)$"
+)
 FREQ_PREFIX_RE = re.compile(r"^\[(\d{1,2})\]\s*(.+)$")
 FREQ_LABEL_RE = re.compile(r"^\[频次\s*(\d{1,2})\]\s*(.+)$")
 FREQ_TRAILING_RE = re.compile(
@@ -104,29 +115,54 @@ FREQ_TRAILING_RE = re.compile(
 )
 
 
-def _extract_frequency(body: str) -> tuple[int | None, str]:
+def _clamp_freq(raw: str) -> int | None:
+    try:
+        score = int(raw)
+    except (TypeError, ValueError):
+        return None
+    if 1 <= score <= 10:
+        return score
+    return None
+
+
+def _extract_frequency(body: str) -> tuple[int | None, int | None, str]:
+    """返回 (oral, exam, text)。旧单分只填 exam。"""
     raw = str(body or "").strip()
     if not raw:
-        return None, ""
+        return None, None, ""
+    m = FREQ_DUAL_RE.match(raw)
+    if m:
+        oral = _clamp_freq(m.group(1))
+        exam = _clamp_freq(m.group(2))
+        text = m.group(3).strip()
+        if oral is not None and exam is not None and text:
+            return oral, exam, text
+    m = FREQ_SHORT_DUAL_RE.match(raw)
+    if m:
+        oral = _clamp_freq(m.group(1))
+        exam = _clamp_freq(m.group(2))
+        text = m.group(3).strip()
+        if oral is not None and exam is not None and text:
+            return oral, exam, text
     m = FREQ_PREFIX_RE.match(raw)
     if m:
-        score = int(m.group(1))
+        exam = _clamp_freq(m.group(1))
         text = m.group(2).strip()
-        if 1 <= score <= 10 and text:
-            return score, text
+        if exam is not None and text:
+            return None, exam, text
     m = FREQ_LABEL_RE.match(raw)
     if m:
-        score = int(m.group(1))
+        exam = _clamp_freq(m.group(1))
         text = m.group(2).strip()
-        if 1 <= score <= 10 and text:
-            return score, text
+        if exam is not None and text:
+            return None, exam, text
     m = FREQ_TRAILING_RE.match(raw)
     if m:
-        score = int(m.group(2))
+        exam = _clamp_freq(m.group(2))
         text = m.group(1).strip()
-        if 1 <= score <= 10 and text:
-            return score, text
-    return None, raw
+        if exam is not None and text:
+            return None, exam, text
+    return None, None, raw
 
 
 def validate_usage(raw: str) -> tuple[str | None, str | None]:
@@ -139,7 +175,7 @@ def validate_usage(raw: str) -> tuple[str | None, str | None]:
     if not lines:
         return None, "empty"
 
-    points: list[tuple[int, str, int]] = []
+    points: list[tuple[int, str, int, int]] = []
     for line in lines:
         m = NUMBERED_LINE_RE.match(line)
         if not m:
@@ -148,24 +184,29 @@ def validate_usage(raw: str) -> tuple[str | None, str | None]:
         body = m.group(2).strip()
         if n <= 0 or not body:
             return None, "invalid_numbering"
-        freq, body_text = _extract_frequency(body)
-        if freq is None and re.match(r"^\[\d{1,2}\]\s*", body):
+        oral, exam, body_text = _extract_frequency(body)
+        if (
+            oral is None
+            and exam is None
+            and re.match(r"^\[\s*(?:口语|频次)?\s*\d{1,2}", body)
+        ):
             return None, "invalid_frequency"
-        if freq is None:
+        if oral is None or exam is None:
             return None, "missing_frequency"
         if not body_text or not HAN_RE.search(body_text):
             return None, "invalid_numbering"
-        points.append((n, body_text, freq))
+        points.append((n, body_text, oral, exam))
 
     if len(points) < 1:
         return None, "need_one_point"
 
-    for i, (n, _, _) in enumerate(points):
+    for i, (n, _, _, _) in enumerate(points):
         if n != i + 1:
             return None, "invalid_numbering"
 
     out = "\n".join(
-        f"{i + 1}. [{freq}] {body}" for i, (_, body, freq) in enumerate(points)
+        f"{i + 1}. [口语{oral}|考试{exam}] {body}"
+        for i, (_, body, oral, exam) in enumerate(points)
     )
     return out, None
 
@@ -186,8 +227,8 @@ def generate_for_row(
             "fail 勿拆成「计划/设备失败」与「考试不及格」、"
             "freeze 勿拆成「冻结薪资」与「冻结账户」（合并为 1 条动词义）；"
             "禁止近义微调硬拆，如 carefully 勿拆成「仔细地完成工作」与「谨慎地避免出错」），"
-            "每条必须带出现频次 1～10，形如：\n"
-            "1. [9] 副词：表示「仔细地；小心地；认真地」。\n"
+            "每条必须带口语/考试双分 1～10，形如：\n"
+            "1. [口语8|考试9] 副词：表示「仔细地；小心地；认真地」。\n"
             "正文禁止写考试名称（雅思、托福、IELTS、TOEFL、托业、TOEIC 等）。"
         )
 
@@ -213,7 +254,7 @@ def generate_for_row(
                 work_prompt = (
                     base_prompt
                     + f"\n\n上次不合格（{last_err}）。请只输出从 1. 连续编号的中文用法行，"
-                    "每条必须是「数字. [1-10分] 中文说明」，组数按真实常用用法（1 种就 1 条），"
+                    "每条必须是「数字. [口语n|考试m] 中文说明」（各 1～10），组数按真实常用用法（1 种就 1 条），"
                     "不要 markdown，不要写任何考试名称标签。"
                 )
             except Exception as err:

@@ -1,0 +1,61 @@
+# 英语用法：口语/考试双频率（临时回填）
+
+用途：给已有用法补 `[口语n|考试m]`（对齐日语语法用法旁双进度条）。
+新词统一补齐走 `en-vocab-fill-online-batch-api.py`（SYSTEM/prompt 已要求双分）。
+
+## API（复用 fill-usage）
+
+- URL：`POST https://finance.info-quests.com/api/en-vocab/fill-usage`
+- 鉴权：`Authorization: Bearer $JP_REVIEW_UPLOAD_TOKEN`
+
+### list_missing
+
+缺空用法，或已有用法但缺完整双分（含旧单分 `[8]`）都会进队列；
+临时任务优先处理 `needs_frequency_only=true`。
+
+```bash
+curl -sS -X POST "$BASE/api/en-vocab/fill-usage" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"list_missing","limit":5}'
+```
+
+### apply
+
+```bash
+curl -sS -X POST "$BASE/api/en-vocab/fill-usage" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "mode":"apply",
+    "force":true,
+    "source":"Claude",
+    "updates":[{
+      "word_id":123,
+      "usage":"1. [口语7|考试8] 动词：表示「期待」。"
+    }]
+  }'
+```
+
+## 临时定时
+
+```bash
+bash scripts/setup-en-vocab-fill-frequency-online-mac.sh
+# 试跑 2 条
+MAX_ROUNDS=2 bash scripts/en-vocab-fill-frequency-online-stage.sh
+# 重跑（清 DONE）
+FORCE=1 bash scripts/setup-en-vocab-fill-frequency-online-mac.sh
+```
+
+- Label：`com.infoquests.en-vocab-fill-frequency-online`
+- 队列空 → exit 10 → stage 自动 bootout
+- 抽查门禁 / 熔断：与其它 fill 相同
+
+## 存库格式
+
+```text
+1. [口语7|考试8] 介词：表示「在……之上」；常用于描述位置关系。
+2. [口语4|考试5] 副词：表示「在上方；在上文中」。
+```
+
+卡片展示：用法旁「口语频率」「考试频率」双进度条（复用 `JpVocabUsageFrequencyBars`）。

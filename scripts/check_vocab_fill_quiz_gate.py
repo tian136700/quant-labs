@@ -70,6 +70,7 @@ def main() -> int:
         "scripts/jp-vocab-fill-grammar-connection-stage.sh",
         "scripts/jp-vocab-fill-pos-online-stage.sh",
         "scripts/jp-vocab-fill-frequency-online-stage.sh",
+        "scripts/en-vocab-fill-frequency-online-stage.sh",
         "scripts/jp-vocab-fill-single-usage-examples-online-stage.sh",
         "scripts/jp-vocab-fill-stage.sh",
         "scripts/jp-vocab-fill-reading-nightly.sh",
@@ -82,6 +83,7 @@ def main() -> int:
     for rel in (
         "scripts/jp-vocab-fill-online-batch-api.py",
         "scripts/en-vocab-fill-online-batch-api.py",
+        "scripts/en-vocab-fill-frequency-online-api.py",
     ):
         text = read(rel)
         if "skip_if_quiz_gate_quiet" not in text:

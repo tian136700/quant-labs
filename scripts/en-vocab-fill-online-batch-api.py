@@ -74,8 +74,11 @@ SYSTEM = (
     "Return ONLY one JSON object. No markdown fences, no commentary. "
     "All string values MUST use double quotes; escape any \" inside strings as \\\". "
     "IPA reading MUST be a JSON string like \"/ʌp ˈtuː/\", never a bare /…/ token. "
-    "Usage: Chinese numbered 1. 2. …; EACH line MUST include frequency score [1]-[10] "
-    "right after the number (e.g. '1. [8] 动词：…'); 10=most common sense for that word; "
+    "Usage: Chinese numbered 1. 2. …; EACH line MUST include dual frequency "
+    "[口语n|考试m] (each 1-10) right after the number "
+    "(e.g. '1. [口语7|考试8] 动词：…'); "
+    "oral=spoken/conversational frequency; exam=category-exam frequency "
+    "(TOEIC workplace / IELTS-TOEFL academic as appropriate); scores may differ; "
     "pick academic-exam-frequent uses; "
     "if the word has only one real high-frequency sense, output only ONE usage line; "
     "SAME part of speech + nearly the same meaning MUST be merged into ONE line "
@@ -243,6 +246,12 @@ def strip_exam_labels(text: str) -> str:
     return "\n".join(lines).strip()
 
 
+FREQ_DUAL_RE = re.compile(
+    r"^\[\s*口语\s*[：:]?\s*(\d{1,2})\s*[|｜]\s*考试\s*[：:]?\s*(\d{1,2})\s*\]\s*(.+)$"
+)
+FREQ_SHORT_DUAL_RE = re.compile(
+    r"^\[\s*(\d{1,2})\s*[|｜]\s*(\d{1,2})\s*\]\s*(.+)$"
+)
 FREQ_PREFIX_RE = re.compile(r"^\[(\d{1,2})\]\s*(.+)$")
 FREQ_LABEL_RE = re.compile(r"^\[频次\s*(\d{1,2})\]\s*(.+)$")
 FREQ_TRAILING_RE = re.compile(
@@ -251,10 +260,37 @@ FREQ_TRAILING_RE = re.compile(
 NUMBERED_USAGE_RE = re.compile(r"^\s*(\d+)\s*[.、．)\]]\s*(.+)$")
 
 
-def _extract_usage_frequency(body: str) -> tuple[int | None, str]:
+def _clamp_freq(value: Any) -> int | None:
+    try:
+        score = int(value)
+    except (TypeError, ValueError):
+        return None
+    if 1 <= score <= 10:
+        return score
+    return None
+
+
+def _extract_usage_frequency(
+    body: str,
+) -> tuple[int | None, int | None, str]:
+    """返回 (oral, exam, text)。旧单分只填 exam。"""
     raw = str(body or "").strip()
     if not raw:
-        return None, ""
+        return None, None, ""
+    m = FREQ_DUAL_RE.match(raw)
+    if m:
+        oral = _clamp_freq(m.group(1))
+        exam = _clamp_freq(m.group(2))
+        text = str(m.group(3) or "").strip()
+        if oral is not None and exam is not None and text:
+            return oral, exam, text
+    m = FREQ_SHORT_DUAL_RE.match(raw)
+    if m:
+        oral = _clamp_freq(m.group(1))
+        exam = _clamp_freq(m.group(2))
+        text = str(m.group(3) or "").strip()
+        if oral is not None and exam is not None and text:
+            return oral, exam, text
     for pattern, score_g, text_g in (
         (FREQ_PREFIX_RE, 1, 2),
         (FREQ_LABEL_RE, 1, 2),
@@ -263,40 +299,42 @@ def _extract_usage_frequency(body: str) -> tuple[int | None, str]:
         m = pattern.match(raw)
         if not m:
             continue
-        try:
-            score = int(m.group(score_g))
-        except (TypeError, ValueError):
-            continue
+        exam = _clamp_freq(m.group(score_g))
         text = str(m.group(text_g) or "").strip()
-        if 1 <= score <= 10 and text:
-            return score, text
-    return None, raw
+        if exam is not None and text:
+            return None, exam, text
+    return None, None, raw
 
 
 def normalize_usage(value: Any) -> str:
-    """用法 →「1. [8] 中文…」；支持字符串或 [{text, frequency}, …]。
+    """用法 →「1. [口语7|考试8] 中文…」；支持字符串或 [{text, oral, exam}, …]。
 
-    任一条缺 1～10 出现频次则返回空串（调用方应重试，勿写库）。
+    任一条缺口语或考试分（各 1～10）则返回空串（调用方应重试，勿写库）。
     """
     lines_out: list[str] = []
 
-    def push(text: str, frequency: Any = None) -> bool:
+    def push(
+        text: str,
+        *,
+        oral: Any = None,
+        exam: Any = None,
+        frequency: Any = None,
+    ) -> bool:
         body = LEADING_INDEX_RE.sub("", str(text or "")).strip()
         if not body:
             return True
-        freq, body_text = _extract_usage_frequency(body)
-        if freq is None and frequency is not None:
-            try:
-                score = int(frequency)
-            except (TypeError, ValueError):
-                score = 0
-            if 1 <= score <= 10:
-                freq = score
+        o, e, body_text = _extract_usage_frequency(body)
+        if o is None and oral is not None:
+            o = _clamp_freq(oral)
+        if e is None and exam is not None:
+            e = _clamp_freq(exam)
+        if e is None and frequency is not None:
+            e = _clamp_freq(frequency)
         if not body_text:
             return True
-        if freq is None:
+        if o is None or e is None:
             return False
-        lines_out.append(f"{len(lines_out) + 1}. [{freq}] {body_text}")
+        lines_out.append(f"{len(lines_out) + 1}. [口语{o}|考试{e}] {body_text}")
         return True
 
     ok = True
@@ -308,7 +346,13 @@ def normalize_usage(value: Any) -> str:
                     or item.get("usage")
                     or item.get("zh")
                     or "",
-                    item.get("frequency")
+                    oral=item.get("oral_frequency")
+                    or item.get("oral")
+                    or item.get("oralFreq"),
+                    exam=item.get("exam_frequency")
+                    or item.get("exam")
+                    or item.get("examFreq"),
+                    frequency=item.get("frequency")
                     or item.get("freq")
                     or item.get("score"),
                 ):
@@ -323,7 +367,15 @@ def normalize_usage(value: Any) -> str:
     if isinstance(value, dict):
         if not push(
             value.get("text") or value.get("usage") or "",
-            value.get("frequency") or value.get("freq") or value.get("score"),
+            oral=value.get("oral_frequency")
+            or value.get("oral")
+            or value.get("oralFreq"),
+            exam=value.get("exam_frequency")
+            or value.get("exam")
+            or value.get("examFreq"),
+            frequency=value.get("frequency")
+            or value.get("freq")
+            or value.get("score"),
         ):
             return ""
         return "\n".join(lines_out).strip()
@@ -478,7 +530,7 @@ def build_prompt(row: dict[str, Any], needs: dict[str, bool]) -> str:
 - reading: 美式 IPA，形如 /həˈloʊ/
 - meaning: 中文释义，分号分隔，最多 3 义
 - pos: 英文词性缩写，多词性用 /，如 v 或 adj/n
-- usage: 编号中文用法；每条必须带出现频次 [1]～[10]（10=该词最常见用法），形如「1. [8] 介词：…」；组数=真实不同核心义项数（1 种就 1 条，禁止硬凑 2 条）；硬规则：同词性且意思差不多必须合并为 1 条；禁止按对象/场景硬拆同一义（如 attractive「对客户有吸引力」与「外表好看」须合并；fail「计划/设备失败」与「考试不及格」、freeze「冻结薪资」与「冻结账户」须合并为 1 条动词义，名词义另开）；禁止近义微调硬拆（如 carefully「仔细地完成工作」与「谨慎地避免出错」须合并为 1 条）；若两条候选用法造出的例句几乎可互换，必须合并成 1 条；只有词性/词典义/固定结构真不同才拆条；每条只标一种词性，禁止「动词/名词」等含糊写法（例句是名词就标名词；名词与动词义都常用则拆成两条）；选题按上方分类语境高频，正文禁止考试品牌名。也可返回数组 [{{"text":"…","frequency":8}},…]（frequency 必填 1～10）
+- usage: 编号中文用法；每条必须带口语/考试双分 [口语n|考试m]（各 1～10；口语=日常会话；考试=该分类考试语境；可打不同分），形如「1. [口语7|考试8] 介词：…」；组数=真实不同核心义项数（1 种就 1 条，禁止硬凑 2 条）；硬规则：同词性且意思差不多必须合并为 1 条；禁止按对象/场景硬拆同一义（如 attractive「对客户有吸引力」与「外表好看」须合并；fail「计划/设备失败」与「考试不及格」、freeze「冻结薪资」与「冻结账户」须合并为 1 条动词义，名词义另开）；禁止近义微调硬拆（如 carefully「仔细地完成工作」与「谨慎地避免出错」须合并为 1 条）；若两条候选用法造出的例句几乎可互换，必须合并成 1 条；只有词性/词典义/固定结构真不同才拆条；每条只标一种词性，禁止「动词/名词」等含糊写法（例句是名词就标名词；名词与动词义都常用则拆成两条）；选题按上方分类语境高频，正文禁止考试品牌名。也可返回数组 [{{"text":"…","oral_frequency":7,"exam_frequency":8}},…]（双分必填 1～10）
 - example_sentences: 字符串（不要 JSON 数组）。与 usage 一一对应；每条英文完整短句 + 下一行「译文：中文」交替；用法是被动则例句必须被动；时态/词形可变；其余词要极简单；不要难词、不要长难从句；不要行首编号；禁止输出 [{{"sentence":...}}] 这类结构
 
 只输出 JSON。"""
