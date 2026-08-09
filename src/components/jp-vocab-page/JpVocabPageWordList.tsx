@@ -90,7 +90,8 @@ export type JpVocabPageWordListProps = {
 };
 
 export function JpVocabPageWordList(props: JpVocabPageWordListProps) {
-  if (props.loading) {
+  // 词条已到但 loading 仍 true（例如次要请求卡住）时仍展示表，禁止整页空白转圈
+  if (props.loading && !props.wordsLength) {
     return <p style={{ color: "var(--muted)" }}>加载中…</p>;
   }
   if (!props.wordsLength) {

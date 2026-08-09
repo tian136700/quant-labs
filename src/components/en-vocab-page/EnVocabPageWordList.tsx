@@ -160,7 +160,7 @@ export function EnVocabPageWordList(props: EnVocabPageWordListProps) {
         />
       ) : null}
 
-      {loading ? (
+      {loading && !wordsLength ? (
         <p style={{ color: "var(--muted)" }}>加载中…</p>
       ) : !wordsLength ? (
         <p style={{ color: "var(--muted)" }}>

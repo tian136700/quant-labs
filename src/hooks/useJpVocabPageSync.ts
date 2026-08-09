@@ -186,7 +186,9 @@ export function useJpVocabPageSync(options: {
       const res = await fetch("/api/jp-vocab/teacher-visible", {
         credentials: "include",
         cache: "no-store",
+        signal: AbortSignal.timeout(15_000),
       });
+      if (!res.ok) return;
       const data = (await res.json()) as {
         ok: boolean;
         teacher_visible_limit?: Partial<JpVocabTeacherVisibleLimit>;
@@ -197,7 +199,7 @@ export function useJpVocabPageSync(options: {
         });
       }
     } catch {
-      /* ignore */
+      /* ignore — 不得拖住词表 loading */
     }
   }, [applyTeacherVisibleSync]);
 
@@ -220,7 +222,8 @@ export function useJpVocabPageSync(options: {
         setLoading(true);
       }
       onLoadError("");
-      const visibleSync = syncTeacherVisibleLimitFromServer();
+      // 并行拉今日抽查数量，但禁止在 finally 里 await——teacher-visible / 1102 卡住会整页永远「加载中」
+      void syncTeacherVisibleLimitFromServer();
       try {
         const payload = await fetchWithClientCache(
           JP_VOCAB_CACHE_KEY,
@@ -238,7 +241,6 @@ export function useJpVocabPageSync(options: {
           onLoadError(err instanceof Error ? err.message : String(err));
         }
       } finally {
-        await visibleSync;
         setLoading(false);
         setRefreshing(false);
       }
