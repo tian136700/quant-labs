@@ -5,9 +5,12 @@ import type {
   EnVocabRef,
 } from "@/lib/types";
 
-/** 教案文件 R2 前缀；与 review PDF 共用 JP_REVIEW 桶，上传 review 时不得删除此前缀下对象 */
-export const JP_VOCAB_REF_R2_PREFIX = "vocab-ref/";
-
+/**
+ * 英语教案 R2 前缀（与日语 `vocab-ref/` 必须隔离）。
+ * 历史上曾误用 `vocab-ref/`，与日语 `lesson-{id}` 同桶同路径互相覆盖（托业盖掉日语教案）。
+ * 与 review PDF 共用 JP_REVIEW 桶；上传 review 时不得删除此前缀下对象。
+ */
+export const EN_VOCAB_REF_R2_PREFIX = "en-vocab-ref/";
 /** Windows / 跨平台文件名非法字符；空格与括号可保留 */
 const UNSAFE_FILENAME_CHARS = /[\\/:*?"<>|\x00-\x1f]/g;
 
@@ -103,7 +106,7 @@ export function enLessonRefKey(lessonId: number): string {
 
 export function enVocabRefR2Key(refKey: string, mediaType: EnVocabMediaType): string {
   const ext = mediaType === "pdf" ? ".pdf" : ".png";
-  return `${JP_VOCAB_REF_R2_PREFIX}${refKey}${ext}`;
+  return `${EN_VOCAB_REF_R2_PREFIX}${refKey}${ext}`;
 }
 
 export function enVocabRefContentType(mediaType: EnVocabMediaType): string {

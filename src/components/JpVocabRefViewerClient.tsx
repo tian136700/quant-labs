@@ -21,6 +21,7 @@ type Props = {
   cacheVersion?: string | null;
   downloadFilename?: string;
   cropKind?: "word" | "grammar" | null;
+  wordCount?: number | null;
 };
 
 /** 参考图查看：ssr:false，避免 jspdf/docx 下载链打进 Worker SSR */

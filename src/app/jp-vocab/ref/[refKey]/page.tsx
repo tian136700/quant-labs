@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { JpVocabRefViewerClient } from "@/components/JpVocabRefViewerClient";
 import { getCloudflareEnv } from "@/lib/cloudflare-env";
 import { getJpLessonByRefKey } from "@/lib/jp-lesson-db";
-import { jpLessonCropKind } from "@/lib/jp-lesson-shared";
+import { jpLessonCropKind, parseLessonContent } from "@/lib/jp-lesson-shared";
 import { getJpVocabRef } from "@/lib/jp-vocab-db";
 import { jpLessonRefDownloadFilename } from "@/lib/jp-vocab-ref-shared";
 import type { Metadata } from "next";
@@ -40,13 +40,19 @@ export default async function JpVocabRefViewerPage({
   const downloadFilename = lesson
     ? jpLessonRefDownloadFilename(lesson, ref.media_type)
     : undefined;
+  const cropKind = lesson ? jpLessonCropKind(lesson.kind) : null;
+  const wordCount =
+    lesson && cropKind === "word"
+      ? parseLessonContent(lesson.content).length
+      : null;
 
   return (
     <JpVocabRefViewerClient
       refMeta={ref}
       cacheVersion={v ?? null}
       downloadFilename={downloadFilename}
-      cropKind={lesson ? jpLessonCropKind(lesson.kind) : null}
+      cropKind={cropKind}
+      wordCount={wordCount}
     />
   );
 }

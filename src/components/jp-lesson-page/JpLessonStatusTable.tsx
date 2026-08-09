@@ -249,6 +249,11 @@ export function JpLessonStatusTable({
         allowOriginalDownload={isAdmin}
         cropKind={jpLessonCropKind(lesson.kind)}
         lessonId={lesson.id}
+        wordCount={
+          jpLessonCropKind(lesson.kind) === "word"
+            ? parseLessonContent(lesson.content).length
+            : null
+        }
       />
     );
     actionItems.push(

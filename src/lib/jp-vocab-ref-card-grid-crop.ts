@@ -349,3 +349,111 @@ export function cardGridSplitsToSectionBounds(
   if (y0 < height) bounds.push({ y0, y1: height });
   return bounds;
 }
+
+/** 宽松收集行缝候选，供已知行数时 refine（与板书 Python `_collect_split_candidates` 对齐） */
+export function collectLooseWordCardSplitCandidates(
+  data: Uint8ClampedArray,
+  width: number,
+  height: number
+): number[] {
+  const base = detectWordCardGridRowSplits(data, width, height) ?? [];
+  const L0 = width * 0.05;
+  const L1 = width * 0.32;
+  const R0 = width * 0.52;
+  const R1 = width * 0.79;
+  const inkL = new Array<number>(height);
+  const inkR = new Array<number>(height);
+  for (let y = 0; y < height; y++) {
+    inkL[y] = bandInkFraction(data, width, y, L0, L1);
+    inkR[y] = bandInkFraction(data, width, y, R0, R1);
+  }
+  const smL = new Array<number>(height);
+  const smR = new Array<number>(height);
+  for (let y = 0; y < height; y++) {
+    const a = Math.max(0, y - 1);
+    const b = Math.min(height, y + 2);
+    let sumL = 0;
+    let sumR = 0;
+    for (let i = a; i < b; i++) {
+      sumL += inkL[i];
+      sumR += inkR[i];
+    }
+    const n = b - a;
+    smL[y] = sumL / n;
+    smR[y] = sumR / n;
+  }
+  const extra: number[] = [];
+  let run: number | null = null;
+  for (let y = 0; y < height; y++) {
+    const on = smL[y] < 0.13 && smR[y] < 0.13;
+    if (on) {
+      if (run === null) run = y;
+    } else if (run !== null) {
+      if (y - run >= 2) extra.push(Math.floor((run + y - 1) / 2));
+      run = null;
+    }
+  }
+  if (run !== null && height - run >= 2) {
+    extra.push(Math.floor((run + height - 1) / 2));
+  }
+  const minY = Math.floor(height * 0.1);
+  return [...new Set([...base, ...extra.filter((c) => c > minY)])].sort(
+    (a, b) => a - b
+  );
+}
+
+/**
+ * 单词分页 Word 专用切段：按词卡行横切，禁止整张长图糊进一页。
+ * nWords 有则按列数算行数并 refine；仍失败则几何均分（仍保证多行）。
+ */
+export function resolveWordCardSectionsForPaginatedDocx(
+  data: Uint8ClampedArray,
+  width: number,
+  height: number,
+  nWords?: number | null
+): { y0: number; y1: number }[] {
+  if (!width || !height) return [{ y0: 0, y1: Math.max(1, height) }];
+
+  const cols = estimateWordCardColumns(data, width, height);
+  let splits = detectWordCardGridRowSplits(data, width, height);
+  const wordCount =
+    typeof nWords === "number" && Number.isFinite(nWords) && nWords > 0
+      ? Math.floor(nWords)
+      : 0;
+
+  if (wordCount > 0) {
+    const nRows = Math.max(1, Math.ceil(wordCount / cols));
+    if (nRows >= 2) {
+      const cands = collectLooseWordCardSplitCandidates(data, width, height);
+      const refined = refineCardGridSplitsForRowCount(
+        cands,
+        height,
+        nRows,
+        splits
+      );
+      if (refined?.length) splits = refined;
+    }
+  }
+
+  if (splits && splits.length >= 1) {
+    return cardGridSplitsToSectionBounds(splits, height);
+  }
+
+  // 兜底：高图绝不能整页贴一张（用户看到的「好几行糊一页」）
+  if (height >= 400) {
+    const nRows =
+      wordCount > 0
+        ? Math.max(2, Math.ceil(wordCount / cols))
+        : Math.max(2, Math.round(height / Math.max(160, height * 0.11)));
+    const forced: number[] = [];
+    const minFirst = Math.max(140, Math.floor(height * 0.12));
+    for (let i = 1; i < nRows; i++) {
+      let y = Math.floor((height * i) / nRows);
+      if (i === 1 && y < minFirst) y = minFirst;
+      if (!forced.length || y - forced[forced.length - 1] >= 40) forced.push(y);
+    }
+    if (forced.length) return cardGridSplitsToSectionBounds(forced, height);
+  }
+
+  return [{ y0: 0, y1: height }];
+}

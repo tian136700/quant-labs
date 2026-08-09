@@ -24,6 +24,8 @@ type Props = {
   downloadFilename?: string;
   /** 关联新课类型：语法/单词分页切段分路径 */
   cropKind?: "word" | "grammar" | null;
+  /** 单词课词数：分页 Word 按行横切 */
+  wordCount?: number | null;
 };
 
 export function JpVocabRefViewer({
@@ -31,6 +33,7 @@ export function JpVocabRefViewer({
   cacheVersion,
   downloadFilename,
   cropKind = null,
+  wordCount = null,
 }: Props) {
   const { isAdmin } = useEtrAuth();
   const initialV = cacheVersion ?? refMeta.updated_at;
@@ -117,6 +120,7 @@ export function JpVocabRefViewer({
             className="jp-ref-viewer-download"
             allowOriginalDownload={isAdmin}
             cropKind={cropKind}
+            wordCount={wordCount}
             onStatus={setStatusToast}
           />
         </div>

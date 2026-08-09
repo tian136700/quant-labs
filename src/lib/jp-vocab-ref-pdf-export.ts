@@ -3,6 +3,7 @@
 import {
   cardGridSplitsToSectionBounds,
   detectWordCardGridRowSplits,
+  resolveWordCardSectionsForPaginatedDocx,
 } from "@/lib/jp-vocab-ref-card-grid-crop";
 
 export type LessonSectionBounds = { y0: number; y1: number };
@@ -359,31 +360,18 @@ function readImagePixelData(
 
 /**
  * Word 分页：
- * - 10 词两行时：第一块 5 词 + 第二块 5 词同页，其余部分各一页
- * - 旧版 5 词单行时：仍合并相邻两节同页
+ * - 词卡网格 / 单词课：一律两两成页（每页恰好两行）
+ * - 旧「10 词两行」拆分：第一页两块，其后仍两两成页（禁止再整段多行糊一页）
  */
 function groupLessonSectionsIntoWordPages(
   sections: LessonSectionBounds[],
-  firstSectionSplit: boolean
+  _firstSectionSplit: boolean
 ): LessonSectionBounds[][] {
-  if (firstSectionSplit) {
-    const pages: LessonSectionBounds[][] = [];
-    if (sections.length >= 2) {
-      pages.push([sections[0], sections[1]]);
-      for (let i = 2; i < sections.length; i++) {
-        pages.push([sections[i]]);
-      }
-    } else if (sections.length === 1) {
-      pages.push([sections[0]]);
-    }
-    return pages;
-  }
-
   const pages: LessonSectionBounds[][] = [];
   for (let i = 0; i < sections.length; i += 2) {
     pages.push(sections.slice(i, i + 2));
   }
-  return pages;
+  return pages.length ? pages : [[{ y0: 0, y1: 1 }]];
 }
 
 function cropSectionToDataUrl(
@@ -612,7 +600,8 @@ export async function copyJpVocabRefPaginatedPdf(
 export async function exportJpVocabRefPaginatedDocx(
   imageUrl: string,
   filenameBase: string,
-  cropKind?: JpVocabRefCropKind | null
+  cropKind?: JpVocabRefCropKind | null,
+  options?: { wordCount?: number | null }
 ): Promise<number> {
   const [
     {
@@ -631,17 +620,37 @@ export async function exportJpVocabRefPaginatedDocx(
   ] = await Promise.all([import("docx"), loadImage(imageUrl)]);
 
   const kind = resolveJpVocabRefCropKind(filenameBase, cropKind);
-  const sections = detectLessonSectionBounds(img, kind);
-  const { data, width } = readImagePixelData(img);
-  // 两行单词拆分仅对单词教案有意义；语法教案跳过
-  const { sections: wordSections, firstSectionSplit } =
-    kind === "word"
-      ? splitFirstSectionIfTwoRows(data, width, sections)
-      : { sections, firstSectionSplit: false };
-  const sectionPages = groupLessonSectionsIntoWordPages(
-    wordSections,
-    firstSectionSplit
-  );
+  const { data, width, height } = readImagePixelData(img);
+  let wordSections: LessonSectionBounds[];
+  if (kind === "word") {
+    wordSections = resolveWordCardSectionsForPaginatedDocx(
+      data,
+      width,
+      height,
+      options?.wordCount
+    );
+    // 旧「第 N 部分」兜底
+    if (wordSections.length <= 1) {
+      const peaked = detectLessonSectionBounds(img, kind);
+      wordSections = splitFirstSectionIfTwoRows(data, width, peaked).sections;
+    }
+    // 仍整图一页且图很高 → 再强制按估行数切开（禁止好几行糊一页）
+    if (wordSections.length <= 1 && height >= 400) {
+      wordSections = resolveWordCardSectionsForPaginatedDocx(
+        data,
+        width,
+        height,
+        options?.wordCount ?? Math.max(6, Math.round(height / 160) * 2)
+      );
+    }
+  } else {
+    wordSections = detectLessonSectionBounds(img, kind);
+  }
+  const sectionPages = groupLessonSectionsIntoWordPages(wordSections, false);
+  if (kind === "word" && sectionPages.some((p) => p.length > 2)) {
+    throw new Error("分页 Word 内部错误：一页超过两行词卡");
+  }
+
   const pageWpx = 794;
   const pageHpx = 1123;
   const marginPx = 45;
@@ -657,7 +666,6 @@ export async function exportJpVocabRefPaginatedDocx(
     }
 
     const pageSections = sectionPages[pageIdx];
-    // 两行页：两图高度 + 中间 1/3 页空隙 ≈ 可用页高；单行页可更大
     const maxImgH =
       pageSections.length > 1
         ? (usableHpx - partGapPx) / pageSections.length

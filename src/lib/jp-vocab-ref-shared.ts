@@ -5,7 +5,7 @@ import type {
   JpVocabRef,
 } from "@/lib/types";
 
-/** 教案文件 R2 前缀；与 review PDF 共用 JP_REVIEW 桶，上传 review 时不得删除此前缀下对象 */
+/** 日语教案文件 R2 前缀；英语必须用 `en-vocab-ref/`（见 EN_VOCAB_REF_R2_PREFIX），禁止再共用本前缀。与 review PDF 共用 JP_REVIEW 桶，上传 review 时不得删除此前缀下对象 */
 export const JP_VOCAB_REF_R2_PREFIX = "vocab-ref/";
 
 /** Windows / 跨平台文件名非法字符；顿号、括号、日文可保留 */

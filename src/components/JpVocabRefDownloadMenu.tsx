@@ -38,6 +38,8 @@ type Props = {
    * 当前 `JP_LESSON_BOARD_DOCX_PITCH_ENABLED=false`，一律走浏览器现场分页版式。
    */
   lessonId?: number | null;
+  /** 单词课 content 词数：分页 Word 按行数横切用，避免整图糊一页 */
+  wordCount?: number | null;
 };
 
 /**
@@ -217,6 +219,7 @@ export function JpVocabRefDownloadMenu({
   cropKind = null,
   onStatus,
   lessonId = null,
+  wordCount = null,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<BusyKind | null>(null);
@@ -379,7 +382,9 @@ export function JpVocabRefDownloadMenu({
       const { exportJpVocabRefPaginatedDocx } = await import(
         "@/lib/jp-vocab-ref-pdf-export"
       );
-      await exportJpVocabRefPaginatedDocx(mediaUrl, filename, cropKind);
+      await exportJpVocabRefPaginatedDocx(mediaUrl, filename, cropKind, {
+        wordCount,
+      });
     } catch (err) {
       window.alert(
         err instanceof Error ? err.message : "分页 Word 生成失败，请稍后重试"
@@ -387,7 +392,7 @@ export function JpVocabRefDownloadMenu({
     } finally {
       setBusy(null);
     }
-  }, [busy, mediaUrl, filename, cropKind, lessonId, onStatus]);
+  }, [busy, mediaUrl, filename, cropKind, lessonId, wordCount, onStatus]);
 
   const isImage = mediaType === "image";
   const label =

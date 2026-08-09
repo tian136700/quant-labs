@@ -51,11 +51,20 @@ def main() -> int:
         "cardGridSplitsToSectionBounds",
         "jp-vocab-ref-card-grid-crop",
         "JP_VOCAB_REF_WORD_PAGE_BOARD_GAP_MM = 99",
+        "resolveWordCardSectionsForPaginatedDocx",
     ):
         if needle not in export_text:
             errors.append(f"pdf-export must wire {needle}")
     if "partGapMm = 32" in export_text:
         errors.append("Word row gap must be ~1/3 page (99mm), not partGapMm = 32")
+
+    crop_text = crop_ts.read_text(encoding="utf-8") if crop_ts.is_file() else ""
+    for needle in (
+        "resolveWordCardSectionsForPaginatedDocx",
+        "collectLooseWordCardSplitCandidates",
+    ):
+        if needle not in crop_text:
+            errors.append(f"card-grid crop missing {needle}")
 
     # 分页 Word 须两两成页
     pages = group_sections_into_pages([(0, 10), (10, 20), (20, 30), (30, 40), (40, 50)])

@@ -1,4 +1,5 @@
 import type { CloudflareEnv } from "@/lib/types";
+import { EN_VOCAB_REF_R2_PREFIX } from "@/lib/en-vocab-ref-shared";
 import { JP_VOCAB_REF_R2_PREFIX } from "@/lib/jp-vocab-ref-shared";
 
 /** Review PDF 与教案共用 JP_REVIEW 桶；review 文件必须放在 review/ 前缀下，禁止整桶清理 */
@@ -75,10 +76,13 @@ export function verifyDownloadAccess(
   return key === required;
 }
 
-/** 仅允许删除 review 自身对象；vocab-ref/ 与其它 key 一律拒绝 */
+/** 仅允许删除 review 自身对象；日/英教案前缀与其它 key 一律拒绝 */
 function assertReviewOwnedKeys(keys: string[]): void {
   for (const key of keys) {
-    if (key.startsWith(JP_VOCAB_REF_R2_PREFIX)) {
+    if (
+      key.startsWith(JP_VOCAB_REF_R2_PREFIX) ||
+      key.startsWith(EN_VOCAB_REF_R2_PREFIX)
+    ) {
       throw new Error(`Refusing to delete protected vocab ref object: ${key}`);
     }
     if (!JP_REVIEW_OWNED_KEYS.has(key)) {
