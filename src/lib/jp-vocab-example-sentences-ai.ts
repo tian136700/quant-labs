@@ -89,6 +89,7 @@ export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
     "释义已含 / 时：按斜杠分段，每段造 1 句，且须体现该段读音（如 前 的 まえ/ぜん）",
     "从句连接后要加顿号「、」：❌「食べながらテレビを見る」✅「食べながら、テレビを見る」；「によると」同理（❌「によると今日は…」✅「によると、今日は…」）",
     "每条日语须以「。」「！」「？」或「…」结尾，禁止无句末标点或只写单词",
+    "日语例句禁止韩文 Hangul（한글）：❌「この셔츠を着ます」✅「このシャツを着ます」；❌助词「에」✅「に」；外来语用片假名",
     "单词例句：句末标点后可标 JLPT 等级半角括号 (N5)/(N4)/(N3)，如「…しました。(N5)」；尽量 N5～N4 简单句",
     "同一次输出末尾必须有【接序】段（词类与活用／语法接续）；禁止另开定时任务只补接序；写回可另传 connection 字段",
     "写回时请传 source，建议「模型名/版本 本地|线上」，如「gemma4:26b 本地」；人手填写为「手动」",
@@ -109,6 +110,7 @@ export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
     "gloss_not_chinese",
     "gloss_has_yakuwen_label",
     "lemma_placeholder_in_sentence",
+    "hangul_in_japanese_line",
     "grammar_not_used",
     "word_not_used",
     "double_wa_topic",
@@ -127,6 +129,17 @@ const LITERAL_NI_TSUITE_HANASU_GLOSS_RE = /关于.+说话/;
 
 /** 词典占位符波浪号，禁止出现在例句正文 */
 const LEMMA_PLACEHOLDER_WAVE_RE = /[～〜]/;
+
+/**
+ * 韩文 Hangul（音节 / 字母 / 兼容字母）。
+ * 模型偶把「シャツ」写成「셔츠」、把「に」写成「에」混进日语例句。
+ */
+const HANGUL_IN_JP_EXAMPLE_RE = /[\uAC00-\uD7A3\u1100-\u11FF\u3130-\u318F]/;
+
+/** 日语例句行是否含韩文（apply / 编辑写回须拒 hangul_in_japanese_line） */
+export function jpVocabExampleHasHangul(text: string): boolean {
+  return HANGUL_IN_JP_EXAMPLE_RE.test(String(text || ""));
+}
 
 /**
  * 译文行不得夹日语假名 / 整句日语（曾出现「译文：雨なら傘を忘れた。(あいなら…)」）。
@@ -318,6 +331,9 @@ ${
    - ✅名词／二类形容词：「出張(しゅっちょう)でしたね。」「静(しず)かでしたね。」
    - 教「～でしたね」时，一类形容词例句必须写「かったですね」，不要为了贴词条硬写成「かったでしたね」。
 4. 语法词条的「～」「〜」禁止出现在例句里（那是词典占位符）。❌「～によると天気は晴れです」✅「天気予報(てんきよほう)によると、今日(きょう)は晴(は)れです」。
+4b. **禁止韩文 Hangul（한글）**：日语例句只能是日语（汉字／假名／片假名）+ 必要标点；外来语用片假名。
+   - ❌「この셔츠を着(き)ます。」（셔츠＝韩语）→ ✅「このシャツを着(き)ます。」
+   - ❌「駅(えき)の近(ちか)く에 スーパーがあります。」（에＝韩语助词）→ ✅「駅(えき)の近(ちか)くに スーパーがあります。」
 5. 假名标注必须全覆盖：句中**每一个汉字**后立刻半角括号假名，不能只标词条本身。
    - ❌「今日は気分(きぶん)がいいです。」（「今日」漏标，页面下方无假名）
    - ✅「今日(きょう)は気分(きぶん)がいいです。」
@@ -443,6 +459,9 @@ export function validateJpVocabExampleSentencesAiOutput(
     }
     if (LEMMA_PLACEHOLDER_WAVE_RE.test(stripAllJpVocabParenBlocks(item.text))) {
       return { ok: false, reason: "lemma_placeholder_in_sentence" };
+    }
+    if (jpVocabExampleHasHangul(item.text)) {
+      return { ok: false, reason: "hangul_in_japanese_line" };
     }
     if (jpVocabExampleHasInvalidFuriganaParen(item.text)) {
       return { ok: false, reason: "bad_furigana_paren" };
@@ -582,6 +601,9 @@ export function normalizeJpVocabExampleSentencesForOnlineApply(
       LEMMA_PLACEHOLDER_WAVE_RE.test(stripAllJpVocabParenBlocks(item.text))
     ) {
       return { ok: false, reason: "lemma_placeholder_in_sentence" };
+    }
+    if (jpVocabExampleHasHangul(item.text)) {
+      return { ok: false, reason: "hangul_in_japanese_line" };
     }
     if (jpVocabExampleHasInvalidFuriganaParen(item.text)) {
       return { ok: false, reason: "bad_furigana_paren" };

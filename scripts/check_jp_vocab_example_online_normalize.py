@@ -109,6 +109,36 @@ if (!shumiOnlineOk.ok) {
   process.exit(1);
 }
 
+// 韩文 Hangul 混入日语例句须拒（曾失败 id=618 셔츠、id=480 에）
+const hangulBad = [
+  "この셔츠を着(き)ます。(N5)",
+  "译文：我穿这件衬衫。",
+  "毎日(まいにち)、制服(せいふく)を着(き)て学校(がっこう)へ行(い)きます。(N5)",
+  "译文：每天穿着校服去学校。",
+].join("\\n");
+const hangulOk = [
+  "このシャツを着(き)ます。(N5)",
+  "译文：我穿这件衬衫。",
+  "毎日(まいにち)、制服(せいふく)を着(き)て学校(がっこう)へ行(い)きます。(N5)",
+  "译文：每天穿着校服去学校。",
+].join("\\n");
+const hangulInput = { word: "着る", kind: "word", reading: "きる", meaning: "穿；戴" };
+const hangulStrict = validateJpVocabExampleSentencesAiOutput(hangulBad, hangulInput);
+const hangulOnline = normalizeJpVocabExampleSentencesForOnlineApply(hangulBad, hangulInput);
+if (hangulStrict.ok || hangulStrict.reason !== "hangul_in_japanese_line") {
+  console.error("FAIL: strict must reject Hangul, got", hangulStrict);
+  process.exit(1);
+}
+if (hangulOnline.ok || hangulOnline.reason !== "hangul_in_japanese_line") {
+  console.error("FAIL: online must reject Hangul, got", hangulOnline);
+  process.exit(1);
+}
+const hangulOnlineOk = normalizeJpVocabExampleSentencesForOnlineApply(hangulOk, hangulInput);
+if (!hangulOnlineOk.ok) {
+  console.error("FAIL: katakana シャツ should pass:", hangulOnlineOk.reason);
+  process.exit(1);
+}
+
 // 「訳文：」须 online salvage 成「译文：」（曾失败 id=508/512）
 const yakuwenRaw = [
   "日常(にちじょう)生活(せいかつ)で日本語(にほんご)をよく使(つか)います。(N4)",
@@ -225,6 +255,14 @@ def main() -> int:
 
     must_contain(ai, "normalizeJpVocabExampleSentencesForOnlineApply", "ai")
     must_contain(ai, "incomplete_kanji_furigana", "ai online reject bare kanji")
+    must_contain(ai, "hangul_in_japanese_line", "ai reject Hangul in JP examples")
+    must_contain(ai, "jpVocabExampleHasHangul", "ai Hangul helper")
+    must_contain(ai, "この셔츠を着", "ai prompt bans Hangul shirt")
+    must_contain(
+        ROOT / "scripts/jp-vocab-fill-online-batch-api.py",
+        "禁止韩文",
+        "online batch bans Hangul in examples",
+    )
     must_contain(ai, "私の趣味(しゅみ)", "ai prompt warns 私 without furigana")
     must_contain(
         ROOT / "scripts/jp-vocab-fill-online-batch-api.py",

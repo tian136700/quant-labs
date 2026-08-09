@@ -16,6 +16,11 @@ type Props = {
   onGoToCoach?: () => void;
   /** 抽完后回看最后一个词；可再点卡片内「上一个」 */
   onViewLastWord?: () => void;
+  /**
+   * 抽查卡仍开着（已停在末词）：不必再「查看上一个单词」，
+   * 关弹窗即可继续在末词上点「上一个」。
+   */
+  flashcardStillOpen?: boolean;
   onClose: () => void;
 };
 
@@ -24,8 +29,11 @@ const COPY: Record<
   { title: string; lines: string[]; button: string }
 > = {
   teacher: {
-    title: "恭喜你，今日单词已抽完",
-    lines: ["今日单词/语法已全部抽查完毕，辛苦了！"],
+    title: "今日抽查已完成",
+    lines: [
+      "今日单词/语法已全部抽查完毕，辛苦了！",
+      "将停留在最后一个词；可点「上一个」按本轮顺序回看。",
+    ],
     button: "好的",
   },
   study: {
@@ -46,6 +54,7 @@ export function JpVocabDailyQuizCompleteModal({
   coachBusy = false,
   onGoToCoach,
   onViewLastWord,
+  flashcardStillOpen = false,
   onClose,
 }: Props) {
   const [mounted, setMounted] = useState(false);
@@ -55,7 +64,8 @@ export function JpVocabDailyQuizCompleteModal({
       ? levelCounts.normal + levelCounts.weak
       : 0;
   const showCoachAction = variant === "teacher" && onGoToCoach;
-  const showViewLast = variant === "teacher" && onViewLastWord;
+  const showViewLast =
+    variant === "teacher" && onViewLastWord && !flashcardStillOpen;
 
   useEffect(() => {
     setMounted(true);
@@ -147,7 +157,8 @@ export function JpVocabDailyQuizCompleteModal({
         .jp-vocab-complete-modal-overlay {
           position: fixed;
           inset: 0;
-          z-index: 1001;
+          /* 须高于抽查卡 (~1002)，否则抽完留末词时弹窗会藏在卡片后面 */
+          z-index: 1105;
           display: flex;
           align-items: center;
           justify-content: center;

@@ -380,6 +380,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     startTeacherQuizWithRandomMode,
     resumeTeacherQuizFlashcard,
     finishTeacherQuiz,
+    closeTeacherQuizFlashcard,
     teacherQuizLocksTable,
     teacherQuizInProgress,
     wordsById,
@@ -467,20 +468,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     !dailyQuizProgress.complete &&
     !displayQuizProgress.complete;
 
-  useEffect(() => {
-    if (!canOperate || isAdminMode || !quizSession) return;
-    if (!dailyQuizProgress.complete && !displayQuizProgress.complete) return;
-    setShowQuizFlashcard(false);
-    setQuizSession(null);
-  }, [
-    canOperate,
-    isAdminMode,
-    quizSession,
-    dailyQuizProgress.complete,
-    displayQuizProgress.complete,
-    setShowQuizFlashcard,
-    setQuizSession,
-  ]);
+  // 抽完后保留本轮会话与末词卡片，供「上一个」回看；关卡时再清（closeTeacherQuizFlashcard）
 
   const {
     wordSyncState,
@@ -1012,6 +1000,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
           setShowDailyComplete(false);
           openPostCompleteLastWord();
         }}
+        quizFlashcardStillOpen={showQuizFlashcard}
         onGoToCoach={
           showTeacherCoachEntry
             ? () => {
@@ -1022,7 +1011,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
         onDismissShareRequests={() => void dismissShareRequests()}
         onTeacherQuizIntroConfirm={handleTeacherQuizIntroConfirm}
         onTeacherQuizIntroClose={handleTeacherQuizIntroClose}
-        onQuizFlashcardClose={() => setShowQuizFlashcard(false)}
+        onQuizFlashcardClose={closeTeacherQuizFlashcard}
         onQuizComplete={finishTeacherQuiz}
         onRecordLevel={(wordId, level) => void recordLevel(wordId, level, "flashcard")}
         onQuizNavigate={(index) =>

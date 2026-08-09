@@ -52,6 +52,7 @@ def main() -> int:
         "訳文",
         "usage_missing_level",
         "lemma_placeholder",
+        "hangul_in_japanese_line",
         "contrast_missing_distinction",
         "なに／なん",
         "no_plus_formula",

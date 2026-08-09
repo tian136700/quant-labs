@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { fixedDropdownPanelStyle } from "@/lib/fixed-dropdown-panel";
 import type { EnVocabMediaType } from "@/lib/types";
 import { saveVocabRefImageToDevice, vocabRefSaveResultToast } from "@/lib/vocab-ref-save-image";
 import {
@@ -10,6 +11,10 @@ import {
 
 /** 暂不提供切割分页 PDF/Word；整图 PDF 优先进「文件」 */
 const SHOW_PAGINATED_EXPORTS = false;
+
+/** 约估：每项标题+说明 ≈58px + 面板内边距；偏大宁可向上翻 */
+const EN_REF_DOWNLOAD_ITEM_H = 58;
+const EN_REF_DOWNLOAD_PAD = 20;
 
 async function downloadBlobAsFile(blob: Blob, filename: string): Promise<void> {
   const url = URL.createObjectURL(blob);
@@ -66,38 +71,48 @@ function ImageExportFormatMenu({
   const [open, setOpen] = useState(false);
   const [panelStyle, setPanelStyle] = useState<CSSProperties>({});
   const wrapRef = useRef<HTMLDivElement>(null);
+  const itemCount = 2 + (showOriginal && onOriginal ? 1 : 0) + (showPaginated ? 2 : 0);
+  const panelHeight = itemCount * EN_REF_DOWNLOAD_ITEM_H + EN_REF_DOWNLOAD_PAD;
+
+  const updatePanelStyle = useCallback(() => {
+    if (!wrapRef.current) return;
+    setPanelStyle(
+      fixedDropdownPanelStyle(wrapRef.current.getBoundingClientRect(), panelHeight)
+    );
+  }, [panelHeight]);
 
   const toggleOpen = useCallback(() => {
     setOpen((prev) => {
       const next = !prev;
-      if (next && fixedPanel && wrapRef.current) {
-        const rect = wrapRef.current.getBoundingClientRect();
-        setPanelStyle({
-          position: "fixed",
-          top: rect.bottom + 4,
-          right: Math.max(8, window.innerWidth - rect.right),
-          left: "auto",
-        });
-      }
+      if (next && fixedPanel) updatePanelStyle();
       return next;
     });
-  }, [fixedPanel]);
+  }, [fixedPanel, updatePanelStyle]);
 
   useEffect(() => {
     if (!open) return;
+    if (fixedPanel) updatePanelStyle();
     const onDoc = (e: MouseEvent) => {
       if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
     };
+    const onScrollOrResize = () => {
+      if (fixedPanel) updatePanelStyle();
+      else setOpen(false);
+    };
     document.addEventListener("mousedown", onDoc);
     document.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", onScrollOrResize, true);
+    window.addEventListener("resize", onScrollOrResize);
     return () => {
       document.removeEventListener("mousedown", onDoc);
       document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", onScrollOrResize, true);
+      window.removeEventListener("resize", onScrollOrResize);
     };
-  }, [open]);
+  }, [open, fixedPanel, updatePanelStyle]);
 
   const label =
     busy === "image"

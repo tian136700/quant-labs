@@ -163,8 +163,9 @@ export function pruneEnVocabTeacherQuizSessionChecked(
 }
 
 /**
- * 开始抽查：本轮目标词全量入队并打乱一次（老师端固定随机）。
- * 已勾选词仍留在队列里，便于「上一个」回看勾选；落点优先未勾选词。
+ * 开始抽查：本轮只把「开局时尚未勾选」的词入队并打乱一次（老师端固定随机）。
+ * 开局后本轮内勾过的词仍留在 wordIds（禁止中途剪队列），便于「上一个」回看。
+ * 不含开局前已勾选的词，避免同日第二轮「上一个」串到上一轮。
  * 全部已勾选时返回 null。
  * `_mode` 保留兼容旧调用；新会话一律 `"random"`，忽略传入的正序。
  */
@@ -176,31 +177,23 @@ export function createEnVocabTeacherQuizSession(
   hasLevel?: (wordId: number) => boolean
 ): EnVocabTeacherQuizSession | null {
   const mode: EnVocabTeacherQuizMode = "random";
+  const pool =
+    hasLevel != null
+      ? filterEnVocabTeacherQuizUncheckedWords(quizTargetWords, hasLevel)
+      : quizTargetWords;
   const wordIds = buildEnVocabTeacherQuizWordIds(
     mode,
-    quizTargetWords,
+    pool,
     dailySeqByWordId
   );
   if (!wordIds.length) return null;
-  if (hasLevel && wordIds.every((id) => hasLevel(id))) return null;
 
   let currentIndex = 0;
   if (startWordId != null) {
     const foundIndex = wordIds.indexOf(startWordId);
-    if (
-      foundIndex >= 0 &&
-      (!hasLevel || !hasLevel(startWordId))
-    ) {
-      currentIndex = foundIndex;
-    } else if (hasLevel) {
-      const firstUnchecked = wordIds.findIndex((id) => !hasLevel(id));
-      currentIndex = firstUnchecked >= 0 ? firstUnchecked : 0;
-    } else if (foundIndex >= 0) {
+    if (foundIndex >= 0) {
       currentIndex = foundIndex;
     }
-  } else if (hasLevel) {
-    const firstUnchecked = wordIds.findIndex((id) => !hasLevel(id));
-    currentIndex = firstUnchecked >= 0 ? firstUnchecked : 0;
   }
   return { mode, wordIds, currentIndex };
 }
@@ -274,11 +267,17 @@ export function expandEnVocabTeacherQuizSessionForTarget(
   }
 
   const currentWordId = session.wordIds[session.currentIndex];
-  // 随机：保留本轮已定顺序（含已勾选），再追加目标池里尚未入队的词
+  // 随机：保留本轮已定顺序（含本轮已勾选），再只追加目标池里尚未入队且仍未勾选的词
   const targetSet = new Set(targetIds);
   const kept = session.wordIds.filter((id) => targetSet.has(id));
   const inSession = new Set(kept);
-  const wordIds = [...kept, ...targetIds.filter((id) => !inSession.has(id))];
+  const wordIds = [
+    ...kept,
+    ...targetIds.filter(
+      (id) => !inSession.has(id) && (!hasLevel || !hasLevel(id))
+    ),
+  ];
+  if (!wordIds.length) return null;
 
   const preferredId =
     currentWordId != null && wordIds.includes(currentWordId)

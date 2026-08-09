@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Regression: teacher quiz session keeps checked words for 上一个 navigation.
+"""Regression: teacher quiz session round isolation + 上一个 navigation.
 
-create / expand must enqueue the full today's N-word list (sequential or one shuffle).
-Checked words stay in wordIds so teachers can go back; only 「下一个」 skips to unchecked.
+create: enqueue only unchecked-at-start words (no morning words in afternoon round).
+expand: keep this-round checked words in kept; append only new unchecked ids.
 """
 
 from __future__ import annotations
@@ -40,56 +40,61 @@ def extract_fn(src: str, name: str) -> str:
 
 def check_create(src: str, lang: str) -> None:
     body = extract_fn(src, f"create{lang}VocabTeacherQuizSession")
-    # Must NOT filter to unchecked-only before buildWordIds
-    if re.search(
+    # Must filter to unchecked-only at session start (round isolation)
+    if not re.search(
         r"filter\w+TeacherQuizUncheckedWords\(\s*quizTargetWords",
         body,
     ):
         fail(
-            f"{lang}: create* must not filterUnchecked before buildWordIds "
-            "(checked words must stay for 上一个)"
+            f"{lang}: create* must filterUncheckedWords(quizTargetWords) at start "
+            "(exclude already-checked words so 上一个 stays in this round)"
         )
-    if "wordIds.every" not in body and "every((id) => hasLevel" not in body:
-        fail(f"{lang}: create* should return null when all words have levels")
-    if "findIndex((id) => !hasLevel" not in body and "findIndex((id) => !hasLevel(id))" not in body:
-        # allow either style
-        if "!hasLevel(id)" not in body:
-            fail(f"{lang}: create* should land on first unchecked")
+    # Must not build from full quizTargetWords when hasLevel is present
+    if re.search(
+        r"build\w+TeacherQuizWordIds\(\s*mode\s*,\s*quizTargetWords",
+        body,
+    ):
+        fail(
+            f"{lang}: create* must not buildWordIds(mode, quizTargetWords) "
+            "(would re-enqueue prior-round checked words)"
+        )
+    if "pool" not in body:
+        fail(f"{lang}: create* should use unchecked pool variable")
 
 
 def check_expand(src: str, lang: str) -> None:
     body = extract_fn(src, f"expand{lang}VocabTeacherQuizSessionForTarget")
+    # Must NOT rebuild entire targetIds from unchecked-only pool
     if re.search(
         r"filter\w+TeacherQuizUncheckedWords\(\s*quizTargetWords",
         body,
     ):
         fail(
             f"{lang}: expand* must not rebuild targetIds from unchecked-only pool "
-            "(would drop checked words and disable 上一个)"
+            "(would drop this-round checked words and disable 上一个)"
         )
     if "targetIds.every" not in body and "every((id) => hasLevel" not in body:
         fail(f"{lang}: expand* should return null when all target words have levels")
-    # random path must keep checked ids still in target, not `&& !hasLevel(id)`
+    # kept must include this-round checked (no !hasLevel on kept filter)
     if re.search(r"targetSet\.has\(id\)\s*&&\s*!hasLevel\(id\)", body):
         fail(
             f"{lang}: expand* random kept= must include checked words "
             "(do not filter with !hasLevel)"
+        )
+    # append path should only add unchecked newcomers
+    if not re.search(
+        r"!inSession\.has\(id\)\s*&&\s*\(!hasLevel\s*\|\|\s*!hasLevel\(id\)\)",
+        body,
+    ):
+        fail(
+            f"{lang}: expand* append filter must skip already-checked newcomers "
+            "(!inSession && (!hasLevel || !hasLevel(id)))"
         )
 
 
 def check_en_refresh_resume(src: str) -> None:
     """EN mid-exit / refresh must reopen the word on screen, not first unchecked."""
     body = extract_fn(src, "resolveEnVocabTeacherQuizRefreshResumeIndex")
-    if re.search(
-        r"resolveEnVocabTeacherQuizResumeIndex\(\s*session\s*,\s*undefined",
-        body,
-    ) and "currentIndex" not in body.split("return resolveEnVocab")[0]:
-        # Allow fallback after currentIndex clamp; forbid sole path = first unchecked
-        if "session.currentIndex" not in body:
-            fail(
-                "EN RefreshResume must prefer session.currentIndex "
-                "(mid-exit refresh should reopen the word being quizzed)"
-            )
     if "session.currentIndex" not in body:
         fail(
             "EN RefreshResume must use session.currentIndex "
@@ -110,7 +115,6 @@ def check_en_restore_hook() -> None:
             "useEnVocabTeacherQuiz: do not mark restored when quizTargetWords is empty "
             "(refresh would skip restore → new session at index 0 → 上一个 disabled)"
         )
-    # persist(null) must not clear storage
     if re.search(
         r"if\s*\(\s*!session\s*\)\s*\{[^}]*clearEnVocabTeacherQuizSession",
         src,

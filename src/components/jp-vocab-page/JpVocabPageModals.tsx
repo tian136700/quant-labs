@@ -103,6 +103,8 @@ type JpVocabPageModalsProps = {
   onDailyIntroClose: () => void;
   onDailyCompleteClose: () => void;
   onDailyCompleteViewLastWord?: () => void;
+  /** 完成弹窗出现时抽查卡是否仍开着（末词） */
+  quizFlashcardStillOpen?: boolean;
   onGoToCoach: (() => void) | undefined;
   onDismissShareRequests: () => void;
   onTeacherQuizIntroConfirm: () => void;
@@ -195,6 +197,7 @@ export function JpVocabPageModals(props: JpVocabPageModalsProps) {
           levelCounts={props.dailyCoachLevelCounts}
           onGoToCoach={props.onGoToCoach}
           onViewLastWord={props.onDailyCompleteViewLastWord}
+          flashcardStillOpen={props.quizFlashcardStillOpen}
           onClose={props.onDailyCompleteClose}
         />
       ) : null}

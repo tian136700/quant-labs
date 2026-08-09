@@ -131,7 +131,8 @@ export function JpVocabPageWordList(props: JpVocabPageWordListProps) {
       props.dailyQuizComplete &&
       props.onViewLastCheckedWord ? (
         <VocabTeacherDailyQuizDonePanel
-          title="今日抽单词已抽查完成"
+          title="今日抽查已完成"
+          subtitle="点「查看上一个单词」打开本轮最后一个词；卡片内可再点「上一个」往前翻。"
           onViewLastWord={props.onViewLastCheckedWord}
           viewLastDisabled={props.filteredDisplayedWords.length === 0}
           coachAction={props.coachAction}

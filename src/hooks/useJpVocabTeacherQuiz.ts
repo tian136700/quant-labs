@@ -409,11 +409,19 @@ export function useJpVocabTeacherQuiz(options: {
         return;
       }
       rememberCompletedQuizWordIds(expanded.wordIds);
+      // 本轮抽完：留在最后一个词，弹「今日抽查已完成」；仍可点「上一个」
+      setQuizSession({
+        ...expanded,
+        currentIndex: Math.max(0, expanded.wordIds.length - 1),
+      });
     } else {
       rememberCompletedQuizWordIds(quizSession.wordIds);
+      setQuizSession({
+        ...quizSession,
+        currentIndex: Math.max(0, quizSession.wordIds.length - 1),
+      });
     }
-    setShowQuizFlashcard(false);
-    setQuizSession(null);
+    setShowQuizFlashcard(true);
     onTeacherQuizSessionFinished?.();
   }, [
     quizSession,
@@ -422,6 +430,29 @@ export function useJpVocabTeacherQuiz(options: {
     quizWordHasLevel,
     rememberCompletedQuizWordIds,
     onTeacherQuizSessionFinished,
+  ]);
+
+  /** 关抽查卡：若今日/本轮已完成则清会话，避免进度条已完成后仍占着抽查会话 */
+  const closeTeacherQuizFlashcard = useCallback(() => {
+    setShowQuizFlashcard(false);
+    const progressComplete = computeJpVocabDailyQuizProgress(words, {
+      quiz_target: quizTarget,
+    }).complete;
+    const sessionDone =
+      quizSession != null &&
+      isJpVocabTeacherQuizSessionComplete(quizSession, quizWordHasLevel);
+    if (progressComplete || sessionDone) {
+      if (quizSession?.wordIds.length) {
+        rememberCompletedQuizWordIds(quizSession.wordIds);
+      }
+      setQuizSession(null);
+    }
+  }, [
+    words,
+    quizTarget,
+    quizSession,
+    quizWordHasLevel,
+    rememberCompletedQuizWordIds,
   ]);
 
   const syncTeacherQuizLiveWord = useCallback(
@@ -579,6 +610,7 @@ export function useJpVocabTeacherQuiz(options: {
     startTeacherQuizWithRandomMode,
     resumeTeacherQuizFlashcard,
     finishTeacherQuiz,
+    closeTeacherQuizFlashcard,
     teacherQuizLocksTable,
     teacherQuizInProgress,
     quizFlashcardWordId,
