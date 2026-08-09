@@ -29,24 +29,23 @@ export type VocabTeacherQuizSyncPollOptions = {
 /**
  * 是否应开启老师端后台 sync / teacher-visible 轮询。
  *
- * - 未开卡片、未在 grace → false
- * - 卡片打开 → true（半小时无勾选只降频，不停）
- * - 已抽完且距最后勾选 < grace → true
- * - 已抽完且超过 grace → false
+ * - 未开卡片、未抽完 → false
+ * - 抽查中卡片打开 → true（半小时无勾选只降频，不停）
+ * - 已抽完：即使用户仍留在末词卡回看，也只按最后勾选起算 grace，超时必须停
+ *   （禁止 `showQuizFlashcard` 在抽完后无限续命——曾导致 8s peek/live 打满 Worker → 1102）
  */
 export function shouldEnableVocabTeacherQuizSyncPoll(
   opts: VocabTeacherQuizSyncPollOptions
 ): boolean {
-  if (opts.showQuizFlashcard) return true;
+  if (opts.quizComplete) {
+    const lastAt = opts.lastQuizActionAtMs;
+    if (lastAt == null || !Number.isFinite(lastAt) || lastAt <= 0) return false;
+    const now = opts.nowMs ?? Date.now();
+    const grace = opts.graceMs ?? VOCAB_TEACHER_QUIZ_SYNC_POLL_GRACE_MS;
+    return now - lastAt < grace;
+  }
 
-  if (!opts.quizComplete) return false;
-
-  const lastAt = opts.lastQuizActionAtMs;
-  if (lastAt == null || !Number.isFinite(lastAt) || lastAt <= 0) return false;
-
-  const now = opts.nowMs ?? Date.now();
-  const grace = opts.graceMs ?? VOCAB_TEACHER_QUIZ_SYNC_POLL_GRACE_MS;
-  return now - lastAt < grace;
+  return Boolean(opts.showQuizFlashcard);
 }
 
 /** sessionReviewAt 映射 → 最近一次勾选时间；空则 null */

@@ -53,6 +53,8 @@ def main() -> int:
         "usage_missing_level",
         "lemma_placeholder",
         "hangul_in_japanese_line",
+        "场景自洽",
+        "有头有尾",
         "contrast_missing_distinction",
         "なに／なん",
         "no_plus_formula",
@@ -89,6 +91,27 @@ def main() -> int:
         fail("example-sentences-ai 须拒 i_adj_past_deshita（かったでした）")
     if "jpVocabExampleHasIAdjPastDeshita" not in ai:
         fail("example-sentences-ai 须有 jpVocabExampleHasIAdjPastDeshita")
+    if "场景自洽" not in ai or "有头有尾" not in ai:
+        fail("example-sentences-ai prompt 须要求例句场景自洽、有头有尾")
+    if "来るなら、どうぞ入ってください" not in ai and "来(く)るなら、どうぞ入(はい)ってください" not in ai:
+        fail("example-sentences-ai 须点名禁止「来るなら、どうぞ入ってください」无厘头句")
+    if "version: 6" not in ai and "version:6" not in ai:
+        fail("JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC 须升到 version 6（含场景自洽）")
+
+    scene_check = ROOT / "scripts/check_jp_vocab_example_scene_coherent.py"
+    if not scene_check.is_file():
+        fail("missing check_jp_vocab_example_scene_coherent.py")
+    scene_run = subprocess.run(
+        [sys.executable, str(scene_check)],
+        capture_output=True,
+        text=True,
+        timeout=90,
+        cwd=ROOT,
+    )
+    if scene_run.returncode != 0:
+        fail(
+            f"example scene coherent check failed: {scene_run.stderr or scene_run.stdout}"
+        )
 
     i_adj_check = ROOT / "scripts/check_jp_vocab_example_i_adj_past_deshita.py"
     if not i_adj_check.is_file():

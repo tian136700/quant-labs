@@ -18,8 +18,9 @@ Fails if:
    (must next/dynamic { ssr: false }; PDF 随手画含 pdfjs/jspdf).
 8) lesson-annotate hooks statically import lesson-annotate-pdf
    (must await import() when opening/saving PDF).
-9) /jp-lesson /en-lesson must use *PageClient + force-static; ref pages
+9) /jp-lesson /en-lesson /jp-lesson/schedule must use *PageClient + force-static; ref pages
    use *RefViewerClient shells (ssr: false) — same Worker gzip pattern.
+10) /en-lesson/schedule redirect shell must stay force-static (not force-dynamic).
 """
 
 from __future__ import annotations
@@ -195,6 +196,26 @@ def main() -> int:
         app_label="app/en-lesson/page.tsx",
         require_force_static=True,
     )
+    check_ssr_false_shell(
+        errs,
+        client_name="JpLessonSchedulePageClient",
+        inner_name="JpLessonSchedulePage",
+        app_page=SRC / "app" / "jp-lesson" / "schedule" / "page.tsx",
+        app_label="app/jp-lesson/schedule/page.tsx",
+        require_force_static=True,
+    )
+    en_sched = (SRC / "app" / "en-lesson" / "schedule" / "page.tsx").read_text(
+        encoding="utf-8"
+    )
+    if 'dynamic = "force-dynamic"' in en_sched or "dynamic = 'force-dynamic'" in en_sched:
+        errs.append(
+            "app/en-lesson/schedule/page.tsx: must not use force-dynamic "
+            "(redirect shell; use force-static)"
+        )
+    if 'dynamic = "force-static"' not in en_sched and "dynamic = 'force-static'" not in en_sched:
+        errs.append(
+            'app/en-lesson/schedule/page.tsx: missing export const dynamic = "force-static"'
+        )
     check_ssr_false_shell(
         errs,
         client_name="JpVocabRefViewerClient",

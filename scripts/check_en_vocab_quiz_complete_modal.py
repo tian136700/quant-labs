@@ -29,6 +29,19 @@ def main() -> None:
     modal = MODAL.read_text(encoding="utf-8")
     if "本轮单词已抽查完成" not in modal:
         fail("EnVocabDailyQuizCompleteModal missing copy 本轮单词已抽查完成")
+    if "您可以选择关闭当前页面" not in modal:
+        fail("EnVocabDailyQuizCompleteModal must hint 您可以选择关闭当前页面")
+    if "window.close" in modal:
+        fail("complete modal must NOT call window.close (hint only)")
+    if "flashcardStillOpen" not in modal:
+        fail("EnVocabDailyQuizCompleteModal must support flashcardStillOpen")
+    if "z-index: 1105" not in modal and "z-index:\n          1105" not in modal:
+        if "z-index: 1105" not in modal.replace(" ", ""):
+            # allow whitespace variants
+            import re
+
+            if not re.search(r"z-index:\s*1105", modal):
+                fail("EN complete modal z-index must be 1105 (above flashcard)")
     if "已抽" in modal and "本轮单词已抽查完成" not in modal.replace(
         "本轮单词已抽查完成", ""
     ):
@@ -53,10 +66,14 @@ def main() -> None:
         fail("EnVocabPage must wire showDailyComplete")
     if "onTeacherQuizSessionFinished" not in page:
         fail("EnVocabPage must pass onTeacherQuizSessionFinished")
+    if "quizFlashcardStillOpen={showQuizFlashcard}" not in page:
+        fail("EnVocabPage must pass quizFlashcardStillOpen={showQuizFlashcard}")
 
     modals = MODALS.read_text(encoding="utf-8")
     if "EnVocabDailyQuizCompleteModal" not in modals:
         fail("EnVocabPageModals must render EnVocabDailyQuizCompleteModal")
+    if "flashcardStillOpen={props.quizFlashcardStillOpen}" not in modals:
+        fail("EnVocabPageModals must pass flashcardStillOpen")
 
     print("OK: en-vocab quiz complete modal wired")
 

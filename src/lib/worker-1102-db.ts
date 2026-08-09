@@ -378,9 +378,16 @@ function buildRiskNotes(input: {
   clientAgg: Worker1102ClientAggRow[];
   clientSamples: Worker1102BoardSample[];
   fillContentionHits: number;
+  teacherQuizLiveHits?: number;
 }): { level: Worker1102RiskLevel; notes: string[] } {
-  const { subjects, heavy, clientAgg, clientSamples, fillContentionHits } =
-    input;
+  const {
+    subjects,
+    heavy,
+    clientAgg,
+    clientSamples,
+    fillContentionHits,
+    teacherQuizLiveHits = 0,
+  } = input;
   const notes: string[] = [];
   let level: Worker1102RiskLevel = "ok";
 
@@ -391,7 +398,7 @@ function buildRiskNotes(input: {
   };
 
   notes.push(
-    "定位顺序：①失败车道（整页HTML / shared / fill）②有无 cf_1102_html（硬刷新整页常没有）③fill-* 争用流量④shared 列表载荷；备注仅次要"
+    "定位顺序：①失败车道（整页HTML / shared / fill）②有无 cf_1102_html（硬刷新整页常没有）③fill-* 争用④teacher-quiz-live（抽完末词卡是否仍在轮询）⑤shared 列表载荷；备注仅次要"
   );
 
   const client1102 = clientAgg
@@ -467,6 +474,18 @@ function buildRiskNotes(input: {
     bump(
       "warn",
       `词表补全 fill-* 今日合计 ${fillContentionHits} 次（争用信号；见相关流量里的 fill-*）`
+    );
+  }
+
+  if (teacherQuizLiveHits >= 2_000) {
+    bump(
+      "critical",
+      `teacher-quiz-live 今日 ${teacherQuizLiveHits} 次：疑抽完后末词卡仍开着 peek/live 轮询（应抽完即停并清 live）`
+    );
+  } else if (teacherQuizLiveHits >= 400) {
+    bump(
+      "warn",
+      `teacher-quiz-live 今日 ${teacherQuizLiveHits} 次：对照老师是否抽完仍挂末词卡；相关流量里看 /api/*/teacher-quiz-live`
     );
   }
 
@@ -559,6 +578,12 @@ function guardrails(): Worker1102DiagnosticSummary["guardrails"] {
       detail:
         "英语常无备注仍可 1102 → 勿把备注当主因；优先冷启动 / fill 争用 / shared / 客户端现场",
     },
+    {
+      id: "quiz_complete_stop_live_poll",
+      ok: true,
+      detail:
+        "抽完留末词卡须停 peek/live 并清 live；看板相关流量盯 teacher-quiz-live；规则 vocab-teacher-quiz-no-sync-poll",
+    },
   ];
 }
 
@@ -601,6 +626,10 @@ export async function getWorker1102DiagnosticSummary(
     .filter((row) => isWorker1102FillRoute(row.route_key))
     .reduce((sum, row) => sum + row.hit_count, 0);
 
+  const teacher_quiz_live_hits = related_traffic_routes
+    .filter((row) => /teacher-quiz-live/.test(row.route_key))
+    .reduce((sum, row) => sum + row.hit_count, 0);
+
   const boardSamples: Worker1102BoardSample[] =
     prioritizeWorker1102ClientSamples(client_event_samples).map((row) => {
       const parsed = parseWorker1102SampleDetail(row.detail_json || "");
@@ -622,6 +651,7 @@ export async function getWorker1102DiagnosticSummary(
     clientAgg: client_event_agg,
     clientSamples: boardSamples,
     fillContentionHits: fill_contention_hits,
+    teacherQuizLiveHits: teacher_quiz_live_hits,
   });
 
   return {

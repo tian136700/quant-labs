@@ -7,6 +7,11 @@ import { lockBodyScroll } from "@/lib/body-scroll-lock";
 type Props = {
   open: boolean;
   onViewLastWord?: () => void;
+  /**
+   * 抽查卡仍开着（已停在末词）：不必再「查看上一个单词」，
+   * 关弹窗即可继续在末词上点「上一个」。
+   */
+  flashcardStillOpen?: boolean;
   onClose: () => void;
 };
 
@@ -14,9 +19,11 @@ type Props = {
 export function EnVocabDailyQuizCompleteModal({
   open,
   onViewLastWord,
+  flashcardStillOpen = false,
   onClose,
 }: Props) {
   const [mounted, setMounted] = useState(false);
+  const showViewLast = Boolean(onViewLastWord) && !flashcardStillOpen;
 
   useEffect(() => {
     setMounted(true);
@@ -60,8 +67,17 @@ export function EnVocabDailyQuizCompleteModal({
         >
           本轮单词已抽查完成
         </h2>
+        <div className="en-vocab-complete-modal-body">
+          <p>本轮单词已全部抽查完毕，辛苦了！</p>
+          <p>
+            {flashcardStillOpen
+              ? "将停留在最后一个词；可点「上一个」回看。"
+              : "可以回看刚抽过的词条。"}
+          </p>
+          <p>您可以选择关闭当前页面。</p>
+        </div>
         <div className="en-vocab-complete-modal-actions">
-          {onViewLastWord ? (
+          {showViewLast ? (
             <button
               type="button"
               className="btn-rsi-filter btn-rsi-filter--primary en-vocab-complete-modal-btn"
@@ -73,7 +89,7 @@ export function EnVocabDailyQuizCompleteModal({
           <button
             type="button"
             className={`btn-rsi-filter en-vocab-complete-modal-btn${
-              onViewLastWord ? "" : " btn-rsi-filter--primary"
+              showViewLast ? "" : " btn-rsi-filter--primary"
             }`}
             onClick={onClose}
           >
@@ -85,7 +101,8 @@ export function EnVocabDailyQuizCompleteModal({
         .en-vocab-complete-modal-overlay {
           position: fixed;
           inset: 0;
-          z-index: 1001;
+          /* 须高于抽查卡 (~1002)，否则抽完留末词时弹窗会藏在卡片后面 */
+          z-index: 1105;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -120,10 +137,23 @@ export function EnVocabDailyQuizCompleteModal({
           line-height: 1;
         }
         .en-vocab-complete-modal-title {
-          margin: 0 0 1rem;
+          margin: 0 0 0.35rem;
           font-size: 1.15rem;
           font-weight: 600;
           color: var(--text);
+        }
+        .en-vocab-complete-modal-body {
+          width: 100%;
+          margin-bottom: 1rem;
+        }
+        .en-vocab-complete-modal-body p {
+          margin: 0;
+          font-size: 0.9375rem;
+          line-height: 1.65;
+          color: var(--text);
+        }
+        .en-vocab-complete-modal-body p + p {
+          margin-top: 0.35rem;
         }
         .en-vocab-complete-modal-actions {
           width: 100%;

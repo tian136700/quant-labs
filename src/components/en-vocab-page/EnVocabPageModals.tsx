@@ -76,6 +76,8 @@ type EnVocabPageModalsProps = {
   onDailyIntroClose: () => void;
   onDailyCompleteClose: () => void;
   onDailyCompleteViewLastWord?: () => void;
+  /** 抽完后末词卡仍开着：完成弹窗不必再「查看上一个」 */
+  quizFlashcardStillOpen?: boolean;
   onTeacherQuizIntroConfirm: () => void;
   onTeacherQuizIntroClose: () => void;
   onQuizFlashcardClose: () => void;
@@ -149,6 +151,7 @@ export function EnVocabPageModals(props: EnVocabPageModalsProps) {
         <EnVocabDailyQuizCompleteModal
           open={props.showDailyComplete}
           onViewLastWord={props.onDailyCompleteViewLastWord}
+          flashcardStillOpen={props.quizFlashcardStillOpen}
           onClose={props.onDailyCompleteClose}
         />
       ) : null}

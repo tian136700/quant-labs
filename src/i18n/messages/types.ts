@@ -227,6 +227,8 @@ export type Messages = {
       guideHardReloadDetail: string;
       guideTriage: string;
       guideTriageDetail: string;
+      guideQuizComplete: string;
+      guideQuizCompleteDetail: string;
       copyReport: string;
       copySuccess: string;
       copyFailed: string;

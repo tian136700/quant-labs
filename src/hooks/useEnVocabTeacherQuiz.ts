@@ -470,14 +470,29 @@ export function useEnVocabTeacherQuiz(options: {
   const quizFlashcardWordId =
     quizSession?.wordIds[quizSession.currentIndex] ?? null;
 
+  const quizSessionComplete =
+    quizSession != null &&
+    isEnVocabTeacherQuizSessionComplete(quizSession, quizWordHasLevel);
+
   useEffect(() => {
     if (!canOperate) return;
     if (!quizSession) {
       void syncTeacherQuizLiveWord(null);
       return;
     }
+    // 抽完留末词回看：清 live，避免学生 peek / fill 门禁仍当「抽查中」
+    if (quizSessionComplete) {
+      void syncTeacherQuizLiveWord(null);
+      return;
+    }
     void syncTeacherQuizLiveWord(quizFlashcardWordId);
-  }, [canOperate, quizSession, quizFlashcardWordId, syncTeacherQuizLiveWord]);
+  }, [
+    canOperate,
+    quizSession,
+    quizFlashcardWordId,
+    quizSessionComplete,
+    syncTeacherQuizLiveWord,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -494,7 +509,9 @@ export function useEnVocabTeacherQuiz(options: {
       !canOperate ||
       !isVocabTeacherAccountActiveForRefresh(user) ||
       !showQuizFlashcard ||
-      !quizFlashcardWordId
+      !quizFlashcardWordId ||
+      // 抽完留卡回看：停止 peek 轮询（曾因末词卡常开每 8s 打 live → Worker 1102）
+      quizSessionComplete
     ) {
       setStudentPeekedCurrentWord(false);
       return;
@@ -556,7 +573,15 @@ export function useEnVocabTeacherQuiz(options: {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [canOperate, user, showQuizFlashcard, quizFlashcardWordId, setSharedTodayWordIds, teacherQuizPollIdle]);
+  }, [
+    canOperate,
+    user,
+    showQuizFlashcard,
+    quizFlashcardWordId,
+    quizSessionComplete,
+    setSharedTodayWordIds,
+    teacherQuizPollIdle,
+  ]);
 
   useHoldAppDeployReloadWhile(
     showQuizFlashcard || quizCardPreviewSession != null

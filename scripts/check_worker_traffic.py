@@ -69,6 +69,10 @@ def main() -> int:
         errors.append(
             "worker-traffic-path 须 PAGE_HTML_TRAFFIC_SKIP 含 /jp-lesson 与 /en-lesson（防整页 1102）"
         )
+    if '"/jp-lesson/schedule"' not in path_lib or '"/en-lesson/schedule"' not in path_lib:
+        errors.append(
+            "worker-traffic-path 须 PAGE_HTML_TRAFFIC_SKIP 含 /jp-lesson/schedule 与 /en-lesson/schedule（防整页 1102）"
+        )
     for sibling in (
         '"/jp-vocab/admin"',
         '"/jp-vocab/review"',

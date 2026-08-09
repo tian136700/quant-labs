@@ -20,7 +20,7 @@ type Props = {
  */
 export function VocabTeacherDailyQuizDonePanel({
   title,
-  subtitle = "可以回看刚抽过的词条；点「上一个」继续往前翻。",
+  subtitle = "点「查看上一个单词」可回看；您也可以选择关闭当前页面。",
   onViewLastWord,
   viewLastDisabled = false,
   coachAction,

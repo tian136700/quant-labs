@@ -124,6 +124,7 @@ export function AdminWorker1102Panel() {
     { item: labels.guideWhat, detail: labels.guideWhatDetail },
     { item: labels.guidePriority, detail: labels.guidePriorityDetail },
     { item: labels.guideTriage, detail: labels.guideTriageDetail },
+    { item: labels.guideQuizComplete, detail: labels.guideQuizCompleteDetail },
     { item: labels.guideNotes, detail: labels.guideNotesDetail },
     { item: labels.guideHardReload, detail: labels.guideHardReloadDetail },
   ];

@@ -258,7 +258,10 @@ export const enMessages: Messages = {
           "Worker already killed; this page JS cannot self-report—soft-nav/API or other tabs can.",
         guideTriage: "How to match incidents",
         guideTriageDetail:
-          "Use the failure-lane column: HTML document ≠ shared API ≠ fill jobs. Missing cf_1102_html can still mean a hard-reload page 1102—cross-check same-minute shared failures and fill-* traffic.",
+          "Use the failure-lane column: HTML document ≠ shared API ≠ fill jobs. Missing cf_1102_html can still mean a hard-reload page 1102—cross-check same-minute shared failures and fill-* traffic. High teacher-quiz-live traffic → check post-complete last-card polling.",
+        guideQuizComplete: "Post-complete last card",
+        guideQuizCompleteDetail:
+          "Keeping the last flashcard for review is fine, but peek/live polling must stop and live must clear. If related traffic shows sustained /api/*/teacher-quiz-live, check quizSessionComplete gates in use*TeacherQuiz.",
         copyReport: "Copy diagnostic report",
         copySuccess: "Copied",
         copyFailed: "Copy failed",

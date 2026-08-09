@@ -25,6 +25,9 @@ def main() -> int:
     must_contain(jukugo, "しゅっぱつ", "出発 reading")
     must_contain(jukugo, "入口", "入口 in dict")
     must_contain(jukugo, "いりぐち", "入口 reading (rendaku)")
+    must_contain(jukugo, "何時", "何時 in dict")
+    must_contain(jukugo, "なんじ", "何時 reading (nanji)")
+    must_contain(jukugo, "何時(なんどき)", "何時 bad example in hint")
     must_contain(jukugo, "出(で)発(ぱつ)", "bad example in hint")
     must_contain(jukugo, "入口(いりくち)", "rendaku bad example in hint")
     must_contain(jukugo, "WHOLE_JUKUGO_FURI_RE", "whole-word detector")
@@ -46,10 +49,17 @@ def main() -> int:
     text_ok_split = "そろそろ出発(しゅっぱつ)の時間(じかん)です。"
     text_bad_rendaku = "このビルの入口(いりくち)はどこですか。"
     text_ok_rendaku = "このビルの入口(いりぐち)はどこですか。"
+    text_bad_nanji = "失礼(しつれい)ですが、何時(なんどき)ですか。"
+    text_ok_nanji = "失礼(しつれい)ですが、何時(なんじ)ですか。"
     run_re = re.compile(r"(?:[\u4E00-\u9FFF々][（(][ぁ-んァ-ンヴヵヶー]+[）)]){2,}")
     chunk_re = re.compile(r"([\u4E00-\u9FFF々])[（(]([ぁ-んァ-ンヴヵヶー]+)[）)]")
     whole_re = re.compile(r"([\u4E00-\u9FFF々]{2,4})[（(]([ぁ-んァ-ンヴヵヶー]+)[）)]")
-    expected = {"出発": "しゅっぱつ", "入口": "いりぐち", "時間": "じかん"}
+    expected = {
+        "出発": "しゅっぱつ",
+        "入口": "いりぐち",
+        "時間": "じかん",
+        "何時": "なんじ",
+    }
 
     def has_wrong(s: str) -> bool:
         for m in run_re.finditer(s):
@@ -76,6 +86,10 @@ def main() -> int:
         raise SystemExit("FAIL: bad 入口(いりくち) not detected")
     if has_wrong(text_ok_rendaku):
         raise SystemExit("FAIL: good 入口(いりぐち) flagged")
+    if not has_wrong(text_bad_nanji):
+        raise SystemExit("FAIL: bad 何時(なんどき) not detected")
+    if has_wrong(text_ok_nanji):
+        raise SystemExit("FAIL: good 何時(なんじ) flagged")
 
     print("[check_jp_vocab_jukugo_furigana] OK")
     return 0

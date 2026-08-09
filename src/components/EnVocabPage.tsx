@@ -1038,6 +1038,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
           setShowDailyComplete(false);
           openPostCompleteLastWord();
         }}
+        quizFlashcardStillOpen={showQuizFlashcard}
         onTeacherQuizIntroConfirm={handleTeacherQuizIntroConfirm}
         onTeacherQuizIntroClose={handleTeacherQuizIntroClose}
         onQuizFlashcardClose={() => setShowQuizFlashcard(false)}

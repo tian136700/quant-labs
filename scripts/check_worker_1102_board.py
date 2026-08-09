@@ -65,10 +65,20 @@ def main() -> int:
         "failure_lane",
         "open_next_static_shell_cache",
         "notes_not_primary_cause",
+        "quiz_complete_stop_live_poll",
+        "teacher-quiz-live",
         "HEAVIEST_NOTES_MIN_BYTES",
     ):
         if needle not in db:
             errors.append(f"worker-1102-db.ts 须含 {needle}")
+
+    panel = read("src/components/admin-dashboard/AdminWorker1102Panel.tsx")
+    if "guideQuizComplete" not in panel:
+        errors.append("AdminWorker1102Panel 须含 guideQuizComplete（抽完末词卡排查）")
+
+    zh = read("src/i18n/messages/zh.ts")
+    if "guideQuizComplete" not in zh or "teacher-quiz-live" not in zh:
+        errors.append("zh.ts adminWorker1102 须含 guideQuizComplete / teacher-quiz-live 文案")
 
     triage = read("src/lib/worker-1102-triage.ts")
     for needle in (
@@ -170,6 +180,18 @@ def main() -> int:
 
     if "worker_heavy_signals" not in read("schema.sql"):
         errors.append("schema 重复检查失败")
+
+    hooks = read(".cursor/hooks.json")
+    if "worker-1102-session.py" not in hooks:
+        errors.append("hooks.json sessionStart 须接 worker-1102-session.py")
+    if "remind-worker-1102.py" not in hooks:
+        errors.append("hooks.json 须接 remind-worker-1102.py（preToolUse / beforeSubmitPrompt）")
+    for rel in (
+        ".cursor/hooks/worker-1102-session.py",
+        ".cursor/hooks/remind-worker-1102.py",
+    ):
+        if not (ROOT / rel).is_file():
+            errors.append(f"缺少 {rel}")
 
     if errors:
         print("check_worker_1102_board FAILED:")

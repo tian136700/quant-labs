@@ -180,6 +180,7 @@ export function EnVocabPageWordList(props: EnVocabPageWordListProps) {
           props.onViewLastCheckedWord ? (
             <VocabTeacherDailyQuizDonePanel
               title="本轮单词已抽查完成"
+              subtitle="点「查看上一个单词」可回看；您也可以选择关闭当前页面。"
               onViewLastWord={props.onViewLastCheckedWord}
               viewLastDisabled={filteredDisplayedWords.length === 0}
             />

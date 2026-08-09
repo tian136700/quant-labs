@@ -58,8 +58,12 @@ def main() -> None:
     modal = (ROOT / "src/components/JpVocabDailyQuizCompleteModal.tsx").read_text(
         encoding="utf-8"
     )
-    if "今日抽查已完成" not in modal:
-        fail("complete modal title must be 今日抽查已完成")
+    if "本轮单词已抽查完成" not in modal:
+        fail("complete modal title must be 本轮单词已抽查完成")
+    if "您可以选择关闭当前页面" not in modal:
+        fail("complete modal must hint 您可以选择关闭当前页面")
+    if "window.close" in modal or "window.close(" in modal:
+        fail("complete modal must NOT call window.close (hint only)")
     if not re.search(r"z-index:\s*1105", modal):
         fail("complete modal z-index must be > flashcard (~1002), expected 1105")
     if "flashcardStillOpen" not in modal:
