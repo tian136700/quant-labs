@@ -161,6 +161,43 @@ if (!majimeOk.ok) {
   console.error("FAIL: 真面目 2 examples with ； synonyms should pass, got", majimeOk.reason);
   process.exit(1);
 }
+// 戴：reading 全角／分段；例句用假名活用「かぶって／つける」须过（曾失败 id=613 word_not_used）
+const daiExamples = [
+  "帽子(ぼうし)をかぶって、外(そと)に出(で)ました。",
+  "译文：我戴上帽子出去了。",
+  "メガネをつけると、よく見(み)えます。",
+  "译文：戴上眼镜就看得清楚。",
+].join("\\n");
+const daiInput = {
+  word: "戴",
+  kind: "word",
+  reading: "かぶる／つける",
+  meaning: "戴（帽子、头盔等）/戴（眼镜、耳环、领带等）",
+};
+const daiOnline = normalizeJpVocabExampleSentencesForOnlineApply(daiExamples, daiInput);
+if (!daiOnline.ok) {
+  console.error("FAIL: 戴 fullwidth reading slash + kana conjugation should pass, got", daiOnline.reason);
+  process.exit(1);
+}
+const daiStrict = validateJpVocabExampleSentencesAiOutput(daiExamples, daiInput);
+if (!daiStrict.ok) {
+  console.error("FAIL: 戴 strict validate should pass kana readings, got", daiStrict.reason);
+  process.exit(1);
+}
+const daiBad = normalizeJpVocabExampleSentencesForOnlineApply(
+  [
+    "今日(きょう)は晴(は)れです。",
+    "译文：今天是晴天。",
+    "明日(あした)も晴(は)れです。",
+    "译文：明天也是晴天。",
+  ].join("\\n"),
+  daiInput
+);
+if (daiBad.ok || daiBad.reason !== "word_not_used") {
+  console.error("FAIL: unrelated examples for 戴 must be word_not_used", daiBad);
+  process.exit(1);
+}
+
 console.log("node smoke ok");
 """,
         ],
