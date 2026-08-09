@@ -154,10 +154,12 @@ def main() -> int:
     rule = FILES["rule"].read_text(encoding="utf-8")
     if "alwaysApply: true" not in rule:
         errors.append("deploy-client-force-refresh.mdc must alwaysApply")
-    if "刷新缓存" in rule:
-        errors.append("rule must NOT say 刷新缓存 (button label is 刷新)")
-    if "顶栏" not in rule or "「刷新」" not in rule:
+    if "「刷新」" not in rule:
         errors.append("rule must document top-right 刷新 button (lit/dim)")
+    if "易误会" not in rule:
+        errors.append("rule must warn against cache-sounding button wording")
+    if "顶栏" not in rule:
+        errors.append("rule must mention 顶栏 for the refresh button")
     if "禁止自动刷" not in rule and "绝不自动" not in rule and "只有用户点" not in rule:
         errors.append("rule must forbid auto reload (manual only)")
     if "可见标签页检测到新版立刻 location.reload" not in rule:

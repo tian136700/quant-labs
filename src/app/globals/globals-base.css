@@ -88,7 +88,7 @@ body {
   gap: 0.5rem;
 }
 
-/* 顶栏「刷新缓存」：有新部署版本亮，无更新暗（暗态仍须可读，勿叠到看不见） */
+/* 顶栏「刷新」：有新部署版本亮，无更新暗（暗态仍须可读，勿叠到看不见） */
 .iq-deploy-cache-refresh {
   flex-shrink: 0;
   white-space: nowrap;

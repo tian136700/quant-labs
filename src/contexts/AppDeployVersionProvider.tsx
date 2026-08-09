@@ -30,7 +30,7 @@ type AppDeployVersionContextValue = {
   /** 线上 version 与本页构建戳不一致时非空 */
   pendingVersion: string | null;
   hasUpdate: boolean;
-  /** 用户点顶栏「刷新缓存」：抽查 hold 时不刷（按钮保持亮）；否则清缓存并 reload */
+  /** 用户点顶栏「刷新」：抽查 hold 时不刷（按钮保持亮）；否则清缓存并 reload */
   applyPendingReload: () => void;
 };
 
@@ -46,7 +46,7 @@ export function useAppDeployVersion(): AppDeployVersionContextValue {
 }
 
 /**
- * 轮询 GET /api/app-deploy-version；有新版只记 pending（顶栏「刷新缓存」亮），绝不自动 reload。
+ * 轮询 GET /api/app-deploy-version；有新版只记 pending（顶栏「刷新」亮），绝不自动 reload。
  */
 export function AppDeployVersionProvider({ children }: { children: ReactNode }) {
   const bakedVersion = APP_DEPLOY_VERSION;

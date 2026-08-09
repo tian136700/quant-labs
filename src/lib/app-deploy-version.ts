@@ -1,6 +1,6 @@
 /**
  * 每次 production 构建前写入唯一版本戳（见 write_app_deploy_version.py）。
- * 客户端用它与 GET /api/app-deploy-version 比对；不一致则顶栏「刷新缓存」亮（用户点了才清缓存并重载）。
+ * 客户端用它与 GET /api/app-deploy-version 比对；不一致则顶栏「刷新」亮（用户点了才清缓存并重载）。
  */
 export { APP_DEPLOY_VERSION } from "@/lib/app-deploy-version.generated";
 
