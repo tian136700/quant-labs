@@ -176,6 +176,7 @@ def main() -> int:
         for f in sorted(flash_dir.glob("*.tsx")) + sorted(flash_dir.glob("*.ts")):
             flash_parts.append(f.read_text(encoding="utf-8"))
     flash_text = "\n".join(flash_parts)
+    flash_modal = flash.read_text(encoding="utf-8") if flash.is_file() else ""
     for n in [
         "onSelectUsageLevels",
         "usageLevelControls",
@@ -189,9 +190,32 @@ def main() -> int:
         "JpVocabSaveProgressBar",
         "en-vocab-flashcard-page__nav-progress",
         "wordSynced={isShared && !saveBusy}",
+        "pendingNextAfterIdleRef",
     ]:
         if n not in flash_text:
             errors.append(f"EnVocabTeacherQuizFlashcardModal.tsx: missing {n!r}")
+
+    # pendingNext 只能按 open + word?.id 重置（对齐日语 wordId）。
+    # 依赖 word / updated_at 会在勾选乐观更新时清掉待跳，点「下一个」卡死。
+    if "pendingNextAfterIdleRef" in flash_modal:
+        marker = "pendingNextAfterIdleRef.current = false"
+        idx = flash_modal.find(marker)
+        if idx < 0:
+            errors.append(
+                "EnVocabTeacherQuizFlashcardModal.tsx: missing pendingNext reset"
+            )
+        else:
+            window = flash_modal[idx : idx + 320]
+            if "word?.updated_at" in window or ", word]" in window:
+                errors.append(
+                    "EnVocabTeacherQuizFlashcardModal.tsx: pendingNext reset must not "
+                    "depend on whole word / updated_at (use [open, word?.id] only)"
+                )
+            if "[open, word?.id]" not in window:
+                errors.append(
+                    "EnVocabTeacherQuizFlashcardModal.tsx: pendingNext reset deps "
+                    "must be [open, word?.id]"
+                )
 
     # 勾齐用法写库期间：导航旁必须有橙色进度条；禁止只灰掉「下一个」却无反馈
     if 'disabled={isSaving}' in flash_text and "disabled={saveBusy}" not in flash_text:

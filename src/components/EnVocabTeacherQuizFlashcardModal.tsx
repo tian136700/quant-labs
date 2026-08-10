@@ -183,6 +183,8 @@ export function EnVocabTeacherQuizFlashcardModal({
     setMounted(true);
   }, []);
 
+  // 只按 wordId / 开关卡重置 pending——禁止依赖整个 word / updated_at。
+  // 勾选写库会乐观更新词条；若因此清掉 pendingNext，点「下一个」后保存成功也不会跳词。
   useEffect(() => {
     if (!open || !word) {
       setRemainingUncheckedHint(false);
@@ -194,7 +196,7 @@ export function EnVocabTeacherQuizFlashcardModal({
     nextAdvanceBusyRef.current = false;
     pendingNextAfterIdleRef.current = false;
     // 不在换词时清 remainingUncheckedHint：点「完成抽查」跳到未勾选词后需保留提示
-  }, [open, word?.id, word?.updated_at, word]);
+  }, [open, word?.id]);
 
   useEffect(() => {
     if (!open || nestedModalOpen) return;
