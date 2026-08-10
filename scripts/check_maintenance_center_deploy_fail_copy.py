@@ -36,6 +36,16 @@ def main() -> int:
         errors.append("app.js missing resolveDeployFailCopyTarget")
     if "function copyDeployFailLog" not in js:
         errors.append("app.js missing copyDeployFailLog")
+    if "function formatDeployFailAgentPrompt" not in js:
+        errors.append("app.js missing formatDeployFailAgentPrompt")
+    if "防止类似事情再次发生" not in js and "防复发" not in js:
+        errors.append(
+            "deploy fail copy AI prompt must ask to fix + prevent recurrence"
+        )
+    if "含 AI 提示" not in js:
+        errors.append("copyDeployFailLog toast must mention 含 AI 提示")
+    if "含 AI 提示词" not in html:
+        errors.append("deploy-fail-copy button title should mention 含 AI 提示词")
     if 'status === "error"' not in js:
         errors.append("fail banner must key off status === error")
     if 'status === "success"' not in js:
