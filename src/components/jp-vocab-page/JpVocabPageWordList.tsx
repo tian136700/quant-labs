@@ -65,6 +65,7 @@ export type JpVocabPageWordListProps = {
   isWordReviewLocked: (word: JpVocabWord, sessionReviewAtMs?: number) => boolean;
   onToggleVocabHelp: () => void;
   onResumeTeacherQuiz: () => void;
+  onStartTeacherQuiz?: () => void;
   /** 今日抽完：回看最后一个词 */
   onViewLastCheckedWord?: () => void;
   coachAction?: {
@@ -118,13 +119,25 @@ export function JpVocabPageWordList(props: JpVocabPageWordListProps) {
   );
 
   if (props.hideTeacherQuizList) {
+    const showStart =
+      Boolean(props.showTeacherQuizStartLanding) &&
+      !props.teacherQuizInProgress;
     return (
       <>
         {help}
-        <JpVocabTeacherQuizResumePanel
-          showQuizFlashcard={props.showQuizFlashcard}
-          onResume={props.onResumeTeacherQuiz}
-        />
+        {showStart ? (
+          <JpVocabTeacherQuizStartPanel
+            remainingCount={props.remainingQuizCount ?? 0}
+            quizTarget={props.quizTarget}
+            loading={props.loading}
+            onStart={() => props.onStartTeacherQuiz?.()}
+          />
+        ) : (
+          <JpVocabTeacherQuizResumePanel
+            showQuizFlashcard={props.showQuizFlashcard}
+            onResume={props.onResumeTeacherQuiz}
+          />
+        )}
       </>
     );
   }

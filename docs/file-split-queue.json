@@ -11,12 +11,6 @@
       "note": ""
     },
     {
-      "path": "src/components/JpVocabPage.tsx",
-      "lines": 1050,
-      "status": 0,
-      "note": ""
-    },
-    {
       "path": "src/components/jp-lesson-page/JpLessonStatusTable.tsx",
       "lines": 1007,
       "status": 0,

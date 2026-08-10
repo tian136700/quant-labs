@@ -18,6 +18,8 @@ type JpVocabPageToolbarProps = {
   quizTarget: number;
   quizTargetWordsLength: number;
   teacherQuizInProgress: boolean;
+  /** 老师开场页已有「开始抽查」主按钮时，工具栏不再重复 */
+  hideStartQuizButton?: boolean;
   exporting: boolean;
   resetting: boolean;
   mobileToolbarExpanded: boolean;
@@ -44,6 +46,7 @@ export function JpVocabPageToolbar({
   quizTarget,
   quizTargetWordsLength,
   teacherQuizInProgress,
+  hideStartQuizButton = false,
   exporting,
   resetting,
   mobileToolbarExpanded,
@@ -157,7 +160,10 @@ export function JpVocabPageToolbar({
               {refreshing ? "更新中…" : "更新缓存"}
             </button>
           ) : null}
-          {canOperate && quizTarget > 0 && quizTargetWordsLength > 0 ? (
+          {canOperate &&
+          quizTarget > 0 &&
+          quizTargetWordsLength > 0 &&
+          !(hideStartQuizButton && !teacherQuizInProgress) ? (
             <button
               type="button"
               className="btn-rsi-filter btn-rsi-filter--primary"

@@ -4,14 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
-import {
-  jpVocabTotalReviews,
-  sortJpVocabWordsForDisplay,
-} from "@/lib/jp-vocab-shared";
-import {
-  buildJpVocabDailySeqMap,
-  type JpVocabDailyDisplayOrder,
-} from "@/lib/jp-vocab-daily-order";
+import { jpVocabTotalReviews, sortJpVocabWordsForDisplay } from "@/lib/jp-vocab-shared";
+import { buildJpVocabDailySeqMap } from "@/lib/jp-vocab-daily-order";
 import {
   filterJpVocabWordsBySearch,
   type JpVocabKindFilter,
@@ -26,12 +20,7 @@ import { JpVocabPageStyles } from "@/components/jp-vocab-page/JpVocabPageStyles"
 import { JpVocabPageToolbar } from "@/components/jp-vocab-page/JpVocabPageToolbar";
 import { JpVocabPageWordList } from "@/components/jp-vocab-page/JpVocabPageWordList";
 import { countJpVocabCoachLevelCounts } from "@/lib/jp-vocab-coach";
-import {
-  jpVocabAdminPath,
-  jpVocabCoachPath,
-  jpVocabPath,
-  jpVocabStudyPath,
-} from "@/lib/locale-path";
+import { jpVocabAdminPath, jpVocabCoachPath, jpVocabPath, jpVocabStudyPath } from "@/lib/locale-path";
 import { jpVocabTodayCheckStats } from "@/lib/jp-vocab-daily-check";
 import {
   isVocabTeacherAccountActiveForRefresh,
@@ -39,22 +28,13 @@ import {
 } from "@/lib/vocab-poll-throttle";
 import { markJpVocabTeacherDailyCompleteDismissed } from "@/lib/jp-vocab-daily-complete-dismiss";
 import { filterJpVocabTodayWeakWords } from "@/lib/jp-vocab-export-select";
+import { effectiveJpVocabDisplayLevel } from "@/lib/jp-vocab-review";
 import {
-  effectiveJpVocabDisplayLevel,
-  isJpVocabWordReviewLocked,
-} from "@/lib/jp-vocab-review";
-import {
-  isJpVocabWordInTeacherVisiblePool,
   isJpVocabWordQuizCheckedToday,
   listJpVocabTeacherQuizPoolWords,
 } from "@/lib/jp-vocab-teacher-visible";
-import {
-  computeJpVocabDailyQuizProgress,
-  computeJpVocabTeacherPageQuizProgress,
-} from "@/lib/jp-vocab-daily-quiz-progress";
-import {
-  JP_VOCAB_TEACHER_SHARE_ENABLED,
-} from "@/lib/jp-vocab-share-ui";
+import { computeJpVocabDailyQuizProgress } from "@/lib/jp-vocab-daily-quiz-progress";
+import { JP_VOCAB_TEACHER_SHARE_ENABLED } from "@/lib/jp-vocab-share-ui";
 import { useJpVocabAdminActions } from "@/hooks/useJpVocabAdminActions";
 import { useJpVocabDailyCompleteEffects } from "@/hooks/useJpVocabDailyCompleteEffects";
 import { useJpVocabExportActions } from "@/hooks/useJpVocabExportActions";
@@ -66,6 +46,7 @@ import { useJpVocabPageStatSort } from "@/hooks/useJpVocabPageStatSort";
 import { useJpVocabSearchFreshLoad } from "@/hooks/useJpVocabSearchFreshLoad";
 import { useJpVocabShareRequests } from "@/hooks/useJpVocabShareRequests";
 import { useJpVocabTeacherQuiz } from "@/hooks/useJpVocabTeacherQuiz";
+import { useJpVocabTeacherQuizListGate } from "@/hooks/useJpVocabTeacherQuizListGate";
 import { useVocabTeacherQuizSyncPollActive } from "@/hooks/useVocabTeacherQuizSyncPollActive";
 import {
   jpVocabWordsInOrder,
@@ -404,71 +385,28 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     onTeacherQuizSessionFinished,
   });
 
-  const isWordInQuizTarget = useCallback(
-    (wordId: number) =>
-      isJpVocabWordInTeacherVisiblePool(
-        wordId,
-        teacherVisibleLimit,
-        dailySeqByWordId
-      ),
-    [teacherVisibleLimit, dailySeqByWordId]
-  );
-
-  const isWordReviewLocked = useCallback(
-    (word: JpVocabWord, sessionReviewAtMs?: number) =>
-      isJpVocabWordReviewLocked(word, {
-        sessionReviewAtMs,
-        now: new Date(reviewLockNow),
-      }),
-    [reviewLockNow]
-  );
-
-  const teacherPendingWords = useMemo(
-    () =>
-      displayedWords.filter(
-        (w) =>
-          isWordInQuizTarget(w.id) &&
-          (!quizWordHasLevel(w.id) || sessionLevel[w.id] != null)
-      ),
-    [displayedWords, isWordInQuizTarget, quizWordHasLevel, sessionLevel]
-  );
-
-  const displayQuizProgress = useMemo(() => {
-    if (isAdminMode) return dailyQuizProgress;
-    return computeJpVocabTeacherPageQuizProgress(
-      teacherPendingWords,
-      quizWordHasLevel,
-      {
-        forceComplete:
-          dailyQuizProgress.complete ||
-          (quizTarget > 0 &&
-            teacherPendingWords.length === 0 &&
-            dailyQuizProgress.checked > 0),
-      }
-    );
-  }, [
-    isAdminMode,
-    dailyQuizProgress,
+  const {
+    isWordInQuizTarget,
+    isWordReviewLocked,
     teacherPendingWords,
-    quizWordHasLevel,
+    displayQuizProgress,
+    hideTeacherQuizList,
+    showTeacherQuizStartLanding,
+  } = useJpVocabTeacherQuizListGate({
+    canOperate,
+    isAdminMode,
+    teacherQuizInProgress,
+    showQuizFlashcard,
     quizTarget,
-  ]);
-
-  useEffect(() => {
-    setTeacherQuizPollGate({
-      showQuizFlashcard,
-      quizComplete: displayQuizProgress.complete,
-    });
-  }, [showQuizFlashcard, displayQuizProgress.complete]);
-
-  const hideTeacherQuizList =
-    canOperate &&
-    !isAdminMode &&
-    teacherQuizInProgress &&
-    !dailyQuizProgress.complete &&
-    !displayQuizProgress.complete;
-
-  // 抽完后保留本轮会话与末词卡片，供「上一个」回看；关卡时再清（closeTeacherQuizFlashcard）
+    reviewLockNow,
+    displayedWords,
+    teacherVisibleLimit,
+    dailySeqByWordId,
+    dailyQuizProgress,
+    quizWordHasLevel,
+    sessionLevel,
+    setTeacherQuizPollGate,
+  });
 
   const {
     wordSyncState,
@@ -672,28 +610,22 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
   const unmarkedCount = useMemo(
     () =>
       quizTargetWords.filter(
-        (w) =>
-          !effectiveJpVocabDisplayLevel(w, sessionLevel[w.id], { displayOrder })
+        (w) => !effectiveJpVocabDisplayLevel(w, sessionLevel[w.id], { displayOrder })
       ).length,
     [quizTargetWords, sessionLevel, displayOrder]
   );
-
   const neverQuizzedCount = useMemo(
-    () =>
-      isAdminMode ? words.filter((w) => jpVocabTotalReviews(w) === 0).length : 0,
+    () => (isAdminMode ? words.filter((w) => jpVocabTotalReviews(w) === 0).length : 0),
     [isAdminMode, words]
   );
-
   const todayWeakExportWords = useMemo(
     () => filterJpVocabTodayWeakWords(words, sessionLevel, displayOrder),
     [words, sessionLevel, displayOrder]
   );
-
   const dailyCoachLevelCounts = useMemo(
     () => countJpVocabCoachLevelCounts(quizTargetWords, sessionLevel, displayOrder),
     [quizTargetWords, sessionLevel, displayOrder]
   );
-
   const todayCheckStats = useMemo(() => jpVocabTodayCheckStats(words), [words]);
 
   const {
@@ -782,6 +714,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
           quizTarget={quizTarget}
           quizTargetWordsLength={quizTargetWords.length}
           teacherQuizInProgress={teacherQuizInProgress}
+          hideStartQuizButton={showTeacherQuizStartLanding}
           exporting={exporting}
           resetting={resetting}
           mobileToolbarExpanded={mobileToolbarExpanded}
@@ -822,6 +755,9 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
           canManualAdd={canManualAdd}
           wordsLength={words.length}
           hideTeacherQuizList={hideTeacherQuizList}
+          showTeacherQuizStartLanding={showTeacherQuizStartLanding}
+          teacherQuizInProgress={teacherQuizInProgress}
+          remainingQuizCount={unmarkedCount}
           showQuizFlashcard={showQuizFlashcard}
           showVocabHelp={showVocabHelp}
           quizTimeWeight={quizTimeWeight}
@@ -860,6 +796,9 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
           isWordReviewLocked={isWordReviewLocked}
           onToggleVocabHelp={() => setShowVocabHelp((v) => !v)}
           onResumeTeacherQuiz={() => resumeTeacherQuizFlashcard()}
+          onStartTeacherQuiz={() => {
+            startTeacherQuizWithRandomMode();
+          }}
           onViewLastCheckedWord={() => {
             setShowDailyComplete(false);
             openPostCompleteLastWord();
