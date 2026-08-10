@@ -247,6 +247,42 @@ if (!naruStrict.ok) {
   process.exit(1);
 }
 
+// スケッチする：ます形「スケッチします」须算用到（曾 word_not_used id=704；片假名无汉字兜底）
+const sketchExamples = [
+  "公園(こうえん)で木(き)をスケッチします。(N5)",
+  "译文：在公园里画树的素描。",
+  "美術(びじゅつ)の授業(じゅぎょう)で風景(ふうけい)をスケッチしました。(N5)",
+  "译文：美术课上画了风景速写。",
+].join("\\n");
+const sketchInput = {
+  word: "スケッチする",
+  kind: "word",
+  reading: "スケッチする",
+  meaning: "画素描；速写",
+};
+const sketchOnline = normalizeJpVocabExampleSentencesForOnlineApply(
+  sketchExamples,
+  sketchInput
+);
+if (!sketchOnline.ok) {
+  console.error(
+    "FAIL: スケッチします should pass online, got",
+    sketchOnline.reason
+  );
+  process.exit(1);
+}
+const sketchStrict = validateJpVocabExampleSentencesAiOutput(
+  sketchExamples,
+  sketchInput
+);
+if (!sketchStrict.ok) {
+  console.error(
+    "FAIL: スケッチします should pass strict, got",
+    sketchStrict.reason
+  );
+  process.exit(1);
+}
+
 // ～ようにする：ます形不得 grammar_not_used（id=679）
 const youni = [
   "早(はや)く起(お)きるようにしています。(N4)",
@@ -320,6 +356,8 @@ def main() -> int:
     )
     must_contain(ai, "splitJpVocabLemmaSlashParts", "ai splits fullwidth reading slash")
     must_contain(ai, "[/／]", "ai lemma hit must split ／")
+    must_contain(ai, "pushSuruVerbSurfaces", "ai recognizes ～する → …します")
+    must_contain(ai, "スケッチする", "ai prompt/regression mentions スケッチする ます形")
     must_contain(ai, "かぶって／つける", "ai prompt allows reading-form examples for 戴")
     must_contain(
         ROOT / "scripts/jp-vocab-fill-online-batch-api.py",
