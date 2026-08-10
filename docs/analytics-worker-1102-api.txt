@@ -3,27 +3,44 @@ Worker 1102 · 诊断看板汇总 API（管理端）
 
 用途
 ----
-给「1102 诊断看板」拉一份可分析快照：词库备注体积、今日共享载荷、
-热路径慢/大/5xx 聚合、客户端现场合计与样本、相关流量交叉、防护清单。
+给「1102 诊断看板」拉一份可分析快照（Error 1102 = 单次请求 CPU/内存顶满，
+≠ 日请求 1027）：
+
+- 风险等级与定位说明（失败车道 / fill 争用 / teacher-quiz-live / shared 载荷）
+- 日语/英语词库计数 + **今日共享**列表字段合计 / 备注体积（次要）
+- 热路径慢(≥2s) / 大(≥80KB) / HTTP 5xx 聚合
+- 客户端现场合计与样本（含 failure_lane / fail_reason / host）
+- 与 1102 相关的流量 Top（含 fill-*、teacher-quiz-live）
+- 防护清单 guardrails
 
 前端：/admin/worker-1102 、/zh/admin/worker-1102
-复制报告：formatWorker1102DiagnosticReport
+复制报告：formatWorker1102DiagnosticReport（AdminWorker1102Panel）
+
+实现约束（防看板自己 1102）：
+- 备注体积 / Top **只查今日共享子集**，禁止全表 LENGTH/LIKE 扫 class_notes
+- 本请求先返回 summary；旧数据 purge 在响应后异步跑（勿与 summary 并行）
 
 
 线上地址
 --------
 GET https://finance.info-quests.com/api/analytics/worker-1102
-GET https://finance.info-quests.com/api/analytics/worker-1102?date=2026-07-31
+GET https://finance.info-quests.com/api/analytics/worker-1102?date=2026-08-10
 
 说明：
-- date = 配额日 YYYY-MM-DD（北京 08:00→次日 08:00 窗口，与流量检测一致）
-- 不传 date：默认当前配额日
-- japanese / english 等子域同路径可用（同一 Worker / D1）
+- date = 配额日 YYYY-MM-DD（北京 08:00→次日 08:00 窗口，与 /admin/worker-traffic 一致）
+- 不传 date 或格式非法：默认当前配额日（workerQuotaDateString）
+- japanese / english / korean 等子域同路径可用（同一 Worker / 同一 D1）
+- 响应 Cache-Control 随 jsonResponse 默认（看板前端自行拉）
 
 
 本机开发（可选）
 ---------------
 GET http://127.0.0.1:3002/api/analytics/worker-1102
+GET http://127.0.0.1:3002/api/analytics/worker-1102?date=2026-08-10
+
+本机可先：
+GET http://127.0.0.1:3002/api/debug-local-admin-creds
+再 POST /api/english-teacher-review/auth { "action":"login", ... } 拿 Cookie。
 
 
 鉴权
@@ -37,50 +54,99 @@ GET http://127.0.0.1:3002/api/analytics/worker-1102
   "error": "需要管理员登录。",
   "auth_required": true
 }
+（英文 locale 时 error 为 "Admin login required."）
+
+
+请求参数（Query）
+-----------------
+date   选填。配额日 YYYY-MM-DD。非法或空 → 当前配额日。
 
 
 成功响应（字段摘要）
 --------------------
 200，主体含：
-  ok                  true
-  generated_at        ISO 时间
-  share_date          北京日历日（共享列表用）
-  quota_stat_date     配额日
-  risk_level          ok | warn | critical
-  risk_notes          字符串数组
-  subjects[]          日语/英语体积快照
-  heaviest_notes[]    备注体积 Top
-  heavy_signals[]     慢/大/5xx 聚合
-  client_event_agg[]  客户端事件合计
-  client_event_samples[]  现场样本（失败 URL / Ray / 耗时等）
-  related_traffic_routes[]  相关热路径流量
+  ok                       true
+  generated_at             ISO 时间
+  share_date               北京日历日（今日共享统计用）
+  quota_stat_date          配额日（流量 / 重信号 / 客户端事件用）
+  risk_level               ok | warn | critical
+  risk_notes               字符串数组（定位顺序说明 + 告警）
+  subjects[]               日语/英语快照：
+                             subject, word_count, notes_count,
+                             max_notes_bytes / avg_notes_bytes / notes_with_image_hint
+                               （来自今日共享；非全库扫备注）
+                             today_shared_count,
+                             today_shared_max_notes_bytes,
+                             today_shared_sum_list_bytes,
+                             today_shared_max_list_bytes
+                             （列表字段 = example+usage+meaning+word，不含备注正文）
+  heaviest_notes[]         今日共享里备注 ≥40KB 的 Top（subject/id/word/notes_bytes/has_image_hint）
+  heavy_signals[]          route_key / signal(slow|large|http5xx) / hit_count /
+                           max_duration_ms / max_bytes
+  related_traffic_routes[] route_key / kind / hit_count（含 fill-*，最多约 25 条）
+  fill_contention_hits     fill-* 今日合计命中
   traffic_total_hits / traffic_quota_limit
-  guardrails[]
+  guardrails[]             id / ok / detail
+                             （含 board_no_full_notes_scan、study_html_traffic_skip 等）
+  client_event_agg[]       event_kind / page_path / hit_count
+  client_event_samples[]   现场样本（失败优先排序），除库字段外另有：
+                             failure_lane  html_document|shared_api|fill_api|
+                                           vocab_api|auth_api|other
+                             fail_reason   如 load_failed / cf_1102_html / abort …
+                             host          如 finance.info-quests.com
+
+
+失败响应
+--------
+401
+  { "ok": false, "error": "需要管理员登录。", "auth_required": true }
+
+500
+  { "ok": false, "error": "…" }
 
 
 curl 示例
 ---------
-# 先浏览器登录管理员，再带 Cookie（示例）：
+# 1) 本机：拿 Admin 账号并登录
+CREDS=$(curl -sS 'http://127.0.0.1:3002/api/debug-local-admin-creds')
+USER=$(python3 -c "import json,sys; print(json.load(sys.stdin)['username'])" <<<"$CREDS")
+PASS=$(python3 -c "import json,sys; print(json.load(sys.stdin)['password'])" <<<"$CREDS")
+curl -sS -c /tmp/w1102.txt -b /tmp/w1102.txt \
+  -H 'content-type: application/json' \
+  -d "{\"action\":\"login\",\"username\":\"$USER\",\"password\":\"$PASS\"}" \
+  'http://127.0.0.1:3002/api/english-teacher-review/auth'
+
+# 2) 拉诊断汇总
+curl -sS -b /tmp/w1102.txt \
+  'http://127.0.0.1:3002/api/analytics/worker-1102?date=2026-08-10' | head -c 2000
+
+# 线上：先浏览器登录管理员，再带 Cookie
 curl -sS 'https://finance.info-quests.com/api/analytics/worker-1102' \
   -H 'Cookie: <你的 session cookie>'
 
 
 Python 最小例
 -------------
+import json
 import urllib.request
 
-url = "https://finance.info-quests.com/api/analytics/worker-1102?date=2026-07-31"
+url = "https://finance.info-quests.com/api/analytics/worker-1102?date=2026-08-10"
 req = urllib.request.Request(
     url,
     headers={"Cookie": "<session cookie>"},
     method="GET",
 )
 with urllib.request.urlopen(req, timeout=60) as resp:
-    print(resp.read().decode("utf-8")[:2000])
+    data = json.loads(resp.read().decode("utf-8"))
+print(data.get("ok"), data.get("risk_level"), data.get("fill_contention_hits"))
+print((data.get("risk_notes") or [""])[0][:120])
 
 
 相关
 ----
 - 客户端上报：docs/analytics-worker-1102-client-report-api.txt
 - 实现：src/app/api/analytics/worker-1102/route.ts
-- 看板：AdminWorker1102Panel
+         src/lib/worker-1102-db.ts
+- 看板：AdminWorker1102PageClient → AdminWorker1102Panel
+- 规则：.cursor/rules/worker-1102-diagnose-board.mdc
+- 回归：python3 scripts/check_worker_1102_board.py

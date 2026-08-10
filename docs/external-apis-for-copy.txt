@@ -31,9 +31,9 @@
    文件：docs/en-lesson-teacher-lookup-api.txt
    调用：GET https://finance.info-quests.com/api/admin/en-lesson-teachers/lookup?name=欣欣
 
-7. 英语抽背 · 熟悉程度 / 同步学生 API
+7. 英语抽背 · 词表读取 / 熟悉程度 / 同步学生 API
    文件：docs/en-vocab-api.txt
-   调用：POST https://english.info-quests.com/api/en-vocab
+   调用：GET  https://english.info-quests.com/api/en-vocab
 
 8. 英语抽背 · 课堂备注 API（按需拉正文 / 保存）
    文件：docs/en-vocab-class-notes-api.txt
