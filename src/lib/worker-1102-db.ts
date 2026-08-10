@@ -3,7 +3,7 @@
  * CF 1102 在 Worker 被杀时本进程记不到那一次；看板靠：
  * 1) 客户端现场（CF 1102 HTML / page_ok / shared_fail）——主信号
  * 2) 热路径慢/大/5xx 聚合 + 今日 shared 列表字段合计
- * 3) 备注体积仅次要对照（英语常无备注仍可 1102）
+ * 3) 备注体积仅次要对照（英语常无备注仍可 1102）——且只查今日共享子集，禁止全表扫备注
  */
 
 import { beijingDateString } from "@/lib/jp-vocab-daily-check";
@@ -264,6 +264,10 @@ export async function listWorkerHeavySignals(
   }));
 }
 
+/**
+ * 风险快照：禁止全表 LENGTH/LIKE 扫 class_notes（看板自己曾因此 1102）。
+ * 词库只做 COUNT；备注体积仅看「今日共享」子集。
+ */
 async function subjectRisk(
   db: D1Database,
   subject: "jp" | "en",
@@ -273,30 +277,27 @@ async function subjectRisk(
   const sharedTable = subject === "jp" ? "jp_vocab_shared" : "en_vocab_shared";
   const imageLike =
     subject === "jp"
-      ? `class_notes LIKE '%![](%' OR class_notes LIKE '%/api/jp-vocab/ref/%'`
-      : `class_notes LIKE '%![](%' OR class_notes LIKE '%/api/en-vocab/ref/%'`;
+      ? `w.class_notes LIKE '%![](%' OR w.class_notes LIKE '%/api/jp-vocab/ref/%'`
+      : `w.class_notes LIKE '%![](%' OR w.class_notes LIKE '%/api/en-vocab/ref/%'`;
 
   const wordRow = await db
     .prepare(
       `SELECT COUNT(*) AS word_count,
-              SUM(CASE WHEN class_notes IS NOT NULL THEN 1 ELSE 0 END) AS notes_count,
-              MAX(LENGTH(COALESCE(class_notes, ''))) AS max_notes,
-              AVG(LENGTH(COALESCE(class_notes, ''))) AS avg_notes,
-              SUM(CASE WHEN class_notes IS NOT NULL AND (${imageLike}) THEN 1 ELSE 0 END) AS img_hints
+              SUM(CASE WHEN class_notes IS NOT NULL THEN 1 ELSE 0 END) AS notes_count
        FROM ${wordTable}`
     )
     .first<{
       word_count: number;
       notes_count: number;
-      max_notes: number;
-      avg_notes: number;
-      img_hints: number;
     }>();
 
+  // 列表字段体积 + 今日共享备注（不扫全库备注正文）
   const sharedRow = await db
     .prepare(
       `SELECT COUNT(*) AS shared_count,
-              MAX(LENGTH(COALESCE(w.class_notes, ''))) AS max_notes,
+              MAX(CASE WHEN w.class_notes IS NOT NULL THEN LENGTH(w.class_notes) ELSE 0 END) AS max_notes,
+              AVG(CASE WHEN w.class_notes IS NOT NULL THEN LENGTH(w.class_notes) ELSE NULL END) AS avg_notes,
+              SUM(CASE WHEN w.class_notes IS NOT NULL AND (${imageLike}) THEN 1 ELSE 0 END) AS img_hints,
               SUM(
                 LENGTH(COALESCE(w.example_sentences, '')) +
                 LENGTH(COALESCE(w.usage, '')) +
@@ -317,47 +318,53 @@ async function subjectRisk(
     .first<{
       shared_count: number;
       max_notes: number;
+      avg_notes: number;
+      img_hints: number;
       sum_list: number;
       max_list: number;
     }>();
+
+  const todayMaxNotes = Math.max(0, Number(sharedRow?.max_notes) || 0);
 
   return {
     subject,
     word_count: Math.max(0, Number(wordRow?.word_count) || 0),
     notes_count: Math.max(0, Number(wordRow?.notes_count) || 0),
-    max_notes_bytes: Math.max(0, Number(wordRow?.max_notes) || 0),
-    avg_notes_bytes: Math.max(0, Math.round(Number(wordRow?.avg_notes) || 0)),
-    notes_with_image_hint: Math.max(0, Number(wordRow?.img_hints) || 0),
+    // 全库 max 已弃用（会扫备注正文）；改用今日共享 max 作次要对照
+    max_notes_bytes: todayMaxNotes,
+    avg_notes_bytes: Math.max(0, Math.round(Number(sharedRow?.avg_notes) || 0)),
+    notes_with_image_hint: Math.max(0, Number(sharedRow?.img_hints) || 0),
     today_shared_count: Math.max(0, Number(sharedRow?.shared_count) || 0),
-    today_shared_max_notes_bytes: Math.max(
-      0,
-      Number(sharedRow?.max_notes) || 0
-    ),
+    today_shared_max_notes_bytes: todayMaxNotes,
     today_shared_sum_list_bytes: Math.max(0, Number(sharedRow?.sum_list) || 0),
     today_shared_max_list_bytes: Math.max(0, Number(sharedRow?.max_list) || 0),
   };
 }
 
+/** 仅今日共享词条里的备注 Top（禁止全表 ORDER BY LENGTH(class_notes)） */
 async function heaviestNotes(
   db: D1Database,
   subject: "jp" | "en",
+  shareDate: string,
   limit = 5
 ): Promise<Worker1102HeavyWord[]> {
   const wordTable = subject === "jp" ? "jp_vocab_word" : "en_vocab_word";
+  const sharedTable = subject === "jp" ? "jp_vocab_shared" : "en_vocab_shared";
   const imageLike =
     subject === "jp"
-      ? `class_notes LIKE '%![](%' OR class_notes LIKE '%/api/jp-vocab/ref/%'`
-      : `class_notes LIKE '%![](%' OR class_notes LIKE '%/api/en-vocab/ref/%'`;
+      ? `w.class_notes LIKE '%![](%' OR w.class_notes LIKE '%/api/jp-vocab/ref/%'`
+      : `w.class_notes LIKE '%![](%' OR w.class_notes LIKE '%/api/en-vocab/ref/%'`;
   const result = await db
     .prepare(
-      `SELECT id, word, LENGTH(class_notes) AS notes_bytes,
+      `SELECT w.id AS id, w.word AS word, LENGTH(w.class_notes) AS notes_bytes,
               CASE WHEN (${imageLike}) THEN 1 ELSE 0 END AS has_img
-       FROM ${wordTable}
-       WHERE class_notes IS NOT NULL
-       ORDER BY LENGTH(class_notes) DESC
-       LIMIT ?1`
+       FROM ${sharedTable} s
+       INNER JOIN ${wordTable} w ON w.id = s.word_id
+       WHERE s.share_date = ?1 AND w.class_notes IS NOT NULL
+       ORDER BY LENGTH(w.class_notes) DESC
+       LIMIT ?2`
     )
-    .bind(limit)
+    .bind(shareDate, limit)
     .all<{ id: number; word: string; notes_bytes: number; has_img: number }>();
 
   return (result.results ?? []).map((row) => ({
@@ -526,11 +533,11 @@ function buildRiskNotes(input: {
     if (s.max_notes_bytes >= 200_000) {
       bump(
         "warn",
-        `${label}词库最大备注 ${s.max_notes_bytes} 字节（次要：单次按需拉备注仍可能重）`
+        `${label}今日共享最大备注 ${s.max_notes_bytes} 字节（次要：单次按需拉备注仍可能重）`
       );
     } else if (s.max_notes_bytes >= 80_000) {
       notes.push(
-        `${label}词库最大备注 ${s.max_notes_bytes} 字节（次要对照，英语无备注也会 1102）`
+        `${label}今日共享最大备注 ${s.max_notes_bytes} 字节（次要对照，英语无备注也会 1102）`
       );
     }
   }
@@ -544,15 +551,22 @@ function buildRiskNotes(input: {
 }
 
 function guardrails(): Worker1102DiagnosticSummary["guardrails"] {
-  const skipOk = PAGE_HTML_TRAFFIC_SKIP_PATHS.every((p) =>
-    ["/jp-vocab/study", "/en-vocab/study", "/ko-pron/study"].includes(p)
+  const requiredHtmlSkip = [
+    "/jp-vocab/study",
+    "/en-vocab/study",
+    "/ko-pron/study",
+    "/admin/worker-1102",
+    "/zh/admin/worker-1102",
+  ];
+  const skipOk = requiredHtmlSkip.every((p) =>
+    (PAGE_HTML_TRAFFIC_SKIP_PATHS as readonly string[]).includes(p)
   );
   return [
     {
       id: "study_html_traffic_skip",
       ok: skipOk,
       detail:
-        "今日单词 HTML 不写 worker 流量表（避免与冷启动抢 CPU）",
+        "今日单词 / 1102 看板 HTML 不写 worker 流量表（避免与冷启动抢 CPU）",
     },
     {
       id: "open_next_static_shell_cache",
@@ -584,6 +598,12 @@ function guardrails(): Worker1102DiagnosticSummary["guardrails"] {
       detail:
         "抽完留末词卡须停 peek/live 并清 live；看板相关流量盯 teacher-quiz-live；规则 vocab-teacher-quiz-no-sync-poll",
     },
+    {
+      id: "board_no_full_notes_scan",
+      ok: true,
+      detail:
+        "诊断 API 禁止全表 LENGTH/LIKE 扫 class_notes；备注 Top 只看今日共享；页壳 force-static + Client ssr:false",
+    },
   ];
 }
 
@@ -598,8 +618,8 @@ export async function getWorker1102DiagnosticSummary(
     await Promise.all([
       subjectRisk(db, "jp", shareDate),
       subjectRisk(db, "en", shareDate),
-      heaviestNotes(db, "jp", 5),
-      heaviestNotes(db, "en", 5),
+      heaviestNotes(db, "jp", shareDate, 5),
+      heaviestNotes(db, "en", shareDate, 5),
       listWorkerHeavySignals(db, quotaStatDate),
       getWorkerTrafficDailySummary(db, quotaStatDate).catch(() => null),
       listWorker1102ClientAgg(db, quotaStatDate),

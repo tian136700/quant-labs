@@ -21,8 +21,16 @@ def main() -> int:
         "src/app/zh/admin/worker-1102/page.tsx",
     ):
         page = read(rel)
-        if "AdminWorker1102Page" not in page:
-            errors.append(f"{rel} 须渲染 AdminWorker1102Page")
+        if "AdminWorker1102PageClient" not in page:
+            errors.append(f"{rel} 须渲染 AdminWorker1102PageClient")
+        if 'dynamic = "force-static"' not in page and "dynamic = 'force-static'" not in page:
+            errors.append(f"{rel} 须 export const dynamic = \"force-static\"")
+
+    client = read("src/components/AdminWorker1102PageClient.tsx")
+    if "ssr: false" not in client and "ssr:false" not in client:
+        errors.append("AdminWorker1102PageClient 须 dynamic(..., { ssr: false })")
+    if "AdminWorker1102Page" not in client:
+        errors.append("AdminWorker1102PageClient 须懒加载 AdminWorker1102Page")
 
     shell = read("src/components/AdminWorker1102Page.tsx")
     if "AdminWorker1102Panel" not in shell:
@@ -53,6 +61,10 @@ def main() -> int:
         errors.append("GET /api/analytics/worker-1102 须调 getWorker1102DiagnosticSummary")
     if "admin:dashboard" not in api:
         errors.append("worker-1102 API 须 requirePermission admin:dashboard")
+    if "await getWorker1102DiagnosticSummary" not in api:
+        errors.append(
+            "worker-1102 GET 须先 await summary，再异步 purge（勿与 summary 并行）"
+        )
 
     db = read("src/lib/worker-1102-db.ts")
     for needle in (
@@ -68,9 +80,42 @@ def main() -> int:
         "quiz_complete_stop_live_poll",
         "teacher-quiz-live",
         "HEAVIEST_NOTES_MIN_BYTES",
+        "board_no_full_notes_scan",
     ):
         if needle not in db:
             errors.append(f"worker-1102-db.ts 须含 {needle}")
+
+    heaviest_fn = ""
+    if "async function heaviestNotes" in db:
+        heaviest_fn = db.split("async function heaviestNotes", 1)[1].split(
+            "\n/** 备注 Top", 1
+        )[0]
+        if "\nexport " in heaviest_fn:
+            heaviest_fn = heaviest_fn.split("\nexport ", 1)[0]
+        # 截到下一个顶层函数/常量
+        for marker in ("\nconst HEAVIEST", "\nfunction buildRisk"):
+            if marker in heaviest_fn:
+                heaviest_fn = heaviest_fn.split(marker, 1)[0]
+                break
+    if "sharedTable" not in heaviest_fn:
+        errors.append(
+            "heaviestNotes 须只查今日共享（sharedTable），禁止全表扫 class_notes"
+        )
+
+    subject_fn = ""
+    if "async function subjectRisk" in db:
+        subject_fn = db.split("async function subjectRisk", 1)[1].split(
+            "\nasync function heaviestNotes", 1
+        )[0]
+    if "MAX(LENGTH(COALESCE(class_notes" in subject_fn:
+        errors.append(
+            "subjectRisk 禁止全表 MAX/AVG LENGTH(class_notes)；只 COUNT + 今日共享"
+        )
+
+    traffic_path = read("src/lib/worker-traffic-path.ts")
+    for needle in ("/admin/worker-1102", "/zh/admin/worker-1102"):
+        if needle not in traffic_path:
+            errors.append(f"PAGE_HTML_TRAFFIC_SKIP 须含 {needle}")
 
     panel = read("src/components/admin-dashboard/AdminWorker1102Panel.tsx")
     if "guideQuizComplete" not in panel:

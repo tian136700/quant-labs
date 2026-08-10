@@ -31,6 +31,9 @@ export const PAGE_HTML_TRAFFIC_SKIP_PATHS = [
   "/en-vocab/admin",
   "/en-vocab/review",
   "/en-vocab/coach",
+  // 1102 诊断看板自身：进页勿再写流量表（与冷启动抢 CPU 会整页 1102）
+  "/admin/worker-1102",
+  "/zh/admin/worker-1102",
 ] as const;
 
 const PAGE_HTML_TRAFFIC_SKIP = new Set<string>(PAGE_HTML_TRAFFIC_SKIP_PATHS);

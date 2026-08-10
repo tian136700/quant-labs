@@ -33,11 +33,15 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const quotaStatDate = parseStatDate(url.searchParams.get("date"));
 
-    const [summary] = await Promise.all([
-      getWorker1102DiagnosticSummary(env.DB, { quotaStatDate }),
+    // 先出诊断再清旧数据：purge 与重查询并行时易顶满 CPU → 看板自己 1102
+    const summary = await getWorker1102DiagnosticSummary(env.DB, {
+      quotaStatDate,
+    });
+
+    void Promise.all([
       purgeWorkerHeavySignalsOlderThan(env.DB),
       purgeWorker1102ClientEventsOlderThan(env.DB),
-    ]);
+    ]).catch(() => {});
 
     return jsonResponse({ ...summary });
   } catch (err) {

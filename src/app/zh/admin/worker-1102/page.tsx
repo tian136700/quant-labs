@@ -1,4 +1,4 @@
-import { AdminWorker1102Page } from "@/components/AdminWorker1102Page";
+import { AdminWorker1102PageClient } from "@/components/AdminWorker1102PageClient";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -7,6 +7,9 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
+/** 纯客户端壳：须静态 HTML，禁止 force-dynamic（每次 SSR 易 Worker 1102） */
+export const dynamic = "force-static";
+
 export default function Page() {
-  return <AdminWorker1102Page />;
+  return <AdminWorker1102PageClient />;
 }
