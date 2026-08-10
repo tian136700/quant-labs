@@ -93,7 +93,7 @@ import {
 
 export function JpLessonSchedulePage() {
   const { locale } = useI18n();
-  const { isAdmin, checking } = useEtrAuth();
+  const { isAdmin } = useEtrAuth();
 
   const [lessons, setLessons] = useState<JpLessonRecord[]>(() => readLessonCache()?.lessons ?? []);
   const [enLessons, setEnLessons] = useState<EnLessonRecord[]>(
@@ -210,9 +210,10 @@ export function JpLessonSchedulePage() {
   }, []);
 
   useEffect(() => {
-    // 与新课列表一致：进页强制拉网，避免本地缓存仍含已合并/已删的手动条
-    if (!checking && isAdmin) void loadManualSchedules({ force: true });
-  }, [checking, isAdmin, loadManualSchedules]);
+    // 与新课列表一致：进页强制拉网，避免本地缓存仍含已合并/已删的手动条。
+    // 有本地 admin 缓存时 isAdmin 已为 true：勿等鉴权 checking 结束再拉（手机可省数秒）。
+    if (isAdmin) void loadManualSchedules({ force: true });
+  }, [isAdmin, loadManualSchedules]);
 
   const loadLessons = useCallback(async (opts?: { force?: boolean }) => {
     const cached = readLessonCache();
@@ -256,9 +257,9 @@ export function JpLessonSchedulePage() {
   }, [applyLessonPayload]);
 
   useEffect(() => {
-    // 打开日程立刻拉最新：只展示「学习中」，避免 TTL 内仍用旧状态
-    if (!checking && isAdmin) void loadLessons({ force: true });
-  }, [checking, isAdmin, loadLessons]);
+    // 打开日程立刻拉最新：避免 TTL 内仍用旧状态；勿等 !checking
+    if (isAdmin) void loadLessons({ force: true });
+  }, [isAdmin, loadLessons]);
 
   const loadEnLessons = useCallback(async (opts?: { force?: boolean }) => {
     const cached = readEnLessonCache();
@@ -302,8 +303,8 @@ export function JpLessonSchedulePage() {
   }, [applyEnLessonPayload]);
 
   useEffect(() => {
-    if (!checking && isAdmin) void loadEnLessons({ force: true });
-  }, [checking, isAdmin, loadEnLessons]);
+    if (isAdmin) void loadEnLessons({ force: true });
+  }, [isAdmin, loadEnLessons]);
 
   const loadKoTeachers = useCallback(async () => {
     if (!isAdmin) return;
@@ -324,8 +325,8 @@ export function JpLessonSchedulePage() {
   }, [isAdmin]);
 
   useEffect(() => {
-    if (!checking && isAdmin) void loadKoTeachers();
-  }, [checking, isAdmin, loadKoTeachers]);
+    if (isAdmin) void loadKoTeachers();
+  }, [isAdmin, loadKoTeachers]);
 
   const enTeacherNameById = useMemo(() => {
     const map = new Map<number, string>();
@@ -784,13 +785,16 @@ export function JpLessonSchedulePage() {
     else showCopyFailure();
   };
 
-  if (checking || !isAdmin) {
+  // 本地已有 admin 缓存时不要因 checking 整页挡在「验证中…」：
+  // 手机弱网 / 冷启动下鉴权探测可达数秒～10s，日历可用本地课表缓存先渲染。
+  // 无缓存时 isAdmin=false，仍走门禁（验证中 / 登录）。
+  if (!isAdmin) {
     return (
       <AdminAuthGate
         title="日程管理"
         required="需要管理员权限"
         login="登录"
-        registered={!checking && isAdmin}
+        registered={false}
       />
     );
   }
