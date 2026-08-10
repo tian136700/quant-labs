@@ -1,0 +1,209 @@
+用户管理 · 列表 / 创建 / 编辑 / 启禁 / 不限设备 API
+================================================
+
+用途
+----
+管理登录账号（网页 `/admin/users` 同源）：
+
+| 方法 | 作用 |
+|------|------|
+| GET  | 列出全部用户 |
+| POST | 创建用户 |
+| PATCH | 编辑资料 / 启用禁用 / **永不禁用** / **不限制登录设备** |
+| DELETE | 删除用户（踢会话 + 清登录链接） |
+
+本次相关字段：
+- `allow_multi_device`（布尔）
+  - `false`（默认）：非管理员账号**限制登录设备**——新设备登录会顶掉旧会话
+  - `true`：不限制，可多端同时在线
+  - 管理员角色本身不限制；不能对 admin 账号改此开关
+
+相关：生成免密登录链接见 `docs/admin-users-login-link-api.txt`。
+
+
+线上地址
+--------
+GET    https://finance.info-quests.com/api/admin/users
+POST   https://finance.info-quests.com/api/admin/users
+PATCH  https://finance.info-quests.com/api/admin/users
+DELETE https://finance.info-quests.com/api/admin/users
+
+也可用 japanese / english / korean 同路径（同一 Worker / 同一 D1）。
+
+
+本机开发（可选）
+---------------
+http://127.0.0.1:3002/api/admin/users
+
+
+鉴权
+----
+须**管理员**登录 Cookie 会话（与站点 `/admin/users` 同权）。
+
+Header（可选，影响错误文案语言）：
+  x-locale: zh | en
+  Content-Type: application/json   ← POST / PATCH / DELETE
+
+
+用户对象字段（响应里的 user / users[]）
+--------------------------------------
+id                    用户 id
+username              登录名
+role                  主角色：admin | user | jp_vocab | en_vocab | ko_pron
+role_label            展示用身份文案（可含多科，如「日语教师 + 韩语老师」）
+teacher_modules       { "jp": bool, "en": bool, "ko": bool }
+jp_lesson_teacher_id  绑定的日语上课老师 id（可 null）
+jp_lesson_teacher_name 老师显示名（可 null）
+disabled              是否已禁用（布尔）
+never_disable         是否永不禁用（布尔；定时启禁跳过）
+allow_multi_device    是否不限制登录设备（布尔；默认 false）
+created_at            创建时间
+last_login_at         最后登录时间（可 null）
+last_login_ip         最后登录 IP（可 null）
+
+
+GET — 列表
+----------
+无请求体。
+
+成功：
+{
+  "ok": true,
+  "users": [ { …用户对象… }, … ]
+}
+
+
+POST — 创建
+----------
+{
+  "username": "TeacherA",
+  "password": "至少6位",
+  "role": "en_vocab",                 // 与 teacher_modules 二选一优先 modules
+  "teacher_modules": { "jp": false, "en": true, "ko": false },
+  "jp_lesson_teacher_id": null        // 可选；正整数绑定日语老师
+}
+
+成功：{ "ok": true, "user": { … } }
+
+
+PATCH — 编辑 / 开关
+-------------------
+必填：user_id（正整数）。
+
+可按场景只传一类字段（互斥优先：有资料编辑则走编辑；否则看 never_disable / allow_multi_device / disabled）：
+
+1) 不限制登录设备（本次）
+{
+  "user_id": 48,
+  "allow_multi_device": true
+}
+→ true=多端可同时在线；false=恢复默认单设备。
+  开关时会清空 current_session_token，避免旧绑定误冲突。
+
+2) 永不禁用
+{
+  "user_id": 48,
+  "never_disable": true
+}
+
+3) 启用 / 禁用
+{
+  "user_id": 48,
+  "disabled": true
+}
+
+4) 编辑资料（可组合）
+{
+  "user_id": 48,
+  "username": "NewName",
+  "password": "新密码可选",
+  "role": "jp_vocab",
+  "teacher_modules": { "jp": true, "en": false, "ko": false },
+  "jp_lesson_teacher_id": 12
+}
+
+成功：{ "ok": true, "user": { …含最新 allow_multi_device… } }
+
+
+DELETE — 删除
+-------------
+{
+  "user_id": 48
+}
+
+成功：{ "ok": true, "username": "TeacherA" }
+
+
+失败响应（常见）
+----------------
+403  { "ok": false, "error": "需要管理员账号。" }
+400  { "ok": false, "error": "请求数据无效。" }
+400  { "ok": false, "error": "用户不存在。" }
+400  { "ok": false, "error": "不能编辑管理员账号。" }
+400  { "ok": false, "error": "不能禁用管理员账号。" }
+400  { "ok": false, "error": "不能禁用当前登录的管理员账号。" }
+400  { "ok": false, "error": "不能删除管理员账号。" }
+400  { "ok": false, "error": "用户名已存在。" }
+400  { "ok": false, "error": "密码至少 6 位。" }
+
+
+curl 示例（不限制登录设备）
+---------------------------
+# 先用浏览器登录管理员，把 Cookie 拷出来；或本机：
+# curl -c /tmp/admin.txt -X POST http://127.0.0.1:3002/api/english-teacher-review/auth \
+#   -H 'Content-Type: application/json' \
+#   -d '{"action":"login","username":"Admin","password":"…"}'
+
+curl -sS -X PATCH 'https://finance.info-quests.com/api/admin/users' \
+  -H 'Cookie: 你的管理员登录 Cookie' \
+  -H 'Content-Type: application/json' \
+  -H 'x-locale: zh' \
+  -d '{"user_id":48,"allow_multi_device":true}'
+
+# 恢复默认（限制登录设备）
+curl -sS -X PATCH 'https://finance.info-quests.com/api/admin/users' \
+  -H 'Cookie: 你的管理员登录 Cookie' \
+  -H 'Content-Type: application/json' \
+  -H 'x-locale: zh' \
+  -d '{"user_id":48,"allow_multi_device":false}'
+
+# 列表
+curl -sS 'https://finance.info-quests.com/api/admin/users' \
+  -H 'Cookie: 你的管理员登录 Cookie' \
+  -H 'x-locale: zh'
+
+
+Python 最小例
+-------------
+import requests
+
+BASE = "https://finance.info-quests.com"
+COOKIE = "你的管理员登录 Cookie"
+HEADERS = {
+    "Cookie": COOKIE,
+    "Content-Type": "application/json",
+    "x-locale": "zh",
+}
+
+# 开启不限制登录设备
+r = requests.patch(
+    f"{BASE}/api/admin/users",
+    headers=HEADERS,
+    json={"user_id": 48, "allow_multi_device": True},
+    timeout=30,
+)
+print(r.status_code, r.json())
+
+# 列表确认
+r2 = requests.get(f"{BASE}/api/admin/users", headers={"Cookie": COOKIE, "x-locale": "zh"}, timeout=30)
+users = r2.json().get("users") or []
+row = next((u for u in users if u.get("id") == 48), None)
+print(row and row.get("allow_multi_device"))
+
+
+说明
+----
+- 默认单设备逻辑在服务端会话层：`allow_multi_device=false` 且非 admin 时，
+  新登录会写入 `current_session_token` 并删除该用户其它 `etr_sessions`。
+- 网页操作列文案：「不限制登录设备」/「取消不限设备」。
+- 功能索引：`docs/feature-index.md` → admin/users「不限制登录设备」。

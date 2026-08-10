@@ -59,6 +59,10 @@ REQUIRED: list[tuple[str, str]] = [
         "docs/admin-users-login-link-api.txt",
     ),
     (
+        "src/app/api/admin/users/route.ts",
+        "docs/admin-users-api.txt",
+    ),
+    (
         "src/app/api/analytics/worker-1102/client-report/route.ts",
         "docs/analytics-worker-1102-client-report-api.txt",
     ),

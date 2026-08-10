@@ -7,143 +7,147 @@
 
 —— 接口调用说明（*-api.txt）——
 
-1. 用户管理 · 生成登录链接 API
+1. 用户管理 · 列表 / 创建 / 编辑 / 启禁 / 不限设备 API
+   文件：docs/admin-users-api.txt
+   调用：GET    https://finance.info-quests.com/api/admin/users
+
+2. 用户管理 · 生成登录链接 API
    文件：docs/admin-users-login-link-api.txt
    调用：POST https://finance.info-quests.com/api/admin/users/login-link
 
-2. Worker 1102 · 诊断看板汇总 API（管理端）
+3. Worker 1102 · 诊断看板汇总 API（管理端）
    文件：docs/analytics-worker-1102-api.txt
    调用：GET https://finance.info-quests.com/api/analytics/worker-1102
 
-3. Worker 1102 · 客户端现场上报 API
+4. Worker 1102 · 客户端现场上报 API
    文件：docs/analytics-worker-1102-client-report-api.txt
    调用：POST https://finance.info-quests.com/api/analytics/worker-1102/client-report
 
-4. 英语新课 · 列表与操作 API（含上课时间 → 默认上课中）
+5. 英语新课 · 列表与操作 API（含上课时间 → 默认上课中）
    文件：docs/en-lesson-api.txt
    调用：GET  https://english.info-quests.com/api/en-lesson
 
-5. 英语新课 · 网页新增（会话鉴权 create）
+6. 英语新课 · 网页新增（会话鉴权 create）
    文件：docs/en-lesson-create-api.txt
    调用：POST https://english.info-quests.com/api/en-lesson/create
 
-6. 英语老师评价查询 API（Telegram / 其它项目）
+7. 英语老师评价查询 API（Telegram / 其它项目）
    文件：docs/en-lesson-teacher-lookup-api.txt
    调用：GET https://finance.info-quests.com/api/admin/en-lesson-teachers/lookup?name=欣欣
 
-7. 英语抽背 · 词表读取 / 熟悉程度 / 同步学生 API
+8. 英语抽背 · 词表读取 / 熟悉程度 / 同步学生 API
    文件：docs/en-vocab-api.txt
    调用：GET  https://english.info-quests.com/api/en-vocab
 
-8. 英语抽背 · 课堂备注 API（按需拉正文 / 保存）
+9. 英语抽背 · 课堂备注 API（按需拉正文 / 保存）
    文件：docs/en-vocab-class-notes-api.txt
    调用：GET  https://english.info-quests.com/api/en-vocab/class-notes?word_id=123
 
-9. # 英语用法：口语/考试双频率（临时回填）
+10. # 英语用法：口语/考试双频率（临时回填）
    文件：docs/en-vocab-fill-frequency-api.txt
    调用：POST https://finance.info-quests.com/api/en-vocab/fill-usage`
 
-10. 英语抽背 · 本地上传 API 说明（给 STT / 本地脚本）
+11. 英语抽背 · 本地上传 API 说明（给 STT / 本地脚本）
    文件：docs/en-vocab-local-upload-api.txt
    调用：POST https://english.info-quests.com/api/en-vocab/local-upload
 
-11. 英语抽背 · 教案/参考资料字节 API（给脚本 / 预览页 / 外链）
+12. 英语抽背 · 教案/参考资料字节 API（给脚本 / 预览页 / 外链）
    文件：docs/en-vocab-ref-[refKey]-api.txt
    调用：GET https://english.info-quests.com/api/en-vocab/ref/{refKey}
 
-12. 英语抽背 · 今日共享列表 API（学生端 /en-vocab/study）
+13. 英语抽背 · 今日共享列表 API（学生端 /en-vocab/study）
    文件：docs/en-vocab-shared-api.txt
    调用：GET https://english.info-quests.com/api/en-vocab/shared
 
-13. 英语抽背 · 老师抽查 live / 学生 peek API
+14. 英语抽背 · 老师抽查 live / 学生 peek API
    文件：docs/en-vocab-teacher-quiz-live-api.txt
    调用：GET  https://english.info-quests.com/api/en-vocab/teacher-quiz-live
 
-14. 英语抽背 · 今日抽查数量 / 老师可见池 API
+15. 英语抽背 · 今日抽查数量 / 老师可见池 API
    文件：docs/en-vocab-teacher-visible-api.txt
    调用：GET https://english.info-quests.com/api/en-vocab/teacher-visible
 
-15. 日语新课 · 复制 AI 提示词后 Bark 提醒 API
+16. 日语新课 · 复制 AI 提示词后 Bark 提醒 API
    文件：docs/jp-lesson-ai-plan-prompt-bark-api.txt
    调用：POST https://finance.info-quests.com/api/jp-lesson/ai-plan-prompt-bark
 
-16. 日语新课 · 列表与操作 API（含删除）
+17. 日语新课 · 列表与操作 API（含删除）
    文件：docs/jp-lesson-api.txt
    调用：GET  https://japanese.info-quests.com/api/jp-lesson
 
-17. 日语新课 · 预生成板书 Word（含 OJAD 读音）API
+18. 日语新课 · 预生成板书 Word（含 OJAD 读音）API
    文件：docs/jp-lesson-board-docx-api.txt
    调用：POST https://japanese.info-quests.com/api/jp-lesson/board-docx
 
-18. 日语新课 · 整课合并教案 API（同一课单词+语法 → 一份查看链接）
+19. 日语新课 · 整课合并教案 API（同一课单词+语法 → 一份查看链接）
    文件：docs/jp-lesson-course-merge-ref-api.txt
    调用：POST https://japanese.info-quests.com/api/jp-lesson/course-merge-ref
 
-19. 日程管理 · 手动日程 CRUD API（给 Mac / Telegram / 运维脚本）
+20. 日程管理 · 手动日程 CRUD API（给 Mac / Telegram / 运维脚本）
    文件：docs/jp-lesson-manual-schedules-api.txt
    调用：GET    https://japanese.info-quests.com/api/jp-lesson/manual-schedules
 
-20. 日语新课 · 批量挂教案图片 API（勾选多课 → 同一张图）
+21. 日语新课 · 批量挂教案图片 API（勾选多课 → 同一张图）
    文件：docs/jp-lesson-ref-attach-batch-api.txt
    调用：POST https://japanese.info-quests.com/api/jp-lesson/ref/attach-batch
 
-21. 日语新课 · 同一课合传 API（单词 + 语法一次上传，列表仍分开展示）
+22. 日语新课 · 同一课合传 API（单词 + 语法一次上传，列表仍分开展示）
    文件：docs/jp-lesson-upload-mixed-api.txt
    调用：POST https://japanese.info-quests.com/api/jp-lesson/upload-mixed
 
-22. 日语抽问 · 熟悉程度 / 同步学生 API
+23. 日语抽问 · 熟悉程度 / 同步学生 API
    文件：docs/jp-vocab-api.txt
    调用：POST https://japanese.info-quests.com/api/jp-vocab
 
-23. 日语抽问 · 课堂备注 API（按需拉正文 / 保存）
+24. 日语抽问 · 课堂备注 API（按需拉正文 / 保存）
    文件：docs/jp-vocab-class-notes-api.txt
    调用：GET  https://japanese.info-quests.com/api/jp-vocab/class-notes?word_id=123
 
-24. 日语抽问 · 一键下载全部词条 API（给其它项目比对用）
+25. 日语抽问 · 一键下载全部词条 API（给其它项目比对用）
    文件：docs/jp-vocab-download-all-api.txt
    调用：GET https://japanese.info-quests.com/api/jp-vocab/download-all
 
-25. 日语抽问 · 编辑词条 API（老师端编辑弹窗 / 其它项目写回）
+26. 日语抽问 · 编辑词条 API（老师端编辑弹窗 / 其它项目写回）
    文件：docs/jp-vocab-edit-api.txt
    调用：POST https://japanese.info-quests.com/api/jp-vocab/edit
 
-26. 日语抽问 · 词条存在性检测 API（给其它项目调用）
+27. 日语抽问 · 词条存在性检测 API（给其它项目调用）
    文件：docs/jp-vocab-exists-api.txt
    调用：GET https://japanese.info-quests.com/api/jp-vocab/exists?word=東&kind=word
 
-27. 日语抽问 · 例句补全 API（给 Mac 定时 / STT / Agent 调用）
+28. 日语抽问 · 例句补全 API（给 Mac 定时 / STT / Agent 调用）
    文件：docs/jp-vocab-fill-example-sentences-api.txt
    调用：POST https://japanese.info-quests.com/api/jp-vocab/fill-example-sentences
 
-28. 日语词条 · 口语/考试出现频率补全 API
+29. 日语词条 · 口语/考试出现频率补全 API
    文件：docs/jp-vocab-fill-frequency-api.txt
    调用：POST https://finance.info-quests.com/api/jp-vocab/fill-frequency
 
-29. 日语抽问 · OJAD 音调（重音横线）补全 API
+30. 日语抽问 · OJAD 音调（重音横线）补全 API
    文件：docs/jp-vocab-fill-pitch-accent-api.txt
    调用：POST https://finance.info-quests.com/api/jp-vocab/fill-pitch-accent
 
-30. 日语/英语词表补全 · 抽查门禁 API（给 Mac 定时 / STT 调用）
+31. 日语/英语词表补全 · 抽查门禁 API（给 Mac 定时 / STT 调用）
    文件：docs/jp-vocab-fill-schedule-gate-api.txt
    调用：POST https://finance.info-quests.com/api/jp-vocab/fill-schedule-gate
 
-31. 日语语法 · 单用法例句补到 3 条 API（临时回填）
+32. 日语语法 · 单用法例句补到 3 条 API（临时回填）
    文件：docs/jp-vocab-fill-single-usage-examples-api.txt
    调用：POST https://finance.info-quests.com/api/jp-vocab/fill-usage
 
-32. 日语抽问 · 教案/参考资料字节 API（给脚本 / 预览页 / 外链）
+33. 日语抽问 · 教案/参考资料字节 API（给脚本 / 预览页 / 外链）
    文件：docs/jp-vocab-ref-[refKey]-api.txt
    调用：GET https://japanese.info-quests.com/api/jp-vocab/ref/{refKey}
 
-33. 日语抽问 · 今日共享列表 API（学生端 /jp-vocab/study）
+34. 日语抽问 · 今日共享列表 API（学生端 /jp-vocab/study）
    文件：docs/jp-vocab-shared-api.txt
    调用：GET https://japanese.info-quests.com/api/jp-vocab/shared
 
-34. 日语抽问 · 今日抽查数量 / 老师可见池 API
+35. 日语抽问 · 今日抽查数量 / 老师可见池 API
    文件：docs/jp-vocab-teacher-visible-api.txt
    调用：GET https://japanese.info-quests.com/api/jp-vocab/teacher-visible
 
-35. 日程管理 · 长期固定手动日程续期 API
+36. 日程管理 · 长期固定手动日程续期 API
    文件：docs/manual-schedule-recurring-expand-api.txt
    调用：POST https://finance.info-quests.com/api/admin/manual-schedule-recurring-expand
 
