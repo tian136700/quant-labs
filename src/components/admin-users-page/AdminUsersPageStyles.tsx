@@ -503,6 +503,14 @@ export function AdminUsersPageStyles() {
           white-space: normal;
           line-height: 1.25;
         }
+        .admin-user-multi-device-badge {
+          display: block;
+          margin-top: 0.15rem;
+          color: var(--accent);
+          font-weight: 600;
+          white-space: normal;
+          line-height: 1.25;
+        }
         .admin-user-row--highlight {
           background: rgba(110, 181, 255, 0.14) !important;
           box-shadow: inset 0 0 0 1px rgba(110, 181, 255, 0.45);

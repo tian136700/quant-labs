@@ -34,6 +34,11 @@ export interface EtrUser {
    * 仅管理员在用户管理里手动取消后才恢复自动启禁。
    */
   never_disable?: number;
+  /**
+   * 1 = 不限制登录设备：可多端同时在线；
+   * 默认 0 = 限制（新设备登录顶掉旧会话）。管理员角色本身不限制。
+   */
+  allow_multi_device?: number;
   last_login_at?: string | null;
   last_login_ip?: string | null;
   /** 非管理员：当前唯一有效会话 token；新设备登录会顶掉旧设备 */

@@ -396,6 +396,68 @@ export function useAdminUsersPageActions(options: UseAdminUsersPageActionsOption
     })();
   };
 
+  const toggleAllowMultiDevice = (row: UserRow) => {
+    const snapshot = row;
+    const nextAllow = !row.allow_multi_device;
+    setStatus("");
+    setStatusErr(false);
+    setUsers((prev) => {
+      const next = prev.map((item) =>
+        item.id === row.id ? { ...item, allow_multi_device: nextAllow } : item
+      );
+      persistUsers(next);
+      return next;
+    });
+    setStatus(
+      locale === "zh"
+        ? nextAllow
+          ? `已设为不限制登录设备：${row.username}`
+          : `已恢复限制登录设备：${row.username}`
+        : nextAllow
+          ? `Multi-device on: ${row.username}`
+          : `Multi-device off: ${row.username}`
+    );
+
+    void (async () => {
+      try {
+        const res = await fetch("/api/admin/users", {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_id: row.id,
+            allow_multi_device: nextAllow,
+          }),
+        });
+        const data = await res.json();
+        if (!data.ok || !data.user) {
+          throw new Error(String(data.error || "save failed"));
+        }
+        setUsers((prev) => {
+          const next = prev.map((item) =>
+            item.id === row.id ? { ...item, ...data.user } : item
+          );
+          persistUsers(next);
+          return next;
+        });
+      } catch (err) {
+        setUsers((prev) => {
+          const next = prev.map((item) => (item.id === row.id ? snapshot : item));
+          persistUsers(next);
+          return next;
+        });
+        setStatus(
+          err instanceof Error
+            ? err.message
+            : locale === "zh"
+              ? "操作失败"
+              : "Update failed"
+        );
+        setStatusErr(true);
+      }
+    })();
+  };
+
   const createUser = async (e: FormEvent) => {
     e.preventDefault();
     setAddUserSubmitAttempted(true);
@@ -857,6 +919,7 @@ export function useAdminUsersPageActions(options: UseAdminUsersPageActionsOption
     deleteTemplate,
     toggleDisabled,
     toggleNeverDisable,
+    toggleAllowMultiDevice,
     createUser,
     generateLoginLink,
     copyWithTemplate,

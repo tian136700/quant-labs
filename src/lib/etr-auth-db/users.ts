@@ -31,7 +31,7 @@ export async function listEtrUsers(db: D1Database): Promise<EtrUser[]> {
 
   const result = await db
     .prepare(
-      `SELECT id, username, role, disabled, never_disable, created_at
+      `SELECT id, username, role, disabled, never_disable, allow_multi_device, created_at
          , last_login_at, last_login_ip
        FROM etr_users
        ORDER BY role ASC, username COLLATE NOCASE ASC`
@@ -142,6 +142,50 @@ export async function setUserNeverDisable(
   await ensureEtrUsersSchema(db);
   await db
     .prepare(`UPDATE etr_users SET never_disable = ?1 WHERE id = ?2`)
+    .bind(flag, userId)
+    .run();
+
+  const updated = await findUserById(db, userId);
+  if (!updated) return { ok: false, error: "user_not_found" };
+  return { ok: true, user: updated };
+}
+
+export type SetUserAllowMultiDeviceResult =
+  | { ok: true; user: EtrUser }
+  | { ok: false; error: string };
+
+/**
+ * 管理员开关「不限制登录设备」：开启后可多端同时在线；
+ * 关闭后恢复默认单设备（新登录顶掉旧会话）。管理员账号禁止改。
+ */
+export async function setUserAllowMultiDevice(
+  db: D1Database,
+  userId: number,
+  allowMultiDevice: boolean
+): Promise<SetUserAllowMultiDeviceResult> {
+  const user = await findUserById(db, userId);
+  if (!user) return { ok: false, error: "user_not_found" };
+  if (user.role === "admin") return { ok: false, error: "cannot_edit_admin" };
+
+  const flag = allowMultiDevice ? 1 : 0;
+
+  if (etrAuthDbState.devAuthEnabled) {
+    const row = etrAuthDbState.devUsers.find((u) => u.id === userId);
+    if (!row) return { ok: false, error: "user_not_found" };
+    row.allow_multi_device = flag;
+    // 清绑定，避免开关瞬间旧 token 误判冲突
+    row.current_session_token = null;
+    const { password_hash: _, ...publicUser } = row;
+    return { ok: true, user: publicUser };
+  }
+
+  await ensureEtrUsersSchema(db);
+  await db
+    .prepare(
+      `UPDATE etr_users
+       SET allow_multi_device = ?1, current_session_token = NULL
+       WHERE id = ?2`
+    )
     .bind(flag, userId)
     .run();
 

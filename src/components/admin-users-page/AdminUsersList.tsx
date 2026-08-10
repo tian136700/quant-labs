@@ -40,6 +40,7 @@ export type AdminUsersListProps = {
   onGenerateLoginLink: (row: UserRow) => void;
   onCopyWithTemplate: (row: UserRow) => void;
   onToggleNeverDisable: (row: UserRow) => void;
+  onToggleAllowMultiDevice: (row: UserRow) => void;
   onToggleDisabled: (row: UserRow) => void;
   onDelete: (row: UserRow) => void;
 };
@@ -72,6 +73,7 @@ export function AdminUsersList({
   onGenerateLoginLink,
   onCopyWithTemplate,
   onToggleNeverDisable,
+  onToggleAllowMultiDevice,
   onToggleDisabled,
   onDelete,
 }: AdminUsersListProps) {
@@ -234,6 +236,11 @@ export function AdminUsersList({
                               {locale === "zh" ? " · 永不禁用" : " · Never disable"}
                             </span>
                           ) : null}
+                          {row.allow_multi_device ? (
+                            <span className="admin-user-multi-device-badge">
+                              {locale === "zh" ? " · 不限设备" : " · Multi-device"}
+                            </span>
+                          ) : null}
                         </>
                       }
                     />
@@ -280,6 +287,7 @@ export function AdminUsersList({
                     onGenerateLoginLink={onGenerateLoginLink}
                     onCopyWithTemplate={onCopyWithTemplate}
                     onToggleNeverDisable={onToggleNeverDisable}
+                    onToggleAllowMultiDevice={onToggleAllowMultiDevice}
                     onToggleDisabled={onToggleDisabled}
                     onDelete={onDelete}
                   />
@@ -384,6 +392,11 @@ export function AdminUsersList({
                             {locale === "zh" ? " · 永不禁用" : " · Never disable"}
                           </span>
                         ) : null}
+                        {row.allow_multi_device ? (
+                          <span className="admin-user-multi-device-badge">
+                            {locale === "zh" ? " · 不限设备" : " · Multi-device"}
+                          </span>
+                        ) : null}
                       </td>
                       <td className="admin-user-actions-col">
                         <AdminUserActions
@@ -402,6 +415,7 @@ export function AdminUsersList({
                           onGenerateLoginLink={onGenerateLoginLink}
                           onCopyWithTemplate={onCopyWithTemplate}
                           onToggleNeverDisable={onToggleNeverDisable}
+                          onToggleAllowMultiDevice={onToggleAllowMultiDevice}
                           onToggleDisabled={onToggleDisabled}
                           onDelete={onDelete}
                         />

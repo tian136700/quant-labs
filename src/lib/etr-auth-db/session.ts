@@ -55,7 +55,7 @@ export async function findUserByUsername(
   return (
     (await db
       .prepare(
-        `SELECT id, username, password_hash, role, disabled, never_disable, created_at
+        `SELECT id, username, password_hash, role, disabled, never_disable, allow_multi_device, created_at
          , last_login_at, last_login_ip, current_session_token
          FROM etr_users WHERE username = ?1 LIMIT 1`
       )
@@ -75,7 +75,7 @@ export async function findUserById(db: D1Database, userId: number): Promise<EtrU
   return (
     (await db
       .prepare(
-        `SELECT id, username, role, disabled, never_disable, created_at, last_login_at, last_login_ip
+        `SELECT id, username, role, disabled, never_disable, allow_multi_device, created_at, last_login_at, last_login_ip
          , current_session_token
          FROM etr_users WHERE id = ?1 LIMIT 1`
       )
@@ -247,7 +247,7 @@ async function createSession(
     ttlMs ?? sessionTtlMs(user.role as EtrUserRole)
   );
   const ts = nowIso();
-  const singleDeviceOnly = isSingleDeviceRestrictedRole(user.role);
+  const singleDeviceOnly = isSingleDeviceRestrictedUser(user);
   await recordUserLogin(db, user.id, loginMeta);
 
   if (etrAuthDbState.devAuthEnabled) {
@@ -367,8 +367,15 @@ function invalidateSessionLookupCache(token: string) {
   sessionLookupCache.delete(token);
 }
 
-function isSingleDeviceRestrictedRole(role: string | null | undefined): boolean {
-  return (role ?? "").trim() !== "admin";
+function isSingleDeviceRestrictedUser(user: {
+  role?: string | null;
+  allow_multi_device?: number | boolean | null;
+}): boolean {
+  if ((user.role ?? "").trim() === "admin") return false;
+  if (user.allow_multi_device === true || Number(user.allow_multi_device) === 1) {
+    return false;
+  }
+  return true;
 }
 
 async function lookupSession(
@@ -425,7 +432,7 @@ async function lookupSessionFromDb(
       return { kind: "maintenance" };
     }
     if (
-      isSingleDeviceRestrictedRole(user.role) &&
+      isSingleDeviceRestrictedUser(user) &&
       user.current_session_token &&
       user.current_session_token !== token
     ) {
@@ -449,7 +456,7 @@ async function lookupSessionFromDb(
   const row = await db
     .prepare(
       `SELECT u.id, u.username, u.role, u.disabled, u.created_at, s.expires_at
-         , u.last_login_at, u.last_login_ip, u.current_session_token
+         , u.last_login_at, u.last_login_ip, u.current_session_token, u.allow_multi_device
        FROM etr_sessions s
        JOIN etr_users u ON u.id = s.user_id
        WHERE s.token = ?1
@@ -470,7 +477,7 @@ async function lookupSessionFromDb(
   }
 
   if (
-    isSingleDeviceRestrictedRole(row.role) &&
+    isSingleDeviceRestrictedUser(row) &&
     row.current_session_token &&
     row.current_session_token !== token
   ) {

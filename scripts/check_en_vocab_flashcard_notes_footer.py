@@ -122,14 +122,26 @@ def main() -> None:
     if "en-vocab-flashcard-page__notes--mobile" not in styles:
         fail("styles must toggle notes--mobile by breakpoint")
 
-    # 电脑端近全屏：禁止 72/76rem 卡死；断点用 768/767（勿 1024）
-    if "width: 96vw" not in styles and "width:96vw" not in styles:
-        fail("EN flashcard desktop must use near-fullscreen width: 96vw")
-    if "min(72rem" in styles or "min(76rem" in styles:
-        fail(
-            "EN flashcard must not cap width at 72rem/76rem "
-            "(large desktop looks like a phone shell with side gutters)"
-        )
+    # 电脑端居中卡片：约半宽 + 两侧留白；禁止英语卡 96vw 贴边；断点仍用 768/767
+    en_width_hits = 0
+    idx = 0
+    while True:
+        found = styles.find(".jp-vocab-teacher-quiz-card.en-vocab-flashcard-page", idx)
+        if found < 0:
+            break
+        window = styles[found : found + 280]
+        if "width: 96vw" in window or "width:96vw" in window:
+            fail(
+                "EN flashcard must not use near-fullscreen width: 96vw "
+                "(desktop needs side gaps; use min(56rem, 88vw))"
+            )
+        if "min(56rem" in window:
+            en_width_hits += 1
+        idx = found + len(".jp-vocab-teacher-quiz-card.en-vocab-flashcard-page")
+    if en_width_hits < 1:
+        fail("EN flashcard desktop width must be min(56rem, 88vw) with side gaps")
+    if "max-width: 88vw" not in styles and "max-width:88vw" not in styles:
+        fail("EN flashcard must cap at max-width: 88vw so sides keep gaps")
     if "@media (min-width: 768px)" not in styles:
         fail("EN flashcard desktop breakpoint must be min-width: 768px")
     if "@media (max-width: 767px)" not in styles:

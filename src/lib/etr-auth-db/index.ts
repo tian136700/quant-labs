@@ -57,6 +57,7 @@ export {
   revokeUserSessions,
   setUserDisabled,
   setUserNeverDisable,
+  setUserAllowMultiDevice,
   deleteUserByAdmin,
   createUserByAdmin,
   updateUserByAdmin,
@@ -65,6 +66,7 @@ export {
 export type {
   SetUserDisabledResult,
   SetUserNeverDisableResult,
+  SetUserAllowMultiDeviceResult,
   DeleteUserByAdminResult,
   CreateUserByAdminResult,
   CreateUserByAdminOptions,

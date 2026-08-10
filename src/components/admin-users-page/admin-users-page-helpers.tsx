@@ -53,6 +53,7 @@ export type UserRow = {
   jp_lesson_teacher_name?: string | null;
   disabled: boolean;
   never_disable?: boolean;
+  allow_multi_device?: boolean;
   created_at: string;
   last_login_at?: string | null;
   last_login_ip?: string | null;
@@ -124,6 +125,7 @@ export function matchesAdminUserSearch(
     statusZh,
     statusEn,
     row.never_disable ? "永不禁用 never disable" : "",
+    row.allow_multi_device ? "不限制登录设备 multi device" : "",
   ]
     .join(" ")
     .toLowerCase();
@@ -260,6 +262,7 @@ export type AdminUserActionsProps = {
   onGenerateLoginLink: (row: UserRow) => void;
   onCopyWithTemplate: (row: UserRow) => void;
   onToggleNeverDisable: (row: UserRow) => void;
+  onToggleAllowMultiDevice: (row: UserRow) => void;
   onToggleDisabled: (row: UserRow) => void;
   onDelete: (row: UserRow) => void;
 };
@@ -280,6 +283,7 @@ export function AdminUserActions({
   onGenerateLoginLink,
   onCopyWithTemplate,
   onToggleNeverDisable,
+  onToggleAllowMultiDevice,
   onToggleDisabled,
   onDelete,
 }: AdminUserActionsProps) {
@@ -292,12 +296,14 @@ export function AdminUserActions({
   const canCopyCredentials = !isAdminUser;
   const canResetPassword = !isAdminUser;
   const canToggleNeverDisable = !isAdminUser;
+  const canToggleAllowMultiDevice = !isAdminUser;
   const busy =
     deletingId === row.id ||
     linkGeneratingId === row.id ||
     copyingId === row.id ||
     resettingId === row.id;
   const neverDisable = Boolean(row.never_disable);
+  const allowMultiDevice = Boolean(row.allow_multi_device);
 
   return (
     <div className="admin-user-actions">
@@ -326,6 +332,33 @@ export function AdminUserActions({
             : locale === "zh"
               ? "永不禁用"
               : "Never disable"}
+        </button>
+      ) : null}
+      {canToggleAllowMultiDevice ? (
+        <button
+          type="button"
+          className={`btn-rsi-filter btn-rsi-filter--compact admin-user-btn${
+            allowMultiDevice ? " btn-rsi-filter--success" : ""
+          }`}
+          disabled={busy}
+          onClick={() => onToggleAllowMultiDevice(row)}
+          title={
+            locale === "zh"
+              ? allowMultiDevice
+                ? "取消后恢复默认：同一账号只允许一台设备在线，新登录会顶掉旧设备"
+                : "开启后同一账号可多台设备同时登录；默认是限制登录设备的"
+              : allowMultiDevice
+                ? "After cancel, only one device may stay signed in; a new login kicks the old one"
+                : "While on, multiple devices can stay signed in at once (default is single-device)"
+          }
+        >
+          {allowMultiDevice
+            ? locale === "zh"
+              ? "取消不限设备"
+              : "Limit devices"
+            : locale === "zh"
+              ? "不限制登录设备"
+              : "Allow multi-device"}
         </button>
       ) : null}
       {canEdit ? (

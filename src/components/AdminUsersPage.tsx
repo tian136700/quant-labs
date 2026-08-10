@@ -285,6 +285,7 @@ function AdminUsersPageContent() {
     deleteTemplate,
     toggleDisabled,
     toggleNeverDisable,
+    toggleAllowMultiDevice,
     createUser,
     generateLoginLink,
     copyWithTemplate,
@@ -518,6 +519,7 @@ function AdminUsersPageContent() {
         onGenerateLoginLink={generateLoginLink}
         onCopyWithTemplate={openCopyWithTemplatePick}
         onToggleNeverDisable={toggleNeverDisable}
+        onToggleAllowMultiDevice={toggleAllowMultiDevice}
         onToggleDisabled={toggleDisabled}
         onDelete={deleteUser}
       />

@@ -7,6 +7,7 @@ import {
   listEtrUsers,
   setUserDisabled,
   setUserNeverDisable,
+  setUserAllowMultiDevice,
   setUserJpLessonTeacherLink,
   syncBootstrapUsersFromEnv,
   updateUserByAdmin,
@@ -112,6 +113,7 @@ function serializeUser(
     role: string;
     disabled?: number;
     never_disable?: number;
+    allow_multi_device?: number;
     created_at: string;
     last_login_at?: string | null;
     last_login_ip?: string | null;
@@ -132,6 +134,7 @@ function serializeUser(
     jp_lesson_teacher_name: teacherLink?.teacher_name ?? null,
     disabled: (user.disabled ?? 0) !== 0,
     never_disable: (user.never_disable ?? 0) !== 0,
+    allow_multi_device: (user.allow_multi_device ?? 0) !== 0,
     created_at: user.created_at,
     last_login_at: user.last_login_at ?? null,
     last_login_ip: user.last_login_ip ?? null,
@@ -279,6 +282,7 @@ export async function PATCH(request: Request) {
       user_id?: unknown;
       disabled?: unknown;
       never_disable?: unknown;
+      allow_multi_device?: unknown;
       username?: unknown;
       password?: unknown;
       role?: unknown;
@@ -402,6 +406,33 @@ export async function PATCH(request: Request) {
         env.DB,
         userId,
         body.never_disable
+      );
+      if (!result.ok) {
+        return jsonResponse(
+          { ok: false, error: errMsg(result.error, locale) },
+          400
+        );
+      }
+
+      const linkMap = await listJpLessonTeacherLinkMapByUserId(env.DB);
+      const extras = await listUserExtraPermissionsMap(env.DB);
+      const userExtras = extras.get(userId) ?? [];
+      return jsonResponse({
+        ok: true,
+        user: serializeUser(
+          result.user,
+          locale,
+          linkMap.get(userId) ?? null,
+          detectTeacherModules(result.user.role, userExtras)
+        ),
+      });
+    }
+
+    if (typeof body.allow_multi_device === "boolean") {
+      const result = await setUserAllowMultiDevice(
+        env.DB,
+        userId,
+        body.allow_multi_device
       );
       if (!result.ok) {
         return jsonResponse(

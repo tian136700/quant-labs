@@ -560,16 +560,17 @@ export function JpVocabTeacherQuizFlashcardStyles() {
          * 备注/两框不要钉底；导航按钮窗格必须固定可见。
          */
         .en-vocab-flashcard-page-overlay {
-          align-items: stretch;
+          align-items: center;
           justify-content: center;
-          padding: clamp(0.35rem, 1.2vw, 0.75rem);
+          /* 左右必须留空隙，禁止贴满视口 */
+          padding: clamp(0.75rem, 3vw, 2rem) clamp(1rem, 5vw, 3.5rem);
         }
         .jp-vocab-teacher-quiz-card.en-vocab-flashcard-page {
-          /* 桌面近全屏：禁止再卡 72/76rem，大屏两侧会像手机壳居中 */
-          width: 96vw;
-          max-width: 96vw;
-          height: min(96vh, 100dvh);
-          max-height: min(96vh, 100dvh);
+          /* 桌面居中卡片；禁止 96vw 贴边（两侧须留白） */
+          width: min(56rem, 88vw);
+          max-width: 88vw;
+          height: min(92vh, 100dvh);
+          max-height: min(92vh, 100dvh);
           margin: 0 auto;
           gap: 0.45rem;
           padding: 0.85rem 1.1rem 0.9rem;
@@ -697,17 +698,18 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           .jp-vocab-teacher-quiz-overlay.en-vocab-flashcard-page-overlay {
             align-items: center;
             justify-content: center;
-            padding: clamp(0.5rem, 1.5vw, 1rem);
+            padding: clamp(0.85rem, 2.5vh, 1.5rem) clamp(1.25rem, 6vw, 4rem);
             height: auto;
             max-height: none;
             overflow-y: auto;
             overflow-x: hidden;
           }
           .jp-vocab-teacher-quiz-card.en-vocab-flashcard-page {
-            width: 96vw;
-            max-width: 96vw;
-            height: min(94vh, 100dvh);
-            max-height: min(94vh, 100dvh);
+            /* 约半屏宽 + 两侧留白（勿再 96vw 贴边） */
+            width: min(56rem, 88vw);
+            max-width: 88vw;
+            height: min(90vh, 100dvh);
+            max-height: min(90vh, 100dvh);
             margin: 0 auto;
             border-radius: 14px;
             padding: 1rem 1.35rem 1.05rem;
