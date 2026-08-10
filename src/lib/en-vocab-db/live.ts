@@ -93,6 +93,7 @@ import {
 import {
   ensureEnVocabSharedSchema,
   ensureEnVocabSettingSchema,
+  isEnVocabWordCheckedToday,
   mapSharedRow,
 } from "./daily_settings";
 
@@ -322,6 +323,20 @@ export async function peekEnVocabTeacherQuizLiveWord(
     return { ok: false, error: "word_not_found" };
   }
 
+  // 与 shareEnVocabWord 对齐：peek 入今日 shared 时若尚未抽查，须记一次「不熟悉」。
+  // 否则会出现「学生今日列表已有词 / 像抽过」但管理员复习次数仍「从未抽查」。
+  let updatedWord = word;
+  if (!isEnVocabWordCheckedToday(word, now)) {
+    // 动态 import：避免 live ↔ words 顶层循环依赖
+    const { recordEnVocabReview } = await import("./words");
+    const review = await recordEnVocabReview(db, wordId, "weak");
+    if (review.ok) {
+      updatedWord = review.word;
+    } else if (review.error !== "review_locked") {
+      return { ok: false, error: "word_not_found" };
+    }
+  }
+
   const studentBy = studentUsername.trim();
   const peekAt = now.toISOString();
   const nextLive: EnVocabTeacherQuizLive = {
@@ -401,8 +416,8 @@ export async function peekEnVocabTeacherQuizLiveWord(
   }
 
   const refs: Record<string, EnVocabRef> = {};
-  if (word.ref_key) {
-    const refList = await listEnVocabRefsByKeys(db, [word.ref_key]);
+  if (updatedWord.ref_key) {
+    const refList = await listEnVocabRefsByKeys(db, [updatedWord.ref_key]);
     for (const ref of refList) {
       refs[ref.ref_key] = ref;
     }
@@ -411,16 +426,16 @@ export async function peekEnVocabTeacherQuizLiveWord(
   const item: EnVocabSharedItem = mapSharedRow(
     {
       id: sharedRow.id,
-      word_id: word.id,
+      word_id: updatedWord.id,
       shared_by: sharedRow.shared_by,
       shared_at: sharedRow.shared_at,
       share_date: today,
     },
-    word
+    updatedWord
   );
 
   invalidateEnVocabSharedTodayCache();
-  return { ok: true, word, refs, item };
+  return { ok: true, word: updatedWord, refs, item };
 }
 
 export async function isEnVocabTeacherQuizLiveStudentPeekedForWord(

@@ -118,7 +118,13 @@ import {
   seedIfEmpty,
 } from "./helpers";
 import {
-  resetJpVocabTeacherVisibleLimit, refreshJpVocabDailyDisplayOrder, readJpVocabTeacherVisibleLimitRaw, readJpVocabDailyDisplayOrderRaw, ensureJpVocabSharedSchema, ensureJpVocabSettingSchema,
+  resetJpVocabTeacherVisibleLimit,
+  refreshJpVocabDailyDisplayOrder,
+  readJpVocabTeacherVisibleLimitRaw,
+  readJpVocabDailyDisplayOrderRaw,
+  ensureJpVocabSharedSchema,
+  ensureJpVocabSettingSchema,
+  isJpVocabWordCheckedToday,
 } from "./daily_settings";
 import {
   ensureJpVocabShareRequestSchema,
@@ -469,6 +475,19 @@ export async function peekJpVocabTeacherQuizLiveWord(
     return { ok: false, error: "word_not_found" };
   }
 
+  // 与 shareJpVocabWord 对齐：peek 入今日 shared 时若尚未抽查，须记一次「不熟悉」。
+  // 否则会出现「学生今日列表已有词」但管理员复习次数仍「从未抽查」。
+  let updatedWord = word;
+  if (!isJpVocabWordCheckedToday(word, now)) {
+    const { recordJpVocabReview } = await import("./review_record");
+    const review = await recordJpVocabReview(db, wordId, "weak");
+    if (review.ok) {
+      updatedWord = review.word;
+    } else if (review.error !== "review_locked") {
+      return { ok: false, error: "word_not_found" };
+    }
+  }
+
   const studentBy = studentUsername.trim();
   const peekAt = now.toISOString();
   const nextLive: JpVocabTeacherQuizLive = {
@@ -549,27 +568,27 @@ export async function peekJpVocabTeacherQuizLiveWord(
   }
 
   const refs: Record<string, JpVocabRef> = {};
-  if (word.ref_key) {
-    const refList = await listJpVocabRefsByKeys(db, [word.ref_key]);
+  if (updatedWord.ref_key) {
+    const refList = await listJpVocabRefsByKeys(db, [updatedWord.ref_key]);
     for (const ref of refList) {
       refs[ref.ref_key] = ref;
     }
   }
 
-  const level = resolveJpVocabSharedTeacherLevel(word, now);
+  const level = resolveJpVocabSharedTeacherLevel(updatedWord, now);
 
   const item: JpVocabSharedItem = {
     id: sharedRow.id,
-    word_id: word.id,
+    word_id: updatedWord.id,
     shared_by: sharedRow.shared_by,
     shared_at: sharedRow.shared_at,
     share_date: today,
-    word,
+    word: updatedWord,
     ...(level ? { level } : {}),
   };
 
   invalidateJpVocabSharedTodayCache();
-  return { ok: true, word, refs, item };
+  return { ok: true, word: updatedWord, refs, item };
 }
 
 export async function isJpVocabTeacherQuizLiveStudentPeekedForWord(
