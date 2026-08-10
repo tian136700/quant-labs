@@ -297,11 +297,21 @@ export function EnVocabTeacherQuizFlashcardModal({
   }, [currentWordSaveBusy]);
 
   const wordHasLevel = (wordId: number) => {
+    if (sessionLevel[wordId] != null) return true;
     const item = wordsById.get(wordId);
     if (!item) return false;
-    return (
+    if (
       effectiveEnVocabDisplayLevel(item, sessionLevel[wordId], { displayOrder }) !=
       null
+    ) {
+      return true;
+    }
+    // 本会话用法草稿已勾齐也算已抽（写库失败/未回写 selected 时，「下一个」仍须能跳）
+    const slotCount = listEnVocabUsagePointsForDisplay(item.usage).points.length;
+    if (slotCount <= 0) return false;
+    const draft = sessionUsageLevels[wordId];
+    return (
+      Array.isArray(draft) && areEnVocabUsageLevelsComplete(draft, slotCount)
     );
   };
 
@@ -309,7 +319,17 @@ export function EnVocabTeacherQuizFlashcardModal({
     if (currentWordSaveBusy) return;
     if (!pendingNextAfterIdleRef.current) return;
     if (!open || !session || !word || previewMode || isStudyMode) return;
-    if (selectedLevel == null) return;
+    const draftSlotCount = listEnVocabUsagePointsForDisplay(word.usage).points
+      .length;
+    const draftComplete =
+      draftSlotCount > 0 &&
+      Array.isArray(sessionUsageLevels[word.id]) &&
+      areEnVocabUsageLevelsComplete(
+        sessionUsageLevels[word.id]!,
+        draftSlotCount
+      );
+    // 用法已齐即可继续；勿死等 selected（写库失败时 selected 会一直空）
+    if (selectedLevel == null && !draftComplete) return;
     pendingNextAfterIdleRef.current = false;
     setSyncWaitHint(false);
     const wordId = word.id;
@@ -320,7 +340,12 @@ export function EnVocabTeacherQuizFlashcardModal({
       try {
         if (!alreadyShared && onEnsureSharedBeforeNext) {
           const ok = await onEnsureSharedBeforeNext(wordId);
-          if (!ok) return;
+          if (!ok) {
+            // 同步失败：保留 pending，允许再点「下一个」重试
+            pendingNextAfterIdleRef.current = true;
+            setSyncWaitHint(true);
+            return;
+          }
         }
         const sessionChecked = session.wordIds.filter((id) =>
           wordHasLevel(id)
@@ -365,6 +390,7 @@ export function EnVocabTeacherQuizFlashcardModal({
     session,
     word?.id,
     selectedLevel,
+    sessionUsageLevels,
     previewMode,
     isStudyMode,
     sharedTodayWordIds,
@@ -534,9 +560,17 @@ export function EnVocabTeacherQuizFlashcardModal({
       onComplete();
       return;
     }
+    // 当前词：用法草稿已齐即视为已抽（同 tick 内 sessionUsageLevels 可能尚未提交）
+    const currentUsagesComplete =
+      usePerUsageLevels &&
+      areEnVocabUsageLevelsComplete(usageDraftLevels, usageSlotCount);
+    const hasLevel = (wordId: number) => {
+      if (wordHasLevel(wordId)) return true;
+      return wordId === w.id && currentUsagesComplete;
+    };
     advanceEnVocabTeacherQuizNext({
       session,
-      wordHasLevel,
+      wordHasLevel: hasLevel,
       uncheckedCount,
       onNavigate,
       onComplete,
@@ -550,7 +584,11 @@ export function EnVocabTeacherQuizFlashcardModal({
     try {
       if (!isShared && onEnsureSharedBeforeNext) {
         const ok = await onEnsureSharedBeforeNext(w.id);
-        if (!ok) return;
+        if (!ok) {
+          pendingNextAfterIdleRef.current = true;
+          setSyncWaitHint(true);
+          return;
+        }
       }
       runAdvanceAfterShare();
     } finally {
@@ -567,23 +605,21 @@ export function EnVocabTeacherQuizFlashcardModal({
       onComplete();
       return;
     }
-    if (!selected) {
+    const usagesComplete =
+      usePerUsageLevels &&
+      areEnVocabUsageLevelsComplete(usageDraftLevels, usageSlotCount);
+    if (!selected && !usagesComplete) {
       if (usePerUsageLevels) {
-        if (
-          areEnVocabUsageLevelsComplete(usageDraftLevels, usageSlotCount) &&
-          onSelectUsageLevels
-        ) {
-          onSelectUsageLevels(w.id, usageDraftLevels);
-          pendingNextAfterIdleRef.current = true;
-          setSyncWaitHint(true);
-          return;
-        }
         showUncheckedUsagesBlocked(usageDraftLevels, "再点「下一个」");
         return;
       }
       setNextBlockedUsageMessage(null);
       setNextBlockedHint(true);
       return;
+    }
+    // 用法已齐但 selected 未回写：仍触发写库；跳词不再死等 selected
+    if (!selected && usagesComplete && onSelectUsageLevels) {
+      onSelectUsageLevels(w.id, usageDraftLevels);
     }
     if (saveBusy || nextAdvanceBusyRef.current) {
       pendingNextAfterIdleRef.current = true;

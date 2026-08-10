@@ -351,7 +351,7 @@ def main() -> int:
             "useEnVocabReviewActions: on usage-level save failure must keep complete draft"
         )
 
-    # 草稿已齐但 selected 空时，「下一个」应重试写库而非误报未勾选
+    # 草稿已齐但 selected 空时，「下一个」应重试写库并直接跳词（勿死等 selected）
     if "areEnVocabUsageLevelsComplete(usageDraftLevels, usageSlotCount)" not in flash_text:
         errors.append(
             "EnVocabTeacherQuizFlashcardModal.tsx: tryGoNext must retry when draft complete"
@@ -359,6 +359,21 @@ def main() -> int:
     if "onSelectUsageLevels(w.id, usageDraftLevels)" not in flash_text:
         errors.append(
             "EnVocabTeacherQuizFlashcardModal.tsx: tryGoNext must call onSelectUsageLevels to retry"
+        )
+    if "void runShareThenAdvance()" not in flash_modal and "void runShareThenAdvance()" not in flash_text:
+        errors.append(
+            "EnVocabTeacherQuizFlashcardModal.tsx: usages complete must call runShareThenAdvance "
+            "(do not only set pendingNext and wait for selected)"
+        )
+    if "currentUsagesComplete" not in flash_modal:
+        errors.append(
+            "EnVocabTeacherQuizFlashcardModal.tsx: advance must treat current usages-complete "
+            "as hasLevel (same-tick sessionUsageLevels may lag)"
+        )
+    if "draftComplete" not in flash_modal:
+        errors.append(
+            "EnVocabTeacherQuizFlashcardModal.tsx: pendingNext effect must allow draftComplete "
+            "without selectedLevel"
         )
 
     # 同日只计总体一次（勿按用法条数 / 15s 短窗重复 +1）
