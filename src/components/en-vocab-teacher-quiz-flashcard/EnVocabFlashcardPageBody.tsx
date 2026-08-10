@@ -40,6 +40,7 @@ export type EnVocabFlashcardPageBodyProps = {
   usageDraftLevels: Array<EnVocabLevel | null | undefined>;
   onShare?: (wordId: number) => void;
   showUsageExamples: boolean;
+  contentLoading?: boolean;
   usageExampleModel: ReturnType<typeof import("@/lib/en-vocab-usage-examples-display").buildEnVocabUsageExamplePairs>;
   usePerUsageLevels: boolean;
   usageLevelDisabled: boolean;
@@ -59,6 +60,7 @@ export function EnVocabFlashcardPageBody(props: EnVocabFlashcardPageBodyProps) {
     onEditWord, onEditRemarks, onViewRemarks, hasNotes, notesLoading = false, shareUiEnabled,
     isStudy, isShared, onUnshare, isSaving, isSharing, reviewLocked, usagesCompleteForShare,
     showUncheckedUsagesBlocked, usageDraftLevels, onShare, showUsageExamples,
+    contentLoading = false,
     usageExampleModel, usePerUsageLevels, usageLevelDisabled, usageLevelDisabledReason,
     setNextBlockedHint, setNextBlockedUsageMessage, onSelectUsageLevels,
   } = props;
@@ -296,34 +298,40 @@ export function EnVocabFlashcardPageBody(props: EnVocabFlashcardPageBodyProps) {
                     ) : null}
                   </div>
                   <div className="jp-vocab-teacher-quiz__examples-body">
-                    <EnVocabUsageExamplesPairedContent
-                      usage={w.usage}
-                      exampleSentences={w.example_sentences}
-                      usageSource={w.usage_source}
-                      exampleSource={w.example_sentences_source}
-                      connection={w.connection}
-                      connectionSource={w.connection_source}
-                      model={usageExampleModel}
-                      emptyText="暂无用法与例句"
-                      usageLevelControls={
-                        usePerUsageLevels
-                          ? {
-                              levels: usageDraftLevels,
-                              disabled: usageLevelDisabled,
-                              disabledReason: usageLevelDisabledReason,
-                              onSelect: (usageIndex, level) => {
-                                if (usageLevelDisabled) return;
-                                setNextBlockedHint(false);
-                                setNextBlockedUsageMessage(null);
-                                const next = usageDraftLevels.map((lv, i) =>
-                                  i === usageIndex ? level : lv ?? null
-                                );
-                                onSelectUsageLevels?.(w.id, next);
-                              },
-                            }
-                          : null
-                      }
-                    />
+                    {contentLoading && !usageExampleModel.hasContent ? (
+                      <p className="jp-vocab-teacher-quiz__examples-empty" aria-live="polite">
+                        正在加载用法与例句…
+                      </p>
+                    ) : (
+                      <EnVocabUsageExamplesPairedContent
+                        usage={w.usage}
+                        exampleSentences={w.example_sentences}
+                        usageSource={w.usage_source}
+                        exampleSource={w.example_sentences_source}
+                        connection={w.connection}
+                        connectionSource={w.connection_source}
+                        model={usageExampleModel}
+                        emptyText="暂无用法与例句"
+                        usageLevelControls={
+                          usePerUsageLevels
+                            ? {
+                                levels: usageDraftLevels,
+                                disabled: usageLevelDisabled,
+                                disabledReason: usageLevelDisabledReason,
+                                onSelect: (usageIndex, level) => {
+                                  if (usageLevelDisabled) return;
+                                  setNextBlockedHint(false);
+                                  setNextBlockedUsageMessage(null);
+                                  const next = usageDraftLevels.map((lv, i) =>
+                                    i === usageIndex ? level : lv ?? null
+                                  );
+                                  onSelectUsageLevels?.(w.id, next);
+                                },
+                              }
+                            : null
+                        }
+                      />
+                    )}
                   </div>
                 </section>
               ) : null}

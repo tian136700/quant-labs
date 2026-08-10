@@ -56,6 +56,7 @@ import {
   maxEnVocabUpdatedAt,
   mergeEnVocabSyncPatches,
 } from "@/lib/en-vocab-sync";
+import { mergeEnVocabWordPreserveContentBlobs } from "@/lib/en-vocab-word-content";
 import { JP_VOCAB_DAILY_QUIZ_STYLE_DEFAULT } from "@/lib/en-vocab-daily-quiz-style";
 import {
   enVocabTodayCheckStats,
@@ -720,11 +721,18 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
   const handleWordSaved = useCallback(
     (word: EnVocabWord) => {
       setWords((prev) => {
-        const next = prev.map((w) => (w.id === word.id ? word : w));
+        // 备注/局部回写常省略 usage 正文：禁止整词替换冲掉已按需拉到的用法（右侧会闪两次）
+        const next = prev.map((w) =>
+          w.id === word.id ? mergeEnVocabWordPreserveContentBlobs(w, word) : w
+        );
         persistEnVocabPageCache(next, refs, displayOrderRef.current);
         return next;
       });
-      setEditingRemarksWord((prev) => (prev?.id === word.id ? word : prev));
+      setEditingRemarksWord((prev) =>
+        prev?.id === word.id
+          ? mergeEnVocabWordPreserveContentBlobs(prev, word)
+          : prev
+      );
       if (editingRemarksIdRef.current !== word.id) {
         setStatus("词条已保存。");
       }

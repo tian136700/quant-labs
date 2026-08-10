@@ -162,7 +162,7 @@ export function EnVocabTeacherQuizFlashcardModal({
       ? session.wordIds[session.currentIndex]
       : null;
   const word = currentWordId != null ? wordsById.get(currentWordId) ?? null : null;
-  const { contentWord } = useEnVocabWordContentFetch({
+  const { contentWord, contentLoading } = useEnVocabWordContentFetch({
     open,
     word,
     locale,
@@ -477,7 +477,8 @@ export function EnVocabTeacherQuizFlashcardModal({
     !usePerUsageLevels ||
     areEnVocabUsageLevelsComplete(usageDraftLevels, usageSlotCount) ||
     selected != null;
-  const showUsageExamples = isStudy || usageExampleModel.hasContent;
+  const showUsageExamples =
+    isStudy || usageExampleModel.hasContent || contentLoading;
   const dailySeq = dailySeqByWordId.get(w.id);
   const sessionUncheckedCount = session.wordIds.reduce((count, id) => {
     const item = wordsById.get(id);
@@ -700,6 +701,7 @@ export function EnVocabTeacherQuizFlashcardModal({
             usageDraftLevels={usageDraftLevels}
             onShare={onShare}
             showUsageExamples={showUsageExamples}
+            contentLoading={contentLoading}
             usageExampleModel={usageExampleModel}
             usePerUsageLevels={usePerUsageLevels}
             usageLevelDisabled={usageLevelDisabled}
