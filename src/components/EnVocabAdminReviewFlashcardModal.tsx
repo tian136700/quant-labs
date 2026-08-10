@@ -6,6 +6,7 @@ import { readApiJson } from "@/lib/api-json";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import { EnVocabClassNoteContent } from "@/components/EnVocabClassNoteContent";
 import { EnVocabFlashcardWordHero } from "@/components/EnVocabFlashcardWordHero";
+import { EnVocabSpeakButton } from "@/components/EnVocabSpeakButton";
 import { EnVocabUsageExamplesPairedContent } from "@/components/EnVocabUsageExamplesPairedContent";
 import { buildEnVocabUsageExamplePairs } from "@/lib/en-vocab-usage-examples-display";
 import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
@@ -469,7 +470,12 @@ export function EnVocabAdminReviewFlashcardModal({
                         </span>
                         <span className="en-vocab-teacher-quiz__examples-text">
                           <span className="en-vocab-teacher-quiz__examples-primary">
-                            {item.text}
+                            <EnVocabSpeakButton
+                              text={item.text}
+                              title={`朗读整句：${item.text}`}
+                              className="en-usage-ex-paired-en-speak"
+                            />
+                            <span>{item.text}</span>
                           </span>
                           {item.gloss ? (
                             <span className="en-vocab-teacher-quiz__examples-gloss">

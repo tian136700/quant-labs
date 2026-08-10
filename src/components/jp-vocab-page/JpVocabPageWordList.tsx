@@ -4,6 +4,7 @@ import { JpVocabPageHelp } from "@/components/jp-vocab-page/JpVocabPageHelp";
 import { JpVocabPageSearch } from "@/components/jp-vocab-page/JpVocabPageSearch";
 import { JpVocabPagination } from "@/components/jp-vocab-page/JpVocabPagination";
 import { JpVocabTeacherQuizResumePanel } from "@/components/jp-vocab-page/JpVocabTeacherQuizResumePanel";
+import { JpVocabTeacherQuizStartPanel } from "@/components/jp-vocab-page/JpVocabTeacherQuizStartPanel";
 import { JpVocabWordTable } from "@/components/jp-vocab-page/JpVocabWordTable";
 import { VocabTeacherDailyQuizDonePanel } from "@/components/VocabTeacherDailyQuizDonePanel";
 import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
@@ -22,6 +23,10 @@ export type JpVocabPageWordListProps = {
   canManualAdd: boolean;
   wordsLength: number;
   hideTeacherQuizList: boolean;
+  /** 老师端未开始抽查时的开场页（无词表） */
+  showTeacherQuizStartLanding?: boolean;
+  teacherQuizInProgress?: boolean;
+  remainingQuizCount?: number;
   showQuizFlashcard: boolean;
   showVocabHelp: boolean;
   quizTimeWeight: number;

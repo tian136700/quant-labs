@@ -13,11 +13,11 @@ type Props = {
   className?: string;
   disabled?: boolean;
   /**
-   * icon：词表旁小喇叭（默认）
+   * icon：词表旁 / 例句旁小喇叭（默认）
    * label：抽问卡「播放本单词的录音」——喇叭图标 + 文字，须好点、够明显
    */
   variant?: "icon" | "label";
-  /** variant=label 时的按钮文案 */
+  /** variant=label 时的按钮文案；例句朗读请用 icon + title「朗读整句：…」 */
   labelText?: string;
 };
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { EnVocabClassNoteContent } from "@/components/EnVocabClassNoteContent";
+import { EnVocabSpeakButton } from "@/components/EnVocabSpeakButton";
 import { JpVocabConnectionBody } from "@/components/JpVocabConnectionBody";
 import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import { JpVocabUsageFrequencyBars } from "@/components/JpVocabUsageFrequencyBars";
@@ -211,12 +212,19 @@ export function EnVocabUsageExamplesPairedContent({
                   </div>
                 ) : null}
                 {pair.example?.text ? (
-                  <>
-                    <p className="en-usage-ex-paired-en">{pair.example.text}</p>
-                    {glossLine ? (
-                      <p className="en-usage-ex-paired-gloss">{glossLine}</p>
-                    ) : null}
-                  </>
+                  <div className="en-usage-ex-paired-en-row">
+                    <EnVocabSpeakButton
+                      text={pair.example.text}
+                      title={`朗读整句：${pair.example.text}`}
+                      className="en-usage-ex-paired-en-speak"
+                    />
+                    <div className="en-usage-ex-paired-en-col">
+                      <p className="en-usage-ex-paired-en">{pair.example.text}</p>
+                      {glossLine ? (
+                        <p className="en-usage-ex-paired-gloss">{glossLine}</p>
+                      ) : null}
+                    </div>
+                  </div>
                 ) : pair.usageText ? (
                   <p className="en-usage-ex-paired-example-missing">（暂无对应用例）</p>
                 ) : null}
@@ -297,14 +305,42 @@ export function EnVocabUsageExamplesPairedContent({
           font-size: 0.78rem;
           padding: 0.2rem 0.45rem;
         }
+        .en-usage-ex-paired-en-row {
+          display: flex;
+          align-items: flex-start;
+          gap: 0.4rem;
+          min-width: 0;
+        }
+        .en-usage-ex-paired-en-col {
+          flex: 1 1 auto;
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 0.2rem;
+        }
         .en-usage-ex-paired-en {
           margin: 0;
           line-height: 1.5;
           color: var(--text);
           font-size: 0.95rem;
         }
+        :global(.en-usage-ex-paired-en-speak.en-vocab-speak-btn) {
+          flex: 0 0 auto;
+          width: 2rem;
+          height: 2rem;
+          margin-top: 0.05rem;
+          padding: 0;
+          border-radius: 999px;
+          touch-action: manipulation;
+        }
+        @media (max-width: 767px) {
+          :global(.en-usage-ex-paired-en-speak.en-vocab-speak-btn) {
+            width: 2.5rem;
+            height: 2.5rem;
+          }
+        }
         .en-usage-ex-paired-gloss {
-          margin: 0.2rem 0 0;
+          margin: 0;
           line-height: 1.45;
           color: var(--muted);
           font-size: 0.875rem;

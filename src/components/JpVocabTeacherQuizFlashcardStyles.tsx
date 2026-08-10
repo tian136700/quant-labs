@@ -553,6 +553,22 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           border-color: color-mix(in srgb, var(--rise) 55%, var(--border));
           background: color-mix(in srgb, var(--rise) 14%, var(--panel));
         }
+        /* 例句旁「朗读整句」小喇叭（与 PairedContent / 复习卡单词例句共用） */
+        .en-usage-ex-paired-en-speak.en-vocab-speak-btn {
+          flex: 0 0 auto;
+          width: 2rem;
+          height: 2rem;
+          margin-top: 0.05rem;
+          padding: 0;
+          border-radius: 999px;
+          touch-action: manipulation;
+        }
+        .en-vocab-teacher-quiz__examples-primary {
+          display: inline-flex;
+          align-items: flex-start;
+          gap: 0.4rem;
+          min-width: 0;
+        }
         /*
          * 英语抽问：近全屏网页式弹层（仅 .en-vocab-flashcard-page*）
          * 窄卡片备份：EnVocabTeacherQuizFlashcardModal.card-compact.tsx

@@ -33,7 +33,7 @@
   "excluded_over_threshold": [
     {
       "path": "src/components/JpVocabTeacherQuizFlashcardStyles.tsx",
-      "lines": 2162,
+      "lines": 2178,
       "reason": "style_or_data"
     }
   ]
