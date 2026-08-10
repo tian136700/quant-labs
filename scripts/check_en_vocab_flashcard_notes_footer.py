@@ -122,6 +122,55 @@ def main() -> None:
     if "en-vocab-flashcard-page__notes--mobile" not in styles:
         fail("styles must toggle notes--mobile by breakpoint")
 
+    # 电脑端近全屏：禁止 72/76rem 卡死；断点用 768/767（勿 1024）
+    if "width: 96vw" not in styles and "width:96vw" not in styles:
+        fail("EN flashcard desktop must use near-fullscreen width: 96vw")
+    if "min(72rem" in styles or "min(76rem" in styles:
+        fail(
+            "EN flashcard must not cap width at 72rem/76rem "
+            "(large desktop looks like a phone shell with side gutters)"
+        )
+    if "@media (min-width: 768px)" not in styles:
+        fail("EN flashcard desktop breakpoint must be min-width: 768px")
+    if "@media (max-width: 767px)" not in styles:
+        fail("EN flashcard mobile breakpoint must be max-width: 767px")
+    # 英语卡双栏/备注切换禁止再挂在 1025（笔记本窗口常 ≤1024 会整卡走手机）
+    for bad in ("@media (min-width: 1025px)",):
+        idx = 0
+        while True:
+            found = styles.find(bad, idx)
+            if found < 0:
+                break
+            window = styles[found : found + 350]
+            if "en-vocab-flashcard-page__notes--desktop" in window or (
+                "en-vocab-flashcard-page" in window and "76rem" in window
+            ):
+                fail(
+                    "EN flashcard desktop rules must use min-width: 768px, "
+                    "not 1025px (laptop viewports often ≤1024)"
+                )
+            idx = found + len(bad)
+    # 英语卡单栏/全屏手机态禁止挂在 1024
+    idx = 0
+    while True:
+        found = styles.find("@media (max-width: 1024px)", idx)
+        if found < 0:
+            break
+        window = styles[found : found + 400]
+        if "en-vocab-flashcard-page__grid" in window and "minmax(0, 1fr)" in window:
+            # 单栏 grid 若紧跟在 1024 媒体里 → 电脑窗口会误进手机单栏
+            if "en-vocab-flashcard-page__grid" in window:
+                fail(
+                    "EN flashcard single-column grid must use max-width: 767px, "
+                    "not 1024px"
+                )
+        if "en-vocab-flashcard-page__notes--desktop" in window and "display: none" in window:
+            fail(
+                "EN flashcard notes desktop/mobile toggle must use 767/768, "
+                "not 1024"
+            )
+        idx = found + len("@media (max-width: 1024px)")
+
     notes_body_idx = styles.find(".en-vocab-flashcard-page__notes-body")
     if notes_body_idx < 0:
         fail("styles must mention en-vocab-flashcard-page__notes-body")

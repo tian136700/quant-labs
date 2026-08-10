@@ -565,8 +565,9 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           padding: clamp(0.35rem, 1.2vw, 0.75rem);
         }
         .jp-vocab-teacher-quiz-card.en-vocab-flashcard-page {
-          width: min(72rem, 98vw);
-          max-width: 98vw;
+          /* 桌面近全屏：禁止再卡 72/76rem，大屏两侧会像手机壳居中 */
+          width: 96vw;
+          max-width: 96vw;
           height: min(96vh, 100dvh);
           max-height: min(96vh, 100dvh);
           margin: 0 auto;
@@ -677,7 +678,14 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           display: none;
           margin: 0;
         }
-        @media (min-width: 1025px) {
+        .en-vocab-flashcard-page-footer__panels {
+          display: flex;
+          flex-direction: column;
+          gap: 0.45rem;
+          min-width: 0;
+        }
+        /* 电脑/平板竖横：≥768 用桌面双栏；勿用 1024——常见笔记本窗口/缩放会误进手机态 */
+        @media (min-width: 768px) {
           .en-vocab-flashcard-page__notes--desktop {
             display: block;
           }
@@ -685,35 +693,100 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           .en-vocab-flashcard-page-footer__notes {
             display: none !important;
           }
-        }
-        .en-vocab-flashcard-page-footer__panels {
-          display: flex;
-          flex-direction: column;
-          gap: 0.45rem;
-          min-width: 0;
-        }
-        @media (min-width: 1025px) {
+          /* 压过日语 ≤1024 底栏抽屉规则，避免电脑窗口被当成手机 */
+          .jp-vocab-teacher-quiz-overlay.en-vocab-flashcard-page-overlay {
+            align-items: center;
+            justify-content: center;
+            padding: clamp(0.5rem, 1.5vw, 1rem);
+            height: auto;
+            max-height: none;
+            overflow-y: auto;
+            overflow-x: hidden;
+          }
           .jp-vocab-teacher-quiz-card.en-vocab-flashcard-page {
-            width: min(76rem, 96vw);
+            width: 96vw;
+            max-width: 96vw;
             height: min(94vh, 100dvh);
             max-height: min(94vh, 100dvh);
+            margin: 0 auto;
+            border-radius: 14px;
             padding: 1rem 1.35rem 1.05rem;
             gap: 0.5rem;
             overflow: hidden;
           }
-          .en-vocab-flashcard-page-overlay {
-            align-items: center;
-            padding: clamp(0.5rem, 1.5vw, 1rem);
+          .en-vocab-flashcard-page__grid {
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+            gap: 0.85rem 1.5rem;
           }
-          /* 宽屏：熟悉程度 + 统计并排（自然高度）；备注在两框上方，随中间区滚动 */
           .en-vocab-flashcard-page-footer__panels {
             display: grid;
             grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
             gap: 0.65rem 1rem;
             align-items: start;
           }
+          .jp-vocab-teacher-quiz-card.en-vocab-flashcard-page
+            .jp-vocab-teacher-quiz__nav-btn-sub {
+            display: none;
+          }
+          .jp-vocab-teacher-quiz-card.en-vocab-flashcard-page
+            .jp-vocab-teacher-quiz__level-sync-hint--desktop {
+            display: block;
+          }
+          .jp-vocab-teacher-quiz-card.en-vocab-flashcard-page
+            .jp-vocab-teacher-quiz__level-sync-hint--mobile {
+            display: none;
+          }
+          /* 压过日语 ≤1024 把操作区/字号收成手机态 */
+          .en-vocab-flashcard-page .en-vocab-flashcard-kind,
+          .en-vocab-flashcard-page
+            .jp-vocab-teacher-quiz__word-main.en-vocab-flashcard-lemma,
+          .en-vocab-flashcard-page
+            .jp-vocab-teacher-quiz__word-link.en-vocab-flashcard-lemma {
+            font-size: clamp(2rem, 3.2vw, 2.75rem);
+          }
+          .en-vocab-flashcard-page .en-vocab-flashcard-ipa {
+            font-size: clamp(0.85rem, 1.4vw, 1.05rem);
+          }
+          .jp-vocab-teacher-quiz-card.en-vocab-flashcard-page
+            .jp-vocab-teacher-quiz__actions-row {
+            flex-direction: row;
+            align-items: center;
+            justify-content: space-between;
+            width: auto;
+          }
+          .jp-vocab-teacher-quiz-card.en-vocab-flashcard-page
+            .jp-vocab-teacher-quiz__actions-left {
+            display: flex;
+            flex-wrap: wrap;
+            grid-template-columns: none;
+            width: auto;
+          }
+          .jp-vocab-teacher-quiz-card.en-vocab-flashcard-page
+            .jp-vocab-teacher-quiz__actions-right {
+            margin-left: auto;
+            width: auto;
+          }
+          .jp-vocab-teacher-quiz-card.en-vocab-flashcard-page
+            .jp-vocab-teacher-quiz__action-btn,
+          .jp-vocab-teacher-quiz-card.en-vocab-flashcard-page
+            .jp-vocab-teacher-quiz__share-btn {
+            width: auto;
+            min-height: 1.85rem;
+          }
+          .jp-vocab-teacher-quiz-card.en-vocab-flashcard-page
+            .jp-vocab-teacher-quiz__nav-btn--prev {
+            flex: 1 1 0;
+          }
+          .jp-vocab-teacher-quiz-card.en-vocab-flashcard-page
+            .jp-vocab-teacher-quiz__header-left
+            .jp-vocab-teacher-quiz__progress,
+          .jp-vocab-teacher-quiz-card.en-vocab-flashcard-page
+            .jp-vocab-teacher-quiz__header-left
+            .jp-vocab-teacher-quiz__remaining {
+            display: inline;
+          }
         }
-        @media (max-width: 1024px) {
+        @media (max-width: 767px) {
           /* 压过日语底栏抽屉的 flex-end；禁止整层滚动，只滚中间 __scroll */
           .jp-vocab-teacher-quiz-overlay.en-vocab-flashcard-page-overlay {
             align-items: stretch;
