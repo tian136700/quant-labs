@@ -4,6 +4,7 @@ import { EnVocabPageHelp } from "@/components/en-vocab-page/EnVocabPageHelp";
 import { EnVocabPageSearch } from "@/components/en-vocab-page/EnVocabPageSearch";
 import { EnVocabPagination } from "@/components/en-vocab-page/EnVocabPagination";
 import { EnVocabTeacherQuizResumePanel } from "@/components/en-vocab-page/EnVocabTeacherQuizResumePanel";
+import { EnVocabTeacherQuizStartPanel } from "@/components/en-vocab-page/EnVocabTeacherQuizStartPanel";
 import { EnVocabWordTable } from "@/components/en-vocab-page/EnVocabWordTable";
 import { VocabTeacherDailyQuizDonePanel } from "@/components/VocabTeacherDailyQuizDonePanel";
 import type { EnVocabDailyDisplayOrder } from "@/lib/en-vocab-daily-order";
@@ -21,6 +22,10 @@ export type EnVocabPageWordListProps = {
   canManualAdd: boolean;
   wordsLength: number;
   hideTeacherQuizList: boolean;
+  /** 老师端未开始抽查时的开场页（无词表） */
+  showTeacherQuizStartLanding?: boolean;
+  teacherQuizInProgress?: boolean;
+  remainingQuizCount?: number;
   showQuizFlashcard: boolean;
   showVocabHelp: boolean;
   searchQuery: string;
@@ -58,6 +63,7 @@ export type EnVocabPageWordListProps = {
   pagedDeleteIds: number[];
   onToggleVocabHelp: () => void;
   onResumeTeacherQuiz: () => void;
+  onStartTeacherQuiz?: () => void;
   onViewLastCheckedWord?: () => void;
   onSearchChange: (value: string) => void;
   onKindFilterChange: (value: EnVocabKindFilter) => void;
@@ -91,6 +97,9 @@ export function EnVocabPageWordList(props: EnVocabPageWordListProps) {
     canManualAdd,
     wordsLength,
     hideTeacherQuizList,
+    showTeacherQuizStartLanding = false,
+    teacherQuizInProgress = false,
+    remainingQuizCount = 0,
     showQuizFlashcard,
     showVocabHelp,
     searchQuery,
@@ -127,6 +136,7 @@ export function EnVocabPageWordList(props: EnVocabPageWordListProps) {
     pagedDeleteIds,
     onToggleVocabHelp,
     onResumeTeacherQuiz,
+    onStartTeacherQuiz,
     onSearchChange,
     onKindFilterChange,
     onClearSearch,
@@ -168,10 +178,19 @@ export function EnVocabPageWordList(props: EnVocabPageWordListProps) {
           {canManualAdd ? "，也可登录后点「手动添加」补充" : ""}。
         </p>
       ) : hideTeacherQuizList ? (
-        <EnVocabTeacherQuizResumePanel
-          showQuizFlashcard={showQuizFlashcard}
-          onResume={onResumeTeacherQuiz}
-        />
+        showTeacherQuizStartLanding && !teacherQuizInProgress ? (
+          <EnVocabTeacherQuizStartPanel
+            remainingCount={remainingQuizCount}
+            quizTarget={quizTarget}
+            loading={loading}
+            onStart={() => onStartTeacherQuiz?.()}
+          />
+        ) : (
+          <EnVocabTeacherQuizResumePanel
+            showQuizFlashcard={showQuizFlashcard}
+            onResume={onResumeTeacherQuiz}
+          />
+        )
       ) : (
         <>
           {!isAdminMode &&

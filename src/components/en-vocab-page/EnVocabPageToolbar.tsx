@@ -19,6 +19,8 @@ type EnVocabPageToolbarProps = {
   quizTarget: number;
   quizTargetWordsLength: number;
   teacherQuizInProgress: boolean;
+  /** 老师开场页已有「开始抽查」主按钮时，工具栏不再重复 */
+  hideStartQuizButton?: boolean;
   exporting: boolean;
   deletingBatch: boolean;
   resetting: boolean;
@@ -46,6 +48,7 @@ export function EnVocabPageToolbar({
   quizTarget,
   quizTargetWordsLength,
   teacherQuizInProgress,
+  hideStartQuizButton = false,
   exporting,
   deletingBatch,
   resetting,
@@ -74,7 +77,9 @@ export function EnVocabPageToolbar({
         marginBottom: "0.75rem",
       }}
     >
-      <h2 style={{ fontSize: "1.1rem", margin: 0 }}>单词表</h2>
+      <h2 style={{ fontSize: "1.1rem", margin: 0 }}>
+        {hideStartQuizButton && !teacherQuizInProgress ? "本轮抽查" : "单词表"}
+      </h2>
       <div className="jp-vocab-toolbar">
         <span
           className="jp-vocab-toolbar-summary"
@@ -149,7 +154,10 @@ export function EnVocabPageToolbar({
           >
             {refreshing ? "刷新中…" : "刷新"}
           </button>
-          {canOperate && quizTarget > 0 && quizTargetWordsLength > 0 ? (
+          {canOperate &&
+          quizTarget > 0 &&
+          quizTargetWordsLength > 0 &&
+          !(hideStartQuizButton && !teacherQuizInProgress) ? (
             <button
               type="button"
               className="btn-rsi-filter btn-rsi-filter--primary"

@@ -639,15 +639,18 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
   });
 
   /**
-   * 老师抽查进行中：不展示单词列表，避免在列表里随意点选。
+   * 老师端未抽完前不展示单词列表：开场只给「开始抽查」，进行中只给「继续抽查」，
+   * 避免老师在列表上乱点、学生端又获取不到当前词。
    * 今日/本轮已抽完时必须放开列表（展示已抽查词条），不能再藏表。
    */
-  const hideTeacherQuizList =
+  const teacherQuizRoundOpen =
     canOperate &&
     !isAdminMode &&
-    teacherQuizInProgress &&
     !dailyQuizProgress.complete &&
     !displayQuizProgress.complete;
+  const hideTeacherQuizList = teacherQuizRoundOpen;
+  const showTeacherQuizStartLanding =
+    teacherQuizRoundOpen && !teacherQuizInProgress;
 
   useEffect(() => {
     if (!canOperate || isAdminMode || !quizSession) return;
@@ -803,16 +806,18 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
         {isAdminMode ? "英语抽背-管理员端" : "英语抽背-老师端"}
       </h1>
       <p style={{ color: "var(--muted)", marginBottom: "0.75rem" }}>
-        {teacherShareUiEnabled ? (
-          <>
-            扫一眼单词或语法表，学生回答后勾选熟悉程度；答不出或不熟悉时可「共享」到今日英语单词。
-          </>
-        ) : isAdminMode ? (
+        {isAdminMode ? (
           <>
             管理全库词条、设置今日抽查数量与导出。老师端按可见池抽查；学生端可通过「查看老师正在抽查的单词」获取当前词。
           </>
+        ) : teacherShareUiEnabled ? (
+          <>
+            点「开始抽查」进入本轮卡片抽问；开始后才会同步当前单词。答不出或不熟悉时可「共享」到今日英语单词。
+          </>
         ) : (
-          <>扫一眼单词或语法表，学生回答后勾选熟悉程度。</>
+          <>
+            点「开始抽查」进入本轮卡片抽问；开始后才会同步当前单词，学生才能查看老师正在抽查的词。
+          </>
         )}
       </p>
 
@@ -857,6 +862,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
           quizTarget={quizTarget}
           quizTargetWordsLength={quizTargetWords.length}
           teacherQuizInProgress={teacherQuizInProgress}
+          hideStartQuizButton={showTeacherQuizStartLanding}
           exporting={exporting}
           deletingBatch={deletingBatch}
           resetting={resetting}
@@ -900,6 +906,9 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
           canManualAdd={canManualAdd}
           wordsLength={words.length}
           hideTeacherQuizList={hideTeacherQuizList}
+          showTeacherQuizStartLanding={showTeacherQuizStartLanding}
+          teacherQuizInProgress={teacherQuizInProgress}
+          remainingQuizCount={unmarkedCount}
           showQuizFlashcard={showQuizFlashcard}
           showVocabHelp={showVocabHelp}
           searchQuery={searchQuery}
@@ -936,6 +945,10 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
           pagedDeleteIds={pagedDeleteIds}
           onToggleVocabHelp={() => setShowVocabHelp((v) => !v)}
           onResumeTeacherQuiz={() => resumeTeacherQuizFlashcard()}
+          onStartTeacherQuiz={() => {
+            startTeacherQuizWithRandomMode();
+            setStatus("开始今日抽查…");
+          }}
           dailyQuizComplete={
             dailyQuizProgress.complete || displayQuizProgress.complete
           }
