@@ -104,6 +104,18 @@ def main() -> int:
         return _fail("schedule-caldav-events-load.ts must not call listJpLessons/listEnLessons")
     if "JP_LITE_SELECT" not in load_ts or "EN_LITE_SELECT" not in load_ts:
         return _fail("schedule-caldav-events-load.ts must define JP/EN lite selects")
+    if "SUBSTR(" not in load_ts:
+        return _fail(
+            "lite SELECT must SUBSTR(content) in SQL "
+            "(not pull full content then truncate in JS)"
+        )
+
+    if "--fetch-retries" not in sync_py or "--events-file" not in sync_py:
+        return _fail(
+            "schedule-caldav-sync.py must support --fetch-retries and --events-file"
+        )
+    if "1102" not in sync_py:
+        return _fail("schedule-caldav-sync.py must handle Worker 1102 retries")
 
     if CHAT.is_file():
         chat = CHAT.read_text(encoding="utf-8")

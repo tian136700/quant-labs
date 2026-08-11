@@ -240,7 +240,7 @@ export function mergeRawLessonSlotEvents(
 }
 
 /** isolate 短缓存：CalDAV / ICS / Bark 短时间连打时避免重复重查 */
-const SCHEDULE_CALDAV_EVENTS_CACHE_MS = 20_000;
+const SCHEDULE_CALDAV_EVENTS_CACHE_MS = 60_000;
 let scheduleCalDavEventsCache:
   | { at: number; events: ScheduleCalDavEvent[] }
   | null = null;

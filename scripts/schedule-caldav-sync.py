@@ -15,6 +15,7 @@ import os
 import re
 import ssl
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -74,7 +75,32 @@ def build_ssl_context() -> ssl.SSLContext | None:
 _SSL_CONTEXT = build_ssl_context()
 
 
-def fetch_schedule_events(*, api_url: str, token: str) -> list[dict[str, Any]]:
+def _events_from_payload(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    if not payload.get("ok"):
+        raise SystemExit(f"schedule-events API error: {payload.get('error')}")
+    events = payload.get("events")
+    if not isinstance(events, list):
+        raise SystemExit("schedule-events API: missing events list")
+    return events
+
+
+def load_schedule_events_file(path: Path) -> list[dict[str, Any]]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(payload, list):
+        return payload
+    if isinstance(payload, dict):
+        return _events_from_payload(payload)
+    raise SystemExit(f"events file must be JSON object or list: {path}")
+
+
+def fetch_schedule_events(
+    *,
+    api_url: str,
+    token: str,
+    retries: int = 8,
+    retry_sleep_sec: float = 2.5,
+) -> list[dict[str, Any]]:
+    """拉网站日程；Worker 1102/503 时退避重试（板书/补全争用时常见）。"""
     request = urllib.request.Request(
         api_url,
         method="GET",
@@ -84,19 +110,38 @@ def fetch_schedule_events(*, api_url: str, token: str) -> list[dict[str, Any]]:
             "Accept": "application/json",
         },
     )
-    try:
-        with urllib.request.urlopen(request, timeout=120, context=_SSL_CONTEXT) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as err:
-        body = err.read().decode("utf-8", errors="replace")
-        raise SystemExit(f"schedule-events API HTTP {err.code}: {body}") from err
-
-    if not payload.get("ok"):
-        raise SystemExit(f"schedule-events API error: {payload.get('error')}")
-    events = payload.get("events")
-    if not isinstance(events, list):
-        raise SystemExit("schedule-events API: missing events list")
-    return events
+    attempts = max(1, retries)
+    last_err: BaseException | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            with urllib.request.urlopen(
+                request, timeout=120, context=_SSL_CONTEXT
+            ) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            return _events_from_payload(payload)
+        except urllib.error.HTTPError as err:
+            body = err.read().decode("utf-8", errors="replace")
+            transient = err.code in (429, 502, 503, 504) or "1102" in body or "1027" in body
+            last_err = SystemExit(f"schedule-events API HTTP {err.code}: {body}")
+            if not transient or attempt >= attempts:
+                raise last_err from err
+            print(
+                f"schedule-events HTTP {err.code} (attempt {attempt}/{attempts}), "
+                f"retry in {retry_sleep_sec:.1f}s …",
+                file=sys.stderr,
+            )
+            time.sleep(retry_sleep_sec)
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as err:
+            last_err = err
+            if attempt >= attempts:
+                raise SystemExit(f"schedule-events API network error: {err}") from err
+            print(
+                f"schedule-events network error (attempt {attempt}/{attempts}): {err}; "
+                f"retry in {retry_sleep_sec:.1f}s …",
+                file=sys.stderr,
+            )
+            time.sleep(retry_sleep_sec)
+    raise SystemExit(f"schedule-events API failed after retries: {last_err}")
 
 
 def parse_beijing(class_at: str) -> datetime:
@@ -432,6 +477,18 @@ def main() -> int:
         action="store_true",
         help="强制重写全部事件（默认跳过 SUMMARY/时间未变的课）",
     )
+    parser.add_argument(
+        "--events-file",
+        type=Path,
+        default=None,
+        help="直接用已下载的 schedule-events JSON（跳过再请求 API，躲 1102）",
+    )
+    parser.add_argument(
+        "--fetch-retries",
+        type=int,
+        default=8,
+        help="拉 schedule-events 遇 503/1102 时重试次数（默认 8）",
+    )
     args = parser.parse_args()
 
     review_cfg = load_env_file("jp-review-sync.env")
@@ -484,8 +541,16 @@ def main() -> int:
         )
         return 1
 
-    print(f"fetching schedule events from {api_url} ...")
-    events = fetch_schedule_events(api_url=api_url, token=token)
+    if args.events_file is not None:
+        print(f"loading schedule events from {args.events_file} ...")
+        events = load_schedule_events_file(args.events_file)
+    else:
+        print(f"fetching schedule events from {api_url} ...")
+        events = fetch_schedule_events(
+            api_url=api_url,
+            token=token,
+            retries=args.fetch_retries,
+        )
     print(f"got {len(events)} events")
 
     stats = sync_to_caldav(

@@ -85,7 +85,9 @@ function mapLiteRow(row: Record<string, unknown>): Omit<
   };
 }
 
-const JP_LITE_SELECT = `SELECT id, kind, content, title, teacher_other,
+const JP_LITE_SELECT = `SELECT id, kind,
+  SUBSTR(COALESCE(content, ''), 1, ${SCHEDULE_CALDAV_CONTENT_PREVIEW_CHARS}) AS content,
+  title, teacher_other,
   next_class_at, class_duration_minutes, completed, learning
  FROM jp_lesson
  WHERE (completed = 1 OR learning = 1)
@@ -96,7 +98,9 @@ const JP_LITE_SELECT = `SELECT id, kind, content, title, teacher_other,
      OR (next_class_at IS NOT NULL AND TRIM(next_class_at) != '')
    )`;
 
-const EN_LITE_SELECT = `SELECT id, kind, content, title, teacher_other,
+const EN_LITE_SELECT = `SELECT id, kind,
+  SUBSTR(COALESCE(content, ''), 1, ${SCHEDULE_CALDAV_CONTENT_PREVIEW_CHARS}) AS content,
+  title, teacher_other,
   next_class_at, class_duration_minutes, completed, learning
  FROM en_lesson
  WHERE (completed = 1 OR learning = 1)
