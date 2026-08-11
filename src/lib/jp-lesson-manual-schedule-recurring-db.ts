@@ -374,31 +374,32 @@ export async function pickManualScheduleForLinkedLessonSync(
   return hit || schedule;
 }
 
+export type CreateOnceManualScheduleResult =
+  | {
+      ok: true;
+      schedule: JpLessonManualSchedule;
+      created_count: number;
+      deduped?: boolean;
+    }
+  | { ok: false; error: string };
+
 /** 新建入口：recurring=true → 系列；否则单条 */
 export async function createJpLessonManualScheduleMaybeRecurring(
   db: D1Database,
   draft: JpLessonManualScheduleDraft
-): Promise<
-  | CreateRecurringManualScheduleResult
-  | {
-      ok: true;
-      schedule: JpLessonManualSchedule;
-      created_count: 0 | 1;
-      deduped?: boolean;
-    }
-  | { ok: false; error: string }
-> {
+): Promise<CreateRecurringManualScheduleResult | CreateOnceManualScheduleResult> {
   if (draft.recurring === true) {
     return createRecurringJpLessonManualSchedule(db, draft);
   }
   const result = await createJpLessonManualSchedule(db, draft);
   if (!result.ok) return result;
-  return {
+  const once: CreateOnceManualScheduleResult = {
     ok: true,
     schedule: result.schedule,
     created_count: result.deduped ? 0 : 1,
     deduped: result.deduped === true,
   };
+  return once;
 }
 
 /** 更新入口：实例带 recurring_id → 整系列；否则单条 */

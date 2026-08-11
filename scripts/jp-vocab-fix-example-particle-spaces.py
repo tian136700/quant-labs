@@ -235,7 +235,7 @@ def load_token() -> str:
     raise SystemExit("缺少 JP_REVIEW_UPLOAD_TOKEN")
 
 
-def apply_remote(updates: list[dict], *, batch_size: int = 5) -> None:
+def apply_remote(updates: list[dict], *, batch_size: int = 3) -> None:
     token = load_token()
     ok_ids: list[int] = []
     fail: list[int] = []
@@ -277,22 +277,32 @@ def apply_remote(updates: list[dict], *, batch_size: int = 5) -> None:
             "--data-binary",
             f"@{path}",
         ]
-        try:
-            out = subprocess.check_output(cmd, text=True)
-            data = json.loads(out)
-        except Exception as e:
-            print("  err", e)
+        data: dict | None = None
+        for attempt in range(1, 8):
+            try:
+                out = subprocess.check_output(cmd, text=True)
+                data = json.loads(out)
+            except Exception as e:
+                print("  err", e)
+                data = None
+            if data and data.get("ok"):
+                break
+            err = str((data or {}).get("error") or "")
+            if data and "rate" in err.lower():
+                wait = 12 * attempt
+                print(f"  rate_limited, sleep {wait}s (attempt {attempt})")
+                time.sleep(wait)
+                continue
+            break
+        if not data or not data.get("ok"):
+            print("  FAIL", (data or {}).get("error"), str((data or {}).get("rejected"))[:300])
             fail.extend(ids)
             time.sleep(3)
             continue
-        if not data.get("ok"):
-            print("  FAIL", data.get("error"), str(data.get("rejected"))[:300])
-            fail.extend(ids)
-        else:
-            applied = [a.get("id") for a in (data.get("applied") or [])]
-            print(f"  updated={data.get('updated')} applied={applied}")
-            ok_ids.extend(applied)
-        time.sleep(2)
+        applied = [a.get("id") for a in (data.get("applied") or [])]
+        print(f"  updated={data.get('updated')} applied={applied}")
+        ok_ids.extend(applied)
+        time.sleep(4)
     print(f"DONE ok={len(ok_ids)} fail={fail}")
 
 
