@@ -205,6 +205,9 @@ const JP_VOCAB_PARTICLE_CHARS_FOR_LEARNER = "はがをにでともへのや";
  */
 const JP_VOCAB_PARTICLE_CHARS_FOR_CONTENT = "はがをにでへとのや";
 
+/** 片假名词：至少一字真片假名（勿把单独「ー」当词，避免「えーと」→「えー と」） */
+const JP_VOCAB_KATAKANA_WORD = "[ァ-ンヴヵヶ][ァ-ンヴヵヶー]*";
+
 const JP_VOCAB_PARTICLE_BEFORE_LEARNER_KANA_RE = new RegExp(
   `([${JP_VOCAB_PARTICLE_CHARS_FOR_LEARNER}])(${JP_VOCAB_LEARNER_KANA_AFTER_PARTICLE.join("|")})`,
   "g"
@@ -212,13 +215,13 @@ const JP_VOCAB_PARTICLE_BEFORE_LEARNER_KANA_RE = new RegExp(
 
 /** 助词左侧：汉字 / 片假名 / 假名括注块 与助词之间插空格 */
 const JP_VOCAB_CONTENT_BEFORE_PARTICLE_RE = new RegExp(
-  `(\\u0000P\\d+\\u0000|[\\u4E00-\\u9FFF々]+|[ァ-ンヴヵヶー]+)([${JP_VOCAB_PARTICLE_CHARS_FOR_CONTENT}])`,
+  `(\\u0000P\\d+\\u0000|[\\u4E00-\\u9FFF々]+|${JP_VOCAB_KATAKANA_WORD})([${JP_VOCAB_PARTICLE_CHARS_FOR_CONTENT}])`,
   "g"
 );
 
 /** 助词右侧：助词与 汉字 / 片假名 / 假名括注块 之间插空格 */
 const JP_VOCAB_PARTICLE_BEFORE_CONTENT_RE = new RegExp(
-  `([${JP_VOCAB_PARTICLE_CHARS_FOR_CONTENT}])(\\u0000P\\d+\\u0000|[\\u4E00-\\u9FFF々]+|[ァ-ンヴヵヶー]+)`,
+  `([${JP_VOCAB_PARTICLE_CHARS_FOR_CONTENT}])(\\u0000P\\d+\\u0000|[\\u4E00-\\u9FFF々]+|${JP_VOCAB_KATAKANA_WORD})`,
   "g"
 );
 
@@ -227,10 +230,21 @@ function jpVocabDeIsCopulaOrCompound(after: string): boolean {
   return /^(す|した|しょう|ござ|あり|ある|あっ|は|も)/.test(after);
 }
 
+/** 「が」后仍是假名活用（上がります）而非新词时，视为送假名，不要拆 */
+function jpVocabGaLooksLikeOkurigana(after: string): boolean {
+  if (!after) return false;
+  if (after.startsWith("\u0000P")) return false;
+  if (/^[\u4E00-\u9FFF々ァ-ンヴヵヶ]/.test(after)) return false;
+  for (const w of JP_VOCAB_LEARNER_KANA_AFTER_PARTICLE) {
+    if (after.startsWith(w)) return false;
+  }
+  return /^[ぁ-ん]/.test(after);
+}
+
 /** 助词与相邻词粘连 → 插入空格（幂等；已有空格不再插）。
  * 先保护「漢字(かな)」读音，避免误拆读音里的「やまだ」→「や まだ」。
  * 不拆「ないでください／遊んでください」等て形＋ください固定搭配。
- * 不拆「です／でした／ではない」里的「で」。
+ * 不拆「です／でした／ではない」里的「で」；不拆「上がります」里的送假名「が」。
  */
 export function insertJpVocabLearnerParticleSpaces(text: string): string {
   const s = String(text || "");
@@ -247,10 +261,9 @@ export function insertJpVocabLearnerParticleSpaces(text: string): string {
   work = work.replace(
     JP_VOCAB_CONTENT_BEFORE_PARTICLE_RE,
     (full, left: string, particle: string, offset: number) => {
-      if (particle === "で") {
-        const after = work.slice(offset + full.length);
-        if (jpVocabDeIsCopulaOrCompound(after)) return full;
-      }
+      const after = work.slice(offset + full.length);
+      if (particle === "で" && jpVocabDeIsCopulaOrCompound(after)) return full;
+      if (particle === "が" && jpVocabGaLooksLikeOkurigana(after)) return full;
       return `${left} ${particle}`;
     }
   );

@@ -10,10 +10,12 @@ import {
   deleteJpLessonManualSchedule,
   deleteJpLessonManualScheduleFutureByRecurringId,
   ensureJpLessonManualScheduleSchema,
+  findActiveDuplicateManualScheduleRecurringRule,
   getJpLessonManualScheduleById,
   insertJpLessonManualScheduleInstance,
   listJpLessonManualScheduleClassAtsByRecurringId,
   listJpLessonManualScheduleRecurringRules,
+  listJpLessonManualSchedules,
   normalizeJpLessonManualScheduleDraft,
   setJpLessonManualScheduleRecurringActive,
   updateJpLessonManualSchedule,
@@ -78,6 +80,7 @@ export type CreateRecurringManualScheduleResult =
       schedule: JpLessonManualSchedule;
       created_count: number;
       recurring_id: number;
+      deduped?: boolean;
     }
   | { ok: false; error: string };
 
@@ -102,6 +105,32 @@ export async function createRecurringJpLessonManualSchedule(
   if (!classAts.length) return { ok: false, error: "recurring_expand_empty" };
 
   await ensureJpLessonManualScheduleSchema(db);
+
+  const existingRule = await findActiveDuplicateManualScheduleRecurringRule(db, {
+    weekday,
+    time_hm: parts.timeHm,
+    title: normalized.title,
+    teacher: normalized.teacher,
+    duration_minutes: normalized.duration_minutes,
+  });
+  if (existingRule) {
+    const all = await listJpLessonManualSchedules(db);
+    const series = all
+      .filter((s) => s.recurring_id === existingRule.id)
+      .sort((a, b) => a.class_at.localeCompare(b.class_at));
+    const today = beijingTodayDateString();
+    const upcoming =
+      series.find((s) => s.class_at.slice(0, 10) >= today) ?? series[0] ?? null;
+    if (upcoming) {
+      return {
+        ok: true,
+        schedule: { ...upcoming, recurring: ruleToMeta(existingRule) },
+        created_count: 0,
+        recurring_id: existingRule.id,
+        deduped: true,
+      };
+    }
+  }
 
   const ruleResult = await insertJpLessonManualScheduleRecurringRule(db, {
     weekday,
@@ -351,7 +380,12 @@ export async function createJpLessonManualScheduleMaybeRecurring(
   draft: JpLessonManualScheduleDraft
 ): Promise<
   | CreateRecurringManualScheduleResult
-  | { ok: true; schedule: JpLessonManualSchedule; created_count: 1 }
+  | {
+      ok: true;
+      schedule: JpLessonManualSchedule;
+      created_count: 0 | 1;
+      deduped?: boolean;
+    }
   | { ok: false; error: string }
 > {
   if (draft.recurring === true) {
@@ -359,7 +393,12 @@ export async function createJpLessonManualScheduleMaybeRecurring(
   }
   const result = await createJpLessonManualSchedule(db, draft);
   if (!result.ok) return result;
-  return { ok: true, schedule: result.schedule, created_count: 1 };
+  return {
+    ok: true,
+    schedule: result.schedule,
+    created_count: result.deduped ? 0 : 1,
+    deduped: result.deduped === true,
+  };
 }
 
 /** 更新入口：实例带 recurring_id → 整系列；否则单条 */

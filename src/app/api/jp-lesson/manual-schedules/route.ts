@@ -128,6 +128,7 @@ export async function POST(request: Request) {
       schedule: result.schedule,
       teacher_enable,
       created_count: result.created_count,
+      deduped: "deduped" in result ? result.deduped === true : false,
       recurring_id:
         "recurring_id" in result ? result.recurring_id : result.schedule.recurring_id,
     });

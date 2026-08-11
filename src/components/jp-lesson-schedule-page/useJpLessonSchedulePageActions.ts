@@ -392,9 +392,15 @@ export function useJpLessonSchedulePageActions(options: UseJpLessonSchedulePageA
       (editingManual?.recurring_id != null &&
         Number(editingManual.recurring_id) > 0);
     try {
-      const saved = isEditing
-        ? await updateJpLessonManualSchedule(editingManual.id, draft)
-        : await createJpLessonManualSchedule(draft);
+      let saved: JpLessonManualSchedule | null = null;
+      let deduped = false;
+      if (isEditing) {
+        saved = await updateJpLessonManualSchedule(editingManual.id, draft);
+      } else {
+        const created = await createJpLessonManualSchedule(draft);
+        saved = created?.schedule ?? null;
+        deduped = created?.deduped === true;
+      }
       if (!saved) {
         setError("保存手动日程失败");
         return;
@@ -405,10 +411,24 @@ export function useJpLessonSchedulePageActions(options: UseJpLessonSchedulePageA
         await loadManualSchedules({ force: true });
       } else {
         setManualSchedules((prev) => {
-          const next = isEditing
-            ? prev.map((item) => (item.id === saved.id ? saved : item))
-            : [...prev, saved];
-          const sorted = next.sort((a, b) => a.class_at.localeCompare(b.class_at));
+          if (isEditing) {
+            const next = prev.map((item) =>
+              item.id === saved.id ? saved : item
+            );
+            const sorted = next.sort((a, b) =>
+              a.class_at.localeCompare(b.class_at)
+            );
+            syncJpLessonManualScheduleCache(sorted);
+            return sorted;
+          }
+          // 连点/服务端查重：已有同 id 则不重复塞进列表
+          if (prev.some((item) => item.id === saved.id)) {
+            return prev;
+          }
+          const next = [...prev, saved];
+          const sorted = next.sort((a, b) =>
+            a.class_at.localeCompare(b.class_at)
+          );
           syncJpLessonManualScheduleCache(sorted);
           return sorted;
         });
@@ -485,9 +505,11 @@ export function useJpLessonSchedulePageActions(options: UseJpLessonSchedulePageA
             ? isRecurringSeries
               ? "长期固定已更新（整条每周规则）"
               : "手动日程已保存"
-            : isRecurringSeries
-              ? "长期固定已添加（约未来 12 周）"
-              : "手动日程已添加"
+            : deduped
+              ? "已有相同日程，未重复添加"
+              : isRecurringSeries
+                ? "长期固定已添加（约未来 12 周）"
+                : "手动日程已添加"
         );
       }
 

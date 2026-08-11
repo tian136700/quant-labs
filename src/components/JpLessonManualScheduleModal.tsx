@@ -345,9 +345,13 @@ export function JpLessonManualScheduleModal({
       setError("正在提交，请勿重复提交");
       return;
     }
+    // 必须在任何 await 之前上锁：连点时两次 handleSave 都会过初始校验，
+    // 若等 resolveTeacherForSave 后再锁，会打出两条相同日程。
+    saveInitiatedRef.current = true;
 
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {
+      saveInitiatedRef.current = false;
       setError(
         titleChoice === "custom" || !titleChoice
           ? "请选择或填写日程标题"
@@ -356,20 +360,24 @@ export function JpLessonManualScheduleModal({
       return;
     }
     if (!date.trim() || !time.trim()) {
+      saveInitiatedRef.current = false;
       setError("请选择日期和时间");
       return;
     }
 
     const classAt = nextClassAtFromDatetimeLocalValue(`${date}T${time}`);
     if (!classAt) {
+      saveInitiatedRef.current = false;
       setError("日期或时间无效");
       return;
     }
 
     const teacherName = await resolveTeacherForSave();
-    if (teacherName === null) return;
+    if (teacherName === null) {
+      saveInitiatedRef.current = false;
+      return;
+    }
 
-    saveInitiatedRef.current = true;
     setError("");
     onSave({
       title: trimmedTitle,

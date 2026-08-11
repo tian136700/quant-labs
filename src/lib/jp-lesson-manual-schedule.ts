@@ -211,7 +211,7 @@ export async function fetchJpLessonManualSchedules(): Promise<JpLessonManualSche
 
 export async function createJpLessonManualSchedule(
   draft: JpLessonManualScheduleDraft
-): Promise<JpLessonManualSchedule | null> {
+): Promise<{ schedule: JpLessonManualSchedule; deduped: boolean } | null> {
   const res = await fetch("/api/jp-lesson/manual-schedules", {
     method: "POST",
     credentials: "include",
@@ -219,7 +219,9 @@ export async function createJpLessonManualSchedule(
     body: JSON.stringify(draft),
   });
   const data = await parseManualScheduleResponse(res);
-  return coerceJpLessonManualSchedule(data.schedule);
+  const schedule = coerceJpLessonManualSchedule(data.schedule);
+  if (!schedule) return null;
+  return { schedule, deduped: data.deduped === true };
 }
 
 export async function updateJpLessonManualSchedule(
@@ -266,8 +268,8 @@ export async function loadJpLessonManualSchedulesWithLegacyMigration(): Promise<
     if (existing.has(manualScheduleDedupeKey(draft))) continue;
     const created = await createJpLessonManualSchedule(draft);
     if (created) {
-      schedules.push(created);
-      existing.add(manualScheduleDedupeKey(created));
+      schedules.push(created.schedule);
+      existing.add(manualScheduleDedupeKey(created.schedule));
     }
   }
 

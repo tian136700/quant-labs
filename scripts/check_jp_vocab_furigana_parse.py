@@ -121,6 +121,14 @@ SANITIZE_CASES = [
         "この ホテル の 料金(りょうきん) は 高(たか)いです。(N4)",
     ),
     (
+        "上(あ)がります。",
+        "上(あ)がります。",
+    ),
+    (
+        "えーと、何(なん)でしたか。",
+        "えーと、何(なん)でしたか。",
+    ),
+    (
         # 敬语接头辞假名重复 → sanitize 剥掉括注里的お／ご
         "お辞儀(おじぎ)をします。(N5)",
         "お辞儀(じぎ) をします。(N5)",
@@ -204,11 +212,12 @@ _PARTICLE_CONTENT = "はがをにでへとのや"
 _PARTICLE_BEFORE_LEARNER_KANA_RE = re.compile(
     rf"([{_PARTICLE_LEARNER}])({'|'.join(map(re.escape, _LEARNER_KANA_AFTER_PARTICLE))})"
 )
+_KATA_WORD = r"[ァ-ンヴヵヶ][ァ-ンヴヵヶー]*"
 _CONTENT_BEFORE_PARTICLE_RE = re.compile(
-    rf"(\x00P\d+\x00|[\u4E00-\u9FFF々]+|[ァ-ンヴヵヶー]+)([{_PARTICLE_CONTENT}])"
+    rf"(\x00P\d+\x00|[\u4E00-\u9FFF々]+|{_KATA_WORD})([{_PARTICLE_CONTENT}])"
 )
 _PARTICLE_BEFORE_CONTENT_RE = re.compile(
-    rf"([{_PARTICLE_CONTENT}])(\x00P\d+\x00|[\u4E00-\u9FFF々]+|[ァ-ンヴヵヶー]+)"
+    rf"([{_PARTICLE_CONTENT}])(\x00P\d+\x00|[\u4E00-\u9FFF々]+|{_KATA_WORD})"
 )
 _DE_COPULA_RE = re.compile(r"^(す|した|しょう|ござ|あり|ある|あっ|は|も)")
 
@@ -224,9 +233,24 @@ def insert_jp_vocab_learner_particle_spaces(text: str) -> str:
 
     work = VALID_KANJI_FURIGANA_CHUNK.sub(_protect, s)
 
+    def _ga_okurigana(after: str) -> bool:
+        if not after:
+            return False
+        if after.startswith("\x00P"):
+            return False
+        if re.match(r"^[\u4E00-\u9FFF々ァ-ンヴヵヶ]", after):
+            return False
+        for w in _LEARNER_KANA_AFTER_PARTICLE:
+            if after.startswith(w):
+                return False
+        return bool(re.match(r"^[ぁ-ん]", after))
+
     def _left(m: re.Match[str]) -> str:
         left, particle = m.group(1), m.group(2)
-        if particle == "で" and _DE_COPULA_RE.match(work[m.end() :]):
+        after = work[m.end() :]
+        if particle == "で" and _DE_COPULA_RE.match(after):
+            return m.group(0)
+        if particle == "が" and _ga_okurigana(after):
             return m.group(0)
         return f"{left} {particle}"
 

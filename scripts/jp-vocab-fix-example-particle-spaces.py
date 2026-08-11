@@ -102,11 +102,12 @@ PARTICLE_CONTENT = "はがをにでへとのや"
 PARTICLE_RE = re.compile(
     rf"([{PARTICLE_LEARNER}])({'|'.join(map(re.escape, LEARNER_KANA))})"
 )
+KATA_WORD = r"[ァ-ンヴヵヶ][ァ-ンヴヵヶー]*"
 CONTENT_BEFORE_PARTICLE_RE = re.compile(
-    rf"(\x00P\d+\x00|[\u4E00-\u9FFF々]+|[ァ-ンヴヵヶー]+)([{PARTICLE_CONTENT}])"
+    rf"(\x00P\d+\x00|[\u4E00-\u9FFF々]+|{KATA_WORD})([{PARTICLE_CONTENT}])"
 )
 PARTICLE_BEFORE_CONTENT_RE = re.compile(
-    rf"([{PARTICLE_CONTENT}])(\x00P\d+\x00|[\u4E00-\u9FFF々]+|[ァ-ンヴヵヶー]+)"
+    rf"([{PARTICLE_CONTENT}])(\x00P\d+\x00|[\u4E00-\u9FFF々]+|{KATA_WORD})"
 )
 DE_COPULA_RE = re.compile(r"^(す|した|しょう|ござ|あり|ある|あっ|は|も)")
 # Mirror VALID_KANJI_FURIGANA_CHUNK（勿吃助词；勿拆读音）
@@ -129,12 +130,25 @@ def insert_particle_spaces(line: str) -> str:
 
     work = FURI_RE.sub(protect, line)
 
+    def ga_okurigana(after: str) -> bool:
+        if not after:
+            return False
+        if after.startswith("\x00P"):
+            return False
+        if re.match(r"^[\u4E00-\u9FFF々ァ-ンヴヵヶ]", after):
+            return False
+        for w in LEARNER_KANA:
+            if after.startswith(w):
+                return False
+        return bool(re.match(r"^[ぁ-ん]", after))
+
     def left_repl(m: re.Match[str]) -> str:
         left, particle = m.group(1), m.group(2)
-        if particle == "で":
-            after = work[m.end() :]
-            if DE_COPULA_RE.match(after):
-                return m.group(0)
+        after = work[m.end() :]
+        if particle == "で" and DE_COPULA_RE.match(after):
+            return m.group(0)
+        if particle == "が" and ga_okurigana(after):
+            return m.group(0)
         return f"{left} {particle}"
 
     work = CONTENT_BEFORE_PARTICLE_RE.sub(left_repl, work)
