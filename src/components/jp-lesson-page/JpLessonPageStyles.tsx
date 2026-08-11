@@ -157,6 +157,11 @@ export function JpLessonPageStyles() {
           gap: 0.4rem;
           margin: -0.35rem 0 0.75rem;
         }
+        .jp-lesson-cards :global(.jp-lesson-pending-kind-dropdown) {
+          flex: 1 1 calc(33.33% - 0.35rem);
+          min-width: 4.5rem;
+          position: relative;
+        }
         .jp-lesson-cards :global(.jp-lesson-pending-kind-tab) {
           flex: 1 1 calc(33.33% - 0.35rem);
           min-width: 4.5rem;
@@ -181,16 +186,72 @@ export function JpLessonPageStyles() {
             background 0.15s ease,
             color 0.15s ease;
         }
+        .jp-lesson-cards :global(.jp-lesson-pending-kind-dropdown .jp-lesson-pending-kind-tab) {
+          width: 100%;
+          flex: none;
+        }
+        .jp-lesson-cards :global(.jp-lesson-pending-kind-tab-label) {
+          max-width: 7.5rem;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
         .jp-lesson-cards :global(.jp-lesson-pending-kind-tab-count) {
           font-size: 0.78rem;
           font-weight: 500;
           font-variant-numeric: tabular-nums;
           opacity: 0.85;
         }
+        .jp-lesson-cards :global(.jp-lesson-pending-kind-caret) {
+          font-size: 0.7rem;
+          opacity: 0.75;
+          line-height: 1;
+        }
         .jp-lesson-cards :global(.jp-lesson-pending-kind-tab.is-active) {
           color: var(--accent);
           border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
           background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+        }
+        .jp-lesson-cards :global(.jp-lesson-pending-kind-menu) {
+          min-width: 10.5rem;
+          padding: 0.35rem;
+          border: 1px solid var(--border);
+          border-radius: 10px;
+          background: var(--panel);
+          box-shadow: 0 10px 28px color-mix(in srgb, #000 35%, transparent);
+        }
+        .jp-lesson-cards :global(.jp-lesson-pending-kind-menu-item) {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.75rem;
+          min-height: 2.35rem;
+          padding: 0.4rem 0.65rem;
+          border: none;
+          border-radius: 8px;
+          background: transparent;
+          color: var(--fg);
+          font: inherit;
+          font-size: 0.875rem;
+          font-weight: 600;
+          cursor: pointer;
+          text-align: left;
+        }
+        .jp-lesson-cards :global(.jp-lesson-pending-kind-menu-item:hover),
+        .jp-lesson-cards :global(.jp-lesson-pending-kind-menu-item:focus-visible) {
+          background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+          outline: none;
+        }
+        .jp-lesson-cards :global(.jp-lesson-pending-kind-menu-item.is-selected) {
+          color: var(--accent);
+          background: color-mix(in srgb, var(--accent) 14%, var(--panel));
+        }
+        .jp-lesson-cards :global(.jp-lesson-pending-kind-menu-count) {
+          font-size: 0.78rem;
+          font-weight: 500;
+          font-variant-numeric: tabular-nums;
+          color: var(--muted);
         }
         .jp-lesson-cards :global(.jp-lesson-mobile-status-tab) {
           flex: 1 1 calc(25% - 0.4rem);

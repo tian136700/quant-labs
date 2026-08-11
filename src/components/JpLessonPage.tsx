@@ -114,7 +114,7 @@ export function JpLessonPage() {
   const [copyToast, setCopyToast] = useState<string | null>(null);
   const [mobileStatusFilter, setMobileStatusFilterState] =
     useState<JpLessonListFilter>(() => readStoredJpLessonListFilter());
-  /** 未完成区：全部 / 单词 / 语法 */
+  /** 未完成区：全部 / 单词 / 语法（单词·语法可再筛有无教材） */
   const [pendingKindFilter, setPendingKindFilterState] =
     useState<JpLessonPendingKindFilter>(() =>
       readStoredJpLessonPendingKindFilter()

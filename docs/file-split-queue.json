@@ -29,6 +29,11 @@
       "path": "src/components/JpVocabTeacherQuizFlashcardStyles.tsx",
       "lines": 2178,
       "reason": "style_or_data"
+    },
+    {
+      "path": "src/components/jp-lesson-page/JpLessonPageStyles.tsx",
+      "lines": 1052,
+      "reason": "style_or_data"
     }
   ]
 }
