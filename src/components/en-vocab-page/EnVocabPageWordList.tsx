@@ -4,7 +4,10 @@ import { EnVocabPageHelp } from "@/components/en-vocab-page/EnVocabPageHelp";
 import { EnVocabPageSearch } from "@/components/en-vocab-page/EnVocabPageSearch";
 import { EnVocabPagination } from "@/components/en-vocab-page/EnVocabPagination";
 import { EnVocabTeacherQuizResumePanel } from "@/components/en-vocab-page/EnVocabTeacherQuizResumePanel";
-import { EnVocabTeacherQuizStartPanel } from "@/components/en-vocab-page/EnVocabTeacherQuizStartPanel";
+import {
+  EnVocabTeacherQuizStartPanel,
+  type EnVocabTeacherQuizPendingWord,
+} from "@/components/en-vocab-page/EnVocabTeacherQuizStartPanel";
 import { EnVocabWordTable } from "@/components/en-vocab-page/EnVocabWordTable";
 import { VocabTeacherDailyQuizDonePanel } from "@/components/VocabTeacherDailyQuizDonePanel";
 import type { EnVocabDailyDisplayOrder } from "@/lib/en-vocab-daily-order";
@@ -22,10 +25,12 @@ export type EnVocabPageWordListProps = {
   canManualAdd: boolean;
   wordsLength: number;
   hideTeacherQuizList: boolean;
-  /** 老师端未开始抽查时的开场页（无词表） */
+  /** 老师端未开始抽查时的开场页（无完整可点词表；可有只读待抽列表） */
   showTeacherQuizStartLanding?: boolean;
   teacherQuizInProgress?: boolean;
   remainingQuizCount?: number;
+  /** 开场页左侧只读待抽单词（与 remainingQuizCount 一致） */
+  pendingQuizWords?: EnVocabTeacherQuizPendingWord[];
   showQuizFlashcard: boolean;
   showVocabHelp: boolean;
   searchQuery: string;
@@ -100,6 +105,7 @@ export function EnVocabPageWordList(props: EnVocabPageWordListProps) {
     showTeacherQuizStartLanding = false,
     teacherQuizInProgress = false,
     remainingQuizCount = 0,
+    pendingQuizWords = [],
     showQuizFlashcard,
     showVocabHelp,
     searchQuery,
@@ -182,6 +188,7 @@ export function EnVocabPageWordList(props: EnVocabPageWordListProps) {
           <EnVocabTeacherQuizStartPanel
             remainingCount={remainingQuizCount}
             quizTarget={quizTarget}
+            pendingWords={pendingQuizWords}
             loading={loading}
             onStart={() => onStartTeacherQuiz?.()}
           />

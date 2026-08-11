@@ -576,6 +576,18 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
       ).length,
     [quizTargetWords, sessionLevel, displayOrder]
   );
+  const pendingQuizWords = useMemo(
+    () =>
+      quizTargetWords
+        .filter(
+          (w) =>
+            !effectiveEnVocabDisplayLevel(w, sessionLevel[w.id], {
+              displayOrder,
+            })
+        )
+        .map((w) => ({ id: w.id, word: w.word })),
+    [quizTargetWords, sessionLevel, displayOrder]
+  );
 
   const neverQuizzedCount = useMemo(
     () =>
@@ -917,6 +929,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
           showTeacherQuizStartLanding={showTeacherQuizStartLanding}
           teacherQuizInProgress={teacherQuizInProgress}
           remainingQuizCount={unmarkedCount}
+          pendingQuizWords={pendingQuizWords}
           showQuizFlashcard={showQuizFlashcard}
           showVocabHelp={showVocabHelp}
           searchQuery={searchQuery}

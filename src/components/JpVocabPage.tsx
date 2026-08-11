@@ -614,6 +614,16 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
       ).length,
     [quizTargetWords, sessionLevel, displayOrder]
   );
+  const pendingQuizWords = useMemo(
+    () =>
+      quizTargetWords
+        .filter(
+          (w) =>
+            !effectiveJpVocabDisplayLevel(w, sessionLevel[w.id], { displayOrder })
+        )
+        .map((w) => ({ id: w.id, word: w.word })),
+    [quizTargetWords, sessionLevel, displayOrder]
+  );
   const neverQuizzedCount = useMemo(
     () => (isAdminMode ? words.filter((w) => jpVocabTotalReviews(w) === 0).length : 0),
     [isAdminMode, words]
@@ -758,6 +768,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
           showTeacherQuizStartLanding={showTeacherQuizStartLanding}
           teacherQuizInProgress={teacherQuizInProgress}
           remainingQuizCount={unmarkedCount}
+          pendingQuizWords={pendingQuizWords}
           showQuizFlashcard={showQuizFlashcard}
           showVocabHelp={showVocabHelp}
           quizTimeWeight={quizTimeWeight}

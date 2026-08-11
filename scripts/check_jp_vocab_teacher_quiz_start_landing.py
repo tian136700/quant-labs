@@ -36,6 +36,14 @@ def main() -> None:
         fail("start panel must include encouragement copy")
     if "ENCOURAGEMENTS" not in start:
         fail("start panel must keep rotating encouragement list")
+    if "pendingWords" not in start:
+        fail("start panel must accept pendingWords for left preview list")
+    if "本轮待抽" not in start:
+        fail("start panel must show 本轮待抽 list title")
+    if "grid-template-columns" not in start:
+        fail("start panel must use two-column grid (list + start)")
+    if "pointer-events: none" not in start:
+        fail("pending list rows must be non-interactive (pointer-events: none)")
 
     word_list = WORD_LIST.read_text(encoding="utf-8")
     if "JpVocabTeacherQuizStartPanel" not in word_list:
@@ -44,6 +52,19 @@ def main() -> None:
         fail("JpVocabPageWordList must branch on showTeacherQuizStartLanding")
     if "JpVocabTeacherQuizResumePanel" not in word_list:
         fail("JpVocabPageWordList must keep ResumePanel for in-progress")
+    if "pendingWords={props.pendingQuizWords" not in word_list:
+        fail("JpVocabPageWordList must pass pendingQuizWords to StartPanel")
+    # Start landing branch must not render the interactive table
+    hide_branch = word_list.split("if (props.hideTeacherQuizList)", 1)
+    if len(hide_branch) < 2:
+        fail("JpVocabPageWordList must gate on hideTeacherQuizList")
+    hide_body = hide_branch[1].split("return (", 2)[1] if "return (" in hide_branch[1] else hide_branch[1]
+    # First return under hideTeacherQuizList is the landing/resume branch
+    first_return = hide_branch[1]
+    end_hide = first_return.find("\n  return (")
+    landing_chunk = first_return if end_hide < 0 else first_return[:end_hide]
+    if "JpVocabWordTable" in landing_chunk:
+        fail("start landing branch must not render JpVocabWordTable")
 
     landing = LANDING.read_text(encoding="utf-8")
     if "resolveJpVocabTeacherQuizListVisibility" not in landing:
@@ -64,6 +85,8 @@ def main() -> None:
         fail("JpVocabPage must use useJpVocabTeacherQuizListGate")
     if "hideStartQuizButton={showTeacherQuizStartLanding}" not in page:
         fail("JpVocabPage must hide toolbar Start while landing is shown")
+    if "pendingQuizWords={pendingQuizWords}" not in page:
+        fail("JpVocabPage must pass pendingQuizWords to WordList")
     # Must not hide list only while in progress
     if (
         "teacherQuizInProgress &&\n    !dailyQuizProgress.complete"
@@ -75,6 +98,12 @@ def main() -> None:
     toolbar = TOOLBAR.read_text(encoding="utf-8")
     if "hideStartQuizButton" not in toolbar:
         fail("JpVocabPageToolbar must support hideStartQuizButton")
+
+    rule = RULE.read_text(encoding="utf-8")
+    if "只读" not in rule and "pendingWords" not in rule:
+        fail("start-landing rule must allow read-only pending preview list")
+    if "JpVocabWordTable" not in rule:
+        fail("start-landing rule must still forbid interactive WordTable")
 
     print("OK: jp-vocab teacher quiz start landing hides list until start")
 

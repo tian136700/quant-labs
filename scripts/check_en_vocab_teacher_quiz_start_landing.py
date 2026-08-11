@@ -34,12 +34,28 @@ def main() -> None:
         fail("start panel must include encouragement copy")
     if "ENCOURAGEMENTS" not in start:
         fail("start panel must keep rotating encouragement list")
+    if "pendingWords" not in start:
+        fail("start panel must accept pendingWords for left preview list")
+    if "本轮待抽" not in start:
+        fail("start panel must show 本轮待抽 list title")
+    if "grid-template-columns" not in start:
+        fail("start panel must use two-column grid (list + start)")
+    if "pointer-events: none" not in start:
+        fail("pending list rows must be non-interactive (pointer-events: none)")
 
     word_list = WORD_LIST.read_text(encoding="utf-8")
     if "EnVocabTeacherQuizStartPanel" not in word_list:
         fail("EnVocabPageWordList must render EnVocabTeacherQuizStartPanel")
     if "showTeacherQuizStartLanding" not in word_list:
         fail("EnVocabPageWordList must branch on showTeacherQuizStartLanding")
+    if "pendingWords={pendingQuizWords}" not in word_list:
+        fail("EnVocabPageWordList must pass pendingQuizWords to StartPanel")
+    hide_branch = word_list.split("hideTeacherQuizList ?", 1)
+    if len(hide_branch) < 2:
+        fail("EnVocabPageWordList must gate on hideTeacherQuizList")
+    landing_chunk = hide_branch[1].split(") : (", 1)[0]
+    if "EnVocabWordTable" in landing_chunk:
+        fail("start landing branch must not render EnVocabWordTable")
 
     page = PAGE.read_text(encoding="utf-8")
     if "showTeacherQuizStartLanding" not in page:
@@ -55,10 +71,18 @@ def main() -> None:
         fail("hideTeacherQuizList must not depend only on teacherQuizInProgress")
     if "hideStartQuizButton={showTeacherQuizStartLanding}" not in page:
         fail("EnVocabPage must hide toolbar Start while landing is shown")
+    if "pendingQuizWords={pendingQuizWords}" not in page:
+        fail("EnVocabPage must pass pendingQuizWords to WordList")
 
     toolbar = TOOLBAR.read_text(encoding="utf-8")
     if "hideStartQuizButton" not in toolbar:
         fail("EnVocabPageToolbar must support hideStartQuizButton")
+
+    rule = RULE.read_text(encoding="utf-8")
+    if "只读" not in rule and "pendingWords" not in rule:
+        fail("start-landing rule must allow read-only pending preview list")
+    if "EnVocabWordTable" not in rule:
+        fail("start-landing rule must still forbid interactive WordTable")
 
     print("OK: en-vocab teacher quiz start landing hides list until start")
 
