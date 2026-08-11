@@ -44,6 +44,16 @@ def main() -> int:
     if "findActiveDuplicateManualScheduleRecurringRule" not in recurring:
         print("recurring create missing active-rule dedupe")
         return 1
+    if "CreateOnceManualScheduleResult" not in recurring:
+        print("missing CreateOnceManualScheduleResult (dedupe created_count type)")
+        return 1
+    # 禁止再写死 created_count: 1，否则 dedupe 返回 0 时 Next 类型检查会炸
+    if re.search(
+        r"created_count:\s*1\s*;\s*\n\s*deduped\?:",
+        recurring,
+    ):
+        print("once-result must allow created_count number/0, not literal 1")
+        return 1
 
     modal = (
         ROOT / "src/components/JpLessonManualScheduleModal.tsx"
