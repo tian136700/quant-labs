@@ -6,6 +6,7 @@
 给网页「日语新课」列表、以及其它项目（脚本 / 运维）读写课次：
 
 - GET  拉新课列表 + 教案 refs + **每课笔记条数**（管理员另含老师列表）
+- GET  `?view=schedule`  **日程管理轻量列表**（裁剪释义/例句等大字段；手机进页用）
 - POST 按 action 改学习状态 / 老师 / 上课时间 / **学习内容+释义** / 记复制次数 / **删除课次**
 
 上传新课（带教案文件）请用专用接口，勿走本路由：
@@ -19,6 +20,7 @@
 线上地址
 --------
 GET  https://japanese.info-quests.com/api/jp-lesson
+GET  https://japanese.info-quests.com/api/jp-lesson?view=schedule
 POST https://japanese.info-quests.com/api/jp-lesson
 
 说明：也可用 finance.info-quests.com 同路径（同一 Worker / 同一 D1）。
@@ -27,6 +29,7 @@ POST https://japanese.info-quests.com/api/jp-lesson
 本机开发（可选）
 ---------------
 GET  http://127.0.0.1:3002/api/jp-lesson
+GET  http://127.0.0.1:3002/api/jp-lesson?view=schedule
 POST http://127.0.0.1:3002/api/jp-lesson
 
 
@@ -100,6 +103,101 @@ assert data.get("ok")
 # 角标：某课有几条笔记
 print(data.get("note_counts", {}).get("77", 0))
 # 注意：JSON 对象的 key 常是字符串 "77"
+
+
+────────────────────────────────
+GET · 日程管理轻量列表（?view=schedule）
+────────────────────────────────
+
+用途
+----
+统一日程页 `/jp-lesson/schedule` 进页拉取。比完整列表更轻，避免手机弱网卡顿：
+
+| 相对完整 GET | schedule 视图 |
+|--------------|---------------|
+| meanings / annotations / example_sentences | **不 SELECT**（响应里为 null） |
+| content | 仅保留前约 12 项预览（逗号分隔；超出加「…」） |
+| note_counts | 恒为 `{}`（日程不用角标） |
+| notes | 恒为 `[]` |
+| refs | 仅需 `ref_key` + `updated_at`（其它字段占位） |
+| teachers / class_schedules / 进度 | **保留**（日历合并与选教材需要） |
+
+**不要**把本响应写入完整新课列表的客户端缓存键（`jp-api:lesson:v*`）；
+日程页使用独立键 `jp-api:lesson-schedule:v1`。
+
+
+查询参数
+--------
+  view=schedule   必填（其它值或缺省 → 走完整列表）
+
+
+成功响应（节选）
+----------------
+{
+  "ok": true,
+  "view": "schedule",
+  "lessons": [
+    {
+      "id": 77,
+      "kind": "grammar",
+      "content": "～ばかり, ～ようになる, …",
+      "meanings": null,
+      "annotations": null,
+      "example_sentences": null,
+      "completed": false,
+      "learning": true,
+      "ref_key": "lesson-77",
+      "class_schedules": [ { "id": 1, "class_at": "…", "duration_minutes": 55 } ],
+      "teacher_ids": [1]
+    }
+  ],
+  "refs": {
+    "lesson-77": {
+      "ref_key": "lesson-77",
+      "updated_at": "…",
+      "title": null,
+      "media_type": "pdf",
+      "r2_key": "",
+      "created_at": ""
+    }
+  },
+  "note_counts": {},
+  "notes": [],
+  "teachers": [ … ]   // 仅管理员
+}
+
+
+curl 示例
+---------
+curl -sS 'https://japanese.info-quests.com/api/jp-lesson?view=schedule' \
+  -H 'Cookie: 你的登录 Cookie' \
+  -H 'x-locale: zh'
+
+
+Python 最小例
+-------------
+import requests
+
+BASE = "https://japanese.info-quests.com"
+COOKIE = "你的登录 Cookie"
+
+r = requests.get(
+    f"{BASE}/api/jp-lesson",
+    params={"view": "schedule"},
+    headers={"Cookie": COOKIE, "x-locale": "zh"},
+    timeout=60,
+)
+data = r.json()
+assert data.get("ok") and data.get("view") == "schedule"
+print(len(data.get("lessons") or []))
+
+
+实现
+----
+src/lib/jp-lesson-schedule-list.ts → listJpLessonsForSchedule
+src/lib/lesson-schedule-list-shared.ts → truncateLessonContentForSchedule
+规则：.cursor/rules/jp-lesson-schedule-lite-api.mdc
+回归：python3 scripts/check_jp_lesson_schedule_lite_api.py
 
 
 ────────────────────────────────
@@ -322,14 +420,16 @@ POST · set_class_schedules（管理员）
 联系 / 改接口时
 --------------
 线上模块：日语新课（japanese.info-quests.com/jp-lesson 或 finance 同路径）
-本说明：GET/POST /api/jp-lesson
+本说明：GET/POST /api/jp-lesson（含 ?view=schedule）
 实现：src/app/api/jp-lesson/route.ts
       src/lib/jp-lesson-db.ts
+      src/lib/jp-lesson-schedule-list.ts（日程轻量列表）
       src/lib/jp-lesson-note-db.ts → listJpLessonNoteCountsByLesson
       src/lib/jp-lesson-db-delete.ts → deleteJpLesson
-功能索引：docs/feature-index.md → 日语新课 → 删除新课
+功能索引：docs/feature-index.md → 日语新课 → 删除新课 / 手机进页轻量课表
 上传专用：docs/jp-lesson-upload-mixed-api.txt
 防 1102：列表用 note_counts，勿再 SELECT 笔记 body
+日程页：勿用完整列表缓存键存 schedule 响应
 
 
 ────────────────────────────────

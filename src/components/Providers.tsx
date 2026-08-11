@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { AppDeployVersionProvider } from "@/contexts/AppDeployVersionProvider";
 import { EtrAuthProvider } from "@/contexts/EtrAuthProvider";
 import { NavPreferencesProvider } from "@/contexts/NavPreferencesProvider";
+import { PageFontScaleProvider } from "@/contexts/PageFontScaleProvider";
 import { I18nProvider } from "@/i18n/I18nProvider";
 import type { Locale } from "@/i18n/messages";
 import { ActivityTracker } from "./ActivityTracker";
@@ -22,9 +23,11 @@ export function Providers({
       <EtrAuthProvider>
         <NavPreferencesProvider>
           <AppDeployVersionProvider>
-            <ActivityTracker />
-            <Worker1102ClientGuard />
-            <AppShell>{children}</AppShell>
+            <PageFontScaleProvider>
+              <ActivityTracker />
+              <Worker1102ClientGuard />
+              <AppShell>{children}</AppShell>
+            </PageFontScaleProvider>
           </AppDeployVersionProvider>
         </NavPreferencesProvider>
       </EtrAuthProvider>

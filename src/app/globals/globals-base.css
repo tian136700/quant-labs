@@ -125,6 +125,47 @@ body {
   width: 100%;
 }
 
+/* 顶栏页面字号：A− / 档位 / A+（「刷新」左侧） */
+.iq-page-font-scale {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.iq-page-font-scale__btn {
+  min-width: var(--touch-min);
+  min-height: var(--touch-min);
+  padding-inline: 0.55rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.iq-page-font-scale__btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.iq-page-font-scale__label {
+  min-width: 2.5rem;
+  text-align: center;
+  font-size: 0.8125rem;
+  color: var(--muted);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.iq-page-font-scale--block {
+  width: 100%;
+  justify-content: center;
+  gap: 0.5rem;
+  padding-block: 0.15rem;
+}
+
+.iq-page-font-scale--block .iq-page-font-scale__btn {
+  flex: 1 1 0;
+}
+
 .site-auth-user {
   @apply text-muted;
   font-size: 0.8125rem;

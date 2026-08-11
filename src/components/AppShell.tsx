@@ -43,6 +43,7 @@ import { MaintenanceRouteGuard } from "./MaintenanceRouteGuard";
 import { DeployCacheRefreshButton } from "./DeployCacheRefreshButton";
 import { LangSwitch } from "./LangSwitch";
 import { NavDrawer } from "./NavDrawer";
+import { PageFontScaleControl } from "./PageFontScaleControl";
 import { SiteAuthBar } from "./SiteAuthBar";
 import { SiteNav } from "./SiteNav";
 
@@ -168,6 +169,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="page-header-tools page-header-tools--desktop">
           <SiteAuthBar />
           {onLearningModule ? null : <LangSwitch />}
+          <PageFontScaleControl />
           {/* 最右：有新版本亮、无更新暗（须始终可见，勿过暗） */}
           <DeployCacheRefreshButton />
         </div>

@@ -6,6 +6,7 @@
 给网页「英语新课」`/en-lesson`、以及其它项目（脚本 / 运维）读写课次：
 
 - GET  拉新课列表 + 教案 refs + 课堂笔记 +（管理员）老师列表
+- GET  `?view=schedule`  **日程管理轻量列表**（无笔记正文、无释义/备注；手机进页用）
 - POST 按 action 改上课状态 / 老师 / 上课时间 / 记复制次数 / 删除课次
 
 上传新课（带教案文件）请用专用接口，勿走本路由：
@@ -20,6 +21,7 @@
 线上地址
 --------
 GET  https://english.info-quests.com/api/en-lesson
+GET  https://english.info-quests.com/api/en-lesson?view=schedule
 POST https://english.info-quests.com/api/en-lesson
 
 说明：也可用 finance.info-quests.com 同路径（同一 Worker / 同一 D1）。
@@ -28,6 +30,7 @@ POST https://english.info-quests.com/api/en-lesson
 本机开发（可选）
 ---------------
 GET  http://127.0.0.1:3002/api/en-lesson
+GET  http://127.0.0.1:3002/api/en-lesson?view=schedule
 POST http://127.0.0.1:3002/api/en-lesson
 
 
@@ -112,6 +115,102 @@ r = requests.get(
 data = r.json()
 assert data.get("ok")
 print(len(data.get("lessons") or []))
+
+
+────────────────────────────────
+GET · 日程管理轻量列表（?view=schedule）
+────────────────────────────────
+
+用途
+----
+统一日程页 `/jp-lesson/schedule`（英语课一并展示）进页拉取。比完整列表更轻：
+
+| 相对完整 GET | schedule 视图 |
+|--------------|---------------|
+| meanings / remarks | **不 SELECT**（响应里为 null） |
+| content | 仅保留前约 12 项预览（逗号分隔；超出加「…」） |
+| notes | 恒为 `[]`（**不**调 listEnLessonNotes，防笔记正文撑爆） |
+| refs | 仅需 `ref_key` + `updated_at`（其它字段占位） |
+| category / teachers / class_schedules / 进度 | **保留** |
+
+**不要**把本响应写入完整英语新课列表缓存键（`en-api:lesson:v*`）；
+日程页使用独立键 `en-api:lesson-schedule:v1`。
+
+
+查询参数
+--------
+  view=schedule   必填（其它值或缺省 → 走完整列表，仍含 notes）
+
+
+成功响应（节选）
+----------------
+{
+  "ok": true,
+  "view": "schedule",
+  "lessons": [
+    {
+      "id": 24,
+      "kind": "word",
+      "content": "attempt, warrant, …",
+      "meanings": null,
+      "remarks": null,
+      "category": "雅思托福",
+      "completed": false,
+      "learning": true,
+      "ref_key": "lesson-24",
+      "class_schedules": [
+        { "id": 1, "class_at": "2026-08-01 09:00:00", "duration_minutes": 25 }
+      ],
+      "teacher_ids": [3]
+    }
+  ],
+  "refs": {
+    "lesson-24": {
+      "ref_key": "lesson-24",
+      "updated_at": "…",
+      "title": null,
+      "media_type": "pdf",
+      "r2_key": "",
+      "created_at": ""
+    }
+  },
+  "notes": [],
+  "teachers": [ … ]   // 仅管理员
+}
+
+
+curl 示例
+---------
+curl -sS 'https://english.info-quests.com/api/en-lesson?view=schedule' \
+  -H 'Cookie: 你的登录 Cookie' \
+  -H 'x-locale: zh'
+
+
+Python 最小例
+-------------
+import requests
+
+BASE = "https://english.info-quests.com"
+COOKIE = "你的登录 Cookie"
+
+r = requests.get(
+    f"{BASE}/api/en-lesson",
+    params={"view": "schedule"},
+    headers={"Cookie": COOKIE, "x-locale": "zh"},
+    timeout=60,
+)
+data = r.json()
+assert data.get("ok") and data.get("view") == "schedule"
+assert data.get("notes") == []
+print(len(data.get("lessons") or []))
+
+
+实现
+----
+src/lib/en-lesson-schedule-list.ts → listEnLessonsForSchedule
+src/lib/lesson-schedule-list-shared.ts → truncateLessonContentForSchedule
+规则：.cursor/rules/jp-lesson-schedule-lite-api.mdc
+回归：python3 scripts/check_jp_lesson_schedule_lite_api.py
 
 
 ────────────────────────────────
@@ -353,12 +452,15 @@ POST · delete
 联系 / 改接口时
 --------------
 线上模块：英语新课（english.info-quests.com/en-lesson 或 finance 同路径）
-本说明：GET/POST /api/en-lesson
+本说明：GET/POST /api/en-lesson（含 ?view=schedule）
 实现：src/app/api/en-lesson/route.ts
       src/lib/en-lesson-db.ts
-功能索引：docs/feature-index.md → 英语新课
+      src/lib/en-lesson-schedule-list.ts（日程轻量列表）
+功能索引：docs/feature-index.md → 英语新课 / 日程管理 · 手机进页轻量课表
 规则：.cursor/rules/en-lesson-schedule-sets-learning.mdc
       （填上课时间非空 → 默认 learning / 上课中）
+      .cursor/rules/jp-lesson-schedule-lite-api.mdc
 上传：POST /api/en-lesson/upload（令牌；页面「API 上传说明」）
 网页新增：POST /api/en-lesson/create（会话；docs/en-lesson-create-api.txt）
 老师 lookup：docs/en-lesson-teacher-lookup-api.txt
+日程页：勿用完整列表缓存键存 schedule 响应
