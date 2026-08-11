@@ -65,6 +65,7 @@ def main() -> int:
         "共同导致",
         "i_adj_past_deshita",
         "かったでした",
+        "地球は太陽",
     ):
         if needle not in rule_text:
             fail(f"rule missing {needle!r}")
@@ -97,6 +98,8 @@ def main() -> int:
         fail("example-sentences-ai prompt 须要求例句场景自洽、有头有尾")
     if "来るなら、どうぞ入ってください" not in ai and "来(く)るなら、どうぞ入(はい)ってください" not in ai:
         fail("example-sentences-ai 须点名禁止「来るなら、どうぞ入ってください」无厘头句")
+    if "地球" not in ai or "太陽" not in ai or "科学/百科难词" not in ai:
+        fail("example-sentences-ai prompt 须禁止科学/百科难词（地球・太陽）")
     if "version: 6" not in ai and "version:6" not in ai:
         fail("JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC 须升到 version 6（含场景自洽）")
 

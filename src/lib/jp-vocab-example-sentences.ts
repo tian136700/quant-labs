@@ -86,21 +86,34 @@ export function normalizeJpVocabExampleJlptTail(text: string): string | null {
 }
 
 /**
- * 初学者例句：助词与其后常见假名词粘在一起时插入半角空格。
- * 例：はいつ → は いつ；はいつも → は いつも。
- * 汉字词条旁已有假名单元视觉间隔，假名粘连会误当成一个单词。
- * 仅白名单词，避免误拆「ではない」「でも」等。
+ * 初学者例句：助词左右与相邻词分开，避免看成一个单词。
+ * 例：はいつ → は いつ；料金はいくら → 料金 は いくら；は高(たか)い → は 高(たか)い。
+ * 假名白名单 + 助词两侧遇汉字/片假名/假名括注块时插空格。
+ * 内容两侧空格不含「も」（避免誤拆「いつも行…」）；「も」仍只对白名单假名词插空格。
+ * 不拆「ではない」「でも」；不拆「ないでください／遊んでください」。
  */
 const JP_VOCAB_LEARNER_KANA_AFTER_PARTICLE = [
   "いつも",
   "いつ",
+  "いくら",
+  "いくつ",
+  "いかが",
+  "どうして",
+  "どうやって",
+  "どんな",
   "どこ",
+  "どれ",
+  "どちら",
+  "どっち",
+  "どの",
+  "どう",
   "だれ",
   "どなた",
   "なにか",
   "なに",
   "なんの",
   "なんで",
+  "なぜ",
   "とても",
   "あまり",
   "すこし",
@@ -116,18 +129,61 @@ const JP_VOCAB_LEARNER_KANA_AFTER_PARTICLE = [
   "たぶん",
   "きっと",
   "ぜひ",
+  "やはり",
+  "やっぱり",
+  "かなり",
+  "もっと",
+  "ずっと",
   "もう",
   "まだ",
   "すぐ",
   "よく",
+  "ここ",
+  "そこ",
+  "あそこ",
+  "こちら",
+  "そちら",
+  "あちら",
+  "こんなに",
+  "そんなに",
+  "あんなに",
+  "こんな",
+  "そんな",
+  "あんな",
+  "あります",
+  "いません",
+  "います",
+  "ある",
+  "いる",
 ].sort((a, b) => b.length - a.length);
 
+/** 假名词白名单：含「も」（はいつも） */
+const JP_VOCAB_PARTICLE_CHARS_FOR_LEARNER = "はがをにでともへのや";
+
+/**
+ * 汉字/片假名/括注两侧插空格：不含「も」。
+ * 「も」若也参与，会把「いつも行(い)く」拆成「いつ も 行」。
+ */
+const JP_VOCAB_PARTICLE_CHARS_FOR_CONTENT = "はがをにでへとや";
+
 const JP_VOCAB_PARTICLE_BEFORE_LEARNER_KANA_RE = new RegExp(
-  `([はがをにでともへのや])(${JP_VOCAB_LEARNER_KANA_AFTER_PARTICLE.join("|")})`,
+  `([${JP_VOCAB_PARTICLE_CHARS_FOR_LEARNER}])(${JP_VOCAB_LEARNER_KANA_AFTER_PARTICLE.join("|")})`,
   "g"
 );
 
-/** 助词后常见假名词粘连 → 插入空格（幂等；已有空格不再插）。
+/** 助词左侧：汉字 / 片假名 / 假名括注块 与助词之间插空格 */
+const JP_VOCAB_CONTENT_BEFORE_PARTICLE_RE = new RegExp(
+  `(\\u0000P\\d+\\u0000|[\\u4E00-\\u9FFF々]+|[ァ-ンヴヵヶー]+)([${JP_VOCAB_PARTICLE_CHARS_FOR_CONTENT}])`,
+  "g"
+);
+
+/** 助词右侧：助词与 汉字 / 片假名 / 假名括注块 之间插空格 */
+const JP_VOCAB_PARTICLE_BEFORE_CONTENT_RE = new RegExp(
+  `([${JP_VOCAB_PARTICLE_CHARS_FOR_CONTENT}])(\\u0000P\\d+\\u0000|[\\u4E00-\\u9FFF々]+|[ァ-ンヴヵヶー]+)`,
+  "g"
+);
+
+/** 助词与相邻词粘连 → 插入空格（幂等；已有空格不再插）。
  * 先保护「漢字(かな)」读音，避免误拆读音里的「やまだ」→「や まだ」。
  * 不拆「ないでください／遊んでください」等て形＋ください固定搭配。
  */
@@ -142,6 +198,19 @@ export function insertJpVocabLearnerParticleSpaces(text: string): string {
     return `\u0000P${idx}\u0000`;
   });
 
+  // 左：料金は → 料金 は；ホテルの → ホテル の
+  work = work.replace(
+    JP_VOCAB_CONTENT_BEFORE_PARTICLE_RE,
+    (_full, left: string, particle: string) => `${left} ${particle}`
+  );
+
+  // 右：助词 + 汉字/片假名/括注块
+  work = work.replace(
+    JP_VOCAB_PARTICLE_BEFORE_CONTENT_RE,
+    (_full, particle: string, right: string) => `${particle} ${right}`
+  );
+
+  // 右：助词 + 常见假名词（いくら / いつ …）
   work = work.replace(
     JP_VOCAB_PARTICLE_BEFORE_LEARNER_KANA_RE,
     (full, particle: string, word: string, offset: number) => {
