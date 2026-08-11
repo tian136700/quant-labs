@@ -70,11 +70,11 @@ export function writeStoredJpLessonPendingKindFilter(
   }
 }
 
-/** 有教材 = 列表「教材」列有课次名（与 StatusTable 一致：course_label 真值）。 */
-export function jpLessonHasCourseLabel(
-  lesson: { course_label?: string | null } | null | undefined
+/** 有教材 = 已挂教案（有 ref_key；列表会出现「查看/下载」而非仅「上传教案」）。 */
+export function jpLessonHasLessonRef(
+  lesson: { ref_key?: string | null } | null | undefined
 ): boolean {
-  return Boolean((lesson?.course_label || "").trim());
+  return Boolean((lesson?.ref_key || "").trim());
 }
 
 export function jpLessonPendingKindBase(
@@ -109,7 +109,7 @@ function lessonIsWordKind(kind: JpLessonKind | string | null | undefined): boole
 export function jpLessonMatchesPendingKindFilter(
   lesson: {
     kind?: JpLessonKind | string | null;
-    course_label?: string | null;
+    ref_key?: string | null;
   },
   filter: JpLessonPendingKindFilter
 ): boolean {
@@ -120,14 +120,14 @@ export function jpLessonMatchesPendingKindFilter(
   if (base === "grammar" && isWord) return false;
   const scope = jpLessonPendingCourseScope(filter);
   if (scope === "all") return true;
-  const hasCourse = jpLessonHasCourseLabel(lesson);
-  return scope === "with_course" ? hasCourse : !hasCourse;
+  const hasRef = jpLessonHasLessonRef(lesson);
+  return scope === "with_course" ? hasRef : !hasRef;
 }
 
 export function filterJpLessonsByPendingKind<
   T extends {
     kind?: JpLessonKind | string | null;
-    course_label?: string | null;
+    ref_key?: string | null;
   },
 >(lessons: T[], filter: JpLessonPendingKindFilter): T[] {
   if (filter === "all") return lessons;
@@ -140,7 +140,7 @@ export function filterJpLessonDisplayGroupsByPendingKind<
   T extends {
     id: number;
     kind?: JpLessonKind | string | null;
-    course_label?: string | null;
+    ref_key?: string | null;
   },
 >(
   groups: JpLessonDisplayGroup<T>[],
@@ -160,7 +160,7 @@ export function filterJpLessonDisplayGroupsByPendingKind<
 export function countJpLessonsByPendingKind<
   T extends {
     kind?: JpLessonKind | string | null;
-    course_label?: string | null;
+    ref_key?: string | null;
   },
 >(lessons: T[]): JpLessonPendingKindCounts {
   const counts: JpLessonPendingKindCounts = {
@@ -174,14 +174,14 @@ export function countJpLessonsByPendingKind<
   };
   for (const lesson of lessons) {
     const isWord = lessonIsWordKind(lesson.kind);
-    const hasCourse = jpLessonHasCourseLabel(lesson);
+    const hasRef = jpLessonHasLessonRef(lesson);
     if (isWord) {
       counts.word += 1;
-      if (hasCourse) counts.word_with_course += 1;
+      if (hasRef) counts.word_with_course += 1;
       else counts.word_without_course += 1;
     } else {
       counts.grammar += 1;
-      if (hasCourse) counts.grammar_with_course += 1;
+      if (hasRef) counts.grammar_with_course += 1;
       else counts.grammar_without_course += 1;
     }
   }

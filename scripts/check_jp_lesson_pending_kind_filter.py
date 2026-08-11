@@ -21,17 +21,27 @@ def main() -> int:
         "filterJpLessonDisplayGroupsByPendingKind",
         "countJpLessonsByPendingKind",
         "JP_LESSON_PENDING_KIND_FILTER_KEY",
-        "jpLessonHasCourseLabel",
+        "jpLessonHasLessonRef",
         "word_with_course",
         "word_without_course",
         "grammar_with_course",
         "grammar_without_course",
-        "course_label",
+        "ref_key",
         "jpLessonPendingKindFilterEmptyHint",
         "buildJpLessonPendingKindFilter",
     ):
         if needle not in filt:
             errors.append(f"missing {needle} in jp-lesson-pending-kind-filter.ts")
+    # 有教材 = 已挂教案 ref_key；禁止再用 course_label（课次名）当真「有教材」
+    if "course_label" in filt:
+        errors.append(
+            "pending kind「有教材」must use ref_key, not course_label "
+            "(课次名有值但未上传教案仍算无教材)"
+        )
+    if "jpLessonHasCourseLabel" in filt:
+        errors.append("rename/remove jpLessonHasCourseLabel; use jpLessonHasLessonRef")
+    if "ref_key" not in filt or "jpLessonHasLessonRef" not in filt:
+        errors.append("jpLessonHasLessonRef must gate on ref_key")
 
     page = (ROOT / "src/components/JpLessonPage.tsx").read_text(encoding="utf-8")
     if "pendingKindFilter" not in page or "setPendingKindFilter" not in page:
@@ -75,8 +85,8 @@ def main() -> int:
     ).read_text(encoding="utf-8")
     if "pending-kind" not in rule and "PendingKind" not in rule:
         errors.append("status-tab rule should mention pending kind filter")
-    if "有教材" not in rule and "course_label" not in rule:
-        errors.append("status-tab rule should mention course_label / 有教材筛选")
+    if "有教材" not in rule and "ref_key" not in rule:
+        errors.append("status-tab rule should mention ref_key / 有教材筛选")
 
     if errors:
         print("FAIL:")
