@@ -167,6 +167,31 @@ function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/**
+ * 敬语接头辞「お／ご」已写在汉字前时，括注只标汉字读音，勿再带接头辞。
+ * ❌「お辞儀(おじぎ)」「ご飯(ごはん)」→ 展示会像「おおじぎ／ごごはん」
+ * ✅「お辞儀(じぎ)」「ご飯(はん)」「お金(かね)」
+ */
+const HONORIFIC_FURIGANA_DUP_RE =
+  /([おご])([\u4E00-\u9FFF々]+(?:(?![はがをにでとへもやの])[ぁ-んァ-ンヴヵヶー]+[\u4E00-\u9FFF々]+)*[ぁ-んァ-ンヴヵヶー]*)[（(](\1[ぁ-んァ-ンヴヵヶー]+)[）)]/g;
+
+export function jpVocabExampleHasHonorificFuriganaDup(text: string): boolean {
+  HONORIFIC_FURIGANA_DUP_RE.lastIndex = 0;
+  return HONORIFIC_FURIGANA_DUP_RE.test(String(text || ""));
+}
+
+/** お辞儀(おじぎ)→お辞儀(じぎ)；ご飯(ごはん)→ご飯(はん) */
+export function rewriteJpVocabHonorificFuriganaDup(text: string): string {
+  return String(text || "").replace(
+    HONORIFIC_FURIGANA_DUP_RE,
+    (_m, honorific: string, base: string, reading: string) => {
+      const rest = reading.slice(honorific.length);
+      if (!rest) return `${honorific}${base}(${reading})`;
+      return `${honorific}${base}(${rest})`;
+    }
+  );
+}
+
 /** prompt / 规则用的短示例 */
 export const JP_VOCAB_JUKUGO_FURIGANA_PROMPT_HINT = `熟语必须整词标假名，禁止按训读拆开；读音须正确（该连浊的必须浊化）：
    - ✅「出発(しゅっぱつ)」「日本語(にほんご)」「土曜日(どようび)」「図書館(としょかん)」
@@ -174,4 +199,5 @@ export const JP_VOCAB_JUKUGO_FURIGANA_PROMPT_HINT = `熟语必须整词标假名
    - ❌「日本(にっぽん)語(ご)」「土曜(どよう)日(ひ)」「消防(しょうぼう)車(しょうぼうしゃ)」
    - 连浊：✅「入口(いりぐち)」「出口(でぐち)」「手紙(てがみ)」；❌「入口(いりくち)」「出口(でくち)」「手紙(てかみ)」（该浊却标成清音，会误导学生）
    - 问几点：✅「何時(なんじ)ですか」；❌「何時(なんどき)」（时＝じ，不是どき）
-   - 朋友：✅「友達(ともだち)」；❌「友達(ゆうだち)」（ゆうだち＝夕立，傍晚阵雨，不是朋友）`;
+   - 朋友：✅「友達(ともだち)」；❌「友達(ゆうだち)」（ゆうだち＝夕立，傍晚阵雨，不是朋友）
+   - 敬语接头辞：✅「お辞儀(じぎ)」「お金(かね)」「ご飯(はん)」；❌「お辞儀(おじぎ)」「ご飯(ごはん)」（接头辞已写在外，假名勿再带お／ご）`;

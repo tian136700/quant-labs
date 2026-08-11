@@ -49,15 +49,15 @@ CASES = [
 ]
 
 # (raw, expected_after_sanitize) — nested teaching notes must vanish;
-# particle+learner-kana must get a space (はいつ → は いつ)
+# particle sides spaced (はいくら → は いくら; 料金は高 → 料金 は 高)
 SANITIZE_CASES = [
     (
         "必要な物(もの)をリストアップする。(必要なは必要だ(ひつようだ)の形容動詞形です)",
-        "必要な物(もの)をリストアップする。",
+        "必要な物(もの) を リストアップする。",
     ),
     (
         "いい方法があります。",
-        "いい方法があります。",
+        "いい方法 が あります。",
     ),
     (
         "（いい ほうほう が あります。）",
@@ -65,29 +65,29 @@ SANITIZE_CASES = [
     ),
     (
         "授業(じゅぎょう)に必要(ひつよう)な本(ほん)を買(か)いました。",
-        "授業(じゅぎょう)に必要(ひつよう)な本(ほん)を買(か)いました。",
+        "授業(じゅぎょう) に 必要(ひつよう)な本(ほん) を 買(か)いました。",
     ),
     (
         "朝(あさ)ごはんにスプーンが必要(ひつよう)です。 / あさごはん / ひつよう",
-        "朝(あさ)ごはんにスプーンが必要(ひつよう)です。",
+        "朝(あさ)ごはんに スプーン が 必要(ひつよう)です。",
     ),
     (
         "今月(こんげつ)の給料(きゅうりょう)はいつ出(で)ますか。(N4)",
-        "今月(こんげつ)の給料(きゅうりょう)は いつ出(で)ますか。(N4)",
+        "今月(こんげつ) の 給料(きゅうりょう) は いつ出(で)ますか。(N4)",
     ),
     (
         "先生(せんせい)はいつも丁寧(ていねい)に教(おし)えてくれます。(N4)",
-        "先生(せんせい)は いつも丁寧(ていねい)に教(おし)えてくれます。(N4)",
+        "先生(せんせい) は いつも丁寧(ていねい) に 教(おし)えてくれます。(N4)",
     ),
     (
-        # already spaced → idempotent
+        # already spaced → idempotent (may still add left space)
         "給料(きゅうりょう)は いつ出(で)ますか。",
-        "給料(きゅうりょう)は いつ出(で)ますか。",
+        "給料(きゅうりょう) は いつ出(で)ますか。",
     ),
     (
-        # do not split ではない
+        # do not split ではない / です
         "それは本(ほん)ではないです。",
-        "それは本(ほん)ではないです。",
+        "それは 本(ほん)ではないです。",
     ),
     (
         # て形＋ください 不拆
@@ -101,16 +101,33 @@ SANITIZE_CASES = [
     (
         # をください 要拆
         "水(みず)をください。",
-        "水(みず)を ください。",
+        "水(みず) を ください。",
     ),
     (
         # 读音里的「やまだ」禁止拆成「や まだ」
         "山田(やまだ)さんが働(はたら)く会社(かいしゃ)は東京(とうきょう)にあります。",
-        "山田(やまだ)さんが働(はたら)く会社(かいしゃ)は東京(とうきょう)にあります。",
+        "山田(やまだ)さんが 働(はたら)く会社(かいしゃ) は 東京(とうきょう) に あります。",
     ),
     (
         "私(わたし)がいつも行(い)く店(みせ)はここです。",
-        "私(わたし)が いつも行(い)く店(みせ)はここです。",
+        "私(わたし) が いつも行(い)く店(みせ) は ここです。",
+    ),
+    (
+        "電車(でんしゃ)の料金(りょうきん)はいくらですか。(N5)",
+        "電車(でんしゃ) の 料金(りょうきん) は いくらですか。(N5)",
+    ),
+    (
+        "このホテルの料金(りょうきん)は高(たか)いです。(N4)",
+        "この ホテル の 料金(りょうきん) は 高(たか)いです。(N4)",
+    ),
+    (
+        # 敬语接头辞假名重复 → sanitize 剥掉括注里的お／ご
+        "お辞儀(おじぎ)をします。(N5)",
+        "お辞儀(じぎ) をします。(N5)",
+    ),
+    (
+        "もうご飯(ごはん)を食(た)べましたか。(N5)",
+        "もうご飯(はん) を 食(た)べましたか。(N5)",
     ),
 ]
 
@@ -118,13 +135,25 @@ _LEARNER_KANA_AFTER_PARTICLE = sorted(
     [
         "いつも",
         "いつ",
+        "いくら",
+        "いくつ",
+        "いかが",
+        "どうして",
+        "どうやって",
+        "どんな",
         "どこ",
+        "どれ",
+        "どちら",
+        "どっち",
+        "どの",
+        "どう",
         "だれ",
         "どなた",
         "なにか",
         "なに",
         "なんの",
         "なんで",
+        "なぜ",
         "とても",
         "あまり",
         "すこし",
@@ -140,17 +169,48 @@ _LEARNER_KANA_AFTER_PARTICLE = sorted(
         "たぶん",
         "きっと",
         "ぜひ",
+        "やはり",
+        "やっぱり",
+        "かなり",
+        "もっと",
+        "ずっと",
         "もう",
         "まだ",
         "すぐ",
         "よく",
+        "ここ",
+        "そこ",
+        "あそこ",
+        "こちら",
+        "そちら",
+        "あちら",
+        "こんなに",
+        "そんなに",
+        "あんなに",
+        "こんな",
+        "そんな",
+        "あんな",
+        "あります",
+        "いません",
+        "います",
+        "ある",
+        "いる",
     ],
     key=len,
     reverse=True,
 )
+_PARTICLE_LEARNER = "はがをにでともへのや"
+_PARTICLE_CONTENT = "はがをにでへとのや"
 _PARTICLE_BEFORE_LEARNER_KANA_RE = re.compile(
-    rf"([はがをにでともへのや])({'|'.join(map(re.escape, _LEARNER_KANA_AFTER_PARTICLE))})"
+    rf"([{_PARTICLE_LEARNER}])({'|'.join(map(re.escape, _LEARNER_KANA_AFTER_PARTICLE))})"
 )
+_CONTENT_BEFORE_PARTICLE_RE = re.compile(
+    rf"(\x00P\d+\x00|[\u4E00-\u9FFF々]+|[ァ-ンヴヵヶー]+)([{_PARTICLE_CONTENT}])"
+)
+_PARTICLE_BEFORE_CONTENT_RE = re.compile(
+    rf"([{_PARTICLE_CONTENT}])(\x00P\d+\x00|[\u4E00-\u9FFF々]+|[ァ-ンヴヵヶー]+)"
+)
+_DE_COPULA_RE = re.compile(r"^(す|した|しょう|ござ|あり|ある|あっ|は|も)")
 
 
 def insert_jp_vocab_learner_particle_spaces(text: str) -> str:
@@ -163,6 +223,22 @@ def insert_jp_vocab_learner_particle_spaces(text: str) -> str:
         return f"\x00P{len(protected) - 1}\x00"
 
     work = VALID_KANJI_FURIGANA_CHUNK.sub(_protect, s)
+
+    def _left(m: re.Match[str]) -> str:
+        left, particle = m.group(1), m.group(2)
+        if particle == "で" and _DE_COPULA_RE.match(work[m.end() :]):
+            return m.group(0)
+        return f"{left} {particle}"
+
+    work = _CONTENT_BEFORE_PARTICLE_RE.sub(_left, work)
+
+    def _right_content(m: re.Match[str]) -> str:
+        particle, right = m.group(1), m.group(2)
+        if particle == "で" and _DE_COPULA_RE.match(work[m.start() + len(particle) :]):
+            return m.group(0)
+        return f"{particle} {right}"
+
+    work = _PARTICLE_BEFORE_CONTENT_RE.sub(_right_content, work)
 
     def _repl(m: re.Match[str]) -> str:
         particle, word = m.group(1), m.group(2)
@@ -192,6 +268,15 @@ def sanitize_jp_vocab_example_japanese_line(text: str) -> str:
     s = (text or "").strip()
     if not s:
         return s
+
+    # Mirror rewriteJpVocabHonorificFuriganaDup
+    s = re.sub(
+        r"([おご])([\u4E00-\u9FFF々]+(?:(?![はがをにでとへもやの])[ぁ-んァ-ンヴヵヶー]+[\u4E00-\u9FFF々]+)*[ぁ-んァ-ンヴヵヶー]*)[（(](\1[ぁ-んァ-ンヴヵヶー]+)[）)]",
+        lambda m: f"{m.group(1)}{m.group(2)}({m.group(3)[len(m.group(1)):]})"
+        if m.group(3)[len(m.group(1)) :]
+        else m.group(0),
+        s,
+    )
 
     # Mirror TS: strip after the first slash outside furigana parentheses.
     depth = 0
@@ -236,6 +321,14 @@ def sanitize_jp_vocab_example_japanese_line(text: str) -> str:
         return protected[i] if 0 <= i < len(protected) else ""
 
     s = re.sub(r"\x00F(\d+)\x00", _restore, s)
+    # Mirror rewriteJpVocabHonorificFuriganaDup：お辞儀(おじぎ)→お辞儀(じぎ)
+    s = re.sub(
+        r"([おご])([\u4E00-\u9FFF々]+)[（(](\1[ぁ-んァ-ンヴヵヶー]+)[）)]",
+        lambda m: f"{m.group(1)}{m.group(2)}({m.group(3)[len(m.group(1)):]})"
+        if len(m.group(3)) > len(m.group(1))
+        else m.group(0),
+        s,
+    )
     s = insert_jp_vocab_learner_particle_spaces(s)
     s = re.sub(r"\s{2,}", " ", s).strip()
     if jlpt_suffix:

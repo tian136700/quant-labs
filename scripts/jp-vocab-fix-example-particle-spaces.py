@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""扫 / 修日语例句：助词与常见假名词粘连（はいつ / はとても / はどこ…）。
+"""扫 / 修日语例句：助词左右与相邻词粘连（はいくら / は高い / 料金は…）。
 
 展示层 sanitize 也会自动插空格；本脚本用于把**线上存库**一并修好（复制/导出也正确）。
 
@@ -32,13 +32,25 @@ LEARNER_KANA = sorted(
     [
         "いつも",
         "いつ",
+        "いくら",
+        "いくつ",
+        "いかが",
+        "どうして",
+        "どうやって",
+        "どんな",
         "どこ",
+        "どれ",
+        "どちら",
+        "どっち",
+        "どの",
+        "どう",
         "だれ",
         "どなた",
         "なにか",
         "なに",
         "なんの",
         "なんで",
+        "なぜ",
         "とても",
         "あまり",
         "すこし",
@@ -54,17 +66,49 @@ LEARNER_KANA = sorted(
         "たぶん",
         "きっと",
         "ぜひ",
+        "やはり",
+        "やっぱり",
+        "かなり",
+        "もっと",
+        "ずっと",
         "もう",
         "まだ",
         "すぐ",
         "よく",
+        "ここ",
+        "そこ",
+        "あそこ",
+        "こちら",
+        "そちら",
+        "あちら",
+        "こんなに",
+        "そんなに",
+        "あんなに",
+        "こんな",
+        "そんな",
+        "あんな",
+        "あります",
+        "いません",
+        "います",
+        "ある",
+        "いる",
     ],
     key=len,
     reverse=True,
 )
+# 假名词白名单含「も」；内容两侧不含「も」（防拆いつも）
+PARTICLE_LEARNER = "はがをにでともへのや"
+PARTICLE_CONTENT = "はがをにでへとのや"
 PARTICLE_RE = re.compile(
-    rf"([はがをにでともへのや])({'|'.join(map(re.escape, LEARNER_KANA))})"
+    rf"([{PARTICLE_LEARNER}])({'|'.join(map(re.escape, LEARNER_KANA))})"
 )
+CONTENT_BEFORE_PARTICLE_RE = re.compile(
+    rf"(\x00P\d+\x00|[\u4E00-\u9FFF々]+|[ァ-ンヴヵヶー]+)([{PARTICLE_CONTENT}])"
+)
+PARTICLE_BEFORE_CONTENT_RE = re.compile(
+    rf"([{PARTICLE_CONTENT}])(\x00P\d+\x00|[\u4E00-\u9FFF々]+|[ァ-ンヴヵヶー]+)"
+)
+DE_COPULA_RE = re.compile(r"^(す|した|しょう|ござ|あり|ある|あっ|は|も)")
 # Mirror VALID_KANJI_FURIGANA_CHUNK（勿吃助词；勿拆读音）
 FURI_RE = re.compile(
     r"[\u4E00-\u9FFF々]+"
@@ -85,7 +129,27 @@ def insert_particle_spaces(line: str) -> str:
 
     work = FURI_RE.sub(protect, line)
 
-    def repl(m: re.Match[str]) -> str:
+    def left_repl(m: re.Match[str]) -> str:
+        left, particle = m.group(1), m.group(2)
+        if particle == "で":
+            after = work[m.end() :]
+            if DE_COPULA_RE.match(after):
+                return m.group(0)
+        return f"{left} {particle}"
+
+    work = CONTENT_BEFORE_PARTICLE_RE.sub(left_repl, work)
+
+    def right_content_repl(m: re.Match[str]) -> str:
+        particle, right = m.group(1), m.group(2)
+        if particle == "で":
+            after = work[m.start() + len(particle) :]
+            if DE_COPULA_RE.match(after):
+                return m.group(0)
+        return f"{particle} {right}"
+
+    work = PARTICLE_BEFORE_CONTENT_RE.sub(right_content_repl, work)
+
+    def learner_repl(m: re.Match[str]) -> str:
         particle, word = m.group(1), m.group(2)
         if word == "ください" and particle == "で":
             prev = work[m.start() - 1] if m.start() > 0 else ""
@@ -93,7 +157,7 @@ def insert_particle_spaces(line: str) -> str:
                 return m.group(0)
         return f"{particle} {word}"
 
-    work = PARTICLE_RE.sub(repl, work)
+    work = PARTICLE_RE.sub(learner_repl, work)
 
     def restore(m: re.Match[str]) -> str:
         i = int(m.group(1))
@@ -128,9 +192,11 @@ def collect_updates(db: Path) -> list[dict]:
                 new_lines.append(line)
                 continue
             nxt = insert_particle_spaces(line)
-            if nxt != line:
+            # collapse like sanitize
+            nxt2 = re.sub(r"\s{2,}", " ", nxt).strip() if nxt != line else nxt
+            if nxt2 != line:
                 changed = True
-            new_lines.append(nxt)
+            new_lines.append(nxt2 if nxt != line else line)
         if changed:
             updates.append(
                 {
@@ -155,108 +221,99 @@ def load_token() -> str:
     raise SystemExit("缺少 JP_REVIEW_UPLOAD_TOKEN")
 
 
-def apply_remote(updates: list[dict], *, batch_size: int = 5) -> int:
+def apply_remote(updates: list[dict], *, batch_size: int = 5) -> None:
     token = load_token()
-    api = os.environ.get(
-        "JP_VOCAB_FILL_EXAMPLE_SENTENCES_URL",
-        "https://finance.info-quests.com/api/jp-vocab/fill-example-sentences",
-    ).strip()
-    ok_n = 0
+    ok_ids: list[int] = []
+    fail: list[int] = []
     for i in range(0, len(updates), batch_size):
-        batch = [
-            {
-                "word_id": u["word_id"],
-                "example_sentences": u["example_sentences"],
-                "source": "Agent现写",
-            }
-            for u in updates[i : i + batch_size]
-        ]
-        ids = [u["word_id"] for u in updates[i : i + batch_size]]
+        batch = updates[i : i + batch_size]
+        ids = [u["word_id"] for u in batch]
         print(f"batch {i // batch_size + 1}: {ids}", flush=True)
         body = {
             "mode": "apply",
             "source": "Agent现写",
             "allow_overwrite": True,
             "validate_format": False,
-            "updates": batch,
+            "updates": [
+                {
+                    "word_id": u["word_id"],
+                    "example_sentences": u["example_sentences"],
+                    "source": "Agent现写",
+                }
+                for u in batch
+            ],
         }
         with tempfile.NamedTemporaryFile(
             "w", suffix=".json", delete=False, encoding="utf-8"
         ) as f:
             json.dump(body, f, ensure_ascii=False)
             path = f.name
-        for attempt in range(1, 6):
-            proc = subprocess.run(
-                [
-                    "curl",
-                    "-sS",
-                    "-X",
-                    "POST",
-                    api,
-                    "-H",
-                    f"Authorization: Bearer {token}",
-                    "-H",
-                    "Content-Type: application/json",
-                    "-H",
-                    "User-Agent: jp-vocab-fix-example-particle-spaces/1.0",
-                    "--data-binary",
-                    f"@{path}",
-                ],
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            try:
-                data = json.loads(proc.stdout or "{}")
-            except json.JSONDecodeError:
-                data = {"ok": False, "error": proc.stdout[:300]}
-            if data.get("ok"):
-                applied = [a.get("id") for a in (data.get("applied") or [])]
-                skipped = data.get("skipped") or []
-                print(f"  updated={data.get('updated')} applied={applied} skipped={skipped}")
-                ok_n += int(data.get("updated") or 0)
-                break
-            if data.get("error") == "rate_limited" or proc.returncode != 0:
-                wait = float(data.get("retry_after_sec") or 3) * attempt
-                print(f"  rate/err, sleep {wait}s ({data.get('error')})")
-                time.sleep(wait)
-                continue
-            print(f"  FAIL {data}")
-            break
-        time.sleep(3)
-    return ok_n
+        cmd = [
+            "curl",
+            "-sS",
+            "-X",
+            "POST",
+            "https://finance.info-quests.com/api/jp-vocab/fill-example-sentences",
+            "-H",
+            f"Authorization: Bearer {token}",
+            "-H",
+            "Content-Type: application/json",
+            "-H",
+            "User-Agent: jp-vocab-fix-example-particle-spaces/2.0",
+            "--data-binary",
+            f"@{path}",
+        ]
+        try:
+            out = subprocess.check_output(cmd, text=True)
+            data = json.loads(out)
+        except Exception as e:
+            print("  err", e)
+            fail.extend(ids)
+            time.sleep(3)
+            continue
+        if not data.get("ok"):
+            print("  FAIL", data.get("error"), str(data.get("rejected"))[:300])
+            fail.extend(ids)
+        else:
+            applied = [a.get("id") for a in (data.get("applied") or [])]
+            print(f"  updated={data.get('updated')} applied={applied}")
+            ok_ids.extend(applied)
+        time.sleep(2)
+    print(f"DONE ok={len(ok_ids)} fail={fail}")
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--scan", action="store_true", help="只扫本地库并打印")
-    ap.add_argument("--apply-remote", action="store_true", help="扫完后 apply 写回线上")
-    ap.add_argument("--json-out", type=Path, help="把 updates 写到文件")
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--scan", action="store_true", help="只扫描本地 D1")
+    ap.add_argument("--apply-remote", action="store_true", help="扫完写回线上")
+    ap.add_argument("--limit", type=int, default=0, help="最多处理 N 条（0=全部）")
     args = ap.parse_args()
     if not args.scan and not args.apply_remote:
         args.scan = True
 
     db = find_local_db()
     updates = collect_updates(db)
-    print(f"db={db.name} stuck_words={len(updates)}")
-    for u in updates[:40]:
-        head = u["example_sentences"].splitlines()[0][:90]
-        print(f"  {u['word_id']}|{u['word']}|{head}")
-    if len(updates) > 40:
-        print(f"  … +{len(updates) - 40} more")
-
-    if args.json_out:
-        args.json_out.write_text(
-            json.dumps(updates, ensure_ascii=False, indent=2), encoding="utf-8"
+    if args.limit and args.limit > 0:
+        updates = updates[: args.limit]
+    print(f"db={db.name} stuck_or_unspaced={len(updates)}")
+    for u in updates[:30]:
+        first = next(
+            (
+                ln
+                for ln in u["example_sentences"].splitlines()
+                if not GLOSS_RE.match(ln.strip())
+            ),
+            "",
         )
-        print(f"wrote {args.json_out}")
+        print(f"  id={u['word_id']} {u['word']}: {first[:80]}")
+    if len(updates) > 30:
+        print(f"  … +{len(updates) - 30} more")
 
     if args.apply_remote:
         if not updates:
             print("nothing to apply")
             return 0
-        n = apply_remote(updates)
-        print(f"DONE applied_rows≈{n}")
+        apply_remote(updates)
     return 0
 
 

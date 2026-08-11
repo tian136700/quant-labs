@@ -8,6 +8,7 @@ import type {
   JpLessonManualSchedule,
   JpLessonManualScheduleDraft,
 } from "@/lib/jp-lesson-manual-schedule";
+import { isSameManualScheduleContent } from "@/lib/jp-lesson-manual-schedule";
 import {
   normalizeManualScheduleLinkedLessons,
   parseManualScheduleLinkedLessonsJson,
@@ -248,8 +249,117 @@ export async function getJpLessonManualScheduleById(
 }
 
 export type CreateJpLessonManualScheduleResult =
-  | { ok: true; schedule: JpLessonManualSchedule }
+  | { ok: true; schedule: JpLessonManualSchedule; deduped?: boolean }
   | { ok: false; error: string };
+
+/**
+ * 查已有相同内容的手动日程（上课时间 + 标题 + 老师 + 时长）。
+ * 一次性课与长期固定实例都查；用于连点保存幂等。
+ */
+export async function findDuplicateJpLessonManualSchedule(
+  db: D1Database,
+  draft: Pick<
+    JpLessonManualScheduleDraft,
+    "class_at" | "title" | "teacher" | "duration_minutes"
+  >
+): Promise<JpLessonManualSchedule | null> {
+  const normalized = normalizeJpLessonManualScheduleDraft({
+    ...draft,
+    note: "",
+    linked_lessons: [],
+  });
+  if (!normalized) return null;
+
+  if (devStoreEnabled) {
+    return (
+      devSchedules.find((row) => isSameManualScheduleContent(row, normalized)) ??
+      null
+    );
+  }
+
+  await ensureJpLessonManualScheduleSchema(db);
+  const row = await db
+    .prepare(
+      `${SCHEDULE_SELECT}
+       WHERE class_at = ?1
+         AND title = ?2
+         AND teacher = ?3
+         AND (
+           (?4 IS NULL AND duration_minutes IS NULL)
+           OR duration_minutes = ?4
+         )
+       ORDER BY id ASC
+       LIMIT 1`
+    )
+    .bind(
+      normalized.class_at,
+      normalized.title,
+      normalized.teacher,
+      normalized.duration_minutes
+    )
+    .first<Record<string, unknown>>();
+
+  return row ? mapRow(row) : null;
+}
+
+export async function findActiveDuplicateManualScheduleRecurringRule(
+  db: D1Database,
+  input: {
+    weekday: number;
+    time_hm: string;
+    title: string;
+    teacher: string;
+    duration_minutes: number | null;
+  }
+): Promise<JpLessonManualScheduleRecurringRuleRow | null> {
+  const title = input.title.trim();
+  const teacher = input.teacher.trim();
+  const timeHm = input.time_hm.trim();
+  if (!title || !timeHm) return null;
+
+  if (devStoreEnabled) {
+    return (
+      devRecurringRules.find((rule) => {
+        if (rule.active !== 1) return false;
+        if (rule.weekday !== input.weekday) return false;
+        if (rule.time_hm !== timeHm) return false;
+        if (rule.title.trim() !== title) return false;
+        if (rule.teacher.trim() !== teacher) return false;
+        return (
+          (rule.duration_minutes == null && input.duration_minutes == null) ||
+          rule.duration_minutes === input.duration_minutes
+        );
+      }) ?? null
+    );
+  }
+
+  await ensureJpLessonManualScheduleSchema(db);
+  const row = await db
+    .prepare(
+      `${RECURRING_SELECT}
+       WHERE active = 1
+         AND weekday = ?1
+         AND time_hm = ?2
+         AND title = ?3
+         AND teacher = ?4
+         AND (
+           (?5 IS NULL AND duration_minutes IS NULL)
+           OR duration_minutes = ?5
+         )
+       ORDER BY id ASC
+       LIMIT 1`
+    )
+    .bind(
+      input.weekday,
+      timeHm,
+      title,
+      teacher,
+      input.duration_minutes
+    )
+    .first<Record<string, unknown>>();
+
+  return row ? mapRecurringRow(row) : null;
+}
 
 export async function createJpLessonManualSchedule(
   db: D1Database,
@@ -278,6 +388,15 @@ export async function insertJpLessonManualScheduleInstance(
     draft.recurring_id > 0
       ? draft.recurring_id
       : null;
+
+  // 一次性新建：同内容已存在则直接返回已有行（连点保存幂等）
+  // 长期固定展开实例带 recurring_id，允许同规则多周；跨规则重复由 createRecurring 挡
+  if (recurringId == null) {
+    const existing = await findDuplicateJpLessonManualSchedule(db, normalized);
+    if (existing) {
+      return { ok: true, schedule: existing, deduped: true };
+    }
+  }
 
   if (devStoreEnabled) {
     // 勿把 draft 整包 spread 进 schedule：draft.recurring 是 boolean，schedule.recurring 是规则摘要

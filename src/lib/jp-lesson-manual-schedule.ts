@@ -62,6 +62,45 @@ function manualScheduleDedupeKey(item: {
   return `${item.class_at.trim()}|${item.title.trim()}`;
 }
 
+/**
+ * 手动日程内容查重键：同一上课时间 + 标题 + 老师 + 时长视为同一条。
+ * 连点保存 / 重复提交时服务端与 Telegram 录入共用，禁止落两条。
+ */
+export function manualScheduleContentDedupeKey(item: {
+  class_at: string;
+  title: string;
+  teacher: string;
+  duration_minutes: number | null | undefined;
+}): string {
+  const duration =
+    item.duration_minutes == null || Number.isNaN(Number(item.duration_minutes))
+      ? ""
+      : String(Number(item.duration_minutes));
+  return [
+    item.class_at.trim(),
+    item.title.trim(),
+    item.teacher.trim(),
+    duration,
+  ].join("|");
+}
+
+export function isSameManualScheduleContent(
+  a: {
+    class_at: string;
+    title: string;
+    teacher: string;
+    duration_minutes: number | null | undefined;
+  },
+  b: {
+    class_at: string;
+    title: string;
+    teacher: string;
+    duration_minutes: number | null | undefined;
+  }
+): boolean {
+  return manualScheduleContentDedupeKey(a) === manualScheduleContentDedupeKey(b);
+}
+
 function readLegacyJpLessonManualSchedulesFromLocalStorage(): LegacyJpLessonManualSchedule[] {
   if (typeof window === "undefined") return [];
   try {

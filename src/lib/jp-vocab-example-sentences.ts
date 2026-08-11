@@ -1,3 +1,5 @@
+import { rewriteJpVocabHonorificFuriganaDup } from "@/lib/jp-vocab-jukugo-furigana";
+
 /** 课堂带读例句列：每行最多字符数（含标点） */
 export const JP_VOCAB_EXAMPLE_SENTENCE_LINE_CHARS = 10;
 
@@ -27,6 +29,33 @@ export type JpVocabFuriganaSegment =
   | { type: "text"; value: string }
   | { type: "ruby"; base: string; reading: string };
 
+/**
+ * 敬语接头辞「お／ご」已写在汉字前、括注却带整词读音时，展示须把接头辞并进 ruby，
+ * 否则「お」+「辞儀／おじぎ」会读成「おおじぎ」。
+ * 正确存库仍宜「お辞儀(じぎ)／お金(かね)」；本吸收只修展示。
+ */
+function absorbHonorificPrefixIntoRuby(
+  raw: string,
+  matchIndex: number,
+  base: string,
+  reading: string
+): { base: string; reading: string; start: number } {
+  if (matchIndex <= 0) return { base, reading, start: matchIndex };
+  const prev = raw[matchIndex - 1]!;
+  if (
+    (prev === "お" || prev === "ご") &&
+    reading.startsWith(prev) &&
+    reading.length > prev.length
+  ) {
+    return {
+      base: `${prev}${base}`,
+      reading,
+      start: matchIndex - 1,
+    };
+  }
+  return { base, reading, start: matchIndex };
+}
+
 /** 把「漢字(かな)」拆成展示分段；无标注则整段纯文本 */
 export function parseJpVocabParenFurigana(
   text: string | null | undefined
@@ -41,10 +70,20 @@ export function parseJpVocabParenFurigana(
   let last = 0;
   let match: RegExpExecArray | null;
   while ((match = re.exec(raw)) !== null) {
-    if (match.index > last) {
-      out.push({ type: "text", value: raw.slice(last, match.index) });
+    const absorbed = absorbHonorificPrefixIntoRuby(
+      raw,
+      match.index,
+      match[1]!,
+      match[2]!
+    );
+    if (absorbed.start > last) {
+      out.push({ type: "text", value: raw.slice(last, absorbed.start) });
     }
-    out.push({ type: "ruby", base: match[1], reading: match[2] });
+    out.push({
+      type: "ruby",
+      base: absorbed.base,
+      reading: absorbed.reading,
+    });
     last = match.index + match[0].length;
   }
   if (last < raw.length) {
@@ -164,7 +203,7 @@ const JP_VOCAB_PARTICLE_CHARS_FOR_LEARNER = "はがをにでともへのや";
  * 汉字/片假名/括注两侧插空格：不含「も」。
  * 「も」若也参与，会把「いつも行(い)く」拆成「いつ も 行」。
  */
-const JP_VOCAB_PARTICLE_CHARS_FOR_CONTENT = "はがをにでへとや";
+const JP_VOCAB_PARTICLE_CHARS_FOR_CONTENT = "はがをにでへとのや";
 
 const JP_VOCAB_PARTICLE_BEFORE_LEARNER_KANA_RE = new RegExp(
   `([${JP_VOCAB_PARTICLE_CHARS_FOR_LEARNER}])(${JP_VOCAB_LEARNER_KANA_AFTER_PARTICLE.join("|")})`,
@@ -183,9 +222,15 @@ const JP_VOCAB_PARTICLE_BEFORE_CONTENT_RE = new RegExp(
   "g"
 );
 
+/** 助词「で」实为「です／でした／ではない…」词头时不要拆 */
+function jpVocabDeIsCopulaOrCompound(after: string): boolean {
+  return /^(す|した|しょう|ござ|あり|ある|あっ|は|も)/.test(after);
+}
+
 /** 助词与相邻词粘连 → 插入空格（幂等；已有空格不再插）。
  * 先保护「漢字(かな)」读音，避免误拆读音里的「やまだ」→「や まだ」。
  * 不拆「ないでください／遊んでください」等て形＋ください固定搭配。
+ * 不拆「です／でした／ではない」里的「で」。
  */
 export function insertJpVocabLearnerParticleSpaces(text: string): string {
   const s = String(text || "");
@@ -201,13 +246,25 @@ export function insertJpVocabLearnerParticleSpaces(text: string): string {
   // 左：料金は → 料金 は；ホテルの → ホテル の
   work = work.replace(
     JP_VOCAB_CONTENT_BEFORE_PARTICLE_RE,
-    (_full, left: string, particle: string) => `${left} ${particle}`
+    (full, left: string, particle: string, offset: number) => {
+      if (particle === "で") {
+        const after = work.slice(offset + full.length);
+        if (jpVocabDeIsCopulaOrCompound(after)) return full;
+      }
+      return `${left} ${particle}`;
+    }
   );
 
   // 右：助词 + 汉字/片假名/括注块
   work = work.replace(
     JP_VOCAB_PARTICLE_BEFORE_CONTENT_RE,
-    (_full, particle: string, right: string) => `${particle} ${right}`
+    (full, particle: string, right: string, offset: number) => {
+      if (particle === "で") {
+        const afterFromDe = work.slice(offset + particle.length);
+        if (jpVocabDeIsCopulaOrCompound(afterFromDe)) return full;
+      }
+      return `${particle} ${right}`;
+    }
   );
 
   // 右：助词 + 常见假名词（いくら / いつ …）
@@ -236,13 +293,16 @@ export function insertJpVocabLearnerParticleSpaces(text: string): string {
  * 1) 先保护合法「漢字(かな)」；
  * 2) 剥掉其余所有括号块（教学说明、整句读音尾注、嵌套 junk）；
  * 3) 还原合法假名括注（存库仍用括号；页面再转下方小字）；
- * 4) 助词与常见假名词粘连处插入空格（はいつ→は いつ）。
+ * 4) 助词左右与相邻词插入空格（はいつ→は いつ；料金は高→料金 は 高）。
  *
  * 目标：页面上永远不该再看到「裸括号」；假名只以 ruby 小字出现。
  */
 export function sanitizeJpVocabExampleJapaneseLine(text: string): string {
   let s = String(text || "").trim();
   if (!s) return s;
+
+  // お辞儀(おじぎ)→お辞儀(じぎ)，避免接头辞与括注重复
+  s = rewriteJpVocabHonorificFuriganaDup(s);
 
   // Model sometimes appends extra segments like " / かな" or "／ かな".
   // Keep only the part before the first slash outside furigana parentheses.

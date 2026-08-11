@@ -33,10 +33,38 @@ def main() -> int:
     must_contain(jukugo, "友達(ゆうだち)", "友達/夕立 confusion in hint")
     must_contain(jukugo, "出(で)発(ぱつ)", "bad example in hint")
     must_contain(jukugo, "入口(いりくち)", "rendaku bad example in hint")
+    must_contain(jukugo, "お辞儀(おじぎ)", "honorific dup bad in hint")
+    must_contain(jukugo, "お辞儀(じぎ)", "honorific correct in hint")
+    must_contain(jukugo, "rewriteJpVocabHonorificFuriganaDup", "honorific rewrite")
+    must_contain(jukugo, "jpVocabExampleHasHonorificFuriganaDup", "honorific detector")
     must_contain(jukugo, "WHOLE_JUKUGO_FURI_RE", "whole-word detector")
     must_contain(ai, "wrong_jukugo_furigana", "reject reason")
     must_contain(ai, "jpVocabExampleHasWrongJukugoFurigana", "wired into validate")
     must_contain(ai, "JP_VOCAB_JUKUGO_FURIGANA_PROMPT_HINT", "prompt hint")
+    must_contain(ai, "お辞儀(じぎ)", "honorific rule in upload_spec")
+
+    examples = ROOT / "src/lib/jp-vocab-example-sentences.ts"
+    must_contain(examples, "absorbHonorificPrefixIntoRuby", "display absorb honorific")
+    must_contain(examples, "rewriteJpVocabHonorificFuriganaDup", "sanitize honorific rewrite")
+
+    # honorific dup rewrite smoke
+    dup_re = re.compile(
+        r"([おご])([\u4E00-\u9FFF々]+(?:(?![はがをにでとへもやの])[ぁ-んァ-ンヴヵヶー]+[\u4E00-\u9FFF々]+)*[ぁ-んァ-ンヴヵヶー]*)[（(](\1[ぁ-んァ-ンヴヵヶー]+)[）)]"
+    )
+
+    def rewrite_honorific(s: str) -> str:
+        def repl(m: re.Match[str]) -> str:
+            honorific, base, reading = m.group(1), m.group(2), m.group(3)
+            rest = reading[len(honorific) :]
+            if not rest:
+                return m.group(0)
+            return f"{honorific}{base}({rest})"
+
+        return dup_re.sub(repl, s)
+
+    assert rewrite_honorific("お辞儀(おじぎ)をします。") == "お辞儀(じぎ)をします。"
+    assert rewrite_honorific("ご飯(ごはん)を食(た)べます。") == "ご飯(はん)を食(た)べます。"
+    assert rewrite_honorific("お金(かね)がありません。") == "お金(かね)がありません。"
 
     online = ROOT / "scripts/jp-vocab-fill-online-batch-api.py"
     meaning = ROOT / "scripts/jp-vocab-fill-meaning-api.py"
