@@ -1,23 +1,19 @@
 import "server-only";
 
-import { listEnLessons } from "@/lib/en-lesson-db";
 import {
   flattenEnLessonScheduleEvents,
   normalizeClassAtForCompare as normalizeEnClassAtForCompare,
 } from "@/lib/en-lesson-shared";
-import { listEnLessonTeachers } from "@/lib/en-lesson-teacher-db";
-import { listJpLessons } from "@/lib/jp-lesson-db";
 import {
   flattenJpLessonScheduleEvents,
   normalizeClassAtForCompare,
 } from "@/lib/jp-lesson-shared";
 import { resolveManualScheduleDurationMinutes } from "@/lib/jp-lesson-manual-schedule";
-import { listJpLessonManualSchedules } from "@/lib/jp-lesson-manual-schedule-db";
 import {
   manualScheduleCoveredByLessonTeacherSlot,
   manualScheduleHasLinkedLessonOnSameSlot,
 } from "@/lib/jp-lesson-manual-schedule-linked";
-import { listJpLessonTeachers } from "@/lib/jp-lesson-teacher-db";
+import { loadScheduleCalDavBundle } from "@/lib/schedule-caldav-events-load";
 
 export const SCHEDULE_CALDAV_UID_DOMAIN = "info-quests.schedule";
 
@@ -243,17 +239,22 @@ export function mergeRawLessonSlotEvents(
   return merged;
 }
 
+/** isolate 短缓存：CalDAV / ICS / Bark 短时间连打时避免重复重查 */
+const SCHEDULE_CALDAV_EVENTS_CACHE_MS = 20_000;
+let scheduleCalDavEventsCache:
+  | { at: number; events: ScheduleCalDavEvent[] }
+  | null = null;
+
 export async function listScheduleCalDavEvents(
   db: D1Database
 ): Promise<ScheduleCalDavEvent[]> {
-  const [jpLessons, enLessons, manuals, jpTeachers, enTeachers] =
-    await Promise.all([
-      listJpLessons(db),
-      listEnLessons(db),
-      listJpLessonManualSchedules(db),
-      listJpLessonTeachers(db),
-      listEnLessonTeachers(db),
-    ]);
+  const cached = scheduleCalDavEventsCache;
+  if (cached && Date.now() - cached.at < SCHEDULE_CALDAV_EVENTS_CACHE_MS) {
+    return cached.events.map((event) => ({ ...event }));
+  }
+
+  const { jpLessons, enLessons, manuals, jpTeachers, enTeachers } =
+    await loadScheduleCalDavBundle(db);
 
   const jpNameById = teacherNameMap(jpTeachers);
   const enNameById = teacherNameMap(enTeachers);
@@ -310,6 +311,12 @@ export async function listScheduleCalDavEvents(
     classAt: event.class_at,
   }));
 
+  const lessonTeacherSlots = events.map((event) => ({
+    classAt: event.class_at,
+    durationMinutes: event.duration_minutes,
+    teachers: event.teachers,
+  }));
+
   for (const manual of manuals) {
     // 关联教材已同步进新课同堂 → 日历只保留新课合并事件，勿再推一条「手动」
     if (manualScheduleHasLinkedLessonOnSameSlot(manual, lessonSlots)) {
@@ -327,11 +334,7 @@ export async function listScheduleCalDavEvents(
           teacher: manual.teacher,
           durationMinutes,
         },
-        events.map((event) => ({
-          classAt: event.class_at,
-          durationMinutes: event.duration_minutes,
-          teachers: event.teachers,
-        }))
+        lessonTeacherSlots
       )
     ) {
       continue;
@@ -358,7 +361,8 @@ export async function listScheduleCalDavEvents(
   }
 
   events.sort((a, b) => a.class_at.localeCompare(b.class_at));
-  return events;
+  scheduleCalDavEventsCache = { at: Date.now(), events };
+  return events.map((event) => ({ ...event }));
 }
 
 function icalEscape(text: string): string {

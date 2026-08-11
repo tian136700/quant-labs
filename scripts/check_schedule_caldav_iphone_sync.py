@@ -17,6 +17,7 @@ RULE = ROOT / ".cursor" / "rules" / "schedule-caldav-iphone-sync.mdc"
 # parent-repo Telegram bot (sibling of strategy-compare-cloud)
 PARENT = ROOT.parent
 BOT = PARENT / "lib" / "bots" / "telegram_bot.py"
+REPLIES_SCHEDULE = PARENT / "lib" / "bots" / "telegram_replies_schedule.py"
 CHAT = PARENT / "lib" / "bots" / "schedule_chat_command.py"
 
 
@@ -25,8 +26,12 @@ def _fail(msg: str) -> int:
     return 1
 
 
+EVENTS_TS = ROOT / "src" / "lib" / "schedule-caldav-events.ts"
+LOAD_TS = ROOT / "src" / "lib" / "schedule-caldav-events-load.ts"
+
+
 def main() -> int:
-    for path in (SYNC_PY, SYNC_SH, KICK_SH, PLIST, SETUP, RULE):
+    for path in (SYNC_PY, SYNC_SH, KICK_SH, PLIST, SETUP, RULE, EVENTS_TS, LOAD_TS):
         if not path.is_file():
             return _fail(f"missing {path.relative_to(ROOT)}")
 
@@ -51,6 +56,8 @@ def main() -> int:
         return _fail("schedule-caldav-sync.sh must call send_bark_push")
     if "1027" not in sync_sh:
         return _fail("failure notify must mention Worker 1027")
+    if "1102" not in sync_sh:
+        return _fail("failure notify must mention Worker 1102")
 
     kick_sh = KICK_SH.read_text(encoding="utf-8")
     if "schedule-caldav.kick" not in kick_sh:
@@ -77,6 +84,26 @@ def main() -> int:
         return _fail("schedule-caldav-iphone-sync.mdc must alwaysApply")
     if "kick" not in rule.lower() or "Bark" not in rule:
         return _fail("rule must document kick + Bark")
+    if "1102" not in rule or "listJpLessons" not in rule:
+        return _fail("rule must forbid full listJpLessons (1102)")
+
+    events_ts = EVENTS_TS.read_text(encoding="utf-8")
+    if re.search(r'from ["\']@/lib/(jp|en)-lesson-db["\']', events_ts):
+        return _fail("schedule-caldav-events.ts must not import jp/en-lesson-db")
+    if re.search(r"\blist(Jp|En)Lessons\s*\(", events_ts):
+        return _fail("schedule-caldav-events.ts must not call listJpLessons/listEnLessons")
+    if "loadScheduleCalDavBundle" not in events_ts:
+        return _fail("schedule-caldav-events.ts must use loadScheduleCalDavBundle")
+
+    load_ts = LOAD_TS.read_text(encoding="utf-8")
+    if re.search(r"\b(meanings|example_sentences)\b", load_ts):
+        return _fail("schedule-caldav-events-load.ts must not SELECT meanings/example_sentences")
+    if re.search(r'from ["\']@/lib/(jp|en)-lesson-db["\']', load_ts):
+        return _fail("schedule-caldav-events-load.ts must not import jp/en-lesson-db")
+    if re.search(r"\blist(Jp|En)Lessons\s*\(", load_ts):
+        return _fail("schedule-caldav-events-load.ts must not call listJpLessons/listEnLessons")
+    if "JP_LITE_SELECT" not in load_ts or "EN_LITE_SELECT" not in load_ts:
+        return _fail("schedule-caldav-events-load.ts must define JP/EN lite selects")
 
     if CHAT.is_file():
         chat = CHAT.read_text(encoding="utf-8")
@@ -84,11 +111,18 @@ def main() -> int:
             return _fail("schedule_chat_command.py missing kick_schedule_caldav_sync")
         if "已触发同步到手机日历" not in chat:
             return _fail("success text should mention phone sync")
-    if BOT.is_file():
-        bot = BOT.read_text(encoding="utf-8")
-        if "kick_schedule_caldav_sync" not in bot:
-            return _fail("telegram_bot.py must call kick_schedule_caldav_sync after ingest")
-
+    kick_wired = False
+    if REPLIES_SCHEDULE.is_file() and "kick_schedule_caldav_sync" in REPLIES_SCHEDULE.read_text(
+        encoding="utf-8"
+    ):
+        kick_wired = True
+    if BOT.is_file() and "kick_schedule_caldav_sync" in BOT.read_text(encoding="utf-8"):
+        kick_wired = True
+    if (BOT.is_file() or REPLIES_SCHEDULE.is_file()) and not kick_wired:
+        return _fail(
+            "telegram schedule ingest must call kick_schedule_caldav_sync "
+            "(telegram_replies_schedule.py or telegram_bot.py)"
+        )
     print("OK: schedule CalDAV→iPhone sync guards present")
     return 0
 

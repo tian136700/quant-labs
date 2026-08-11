@@ -1,0 +1,93 @@
+统一日程导出 API（Mac CalDAV → 网易 → iPhone）
+================================================
+
+用途
+----
+给本机 `schedule-caldav-sync.py`（launchd 每 10 分钟 / kick）拉取网站统一日程，
+再写入网易邮箱 CalDAV，供 iPhone「日历」刷新。
+
+同数据也用于：
+- `GET /api/admin/schedule.ics`（可选 ICS 订阅）
+- 开课前 Bark（`schedule-class-bark-remind`）
+
+
+线上地址
+--------
+GET https://finance.info-quests.com/api/admin/schedule-events
+
+说明：japanese / english 等同 Worker 亦可同路径。
+
+
+本机开发
+--------
+GET http://127.0.0.1:3002/api/admin/schedule-events
+
+
+鉴权
+----
+Header：
+  Authorization: Bearer <JP_REVIEW_UPLOAD_TOKEN>
+
+Token 常见来源：
+  ~/.config/info-quests/jp-review-sync.env
+  里的 JP_REVIEW_UPLOAD_TOKEN=
+
+
+成功响应（摘要）
+----------------
+{
+  "ok": true,
+  "timezone": "Asia/Shanghai",
+  "count": 184,
+  "events": [
+    {
+      "uid": "jp-slot-........@info-quests.schedule",
+      "subject": "jp",
+      "summary": "日语课 · 某某 · 单词和语法",
+      "description": "…",
+      "class_at": "2026-08-12 14:00:00",
+      "duration_minutes": 55,
+      "teachers": "某某",
+      "title": "…"
+    }
+  ]
+}
+
+
+失败
+----
+- 401 Unauthorized：Token 错或缺失
+- 503 + Cloudflare Error 1102：Worker 资源超限（历史上因全量拉教案大字段）
+- 503 + Error 1027 / 429：Workers 日请求配额
+
+
+实现约束（防 1102）
+-------------------
+- 必须走 `loadScheduleCalDavBundle` 轻量查询
+- 禁止 `listJpLessons` / `listEnLessons`（会带全量释义/例句）
+- 只取学习中 + 已完成、且有课表的教案；学习内容预览截断
+- 文件：`src/lib/schedule-caldav-events-load.ts`、`schedule-caldav-events.ts`
+
+
+curl 例
+-------
+TOKEN="$(grep '^JP_REVIEW_UPLOAD_TOKEN=' ~/.config/info-quests/jp-review-sync.env | cut -d= -f2-)"
+
+curl -sS \
+  -H "Authorization: Bearer ${TOKEN}" \
+  "https://finance.info-quests.com/api/admin/schedule-events" | head -c 400
+echo
+
+
+立刻同步到 iPhone（本机）
+------------------------
+bash scripts/schedule-caldav-kick.sh
+# 或
+bash scripts/schedule-caldav-sync.sh
+
+
+相关
+----
+规则：.cursor/rules/schedule-caldav-iphone-sync.mdc
+回归：python3 scripts/check_schedule_caldav_iphone_sync.py
+索引：docs/feature-index.md → 日程同步到网易日历

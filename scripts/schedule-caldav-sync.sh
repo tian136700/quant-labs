@@ -75,11 +75,17 @@ import sys
 from pathlib import Path
 
 reason = (sys.argv[1] if len(sys.argv) > 1 else "同步失败").strip() or "同步失败"
-# Worker 日配额顶满时 API 会 429/1027，日程整条链路停
+# Worker 日配额顶满时 API 会 429/1027；CPU/内存超限会 1102
 if "1027" in reason or "Workers" in reason or "日请求" in reason:
     title = "日程同步失败（配额）"
     body = (
         "Workers 日请求配额可能已满，网站日程暂时推不到网易/iPhone。\n"
+        f"详情：{reason[:220]}"
+    )
+elif "1102" in reason or "resource limits" in reason.lower():
+    title = "日程同步失败（1102）"
+    body = (
+        "日程导出 API 触发 Worker 资源超限（1102），推不到网易/iPhone。\n"
         f"详情：{reason[:220]}"
     )
 else:
@@ -121,6 +127,8 @@ if [[ "$SYNC_RC" -ne 0 ]]; then
   SYNC_ERR="$(printf '%s\n' "$SYNC_OUT" | tail -n 8 | tr '\n' ' ')"
   if printf '%s' "$SYNC_OUT" | grep -q 'Error 1027\|HTTP 429'; then
     SYNC_ERR="Workers Error 1027/429（日请求配额） ${SYNC_ERR}"
+  elif printf '%s' "$SYNC_OUT" | grep -q 'Error 1102\|resource limits'; then
+    SYNC_ERR="Workers Error 1102（资源超限） ${SYNC_ERR}"
   fi
   notify_caldav_failure "${SYNC_ERR:-sync exit $SYNC_RC}"
   exit "$SYNC_RC"
