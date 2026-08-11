@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -182,7 +183,11 @@ export function EtrAuthProvider({ children }: { children: ReactNode }) {
         clearClientCache(AUTH_USER_CACHE_KEY);
       }
     } catch {
-      if (gen === refreshGenRef.current) setUser(null);
+      // 弱网 / 超时 / abort：保留本地缓存用户，避免整页掉回「验证中…」再变登录
+      if (gen === refreshGenRef.current) {
+        const kept = readClientCache<EtrAuthUser>(AUTH_USER_CACHE_KEY);
+        if (!kept) setUser(null);
+      }
     } finally {
       window.clearTimeout(timeoutId);
       if (gen === refreshGenRef.current) {
@@ -192,7 +197,8 @@ export function EtrAuthProvider({ children }: { children: ReactNode }) {
     }
   }, [redirectMaintenance]);
 
-  useEffect(() => {
+  // useLayoutEffect：有本地用户缓存时在首屏绘制前灌入，避免日程等页先闪「验证中…」
+  useLayoutEffect(() => {
     const cached = readClientCache<EtrAuthUser>(AUTH_USER_CACHE_KEY);
     if (cached) {
       // 可先展示缓存用户，但 checking 保持 true，直到首轮服务端探测结束

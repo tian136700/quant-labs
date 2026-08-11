@@ -111,7 +111,7 @@ async function ensureEnLessonMeaningsColumn(db: D1Database): Promise<void> {
   enLessonMeaningsColumnReady = true;
 }
 
-async function ensureEnLessonSchemaColumns(db: D1Database): Promise<void> {
+export async function ensureEnLessonSchemaColumns(db: D1Database): Promise<void> {
   if (devStoreEnabled || enLessonSchemaColumnsReady) return;
   // 一次 PRAGMA 再按需 ALTER，避免冷 isolate 上无谓失败 ALTER 抢 CPU
   const info = await db

@@ -1,17 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { AdminAuthGate } from "@/components/AdminAuthGate";
 import { CopyToast } from "@/components/CopyToast";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import {
-  JP_LESSON_CACHE_KEY as EN_LESSON_CACHE_KEY,
+  EN_LESSON_SCHEDULE_CACHE_KEY,
   parseEnLessonApi,
   type EnLessonApiPayload,
 } from "@/lib/en-api-cache";
 import {
-  JP_LESSON_CACHE_KEY,
+  JP_LESSON_SCHEDULE_CACHE_KEY,
   JP_LESSON_REFRESH_TTL_MS,
   parseJpLessonApi,
   type JpLessonApiPayload,
@@ -71,9 +72,16 @@ import type {
 import { JpLessonSchedulePageStyles } from "@/components/jp-lesson-schedule-page/JpLessonSchedulePageStyles";
 import { JpLessonScheduleLayout } from "@/components/jp-lesson-schedule-page/JpLessonScheduleLayout";
 import { JpLessonScheduleToolbar } from "@/components/jp-lesson-schedule-page/JpLessonScheduleToolbar";
-import { JpLessonScheduleModals } from "@/components/jp-lesson-schedule-page/JpLessonScheduleModals";
 import { useJpLessonSchedulePageActions } from "@/components/jp-lesson-schedule-page/useJpLessonSchedulePageActions";
 import { buildJpLessonSchedulePageAllEvents } from "@/components/jp-lesson-schedule-page/buildJpLessonSchedulePageAllEvents";
+
+const JpLessonScheduleModals = dynamic(
+  () =>
+    import("@/components/jp-lesson-schedule-page/JpLessonScheduleModals").then(
+      (m) => m.JpLessonScheduleModals
+    ),
+  { ssr: false }
+);
 
 import {
   type ViewMode,
@@ -93,7 +101,7 @@ import {
 
 export function JpLessonSchedulePage() {
   const { locale } = useI18n();
-  const { isAdmin } = useEtrAuth();
+  const { isAdmin, checking } = useEtrAuth();
 
   const [lessons, setLessons] = useState<JpLessonRecord[]>(() => readLessonCache()?.lessons ?? []);
   const [enLessons, setEnLessons] = useState<EnLessonRecord[]>(
@@ -218,7 +226,7 @@ export function JpLessonSchedulePage() {
   const loadLessons = useCallback(async (opts?: { force?: boolean }) => {
     const cached = readLessonCache();
     const hasCache = cached != null;
-    const cacheAge = readClientCacheAge(JP_LESSON_CACHE_KEY);
+    const cacheAge = readClientCacheAge(JP_LESSON_SCHEDULE_CACHE_KEY);
     const force = Boolean(opts?.force || lessonPayloadNeedsTeacherRefresh(cached));
     const cacheFresh =
       !force &&
@@ -236,8 +244,8 @@ export function JpLessonSchedulePage() {
     setError("");
     try {
       const payload = await fetchWithClientCache(
-        JP_LESSON_CACHE_KEY,
-        "/api/jp-lesson",
+        JP_LESSON_SCHEDULE_CACHE_KEY,
+        "/api/jp-lesson?view=schedule",
         parseJpLessonApi,
         {
           onCached: applyLessonPayload,
@@ -264,7 +272,7 @@ export function JpLessonSchedulePage() {
   const loadEnLessons = useCallback(async (opts?: { force?: boolean }) => {
     const cached = readEnLessonCache();
     const hasCache = cached != null;
-    const cacheAge = readClientCacheAge(EN_LESSON_CACHE_KEY);
+    const cacheAge = readClientCacheAge(EN_LESSON_SCHEDULE_CACHE_KEY);
     const force = Boolean(opts?.force || lessonPayloadNeedsTeacherRefresh(cached));
     const cacheFresh =
       !force &&
@@ -282,8 +290,8 @@ export function JpLessonSchedulePage() {
     setError("");
     try {
       const payload = await fetchWithClientCache(
-        EN_LESSON_CACHE_KEY,
-        "/api/en-lesson",
+        EN_LESSON_SCHEDULE_CACHE_KEY,
+        "/api/en-lesson?view=schedule",
         parseEnLessonApi,
         {
           onCached: applyEnLessonPayload,
@@ -325,8 +333,11 @@ export function JpLessonSchedulePage() {
   }, [isAdmin]);
 
   useEffect(() => {
-    if (isAdmin) void loadKoTeachers();
-  }, [isAdmin, loadKoTeachers]);
+    // 韩语老师仅手动日程选人需要；延后到打开相关弹窗再拉，减轻进页请求
+    if (!isAdmin) return;
+    if (!manualModalOpen && !linkLessonPickOpen) return;
+    void loadKoTeachers();
+  }, [isAdmin, manualModalOpen, linkLessonPickOpen, loadKoTeachers]);
 
   const enTeacherNameById = useMemo(() => {
     const map = new Map<number, string>();
@@ -785,10 +796,10 @@ export function JpLessonSchedulePage() {
     else showCopyFailure();
   };
 
-  // 本地已有 admin 缓存时不要因 checking 整页挡在「验证中…」：
-  // 手机弱网 / 冷启动下鉴权探测可达数秒～10s，日历可用本地课表缓存先渲染。
-  // 无缓存时 isAdmin=false，仍走门禁（验证中 / 登录）。
-  if (!isAdmin) {
+  // 仅在鉴权探测结束且非 admin 时走门禁。
+  // checking 阶段：有本地 admin 缓存时 isAdmin 已 true（EtrAuth useLayoutEffect），直接出日历；
+  // 无缓存时也不要用 AdminAuthGate 整页卡「验证中…」——先画日历壳（可用课表本地缓存）。
+  if (!checking && !isAdmin) {
     return (
       <AdminAuthGate
         title="日程管理"
@@ -801,6 +812,11 @@ export function JpLessonSchedulePage() {
 
   return (
     <main className="page-wrap jp-lesson-schedule-page">
+      {checking && !isAdmin ? (
+        <p className="jpls-muted" role="status">
+          验证中…
+        </p>
+      ) : null}
       <JpLessonScheduleToolbar
         viewMode={viewMode}
         setViewMode={setViewMode}
@@ -881,36 +897,41 @@ export function JpLessonSchedulePage() {
         linkLessonProgressPercent={linkLessonProgressPercent}
       />
 
-      <JpLessonScheduleModals
-        manualModalOpen={manualModalOpen}
-        selectedDate={selectedDate}
-        editingManual={editingManual}
-        manualModalMode={manualModalMode}
-        teachers={teachers}
-        enTeachers={enTeachers}
-        koTeachers={koTeachers}
-        jpLessons={lessons}
-        enLessons={enLessons}
-        savingManualSchedule={savingManualSchedule}
-        closeManualModal={closeManualModal}
-        handleSaveManualSchedule={handleSaveManualSchedule}
-        linkLessonPickOpen={linkLessonPickOpen}
-        selectedManualSchedule={selectedManualSchedule}
-        linkingManualLesson={linkingManualLesson}
-        linkLessonProgressPercent={linkLessonProgressPercent}
-        closeLinkLessonPick={closeLinkLessonPick}
-        handleLinkLessonFromDetail={handleLinkLessonFromDetail}
-        addLessonTeacher={addLessonTeacher}
-        addEnLessonTeacher={addEnLessonTeacher}
-        addKoLessonTeacher={addKoLessonTeacher}
-        editingNextClassLesson={editingNextClassLesson}
-        editingEnNextClassLesson={editingEnNextClassLesson}
-        savingNextClassId={savingNextClassId}
-        setEditingNextClassLesson={setEditingNextClassLesson}
-        setEditingEnNextClassLesson={setEditingEnNextClassLesson}
-        setLessonClassSchedules={setLessonClassSchedules}
-        setEnLessonClassSchedules={setEnLessonClassSchedules}
-      />
+      {manualModalOpen ||
+      linkLessonPickOpen ||
+      editingNextClassLesson != null ||
+      editingEnNextClassLesson != null ? (
+        <JpLessonScheduleModals
+          manualModalOpen={manualModalOpen}
+          selectedDate={selectedDate}
+          editingManual={editingManual}
+          manualModalMode={manualModalMode}
+          teachers={teachers}
+          enTeachers={enTeachers}
+          koTeachers={koTeachers}
+          jpLessons={lessons}
+          enLessons={enLessons}
+          savingManualSchedule={savingManualSchedule}
+          closeManualModal={closeManualModal}
+          handleSaveManualSchedule={handleSaveManualSchedule}
+          linkLessonPickOpen={linkLessonPickOpen}
+          selectedManualSchedule={selectedManualSchedule}
+          linkingManualLesson={linkingManualLesson}
+          linkLessonProgressPercent={linkLessonProgressPercent}
+          closeLinkLessonPick={closeLinkLessonPick}
+          handleLinkLessonFromDetail={handleLinkLessonFromDetail}
+          addLessonTeacher={addLessonTeacher}
+          addEnLessonTeacher={addEnLessonTeacher}
+          addKoLessonTeacher={addKoLessonTeacher}
+          editingNextClassLesson={editingNextClassLesson}
+          editingEnNextClassLesson={editingEnNextClassLesson}
+          savingNextClassId={savingNextClassId}
+          setEditingNextClassLesson={setEditingNextClassLesson}
+          setEditingEnNextClassLesson={setEditingEnNextClassLesson}
+          setLessonClassSchedules={setLessonClassSchedules}
+          setEnLessonClassSchedules={setEnLessonClassSchedules}
+        />
+      ) : null}
 
 
       <CopyToast message={copyToast} onDismiss={() => setCopyToast(null)} />

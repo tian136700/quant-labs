@@ -12,8 +12,10 @@ import {
 import { updateEnLessonContentFields } from "@/lib/en-lesson-db-content";
 import type { EnLessonProgressStatus } from "@/lib/en-lesson-shared";
 import { listEnLessonNotes } from "@/lib/en-lesson-note-db";
+import { listEnLessonsForSchedule } from "@/lib/en-lesson-schedule-list";
 import { listEnLessonTeachersWithLessonCounts } from "@/lib/en-lesson-teacher-db";
 import { requireEnLessonOperate } from "@/lib/en-vocab-auth";
+import { slimVocabRefForSchedule } from "@/lib/lesson-schedule-list-shared";
 import { listEnVocabRefs } from "@/lib/en-vocab-db";
 import type { EnLessonKind, EnLessonRecord } from "@/lib/types";
 
@@ -59,6 +61,38 @@ export async function GET(request: Request) {
   try {
     const env = await getCloudflareEnv();
     const { isAdmin } = await requireAdmin(request);
+    const url = new URL(request.url);
+    const scheduleView = url.searchParams.get("view") === "schedule";
+
+    if (scheduleView) {
+      // 日程管理：无笔记正文、无释义/备注；content 仅预览
+      const [lessons, refs] = await Promise.all([
+        listEnLessonsForSchedule(env.DB),
+        listEnVocabRefs(env.DB),
+      ]);
+      const refsMap = Object.fromEntries(
+        refs.map((r) => [r.ref_key, slimVocabRefForSchedule(r)])
+      );
+      if (isAdmin) {
+        const teachers = await listEnLessonTeachersWithLessonCounts(env.DB);
+        return jsonResponse({
+          ok: true,
+          view: "schedule",
+          lessons,
+          refs: refsMap,
+          notes: [],
+          teachers,
+        });
+      }
+      return jsonResponse({
+        ok: true,
+        view: "schedule",
+        lessons: stripAdminOnlyFromLessons(lessons),
+        refs: refsMap,
+        notes: [],
+      });
+    }
+
     const [lessons, refs, notes] = await Promise.all([
       listEnLessons(env.DB),
       listEnVocabRefs(env.DB),

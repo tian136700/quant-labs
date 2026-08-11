@@ -27,6 +27,8 @@ import { normalizeJpLessonTeacher } from "@/lib/jp-lesson-teacher-rate";
 
 export const JP_VOCAB_CACHE_KEY = "jp-api:vocab:v6";
 export const JP_LESSON_CACHE_KEY = "jp-api:lesson:v13";
+/** 日程管理轻量课表（?view=schedule）；勿与全量 JP_LESSON_CACHE_KEY 混用 */
+export const JP_LESSON_SCHEDULE_CACHE_KEY = "jp-api:lesson-schedule:v1";
 
 /** 词表本地缓存有效期内不重复 GET（多人同时刷新时减轻 Worker 压力） */
 export const JP_VOCAB_REFRESH_TTL_MS = 45_000;

@@ -81,8 +81,13 @@ def main() -> None:
         if "isVocabRefSharePath" not in rd_block:
             fail("redirectMaintenance must skip isVocabRefSharePath")
     if "setChecking(false)" in auth and "if (cached)" in auth:
-        # ensure we don't set checking false solely from cache before probe
-        cached_block_start = auth.find("const cached = readClientCache")
+        # 只检查「灌本地缓存」那段，勿把 catch/finally 误判进来
+        layout = auth.find("useLayoutEffect")
+        if layout < 0:
+            fail("EtrAuthProvider must hydrate auth cache in useLayoutEffect")
+        cached_block_start = auth.find("const cached = readClientCache", layout)
+        if cached_block_start < 0:
+            fail("useLayoutEffect must read AUTH user cache into `cached`")
         cached_block = auth[cached_block_start : cached_block_start + 350]
         if "setChecking(false)" in cached_block:
             fail("must not setChecking(false) from localStorage cache alone before auth probe")

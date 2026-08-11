@@ -14,8 +14,10 @@ import { incrementJpLessonLinkCopyCount } from "@/lib/jp-lesson-db-link-copy";
 import { deleteJpLesson } from "@/lib/jp-lesson-db-delete";
 import type { JpLessonProgressStatus } from "@/lib/jp-lesson-shared";
 import { listJpLessonNoteCountsByLesson } from "@/lib/jp-lesson-note-db";
+import { listJpLessonsForSchedule } from "@/lib/jp-lesson-schedule-list";
 import { listJpLessonTeachersWithLessonCounts } from "@/lib/jp-lesson-teacher-db";
 import { requireJpLessonOperate, requireJpLessonRead } from "@/lib/jp-lesson-auth";
+import { slimVocabRefForSchedule } from "@/lib/lesson-schedule-list-shared";
 import { listJpVocabRefs } from "@/lib/jp-vocab-db";
 import {
   JP_LESSON_VOCAB_SYNC_CHUNK_SIZE,
@@ -89,6 +91,40 @@ export async function GET(request: Request) {
     }
 
     const { isAdmin } = await requireAdmin(request);
+    const url = new URL(request.url);
+    const scheduleView = url.searchParams.get("view") === "schedule";
+
+    if (scheduleView) {
+      // 日程管理：裁剪大字段，省手机流量 / 解析；勿带 note_counts
+      const [lessons, refs] = await Promise.all([
+        listJpLessonsForSchedule(env.DB),
+        listJpVocabRefs(env.DB),
+      ]);
+      const refsMap = Object.fromEntries(
+        refs.map((r) => [r.ref_key, slimVocabRefForSchedule(r)])
+      );
+      if (isAdmin) {
+        const teachers = await listJpLessonTeachersWithLessonCounts(env.DB);
+        return jsonResponse({
+          ok: true,
+          view: "schedule",
+          lessons,
+          refs: refsMap,
+          note_counts: {},
+          notes: [],
+          teachers,
+        });
+      }
+      return jsonResponse({
+        ok: true,
+        view: "schedule",
+        lessons: stripAdminOnlyFromLessons(lessons),
+        refs: refsMap,
+        note_counts: {},
+        notes: [],
+      });
+    }
+
     const [lessons, refs, noteCounts] = await Promise.all([
       listJpLessons(env.DB),
       listJpVocabRefs(env.DB),

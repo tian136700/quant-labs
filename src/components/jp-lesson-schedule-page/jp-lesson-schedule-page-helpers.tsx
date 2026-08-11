@@ -2,22 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
-  JP_LESSON_CACHE_KEY as EN_LESSON_CACHE_KEY,
-  parseEnLessonApi,
+  EN_LESSON_SCHEDULE_CACHE_KEY,
   type EnLessonApiPayload,
 } from "@/lib/en-api-cache";
 import {
-  JP_LESSON_CACHE_KEY,
-  JP_LESSON_REFRESH_TTL_MS,
-  parseJpLessonApi,
+  JP_LESSON_SCHEDULE_CACHE_KEY,
   type JpLessonApiPayload,
 } from "@/lib/jp-api-cache";
-import {
-  fetchWithClientCache,
-  readClientCache,
-  readClientCacheAge,
-  writeClientCache,
-} from "@/lib/client-swr-cache";
+import { readClientCache } from "@/lib/client-swr-cache";
 import {
   addBeijingCalendarDays,
   beijingDateOnlyFromClassAt,
@@ -161,7 +153,7 @@ export function eventTimelineEncourageLabel(status: JpLessonScheduleEventStatus)
 }
 
 export function readLessonCache(): JpLessonApiPayload | null {
-  return readClientCache<JpLessonApiPayload>(JP_LESSON_CACHE_KEY);
+  return readClientCache<JpLessonApiPayload>(JP_LESSON_SCHEDULE_CACHE_KEY);
 }
 
 export function scheduleSubjectLabel(subject: LessonScheduleSubject): string {
@@ -353,6 +345,6 @@ export function lessonPayloadNeedsTeacherRefresh(
 }
 
 export function readEnLessonCache(): EnLessonApiPayload | null {
-  return readClientCache<EnLessonApiPayload>(EN_LESSON_CACHE_KEY);
+  return readClientCache<EnLessonApiPayload>(EN_LESSON_SCHEDULE_CACHE_KEY);
 }
 
