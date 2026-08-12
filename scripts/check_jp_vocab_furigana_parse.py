@@ -482,6 +482,21 @@ def main() -> int:
             file=sys.stderr,
         )
         return 1
+    # 助词空隙：半角空格在「はいくら」之间肉眼几乎看不见，展示须加宽
+    if "word-spacing" not in furigana_ui:
+        print(
+            "[check_jp_vocab_furigana_parse] FAIL: JpVocabFuriganaText must set "
+            "word-spacing so particle gaps (は いくら / は 高い) are visible",
+            file=sys.stderr,
+        )
+        return 1
+    if "jp-vocab-learner-particle" not in furigana_ui:
+        print(
+            "[check_jp_vocab_furigana_parse] FAIL: spaced particles must wrap "
+            "jp-vocab-learner-particle (padding) so は does not glue to next word",
+            file=sys.stderr,
+        )
+        return 1
 
     print(
         f"[check_jp_vocab_furigana_parse] OK "
