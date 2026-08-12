@@ -45,6 +45,30 @@ function normalizeQuizTargetInputDigits(raw: string): string {
   );
 }
 
+function isAllowedQuizTargetDraft(next: string): boolean {
+  return next === "" || /^\d{0,3}$/.test(next);
+}
+
+/**
+ * 中文等 CJK IME 常把数字键当成候选选择（空框时按 3 像「打不进去」）。
+ * 在 keydown 里手动插入半角数字，绕过 IME。
+ */
+function applyQuizTargetDigitKey(
+  current: string,
+  key: string,
+  selectionStart: number | null,
+  selectionEnd: number | null
+): { next: string; caret: number } | null {
+  if (!/^[0-9]$/.test(key)) return null;
+  const start = selectionStart ?? current.length;
+  const end = selectionEnd ?? current.length;
+  const next = normalizeQuizTargetInputDigits(
+    current.slice(0, start) + key + current.slice(end)
+  );
+  if (!isAllowedQuizTargetDraft(next)) return null;
+  return { next, caret: Math.min(start + 1, next.length) };
+}
+
 export function JpVocabDailyQuizProgressBar({
   progress,
   variant = "study",
@@ -97,16 +121,44 @@ export function JpVocabDailyQuizProgressBar({
               type="text"
               inputMode="numeric"
               pattern="[0-9]*"
+              lang="en"
               autoComplete="off"
               autoCorrect="off"
+              autoCapitalize="off"
               spellCheck={false}
               className="jp-vocab-quiz-target-admin__input"
               value={adminQuizTarget.value}
-              onFocus={() => adminQuizTarget.onFocusChange?.(true)}
+              onFocus={(e) => {
+                adminQuizTarget.onFocusChange?.(true);
+                // 全选后直接打新数字即可替换；与 IME 数字键兜底配合
+                e.currentTarget.select();
+              }}
               onBlur={() => adminQuizTarget.onFocusChange?.(false)}
+              onKeyDown={(e) => {
+                if (e.nativeEvent.isComposing || e.key === "Process") return;
+                if (e.ctrlKey || e.metaKey || e.altKey) return;
+                if (!/^[0-9]$/.test(e.key)) return;
+                e.preventDefault();
+                const el = e.currentTarget;
+                const applied = applyQuizTargetDigitKey(
+                  adminQuizTarget.value,
+                  e.key,
+                  el.selectionStart,
+                  el.selectionEnd
+                );
+                if (!applied) return;
+                adminQuizTarget.onChange(applied.next);
+                requestAnimationFrame(() => {
+                  try {
+                    el.setSelectionRange(applied.caret, applied.caret);
+                  } catch {
+                    /* ignore */
+                  }
+                });
+              }}
               onChange={(e) => {
                 const next = normalizeQuizTargetInputDigits(e.target.value);
-                if (next === "" || /^\d{0,3}$/.test(next)) {
+                if (isAllowedQuizTargetDraft(next)) {
                   adminQuizTarget.onChange(next);
                 }
               }}

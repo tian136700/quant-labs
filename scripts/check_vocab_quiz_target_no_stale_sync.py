@@ -81,6 +81,33 @@ def main() -> int:
     if "if (settingQuizTarget) return;" not in jp_admin:
         errors.append("useJpVocabAdminActions must not reset input while settingQuizTarget")
 
+    if "quizTargetInputFocusedRef.current" not in jp_admin:
+        errors.append("useJpVocabAdminActions must skip input reset while focused")
+    if "setQuizTargetInputFocused" not in jp_admin:
+        errors.append("useJpVocabAdminActions must export setQuizTargetInputFocused")
+
+    jp_page = read(ROOT / "src/components/JpVocabPage.tsx")
+    if "onQuizTargetInputFocusChange={setQuizTargetInputFocused}" not in jp_page:
+        errors.append(
+            "JpVocabPage must wire onQuizTargetInputFocusChange={setQuizTargetInputFocused}"
+        )
+
+    en_page = read(ROOT / "src/components/EnVocabPage.tsx")
+    if "onFocusChange: setQuizTargetInputFocused" not in en_page:
+        errors.append("EnVocabPage must wire adminQuizTarget.onFocusChange")
+
+    bar = read(ROOT / "src/components/JpVocabDailyQuizProgressBar.tsx")
+    if "applyQuizTargetDigitKey" not in bar:
+        errors.append("JpVocabDailyQuizProgressBar must bypass CJK IME digit swallowing")
+    if 'lang="en"' not in bar:
+        errors.append("quiz target input must set lang=en to discourage CJK IME")
+
+    forms_css = read(ROOT / "src/app/globals/globals-forms.css")
+    if "jp-vocab-quiz-target-admin__input" not in forms_css:
+        errors.append(
+            "globals-forms.css must size .jp-vocab-quiz-target-admin__input (not only styled-jsx)"
+        )
+
     if errors:
         print("check_vocab_quiz_target_no_stale_sync FAILED:")
         for e in errors:

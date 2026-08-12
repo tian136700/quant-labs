@@ -314,6 +314,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     setShowResetChoice,
     quizTargetInput,
     setQuizTargetInput,
+    setQuizTargetInputFocused,
     settingQuizTarget,
     exporting,
     deletingBatch,
@@ -861,6 +862,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
                   savedValue: teacherVisibleLimit.quiz_target,
                   saving: settingQuizTarget,
                   onChange: setQuizTargetInput,
+                  onFocusChange: setQuizTargetInputFocused,
                   onSave: () => void setDailyQuizTarget(),
                 }
               : undefined

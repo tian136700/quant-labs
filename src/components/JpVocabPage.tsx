@@ -60,7 +60,6 @@ import {
 import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
 
 type JpVocabPageVariant = "teacher" | "admin";
-
 type JpVocabPageProps = {
   variant: JpVocabPageVariant;
 };
@@ -473,7 +472,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     deletingId,
     boostingWordId,
     quizTargetInput,
-    setQuizTargetInput,
+    setQuizTargetInput, setQuizTargetInputFocused,
     settingQuizTarget,
     boostQuizPriority,
     deleteWord,
@@ -706,7 +705,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
         showTeacherCoachEntry={showTeacherCoachEntry}
         exporting={exporting}
         dailyCoachLevelCounts={dailyCoachLevelCounts}
-        onQuizTargetInputChange={setQuizTargetInput}
+        onQuizTargetInputChange={setQuizTargetInput} onQuizTargetInputFocusChange={setQuizTargetInputFocused}
         onSaveQuizTarget={() => void setDailyQuizTarget()}
       />
 

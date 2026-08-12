@@ -95,6 +95,7 @@ export function KoPronPage({ variant }: Props) {
   const [showComplete, setShowComplete] = useState(false);
   const [targetDraft, setTargetDraft] = useState("10");
   const [targetSaving, setTargetSaving] = useState(false);
+  const targetDraftFocusedRef = useRef(false);
   const [saveBusyId, setSaveBusyId] = useState<number | null>(null);
   const [savePercent, setSavePercent] = useState<number | null>(null);
   const [saveQueued, setSaveQueued] = useState(false);
@@ -156,7 +157,9 @@ export function KoPronPage({ variant }: Props) {
       setLetters(next);
       if (data.teacher_visible_limit) {
         setTeacherVisible(data.teacher_visible_limit);
-        setTargetDraft(String(data.teacher_visible_limit.quiz_target));
+        if (!targetDraftFocusedRef.current) {
+          setTargetDraft(String(data.teacher_visible_limit.quiz_target));
+        }
       }
       if (data.display_order) {
         setDisplayOrder(data.display_order);
@@ -210,7 +213,9 @@ export function KoPronPage({ variant }: Props) {
         }
         if (data.teacher_visible_limit) {
           setTeacherVisible(data.teacher_visible_limit);
-          setTargetDraft(String(data.teacher_visible_limit.quiz_target));
+          if (!targetDraftFocusedRef.current) {
+            setTargetDraft(String(data.teacher_visible_limit.quiz_target));
+          }
         }
       } catch {
         /* ignore poll errors */
@@ -600,6 +605,9 @@ export function KoPronPage({ variant }: Props) {
                 savedValue: visible.quiz_target,
                 saving: targetSaving,
                 onChange: setTargetDraft,
+                onFocusChange: (focused) => {
+                  targetDraftFocusedRef.current = focused;
+                },
                 onSave: () => {
                   void setDailyQuizTarget();
                 },

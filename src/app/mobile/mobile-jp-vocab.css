@@ -592,7 +592,10 @@
   }
 
   .jp-vocab-quiz-target-admin__input {
+    width: 4.25rem;
+    min-width: 4.25rem;
     min-height: 2.5rem;
+    height: 2.5rem;
     flex: 0 0 4.25rem;
     font-size: 1rem !important;
     text-align: center;

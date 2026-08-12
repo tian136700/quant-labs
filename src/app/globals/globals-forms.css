@@ -283,3 +283,39 @@ textarea:focus {
   color: var(--fall);
 }
 
+/*
+ * 今日抽查数量输入框：必须压过上方 input[type=text]{w-full;min-height:44px}。
+ * 样式放 globals（勿只靠 styled-jsx）——否则进度条一行里框被压扁，数字像「打不进去」。
+ * 另：CJK IME 吞数字键见 JpVocabDailyQuizProgressBar onKeyDown 兜底。
+ * 勿对 height/min-height 用 !important（手机端 mobile-jp-vocab 还要加大触控）。
+ */
+input.jp-vocab-quiz-target-admin__input[type="text"] {
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  flex-shrink: 0;
+  width: 3.5rem;
+  min-width: 3.5rem;
+  max-width: 4.5rem;
+  min-height: 1.85rem;
+  height: 1.85rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  caret-color: var(--accent);
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+  text-align: center;
+}
+
+input.jp-vocab-quiz-target-admin__input[type="text"]:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+input.jp-vocab-quiz-target-admin__input[type="text"]:disabled {
+  opacity: 0.6;
+}
+
