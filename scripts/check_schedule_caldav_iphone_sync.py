@@ -113,6 +113,19 @@ def main() -> int:
         return _fail("load must resolve a date window (default past/future days)")
     if "SCHEDULE_CALDAV_DEFAULT_FUTURE_DAYS" not in load_ts:
         return _fail("load must define default future window days")
+    # 类型在 jp-lesson-manual-schedule.ts，不在 *-db（曾导致 deploy tsc 失败）
+    if re.search(
+        r'type\s+JpLessonManualSchedule\s*[,\}].*from\s+["\']@/lib/jp-lesson-manual-schedule-db["\']',
+        load_ts,
+        re.S,
+    ) or 'type JpLessonManualSchedule,\n} from "@/lib/jp-lesson-manual-schedule-db"' in load_ts:
+        return _fail(
+            "JpLessonManualSchedule must be imported from "
+            "@/lib/jp-lesson-manual-schedule (not *-db)"
+        )
+    if 'from "@/lib/jp-lesson-manual-schedule"' not in load_ts and \
+       "from '@/lib/jp-lesson-manual-schedule'" not in load_ts:
+        return _fail("schedule-caldav-events-load must import JpLessonManualSchedule type")
 
     route = ROOT / "src" / "app" / "api" / "admin" / "schedule-events" / "route.ts"
     if not route.is_file():
