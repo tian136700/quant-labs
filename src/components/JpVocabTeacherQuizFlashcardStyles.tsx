@@ -570,10 +570,10 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           min-width: 0;
         }
         /*
-         * 英语抽问：近全屏网页式弹层（仅 .en-vocab-flashcard-page*）
+         * 英语抽问：居中网页式弹层（仅 .en-vocab-flashcard-page*）
          * 窄卡片备份：EnVocabTeacherQuizFlashcardModal.card-compact.tsx
-         * 顶栏 +「上一个/下一个」钉住；中间（用法+备注/熟悉程度/统计）滚动。
-         * 备注/两框不要钉底；导航按钮窗格必须固定可见。
+         * 桌面：高度随内容（少内容不硬撑满）；顶到 max-height 后中间 __scroll 滚。
+         * 顶栏 +「上一个/下一个」钉住；备注/两框不要钉底；导航按钮窗格必须固定可见。
          */
         .en-vocab-flashcard-page-overlay {
           align-items: center;
@@ -585,8 +585,9 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           /* 桌面居中卡片；禁止 96vw 贴边（两侧须留白） */
           width: min(56rem, 88vw);
           max-width: 88vw;
-          height: min(92vh, 100dvh);
-          max-height: min(92vh, 100dvh);
+          /* 少内容 hug；多内容顶满 max-height 再滚中间区（勿整卡定高硬撑） */
+          height: auto;
+          max-height: min(85vh, 100dvh);
           margin: 0 auto;
           gap: 0.45rem;
           padding: 0.85rem 1.1rem 0.9rem;
@@ -608,7 +609,8 @@ export function JpVocabTeacherQuizFlashcardStyles() {
         }
         .en-vocab-flashcard-page__scroll {
           display: flex;
-          flex: 1 1 0;
+          /* auto 基线=内容高；父卡 height:auto 时不硬撑；触顶 max-height 后可缩可滚 */
+          flex: 1 1 auto;
           flex-direction: column;
           gap: 0.55rem;
           min-height: 0;
@@ -721,11 +723,11 @@ export function JpVocabTeacherQuizFlashcardStyles() {
             overflow-x: hidden;
           }
           .jp-vocab-teacher-quiz-card.en-vocab-flashcard-page {
-            /* 约半屏宽 + 两侧留白（勿再 96vw 贴边） */
+            /* 约半屏宽 + 两侧留白（勿再 96vw 贴边）；高度随内容 */
             width: min(56rem, 88vw);
             max-width: 88vw;
-            height: min(90vh, 100dvh);
-            max-height: min(90vh, 100dvh);
+            height: auto;
+            max-height: min(85vh, 100dvh);
             margin: 0 auto;
             border-radius: 14px;
             padding: 1rem 1.35rem 1.05rem;

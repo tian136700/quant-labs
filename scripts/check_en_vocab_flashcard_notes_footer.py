@@ -195,18 +195,34 @@ def main() -> None:
     card_block = first_rule_block(
         styles, ".jp-vocab-teacher-quiz-card.en-vocab-flashcard-page {"
     )
+    card_props = card_block.split("}")[0]
     if "overflow: hidden" not in card_block:
         fail("en-vocab-flashcard-page card must use overflow: hidden")
-    if "overflow-y: auto" in card_block.split("}")[0]:
+    if "overflow-y: auto" in card_props:
         fail("en-vocab-flashcard-page card must NOT whole-card scroll")
-    if "height: auto" in card_block.split("}")[0]:
-        fail("en-vocab-flashcard-page card must use bounded height, not height: auto")
+    # 桌面 hug 内容：height:auto + max-height；禁止再定高硬撑出大块空白
+    if "height: auto" not in card_props and "height:auto" not in card_props:
+        fail(
+            "en-vocab-flashcard-page card must use height: auto "
+            "(hug content; do not force full-viewport height)"
+        )
+    if "max-height:" not in card_props and "max-height :" not in card_props:
+        fail("en-vocab-flashcard-page card must set max-height (scroll when long)")
+    if "height: min(90vh" in card_props or "height: min(92vh" in card_props:
+        fail(
+            "en-vocab-flashcard-page must not force height: min(90vh/92vh) "
+            "(short cards leave empty space above nav)"
+        )
 
     scroll_block = first_rule_block(styles, ".en-vocab-flashcard-page__scroll {")
     if "overflow-y: auto" not in scroll_block:
         fail("en-vocab-flashcard-page__scroll must use overflow-y: auto")
-    if "flex: 1 1 0" not in scroll_block and "flex: 1 1 auto" not in scroll_block:
-        fail("en-vocab-flashcard-page__scroll must flex-grow")
+    # flex-basis auto：父卡 height:auto 时按内容；触顶 max-height 后可缩可滚
+    if "flex: 1 1 auto" not in scroll_block:
+        fail(
+            "en-vocab-flashcard-page__scroll must use flex: 1 1 auto "
+            "(not flex-basis 0, which collapses under height:auto parent)"
+        )
     if "min-height: 0" not in scroll_block:
         fail("en-vocab-flashcard-page__scroll must set min-height: 0")
 
