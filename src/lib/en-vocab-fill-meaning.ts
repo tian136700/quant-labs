@@ -203,7 +203,8 @@ export async function applyEnVocabMeaningUpdates(
       skipped.push({ id: wordId, word: String(wordId), reason: "not_found" });
       continue;
     }
-    if (row.kind === "grammar") {
+    // 语法默认不补释义（新课同步）；线上 force 整词刷新 / 误标改语法后可写
+    if (row.kind === "grammar" && !force) {
       skipped.push({
         id: wordId,
         word: String(row.word),
@@ -279,8 +280,7 @@ export async function applyEnVocabMeaningUpdates(
                      ELSE meaning_source
                    END,
                    updated_at = datetime('now')
-               WHERE id = ?4
-                 AND kind != 'grammar'`
+               WHERE id = ?4`
             )
             .bind(nextMeaning, nextPos, source, wordId)
             .run()

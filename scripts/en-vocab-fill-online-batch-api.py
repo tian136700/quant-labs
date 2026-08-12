@@ -39,12 +39,14 @@ from vocab_fill_circuit_breaker import (  # noqa: E402
     after_attempt,
     assert_not_killed,
 )
+from en_vocab_kind_detect import en_vocab_lemma_looks_like_grammar  # noqa: E402
 
 BASE = "https://finance.info-quests.com"
 READING_URL = f"{BASE}/api/en-vocab/fill-reading"
 MEANING_URL = f"{BASE}/api/en-vocab/fill-meaning"
 USAGE_URL = f"{BASE}/api/en-vocab/fill-usage"
 EXAMPLES_URL = f"{BASE}/api/en-vocab/fill-example-sentences"
+KIND_URL = f"{BASE}/api/en-vocab/fill-kind"
 
 # —— 防烧钱硬闸 ——
 # 全机付费调用最短间隔（秒）；与 launchd 每分钟对齐，禁止卡死狂打
@@ -74,6 +76,9 @@ SYSTEM = (
     "Return ONLY one JSON object. No markdown fences, no commentary. "
     "All string values MUST use double quotes; escape any \" inside strings as \\\". "
     "IPA reading MUST be a JSON string like \"/ʌp ˈtuː/\", never a bare /…/ token. "
+    "If the lemma is a grammar pattern / sentence frame (both A and B, cater to somebody, "
+    "Present Perfect, slots like somebody/something/A/B), set kind to \"grammar\"; "
+    "otherwise \"word\". Ordinary phrasal verbs without slots (look forward to) stay \"word\". "
     "Usage: Chinese numbered 1. 2. …; EACH line MUST include dual frequency "
     "[口语n|考试m] (each 1-10) right after the number "
     "(e.g. '1. [口语7|考试8] 动词：…'); "
@@ -527,9 +532,10 @@ def build_prompt(row: dict[str, Any], needs: dict[str, bool]) -> str:
 已有例句：{row.get("example_sentences") or "（无）"}
 
 输出 JSON（需要的字段必须给出非空值）：
-- reading: 美式 IPA，形如 /həˈloʊ/
+- kind: "word" 或 "grammar"（句型模板 / A-B 占位 / somebody 槽 / 时态名 → grammar；普通单词与无占位短语动词 → word）
+- reading: 美式 IPA，形如 /həˈloʊ/（仅 word；grammar 可省略）
 - meaning: 中文释义，分号分隔，最多 3 义
-- pos: 英文词性缩写，多词性用 /，如 v 或 adj/n
+- pos: 英文词性缩写，多词性用 /，如 v 或 adj/n（仅 word；grammar 可省略）
 - usage: 编号中文用法；每条必须带口语/考试双分 [口语n|考试m]（各 1～10；口语=日常会话；考试=该分类考试语境；可打不同分），形如「1. [口语7|考试8] 介词：…」；组数=真实不同核心义项数（1 种就 1 条，禁止硬凑 2 条）；硬规则：同词性且意思差不多必须合并为 1 条；禁止按对象/场景硬拆同一义（如 attractive「对客户有吸引力」与「外表好看」须合并；fail「计划/设备失败」与「考试不及格」、freeze「冻结薪资」与「冻结账户」须合并为 1 条动词义，名词义另开）；禁止近义微调硬拆（如 carefully「仔细地完成工作」与「谨慎地避免出错」须合并为 1 条）；若两条候选用法造出的例句几乎可互换，必须合并成 1 条；只有词性/词典义/固定结构真不同才拆条；每条只标一种词性，禁止「动词/名词」等含糊写法（例句是名词就标名词；名词与动词义都常用则拆成两条）；选题按上方分类语境高频，正文禁止考试品牌名。也可返回数组 [{{"text":"…","oral_frequency":7,"exam_frequency":8}},…]（双分必填 1～10）
 - example_sentences: 字符串（不要 JSON 数组）。与 usage 一一对应；每条英文完整短句 + 下一行「译文：中文」交替；用法是被动则例句必须被动；时态/词形可变；其余词要极简单；不要难词、不要长难从句；不要行首编号；禁止输出 [{{"sentence":...}}] 这类结构
 
@@ -542,11 +548,14 @@ def source_label() -> str:
 
 
 def full_refresh_needs(kind: str) -> dict[str, bool]:
-    """线上模式：只要触发检测，就整词重拉（付费更准，覆盖写回）。"""
+    """线上模式：只要触发检测，就整词重拉（付费更准，覆盖写回）。
+
+    语法：不补音标/词性；仍补 meaning（误标改语法后常见空释义）。
+    """
     if kind == "grammar":
         return {
             "reading": False,
-            "meaning": False,
+            "meaning": True,
             "pos": False,
             "usage": True,
             "example_sentences": True,
@@ -694,16 +703,29 @@ def fetch_candidates(token: str, *, limit: int) -> list[dict[str, Any]]:
                 cur["needs"] = full_refresh_needs("grammar")
 
     scan_limit = max(limit * 8, 24)
-    for url in (READING_URL, MEANING_URL, USAGE_URL, EXAMPLES_URL):
-        data = call_api(
-            url,
-            token,
-            {"mode": "list_missing", "limit": scan_limit},
-            user_agent="en-vocab-fill-online-batch/1.0",
-        )
-        merge(list(data.get("missing") or []))
+    for url in (READING_URL, MEANING_URL, USAGE_URL, EXAMPLES_URL, KIND_URL):
+        try:
+            data = call_api(
+                url,
+                token,
+                {"mode": "list_missing", "limit": scan_limit},
+                user_agent="en-vocab-fill-online-batch/1.0",
+            )
+            merge(list(data.get("missing") or []))
+        except Exception as err:
+            # fill-kind 未上线等：仍可按启发式改标 + 其它缺项队列
+            print(f"    list_missing skip {url}: {err}", flush=True)
 
     rows = list(by_id.values())
+    for cur in rows:
+        word = str(cur.get("word") or "")
+        kind = str(cur.get("kind") or "word")
+        if kind != "grammar" and en_vocab_lemma_looks_like_grammar(word):
+            cur["reclassify_to_grammar"] = True
+            cur["kind"] = "grammar"
+            cur["needs"] = full_refresh_needs("grammar")
+        elif kind == "grammar":
+            cur["needs"] = full_refresh_needs("grammar")
 
     def _daily_sort_key(r: dict[str, Any]) -> tuple[int, int]:
         try:
@@ -716,6 +738,35 @@ def fetch_candidates(token: str, *, limit: int) -> list[dict[str, Any]]:
 
     rows.sort(key=_daily_sort_key)
     return rows[: max(1, limit)]
+
+
+def apply_kind_grammar(
+    token: str,
+    *,
+    word_id: int,
+    source: str,
+    dry_run: bool,
+) -> bool:
+    """误标单词 → grammar。"""
+    if dry_run:
+        print(f"    dry-run reclassify kind→grammar id={word_id}", flush=True)
+        return True
+    r = call_api(
+        KIND_URL,
+        token,
+        {
+            "mode": "apply",
+            "source": source,
+            "updates": [{"word_id": word_id, "kind": "grammar", "source": source}],
+        },
+        user_agent="en-vocab-fill-online-batch/1.0",
+    )
+    ok = int(r.get("updated") or 0) > 0
+    if ok:
+        print(f"    reclassified kind→grammar id={word_id}", flush=True)
+    elif r.get("skipped"):
+        print(f"    kind skip={r.get('skipped')}", flush=True)
+    return ok
 
 
 def apply_bundle(
@@ -748,6 +799,16 @@ def apply_bundle(
             },
             user_agent="en-vocab-fill-online-batch/1.0",
         )
+
+    if payload.get("kind") == "grammar":
+        # 生成结果确认是语法：再保险改一次（已是 grammar 则 skip）
+        try:
+            if apply_kind_grammar(
+                token, word_id=word_id, source=source, dry_run=dry_run
+            ):
+                done.append("kind")
+        except Exception as err:
+            print(f"    kind apply err={err}", flush=True)
 
     if needs.get("reading") and payload.get("reading"):
         r = _apply(
@@ -852,6 +913,14 @@ def generate_bundle(row: dict[str, Any], needs: dict[str, bool]) -> dict[str, An
             raise
     out: dict[str, Any] = {}
 
+    kind_raw = str(data.get("kind") or row.get("kind") or "word").strip().lower()
+    if kind_raw == "grammar" or en_vocab_lemma_looks_like_grammar(
+        str(row.get("word") or "")
+    ):
+        out["kind"] = "grammar"
+    else:
+        out["kind"] = "word"
+
     if needs.get("reading"):
         ipa = normalize_ipa(str(data.get("reading") or ""))
         if ipa:
@@ -873,8 +942,8 @@ def generate_bundle(row: dict[str, Any], needs: dict[str, bool]) -> dict[str, An
             # 缺 [1]～[10] 时再要一次，避免 force 写回无频次旧格式
             retry_raw = call_anthropic(
                 build_prompt(row, needs)
-                + "\n\nCRITICAL: usage 每一行必须带出现频次 [1]～[10]，"
-                "形如「1. [8] 中文说明」。缺分值的 JSON 不可用，请重输出完整 JSON。",
+                + "\n\nCRITICAL: usage 每一行必须带出现频次 [口语n|考试m]，"
+                "形如「1. [口语7|考试8] 中文说明」。缺双分的 JSON 不可用，请重输出完整 JSON。",
                 system=SYSTEM,
                 max_tokens=4500,
                 temperature=0.2,
@@ -951,16 +1020,26 @@ def process_one(
     wid = int(row["id"])
     word = str(row.get("word") or "")
     needs = dict(row.get("needs") or {})
+    reclassify = bool(row.get("reclassify_to_grammar")) or (
+        str(row.get("kind") or "word") != "grammar"
+        and en_vocab_lemma_looks_like_grammar(word)
+    )
+    if reclassify:
+        row["kind"] = "grammar"
+        needs = full_refresh_needs("grammar")
+        row["needs"] = needs
     need_list = [k for k, v in needs.items() if v]
     print(
-        f"  [{index}/{total}] id={wid} word={word!r} full_refresh={need_list}",
+        f"  [{index}/{total}] id={wid} word={word!r} "
+        f"kind={row.get('kind')} full_refresh={need_list}"
+        + (" reclassify→grammar" if reclassify else ""),
         flush=True,
     )
     report_word_run_to_maintenance_center(
         {
             "word_id": wid,
             "word": word,
-            "kind": "word",
+            "kind": "grammar" if reclassify else "word",
             "status": "running",
             "started_at": now_local_str(),
         }
@@ -968,6 +1047,33 @@ def process_one(
 
     source = source_label()
     mark_paid_call()
+    if reclassify:
+        try:
+            apply_kind_grammar(
+                token, word_id=wid, source=source, dry_run=dry_run
+            )
+        except Exception as err:
+            print(f"    fail reclassify: {err}", flush=True)
+            report_word_run_to_maintenance_center(
+                {
+                    "word_id": wid,
+                    "word": word,
+                    "kind": "grammar",
+                    "status": "failed",
+                    "error": f"reclassify:{err}",
+                    "finished_at": now_local_str(),
+                }
+            )
+            mark_poison(wid, word, f"reclassify:{err}")
+            after_attempt(
+                scope="en-online",
+                word_id=wid,
+                word=word,
+                fixed=False,
+                detail=f"reclassify:{err}",
+            )
+            return False
+
     try:
         payload = generate_bundle(row, needs)
     except Exception as err:
@@ -1024,11 +1130,16 @@ def process_one(
     )
     print(f"    applied={done} source={source}", flush=True)
     preview_text = json.dumps(preview, ensure_ascii=False)
+    report_kind = (
+        "grammar"
+        if reclassify or str(payload.get("kind") or "") == "grammar"
+        else "word"
+    )
     report_word_run_to_maintenance_center(
         {
             "word_id": wid,
             "word": word,
-            "kind": "word",
+            "kind": report_kind,
             "status": "success" if done else "failed",
             "source": source,
             "applied": str(done),

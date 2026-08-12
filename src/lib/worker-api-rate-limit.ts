@@ -34,6 +34,7 @@ export const VOCAB_FILL_RATE_LIMITED_ROUTES = [
   "/api/en-vocab/fill-reading",
   "/api/en-vocab/fill-usage",
   "/api/en-vocab/fill-example-sentences",
+  "/api/en-vocab/fill-kind",
 ] as const;
 
 export const JP_VOCAB_FILL_FREQUENCY_ROUTE = "/api/jp-vocab/fill-frequency";

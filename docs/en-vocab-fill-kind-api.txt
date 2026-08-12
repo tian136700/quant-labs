@@ -1,0 +1,58 @@
+# 英语词条：误标「单词」→ 自动改「语法」
+
+用途：新课同步等路径常把句型模板（both A and B、cater to somebody）标成单词。
+定时 / 脚本用本接口扫误标并改 `kind=grammar`，再走用法/释义/例句补全。
+
+## API
+
+- URL：`POST https://finance.info-quests.com/api/en-vocab/fill-kind`
+- 鉴权：`Authorization: Bearer $JP_REVIEW_UPLOAD_TOKEN`
+
+### list_missing
+
+返回 `kind=word` 且启发式判定为语法/句型的词。
+
+```bash
+curl -sS -X POST "$BASE/api/en-vocab/fill-kind" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"list_missing","limit":20}'
+```
+
+响应字段：`missing[].id` / `word` / `kind` / `suggest_kind` / `reason` / `daily_seq`；`total_missing`。
+
+### apply
+
+只允许改成 `grammar`；会清空音标（语法不展示 IPA）。启发式不通过则 skip。
+
+```bash
+curl -sS -X POST "$BASE/api/en-vocab/fill-kind" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "mode":"apply",
+    "source":"Claude",
+    "updates":[{"word_id":123,"kind":"grammar"}]
+  }'
+```
+
+## 启发式（与 `en-vocab-kind-detect.ts` 一致）
+
+改成语法：
+
+- `both A and B` / `either A or B` / 独立大写占位 A/B/C
+- `somebody` / `something` / `sb.` / `sth.` 等不定代词占位
+- `Present Perfect` 等时态/从句课名
+- 含 `…` / `...` / `~` 槽位
+
+保持单词：普通单词、无占位短语动词（如 look forward to）。
+
+## 定时接线
+
+线上付费整词补齐 `scripts/en-vocab-fill-online-batch-api.py`：
+先 `list_missing` 合并本接口候选 → 改 kind → 再按语法补释义/用法/例句。
+
+实现：`src/lib/en-vocab-kind-detect.ts`、`src/lib/en-vocab-fill-kind.ts`、
+`src/app/api/en-vocab/fill-kind/route.ts`。
+
+回归：`python3 scripts/check_en_vocab_kind_detect.py`

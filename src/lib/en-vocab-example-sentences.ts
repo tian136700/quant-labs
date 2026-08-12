@@ -213,6 +213,87 @@ export function listEnVocabLemmaSurfaceForms(word: string): string[] {
   return [...forms];
 }
 
+const EN_VOCAB_INDEFINITE_SLOT_RE =
+  /\b(?:somebody|someone|something|somewhere|somehow|anyone|anybody|anything|anywhere|everybody|everyone|everything|everywhere|nobody|nothing|nowhere|sb\.?|sth\.?)\b/gi;
+
+const EN_VOCAB_LETTER_SLOT_RE = /\b[A-C]\b/g;
+
+/**
+ * 句型模板（somebody / A and B / will be doing …）是否在例句中出现。
+ * 占位换成灵活匹配，避免硬要求字面 somebody。
+ */
+export function enVocabSlotLemmaAppearsInSentence(
+  sentence: string,
+  lemma: string
+): boolean {
+  const raw = lemma.trim();
+  if (!raw) return false;
+  const lower = sentence.toLowerCase();
+
+  // 1) 字面整词（含 somebody）
+  if (lower.includes(raw.toLowerCase().replace(/^～/, ""))) return true;
+
+  // 2) 占位 → 通配：A/B/C、somebody…；doing（进行时模板）→ \w+ing
+  let pattern = raw;
+  pattern = pattern.replace(EN_VOCAB_INDEFINITE_SLOT_RE, "§SLOT§");
+  pattern = pattern.replace(EN_VOCAB_LETTER_SLOT_RE, "§SLOT§");
+  // will be doing / be doing → V-ing 槽
+  pattern = pattern.replace(
+    /\b((?:will\s+be|be|am|is|are|was|were)\s+)doing\b/gi,
+    "$1§ING§"
+  );
+  pattern = pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  pattern = pattern
+    .replace(/§SLOT§/g, "\\S+(?:\\s+\\S+){0,3}")
+    .replace(/§ING§/g, "\\w+ing")
+    .replace(/\s+/g, "\\s+");
+  try {
+    if (new RegExp(pattern, "i").test(sentence)) return true;
+  } catch {
+    /* ignore bad pattern */
+  }
+
+  // 3) 核心锚：去掉占位后剩余实词须按序出现（cater … to / both … and）
+  const anchors = raw
+    .replace(EN_VOCAB_INDEFINITE_SLOT_RE, " ")
+    .replace(EN_VOCAB_LETTER_SLOT_RE, " ")
+    .replace(/\bdoing\b/gi, " ")
+    .split(/[\s/]+/)
+    .map((w) => w.trim().toLowerCase())
+    .filter((w) => w.length >= 2 && !/^(?:to|a|an|the|of|for|in|on|at)$/.test(w));
+  if (anchors.length >= 2) {
+    let from = 0;
+    for (const a of anchors) {
+      const forms = listEnVocabLemmaSurfaceForms(a);
+      let found = -1;
+      for (const f of forms) {
+        const re = new RegExp(
+          `\\b${f.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`,
+          "i"
+        );
+        const m = re.exec(lower.slice(from));
+        if (m && m.index != null) {
+          found = from + m.index + m[0].length;
+          break;
+        }
+      }
+      if (found < 0) return false;
+      from = found;
+    }
+    return true;
+  }
+  if (anchors.length === 1) {
+    for (const f of listEnVocabLemmaSurfaceForms(anchors[0])) {
+      const re = new RegExp(
+        `\\b${f.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`,
+        "i"
+      );
+      if (re.test(sentence)) return true;
+    }
+  }
+  return false;
+}
+
 export function enVocabLemmaAppearsInSentence(
   sentence: string,
   word: string,
@@ -221,10 +302,24 @@ export function enVocabLemmaAppearsInSentence(
   const target = word.trim();
   if (!target) return false;
   const lower = sentence.toLowerCase();
+  const bare = target.toLowerCase().replace(/^～/, "");
+
+  if (lower.includes(bare)) return true;
+
+  const hasSlot =
+    /\b(?:somebody|someone|something|somewhere|somehow|anyone|anybody|anything|anywhere|everybody|everyone|everything|everywhere|nobody|nothing|nowhere|sb\.?|sth\.?)\b/i.test(
+      target
+    ) ||
+    /\b[A-C]\b/.test(target) ||
+    /\b(?:will\s+be|be)\s+doing\b/i.test(target);
+
+  if (hasSlot || kind === "grammar") {
+    return enVocabSlotLemmaAppearsInSentence(sentence, target);
+  }
 
   // 语法 / 多词：须出现词条原文（可含短语 get out）
-  if (kind === "grammar" || /[\s-]/.test(target)) {
-    return lower.includes(target.toLowerCase().replace(/^～/, ""));
+  if (/[\s-]/.test(target)) {
+    return lower.includes(bare);
   }
 
   for (const form of listEnVocabLemmaSurfaceForms(target)) {

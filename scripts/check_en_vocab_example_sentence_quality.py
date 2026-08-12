@@ -115,6 +115,7 @@ def main() -> int:
                 "assessEnVocabExampleEnglishSentence",
                 "assessEnVocabUsagePosExampleAlignment",
                 "enVocabLemmaAppearsInSentence",
+                "enVocabSlotLemmaAppearsInSentence",
                 "listEnVocabLemmaSurfaceForms",
                 "lemma_only_example",
                 "english_phrase_not_sentence",
