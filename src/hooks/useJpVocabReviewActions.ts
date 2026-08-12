@@ -28,6 +28,7 @@ import {
   JP_VOCAB_SAVE_ERR,
 } from "@/lib/jp-vocab-page-helpers";
 import { JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT } from "@/lib/jp-vocab-save-progress";
+import type { JpVocabSaveProgressKind } from "@/lib/jp-vocab-save-progress";
 import type { JpVocabTeacherQuizSession } from "@/lib/jp-vocab-teacher-quiz";
 import type { JpVocabTeacherVisibleLimit } from "@/lib/jp-vocab-teacher-visible";
 import { notifyJpVocabQuizTargetUpdated } from "@/lib/jp-vocab-quiz-target-notify";
@@ -114,6 +115,10 @@ export function useJpVocabReviewActions(options: {
   const [shareProgressMap, setShareProgressMap] = useState<Record<number, number>>(
     {}
   );
+  /** 进度条文案：勾选=save_level；点「下一个」同步=sync_to_student（禁止用 map 有无推断成同步） */
+  const [progressKindByWordId, setProgressKindByWordId] = useState<
+    Record<number, JpVocabSaveProgressKind>
+  >({});
   const [saveQueuePending, setSaveQueuePending] = useState(0);
   const shareProgressTimersRef = useRef<Map<number, ReturnType<typeof setInterval>>>(
     new Map()
@@ -121,17 +126,35 @@ export function useJpVocabReviewActions(options: {
   /** 保存中又点了熟悉程度：先亮 UI，网络空闲后再写最新一档（避免要点多次才「点上」） */
   const pendingLevelByWordRef = useRef<Record<number, JpVocabLevel>>({});
 
-  const patchShareProgress = useCallback((wordId: number, percent: number | null) => {
-    setShareProgressMap((prev) => {
-      if (percent == null) {
-        if (!(wordId in prev)) return prev;
-        const next = { ...prev };
-        delete next[wordId];
-        return next;
-      }
-      return { ...prev, [wordId]: percent };
-    });
-  }, []);
+  const patchShareProgress = useCallback(
+    (
+      wordId: number,
+      percent: number | null,
+      kind?: JpVocabSaveProgressKind
+    ) => {
+      setShareProgressMap((prev) => {
+        if (percent == null) {
+          if (!(wordId in prev)) return prev;
+          const next = { ...prev };
+          delete next[wordId];
+          return next;
+        }
+        return { ...prev, [wordId]: percent };
+      });
+      setProgressKindByWordId((prev) => {
+        if (percent == null) {
+          if (!(wordId in prev)) return prev;
+          const next = { ...prev };
+          delete next[wordId];
+          return next;
+        }
+        if (kind == null) return prev;
+        if (prev[wordId] === kind) return prev;
+        return { ...prev, [wordId]: kind };
+      });
+    },
+    []
+  );
 
   const setWordSyncPhase = useCallback(
     (wordId: number, phase: "queued" | "syncing" | null) => {
@@ -263,18 +286,18 @@ export function useJpVocabReviewActions(options: {
     }
 
     setWordSyncPhase(wordId, "queued");
-    patchShareProgress(wordId, JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT);
+    patchShareProgress(wordId, JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT, "save_level");
     if (saveQueuePending > 0) {
-      setStatus(`已更新界面，排队同步中（${saveQueuePending + 1} 项）…`);
+      setStatus(`已更新界面，排队保存中（${saveQueuePending + 1} 项）…`);
     } else {
-      setStatus("已更新界面，正在保存熟悉程度…");
+      setStatus("已更新界面，正在存储你勾选的数据…");
     }
 
     try {
       await jpVocabSaveQueue.enqueue(async () => {
         setWordSyncPhase(wordId, "syncing");
         const startedAt = Date.now();
-        patchShareProgress(wordId, 0);
+        patchShareProgress(wordId, 0, "save_level");
         clearShareTimer(wordId);
         shareProgressTimersRef.current.set(
           wordId,
@@ -350,9 +373,7 @@ export function useJpVocabReviewActions(options: {
           setStatus(
             !countTowardDailyQuiz
               ? "已标记非常熟悉（不占今日抽查名额，老师池已往后补）。"
-              : source === "flashcard"
-                ? "熟悉程度已保存。点「下一个」时再同步给学生。"
-                : "熟悉程度已保存。"
+              : "熟悉程度已保存。"
           );
         } finally {
           clearShareTimer(wordId);
@@ -438,13 +459,17 @@ export function useJpVocabReviewActions(options: {
     }
 
     setWordSyncPhase(wordId, "queued");
-    patchShareProgress(wordId, JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT);
+    patchShareProgress(
+      wordId,
+      JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT,
+      "sync_to_student"
+    );
 
     try {
       const result = await jpVocabSaveQueue.enqueue(async () => {
         setWordSyncPhase(wordId, "syncing");
         const startedAt = Date.now();
-        patchShareProgress(wordId, 0);
+        patchShareProgress(wordId, 0, "sync_to_student");
         clearShareTimer(wordId);
         shareProgressTimersRef.current.set(
           wordId,
@@ -455,7 +480,7 @@ export function useJpVocabReviewActions(options: {
             );
           }, 200)
         );
-        setStatus("正在同步该单词给学生，请稍等");
+        setStatus("此单词正在同步给学生复习…");
 
         try {
           const res = await fetch("/api/jp-vocab/share", {
@@ -687,6 +712,7 @@ export function useJpVocabReviewActions(options: {
   return {
     wordSyncState,
     shareProgressMap,
+    progressKindByWordId,
     saveQueuePending,
     reviewLockedByWordId,
     recordLevel,

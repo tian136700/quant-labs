@@ -58,6 +58,10 @@ export type JpVocabPageWordListProps = {
   wordSyncState: Record<number, "queued" | "syncing">;
   deletingId: number | null;
   shareProgressMap: Record<number, number | null>;
+  progressKindByWordId?: Record<
+    number,
+    import("@/lib/jp-vocab-save-progress").JpVocabSaveProgressKind
+  >;
   sharedTodayWordIds: Set<number>;
   refs: Record<string, JpVocabRef>;
   dailySeqByWordId: Map<number, number>;
@@ -198,6 +202,7 @@ export function JpVocabPageWordList(props: JpVocabPageWordListProps) {
             wordSyncState={props.wordSyncState}
             deletingId={props.deletingId}
             shareProgressMap={props.shareProgressMap as Record<number, number>}
+            progressKindByWordId={props.progressKindByWordId}
             sharedTodayWordIds={props.sharedTodayWordIds}
             refs={props.refs}
             dailySeqByWordId={props.dailySeqByWordId}

@@ -94,6 +94,19 @@ def main() -> int:
         fail("example-sentences-ai 须拒 i_adj_past_deshita（かったでした）")
     if "jpVocabExampleHasIAdjPastDeshita" not in ai:
         fail("example-sentences-ai 须有 jpVocabExampleHasIAdjPastDeshita")
+    if "aida_fake_state_predicate" not in ai or "gloss_aida_ni_as_after" not in ai:
+        fail("example-sentences-ai 须拒 aida_fake_state_predicate / gloss_aida_ni_as_after")
+    if "jpVocabExampleHasLiteralChineseGloss" not in ai:
+        fail("example-sentences-ai 须有 jpVocabExampleHasLiteralChineseGloss")
+    if "安静地" not in ai or "小声说话" not in ai:
+        fail("example-sentences-ai 须禁「安静地说话」、改「小声说话」")
+    if "chuui_suru_wo_particle" not in ai or "jpVocabExampleHasChuuiSuruWoParticle" not in ai:
+        fail("example-sentences-ai 须拒 chuui_suru_wo_particle（注意する＋を）")
+    if (
+        "soudan_particle_gloss_mismatch" not in ai
+        or "jpVocabExampleHasSoudanParticleGlossMismatch" not in ai
+    ):
+        fail("example-sentences-ai 须拒 soudan_particle_gloss_mismatch")
     if "场景自洽" not in ai or "有头有尾" not in ai:
         fail("example-sentences-ai prompt 须要求例句场景自洽、有头有尾")
     if "来るなら、どうぞ入ってください" not in ai and "来(く)るなら、どうぞ入(はい)ってください" not in ai:
@@ -132,6 +145,45 @@ def main() -> int:
         fail(
             f"i_adj_past_deshita check failed: {i_adj_run.stderr or i_adj_run.stdout}"
         )
+
+    aida_check = ROOT / "scripts/check_jp_vocab_example_aida_gloss.py"
+    if not aida_check.is_file():
+        fail("missing check_jp_vocab_example_aida_gloss.py")
+    aida_run = subprocess.run(
+        [sys.executable, str(aida_check)],
+        capture_output=True,
+        text=True,
+        timeout=90,
+        cwd=ROOT,
+    )
+    if aida_run.returncode != 0:
+        fail(f"aida gloss check failed: {aida_run.stderr or aida_run.stdout}")
+
+    chuui_check = ROOT / "scripts/check_jp_vocab_example_chuui_particle.py"
+    if not chuui_check.is_file():
+        fail("missing check_jp_vocab_example_chuui_particle.py")
+    chuui_run = subprocess.run(
+        [sys.executable, str(chuui_check)],
+        capture_output=True,
+        text=True,
+        timeout=90,
+        cwd=ROOT,
+    )
+    if chuui_run.returncode != 0:
+        fail(f"chuui particle check failed: {chuui_run.stderr or chuui_run.stdout}")
+
+    soudan_check = ROOT / "scripts/check_jp_vocab_example_soudan_particle.py"
+    if not soudan_check.is_file():
+        fail("missing check_jp_vocab_example_soudan_particle.py")
+    soudan_run = subprocess.run(
+        [sys.executable, str(soudan_check)],
+        capture_output=True,
+        text=True,
+        timeout=90,
+        cwd=ROOT,
+    )
+    if soudan_run.returncode != 0:
+        fail(f"soudan particle check failed: {soudan_run.stderr or soudan_run.stdout}")
 
     conn = (ROOT / "src/lib/jp-vocab-connection-ai.ts").read_text(encoding="utf-8")
     if "bare_numbered_lines" not in conn:

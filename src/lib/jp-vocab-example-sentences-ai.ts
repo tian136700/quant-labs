@@ -105,7 +105,10 @@ export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
   rules: [
     "存库不要写行首序号（展示层会加 1、2、3…）",
     "每条：日语一行，下一行必须以「译文：」开头的中文（「译文：」后直接中文，禁止「译文：/ …」「译文：訳文：…」或日文「訳文：」标签）",
-    "中文译文必须自然通顺（口语）；禁止逐词硬译（如「について話す」→「关于…说话」；应作「谈谈…」或「聊聊…」）",
+    "中文译文必须自然通顺（口语）；禁止逐词硬译（如「について話す」→「关于…说话」；应作「谈谈…」或「聊聊…」；「静かに話す」→「请小声说话」，禁止「请安静地说话」）",
+    "「間／あいだ」须体现「AとB的之间」或「某段时间期间」：❌忙しい間です／我现在很忙；✅本とノートの間に…／会議の間…；「の間に」是之内／期间，禁止译成「……后」",
+    "「注意する」小心某事须接「に」：❌約束を注意 → ✅車に注意／約束に注意",
+    "「相談する」：人に＝向/找某人商量；人と＝和某人一起商量；译文勿与助词对调",
     "释义栏的「关于……」等只是义项提示，不要每句译文都机械套同一套壳",
     "句中每一个汉字都必须立刻半角括号假名（不能只标词条本身）：如 今日(きょう)は気分(きぶん)がいいです；词尾假名如 静か(しずか)、落(お)ち着(つ)き；括号内只能是假名、不要空格、不要整句读音尾注；禁止句末语法说明括号；页面展示会转成汉字下方小字",
     "N5～N4、口语、短句；必须自然用到该词条 / 语法点（词条汉字或其读音假名活用皆可：戴＋reading かぶる／つける → 例「かぶって／つける」算用到；～する 动词可用ます形「…します／…しました」，如 スケッチする→スケッチします；勿只写无关句）",
@@ -142,6 +145,10 @@ export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
     "literal_chinese_gloss",
     "gloss_not_chinese",
     "gloss_has_yakuwen_label",
+    "aida_fake_state_predicate",
+    "gloss_aida_ni_as_after",
+    "chuui_suru_wo_particle",
+    "soudan_particle_gloss_mismatch",
     "lemma_placeholder_in_sentence",
     "hangul_in_japanese_line",
     "grammar_not_used",
@@ -159,6 +166,115 @@ export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
 
 /** 已知死译壳：关于X说话（「について話す」应为谈谈/聊聊） */
 const LITERAL_NI_TSUITE_HANASU_GLOSS_RE = /关于.+说话/;
+
+/**
+ * 「静かに話す」死译成「安静地说话／讲话」——中文听着像「安静」与「说话」打架。
+ * 自然说法：小声说话／轻声说。
+ */
+const LITERAL_SHIZUKA_NI_HANASU_GLOSS_RE = /安静地[说讲]话/;
+
+/** 译文是否命中已知死译壳（apply / 编辑写回拒 literal_chinese_gloss） */
+export function jpVocabExampleHasLiteralChineseGloss(glossBody: string): boolean {
+  const g = String(glossBody || "");
+  return (
+    LITERAL_NI_TSUITE_HANASU_GLOSS_RE.test(g) ||
+    LITERAL_SHIZUKA_NI_HANASU_GLOSS_RE.test(g)
+  );
+}
+
+/**
+ * 「注意する」教「小心／注意某事」须接「に」：車に注意。
+ * ❌約束を注意してください（物／事误用を）；✅約束に注意してください。
+ * 「注意を払う」另论；「人を注意する」（提醒某人）本条不拦——仅拦词条为注意する且出现「を注意」。
+ */
+export function jpVocabExampleHasChuuiSuruWoParticle(
+  japaneseLine: string,
+  word: string
+): boolean {
+  const lemma = String(word || "")
+    .replace(/[～~〜]/g, "")
+    .trim();
+  if (lemma !== "注意する" && lemma !== "注意") return false;
+  const compact = stripAllJpVocabParenBlocks(String(japaneseLine || "")).replace(
+    /\s+/g,
+    ""
+  );
+  if (/注意を払/.test(compact)) return false;
+  return /を注意/.test(compact);
+}
+
+/**
+ * 「相談する」：に＝向某人请教／找某人商量；と＝和某人一起商量。
+ * 拒译文与助词对调：に却写「和…谈」；と却写「咨询了…」。
+ */
+export function jpVocabExampleHasSoudanParticleGlossMismatch(
+  japaneseLine: string,
+  glossBody: string,
+  word: string
+): boolean {
+  const lemma = String(word || "")
+    .replace(/[～~〜]/g, "")
+    .trim();
+  if (lemma !== "相談する" && lemma !== "相談") return false;
+  const compact = stripAllJpVocabParenBlocks(String(japaneseLine || "")).replace(
+    /\s+/g,
+    ""
+  );
+  const gloss = String(glossBody || "");
+  // に相談 → 勿译成单纯「和…谈／和…商量」（缺向/找/请教/咨询）
+  if (/に相談/.test(compact)) {
+    if (/(向|找|请教|咨询)/.test(gloss)) return false;
+    if (/和.+谈|和.+商量/.test(gloss)) return true;
+  }
+  // と相談 → 勿译成「咨询了某人」（像に）
+  if (/と相談/.test(compact)) {
+    if (/一起|和.+商量|跟.+商量/.test(gloss)) return false;
+    if (/咨询了/.test(gloss) || /^我咨询/.test(gloss)) return true;
+  }
+  return false;
+}
+
+/**
+ * 「忙しい間です」——把あいだ当成「忙的状态」谓语。
+ * 教「之间／中间」应是 AとBの間 / ～の間；「長い間です」寒暄另放行。
+ */
+export function jpVocabExampleHasAidaFakeStatePredicate(
+  japaneseLine: string,
+  glossBody: string
+): boolean {
+  const compact = stripAllJpVocabParenBlocks(String(japaneseLine || "")).replace(
+    /\s+/g,
+    ""
+  );
+  // い形容词＋間です（忙しい間です／短い間です…）
+  if (!/(?:しい|い)間です/.test(compact)) return false;
+  if (/長い間です/.test(compact)) return false;
+  const gloss = String(glossBody || "");
+  if (/(之间|中间|期间|时候|其间)/.test(gloss)) return false;
+  return true;
+}
+
+/**
+ * 「の間に／間に」= 在……之内／期间；禁止译成「……后」。
+ * ❌一時間の間に… → 一小时后就…；✅一小时内／开会期间…
+ */
+export function jpVocabExampleGlossTreatsAidaNiAsAfter(
+  japaneseLine: string,
+  glossBody: string
+): boolean {
+  const compact = stripAllJpVocabParenBlocks(String(japaneseLine || "")).replace(
+    /\s+/g,
+    ""
+  );
+  if (!/間に|あいだに/.test(compact)) return false;
+  const gloss = String(glossBody || "");
+  if (/(之内|以内|期间|之间|时候)/.test(gloss)) return false;
+  // 去掉方位「后面／后方…」后再看是否剩时间「后」
+  const cleaned = gloss
+    .replace(/后面|后方|后边|後麵|後边|后半|後頭|后头/g, "")
+    .replace(/之後|以后/g, "后");
+  return /后/.test(cleaned);
+}
 
 /** 词典占位符波浪号，禁止出现在例句正文 */
 const LEMMA_PLACEHOLDER_WAVE_RE = /[～〜]/;
@@ -397,7 +513,14 @@ ${
 9. 中文必须是自然通顺的口语，禁止逐词硬译。
    - 「～について話す」→「我来谈谈学校」或「聊聊这个话题」，禁止「关于学校说话」。
    - 「～について知りたい」→「想了解一下…」，不要「关于…想知道」。
+   - 「静かに話す」→「请小声说话／请轻声说」，禁止「请安静地说话」（中文听着像矛盾）。
    - 释义里的「关于……」只是语法义项提示，不要每句都机械套「关于…」。
+9b. 「間／あいだ」（之间；中间）：须造「AとBの間」「～の間」类场景。
+   - ❌「今、忙しい間です。」／译文「我现在很忙。」（把間当成状态，且没用到「之间／期间」）
+   - ✅「本とノートの間に、ペンがあります。」／「会議の間、静かにしてください。」
+   - 「の間に」= 在……之内／期间，禁止译成「……后」（❌一小时后 → ✅一小时内／开会期间）。
+9c. 「注意する」（小心／注意某事）接「に」：❌「約束を注意してください」→ ✅「約束に注意してください」／「車に注意します」。
+9d. 「相談する」：人に相談＝向/找某人商量；人と相談＝和某人一起商量。译文须对齐助词，勿对调。
 10. 只输出「日语」行与下一行「译文：」+中文交替；「译文：」后直接写中文，禁止「译文：/ …」、日文「訳文：」叠标签或行首斜杠；不要行首编号、不要 markdown、不要解释、不要额外语法说明。
 ${
   input.kind === "grammar"
@@ -533,11 +656,29 @@ export function validateJpVocabExampleSentencesAiOutput(
       return { ok: false, reason: "gloss_has_yakuwen_label" };
     }
     const glossBody = item.glossLines[0].replace(/^(译文|翻譯|翻译|译|譯)\s*[:：]\s*/, "");
-    if (LITERAL_NI_TSUITE_HANASU_GLOSS_RE.test(glossBody)) {
+    if (jpVocabExampleHasLiteralChineseGloss(glossBody)) {
       return { ok: false, reason: "literal_chinese_gloss" };
     }
     if (jpVocabExampleGlossLooksNonChinese(glossBody)) {
       return { ok: false, reason: "gloss_not_chinese" };
+    }
+    if (jpVocabExampleHasAidaFakeStatePredicate(item.text, glossBody)) {
+      return { ok: false, reason: "aida_fake_state_predicate" };
+    }
+    if (jpVocabExampleGlossTreatsAidaNiAsAfter(item.text, glossBody)) {
+      return { ok: false, reason: "gloss_aida_ni_as_after" };
+    }
+    if (jpVocabExampleHasChuuiSuruWoParticle(item.text, input.word)) {
+      return { ok: false, reason: "chuui_suru_wo_particle" };
+    }
+    if (
+      jpVocabExampleHasSoudanParticleGlossMismatch(
+        item.text,
+        glossBody,
+        input.word
+      )
+    ) {
+      return { ok: false, reason: "soudan_particle_gloss_mismatch" };
     }
     if (
       input.kind !== "grammar" &&
@@ -679,11 +820,29 @@ export function normalizeJpVocabExampleSentencesForOnlineApply(
       /^(译文|翻譯|翻译|译|譯)\s*[:：]\s*/,
       ""
     );
-    if (LITERAL_NI_TSUITE_HANASU_GLOSS_RE.test(glossBody)) {
+    if (jpVocabExampleHasLiteralChineseGloss(glossBody)) {
       return { ok: false, reason: "literal_chinese_gloss" };
     }
     if (jpVocabExampleGlossLooksNonChinese(glossBody)) {
       return { ok: false, reason: "gloss_not_chinese" };
+    }
+    if (jpVocabExampleHasAidaFakeStatePredicate(item.text, glossBody)) {
+      return { ok: false, reason: "aida_fake_state_predicate" };
+    }
+    if (jpVocabExampleGlossTreatsAidaNiAsAfter(item.text, glossBody)) {
+      return { ok: false, reason: "gloss_aida_ni_as_after" };
+    }
+    if (jpVocabExampleHasChuuiSuruWoParticle(item.text, input.word)) {
+      return { ok: false, reason: "chuui_suru_wo_particle" };
+    }
+    if (
+      jpVocabExampleHasSoudanParticleGlossMismatch(
+        item.text,
+        glossBody,
+        input.word
+      )
+    ) {
+      return { ok: false, reason: "soudan_particle_gloss_mismatch" };
     }
     if (jpVocabExampleHasIAdjPastDeshita(item.text)) {
       return { ok: false, reason: "i_adj_past_deshita" };

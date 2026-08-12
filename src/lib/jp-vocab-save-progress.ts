@@ -22,14 +22,19 @@ export function jpVocabSaveProgressLabel(
   kind: JpVocabSaveProgressKind,
   opts?: { queued?: boolean }
 ): string {
-  if (opts?.queued) return "排队同步中…";
+  // 勾选熟悉程度 ≠ 同步给学生：排队/进行中文案必须按 kind 区分（曾把保存误显示成同步）
+  if (opts?.queued) {
+    return kind === "save_level" || kind === "save"
+      ? "排队保存中…"
+      : "排队同步中…";
+  }
   switch (kind) {
     case "share":
       return "正在发给学生，传输中…";
     case "sync_to_student":
-      return "正在同步到学生端…";
+      return "此单词正在同步给学生复习…";
     case "save_level":
-      return "正在保存熟悉程度…";
+      return "正在存储你勾选的数据…";
     case "save":
       return "正在保存，传输中…";
   }

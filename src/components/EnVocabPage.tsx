@@ -609,6 +609,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     reviewLockedByWordId,
     wordSyncState,
     shareProgressMap,
+    progressKindByWordId,
     recordLevel,
     recordUsageLevels,
     shareWord,
@@ -1040,6 +1041,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
         savingId={savingId}
         wordSyncState={wordSyncState}
         shareProgressMap={shareProgressMap}
+        progressKindByWordId={progressKindByWordId}
         dailySeqByWordId={dailySeqByWordId}
         displayQuizProgress={displayQuizProgress}
         sharedTodayWordIds={sharedTodayWordIds}

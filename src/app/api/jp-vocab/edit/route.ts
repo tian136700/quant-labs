@@ -26,6 +26,14 @@ const ERR = {
     lemma_placeholder_in_sentence: "Do not leave ～ placeholders in examples",
     incomplete_kanji_furigana: "Every kanji needs furigana",
     i_adj_past_deshita: "i-adjective past uses です, not でした (no かったでした)",
+    aida_fake_state_predicate:
+      "Do not use Adj+間です for “I’m busy”; teach 間 as between/during (AとBの間 / ～の間)",
+    gloss_aida_ni_as_after:
+      "の間に means within/during, not “after” (❌一小时后 → ✅一小时内)",
+    chuui_suru_wo_particle:
+      "注意する takes に, not を (❌約束を注意 → ✅約束に注意)",
+    soudan_particle_gloss_mismatch:
+      "相談する: に＝向/找某人商量；と＝和某人一起商量 (don’t swap glosses)",
     missing_chinese_gloss: "Each example needs a 译文： line",
     missing_sentence_final_punct: "Japanese lines need sentence-final punctuation",
     need_more_japanese_lines: "Not enough example sentences",
@@ -54,6 +62,14 @@ const ERR = {
     lemma_placeholder_in_sentence: "例句里不能写「～」占位，请换成具体内容",
     incomplete_kanji_furigana: "句中汉字须全部标注假名",
     i_adj_past_deshita: "一类形容词过去式后用「です／ですね」，不要叠「でした」（❌面白かったでした → ✅面白かったです）",
+    aida_fake_state_predicate:
+      "不要写「忙しい間です」这类假句；「間」须体现之间／期间（✅本とノートの間に…／会議の間…）",
+    gloss_aida_ni_as_after:
+      "「の間に」是之内／期间，不要译成「……后」（❌一小时后 → ✅一小时内）",
+    chuui_suru_wo_particle:
+      "「注意する」小心某事须接「に」（❌約束を注意 → ✅約束に注意／車に注意）",
+    soudan_particle_gloss_mismatch:
+      "「相談する」：に＝向/找某人商量；と＝和某人一起商量（译文勿与助词对调）",
     missing_chinese_gloss: "每条例句下一行须有「译文：」",
     missing_sentence_final_punct: "日语例句须有句末标点",
     need_more_japanese_lines: "例句条数不够",

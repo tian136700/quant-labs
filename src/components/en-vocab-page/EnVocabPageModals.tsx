@@ -57,6 +57,10 @@ type EnVocabPageModalsProps = {
   savingId: number | null;
   wordSyncState: Record<number, "queued" | "syncing">;
   shareProgressMap: Record<number, number>;
+  progressKindByWordId?: Record<
+    number,
+    import("@/lib/jp-vocab-save-progress").JpVocabSaveProgressKind
+  >;
   dailySeqByWordId: Map<number, number>;
   displayQuizProgress: EnVocabDailyQuizProgress;
   sharedTodayWordIds: Set<number>;
@@ -178,6 +182,7 @@ export function EnVocabPageModals(props: EnVocabPageModalsProps) {
         savingWordId={props.savingId}
         wordSyncState={props.wordSyncState}
         shareProgressMap={props.shareProgressMap}
+        progressKindByWordId={props.progressKindByWordId}
         dailySeqByWordId={props.dailySeqByWordId}
         dailyQuizProgress={props.displayQuizProgress}
         canOperate={props.canOperate}

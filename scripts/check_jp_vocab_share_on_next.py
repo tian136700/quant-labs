@@ -47,7 +47,7 @@ def main() -> int:
     )
     must_contain(
         "src/hooks/useJpVocabReviewActions.ts",
-        "正在同步该单词给学生，请稍等",
+        "此单词正在同步给学生复习…",
         "share progress status",
     )
     must_not_contain(

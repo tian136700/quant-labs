@@ -54,11 +54,6 @@ import { JpVocabFlashcardHeader } from "@/components/jp-vocab-teacher-quiz-flash
 import { JpVocabFlashcardManualFillExamples } from "@/components/jp-vocab-teacher-quiz-flashcard/JpVocabFlashcardManualFillExamples";
 import { useJpVocabTeacherQuizNextAdvance } from "@/components/jp-vocab-teacher-quiz-flashcard/useJpVocabTeacherQuizNextAdvance";
 import {
-  JP_VOCAB_LEVEL_SYNC_HINT,
-  JP_VOCAB_LEVEL_SYNC_HINT_ALREADY_SHARED,
-  JP_VOCAB_LEVEL_SYNC_HINT_ALREADY_SHARED_SHORT,
-  JP_VOCAB_LEVEL_SYNC_HINT_SHORT,
-  JP_VOCAB_SYNC_ON_NEXT_PROGRESS_LABEL,
   LEVELS,
   formatJpVocabQuizElapsedLabel,
 } from "@/components/jp-vocab-teacher-quiz-flashcard/helpers";
@@ -80,6 +75,11 @@ type Props = {
   canOperate?: boolean;
   shareUiEnabled?: boolean;
   shareProgressMap?: Record<number, number>;
+  /** 进度条文案种类：勾选=save_level；点下一个同步=sync_to_student */
+  progressKindByWordId?: Record<
+    number,
+    import("@/lib/jp-vocab-save-progress").JpVocabSaveProgressKind
+  >;
   sharedTodayWordIds?: ReadonlySet<number>;
   /** 学生已自行查看老师当前抽查词 */
   studentPeeked?: boolean;
@@ -130,6 +130,7 @@ export function JpVocabTeacherQuizFlashcardModal({
   canOperate = false,
   shareUiEnabled = false,
   shareProgressMap = {},
+  progressKindByWordId = {},
   sharedTodayWordIds,
   studentPeeked = false,
   previewMode = false,
@@ -461,23 +462,16 @@ export function JpVocabTeacherQuizFlashcardModal({
   const sharingPercent = shareProgressMap[w.id] ?? 0;
   const isShared = sharedTodayWordIds?.has(w.id) ?? false;
   const saveBusy = isSharing || isQueued || isSyncing;
-  const saveProgressKind: JpVocabSaveProgressKind = isSharing
-    ? "sync_to_student"
-    : "save_level";
-  const saveProgressLabel = isSharing
-    ? JP_VOCAB_SYNC_ON_NEXT_PROGRESS_LABEL
-    : jpVocabSaveProgressLabel(saveProgressKind, {
-        queued: isQueued && !isSyncing,
-      });
+  // 禁止用「在 shareProgressMap」推断成同步给学生——勾选保存也走同一 map
+  const saveProgressKind: JpVocabSaveProgressKind =
+    progressKindByWordId[w.id] ?? "save_level";
+  const saveProgressLabel = jpVocabSaveProgressLabel(saveProgressKind, {
+    queued: isQueued && !isSyncing,
+  });
   const saveProgressPercent = isSharing
     ? sharingPercent
     : jpVocabSaveProgressDisplayPercent(null);
-  const levelSyncHintShort = isShared
-    ? JP_VOCAB_LEVEL_SYNC_HINT_ALREADY_SHARED_SHORT
-    : JP_VOCAB_LEVEL_SYNC_HINT_SHORT;
-  const levelSyncHint = isShared
-    ? JP_VOCAB_LEVEL_SYNC_HINT_ALREADY_SHARED
-    : JP_VOCAB_LEVEL_SYNC_HINT;
+  // 熟悉程度旁不再挂「同步/不会再发」静态提示——进度条按操作区分文案即可
   const canGoPrev = session.currentIndex > 0;
   const isLast = session.currentIndex === session.wordIds.length - 1;
   const stop = (e: React.MouseEvent) => e.stopPropagation();
@@ -813,22 +807,6 @@ export function JpVocabTeacherQuizFlashcardModal({
                 })}
               </div>
             </div>
-            {!isStudy && !isCoach ? (
-              <>
-                <span
-                  className="jp-vocab-teacher-quiz__level-sync-hint jp-vocab-teacher-quiz__level-sync-hint--desktop"
-                  role="note"
-                >
-                  {levelSyncHintShort}
-                </span>
-                <span
-                  className="jp-vocab-teacher-quiz__level-sync-hint jp-vocab-teacher-quiz__level-sync-hint--mobile"
-                  role="note"
-                >
-                  {levelSyncHint}
-                </span>
-              </>
-            ) : null}
           </div>
           {saveBusy ? (
             <JpVocabSaveProgressBar

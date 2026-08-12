@@ -75,6 +75,40 @@ def main() -> int:
             file=sys.stderr,
         )
         return 1
+    if "jpVocabExampleHasLiteralChineseGloss" not in ai:
+        print(
+            "[check_jp_vocab_example_gloss] FAIL: "
+            "missing jpVocabExampleHasLiteralChineseGloss",
+            file=sys.stderr,
+        )
+        return 1
+    if "安静地[说讲]话" not in ai and "安静地" not in ai:
+        print(
+            "[check_jp_vocab_example_gloss] FAIL: "
+            "literal gloss must reject 安静地说话／讲话",
+            file=sys.stderr,
+        )
+        return 1
+
+    # mirror jpVocabExampleHasLiteralChineseGloss
+    literal_cases = [
+        ("关于学校说话", True),
+        ("请安静地说话。", True),
+        ("请安静地讲话。", True),
+        ("请小声说话。", False),
+        ("请轻声说。", False),
+        ("我来谈谈学校。", False),
+    ]
+    lit_re = re.compile(r"关于.+说话|安静地[说讲]话")
+    for gloss, expect in literal_cases:
+        got = bool(lit_re.search(gloss))
+        if got != expect:
+            print(
+                "[check_jp_vocab_example_gloss] FAIL: "
+                f"literal gloss {gloss!r} got={got} expected={expect}",
+                file=sys.stderr,
+            )
+            return 1
 
     for raw, expected in CASES:
         got = format_gloss(raw)

@@ -410,6 +410,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
   const {
     wordSyncState,
     shareProgressMap,
+    progressKindByWordId,
     saveQueuePending,
     reviewLockedByWordId,
     recordLevel,
@@ -794,6 +795,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
           wordSyncState={wordSyncState}
           deletingId={deletingId}
           shareProgressMap={shareProgressMap}
+          progressKindByWordId={progressKindByWordId}
           sharedTodayWordIds={sharedTodayWordIds}
           refs={refs}
           dailySeqByWordId={dailySeqByWordId}
@@ -906,6 +908,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
         displayQuizProgress={displayQuizProgress}
         quizTimeWeight={quizTimeWeight}
         shareProgressMap={shareProgressMap}
+        progressKindByWordId={progressKindByWordId}
         sharedTodayWordIds={sharedTodayWordIds}
         studentPeekedCurrentWord={studentPeekedCurrentWord}
         todayWeakExportWordsCount={todayWeakExportWords.length}

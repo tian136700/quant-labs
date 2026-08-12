@@ -29,6 +29,7 @@ import {
   jpVocabShareProgressPercent,
 } from "@/lib/jp-vocab-page-helpers";
 import { JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT } from "@/lib/jp-vocab-save-progress";
+import type { JpVocabSaveProgressKind } from "@/lib/jp-vocab-save-progress";
 import { notifyEnVocabSharedUpdated } from "@/lib/en-vocab-shared-notify";
 import { mergeEnVocabWordAfterReviewResponse } from "@/lib/en-vocab-teacher-quiz";
 import type { EnVocabRef, EnVocabLevel, EnVocabWord } from "@/lib/types";
@@ -106,23 +107,45 @@ export function useEnVocabReviewActions(options: {
   const [shareProgressMap, setShareProgressMap] = useState<Record<number, number>>(
     {}
   );
+  /** 进度条文案：勾选=save_level；点「下一个」同步=sync_to_student */
+  const [progressKindByWordId, setProgressKindByWordId] = useState<
+    Record<number, JpVocabSaveProgressKind>
+  >({});
   const [saveQueuePending, setSaveQueuePending] = useState(0);
   const usageLevelSavingRef = useRef<number | null>(null);
   const shareProgressTimersRef = useRef<Map<number, ReturnType<typeof setInterval>>>(
     new Map()
   );
 
-  const patchShareProgress = useCallback((wordId: number, percent: number | null) => {
-    setShareProgressMap((prev) => {
-      if (percent == null) {
-        if (!(wordId in prev)) return prev;
-        const next = { ...prev };
-        delete next[wordId];
-        return next;
-      }
-      return { ...prev, [wordId]: percent };
-    });
-  }, []);
+  const patchShareProgress = useCallback(
+    (
+      wordId: number,
+      percent: number | null,
+      kind?: JpVocabSaveProgressKind
+    ) => {
+      setShareProgressMap((prev) => {
+        if (percent == null) {
+          if (!(wordId in prev)) return prev;
+          const next = { ...prev };
+          delete next[wordId];
+          return next;
+        }
+        return { ...prev, [wordId]: percent };
+      });
+      setProgressKindByWordId((prev) => {
+        if (percent == null) {
+          if (!(wordId in prev)) return prev;
+          const next = { ...prev };
+          delete next[wordId];
+          return next;
+        }
+        if (kind == null) return prev;
+        if (prev[wordId] === kind) return prev;
+        return { ...prev, [wordId]: kind };
+      });
+    },
+    []
+  );
 
   const setWordSyncPhase = useCallback(
     (wordId: number, phase: "queued" | "syncing" | null) => {
@@ -236,17 +259,17 @@ export function useEnVocabReviewActions(options: {
       }
     ) => {
       setWordSyncPhase(wordId, "queued");
-      patchShareProgress(wordId, JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT);
+      patchShareProgress(wordId, JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT, "save_level");
       if (saveQueuePending > 0) {
-        setStatus(`已更新界面，排队同步中（${saveQueuePending + 1} 项）…`);
+        setStatus(`已更新界面，排队保存中（${saveQueuePending + 1} 项）…`);
       } else {
-        setStatus("已更新界面，正在保存熟悉程度…");
+        setStatus("已更新界面，正在存储你勾选的数据…");
       }
 
       await enVocabSaveQueue.enqueue(async () => {
         setWordSyncPhase(wordId, "syncing");
         const startedAt = Date.now();
-        patchShareProgress(wordId, 0);
+        patchShareProgress(wordId, 0, "save_level");
         clearShareTimer(wordId);
         shareProgressTimersRef.current.set(
           wordId,
@@ -605,7 +628,7 @@ export function useEnVocabReviewActions(options: {
       ) > 0;
 
     setHighlightId(wordId);
-    setStatus(fromNext ? "正在同步该单词给学生，请稍等" : "");
+    setStatus(fromNext ? "此单词正在同步给学生复习…" : "");
     if (!alreadyMarked) {
       setSessionLevel((prev) => ({ ...prev, [wordId]: weakLevel }));
       setSessionReviewAt((prev) => ({ ...prev, [wordId]: nowMs }));
@@ -619,7 +642,7 @@ export function useEnVocabReviewActions(options: {
     setSharingId(wordId);
     setWordSyncPhase(wordId, "syncing");
     const startedAt = Date.now();
-    patchShareProgress(wordId, 0);
+    patchShareProgress(wordId, 0, "sync_to_student");
     clearShareTimer(wordId);
     shareProgressTimersRef.current.set(
       wordId,
@@ -727,6 +750,7 @@ export function useEnVocabReviewActions(options: {
     reviewLockedByWordId,
     wordSyncState,
     shareProgressMap,
+    progressKindByWordId,
     recordLevel,
     recordUsageLevels,
     shareWord,

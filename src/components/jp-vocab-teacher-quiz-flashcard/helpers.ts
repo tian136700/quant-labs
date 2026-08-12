@@ -22,18 +22,10 @@ export const LEVEL_LABEL: Record<JpVocabLevel, string> = {
   weak: "不熟悉",
 };
 
-export const JP_VOCAB_LEVEL_SYNC_HINT_SHORT = "点「下一个」时同步给学生";
-export const JP_VOCAB_LEVEL_SYNC_HINT =
-  "勾选熟悉程度后，点「下一个」才同步给学生复习查看（每词只同步一次）";
-export const JP_VOCAB_LEVEL_SYNC_HINT_ALREADY_SHARED_SHORT =
-  "已同步过，下一个不会再发";
-export const JP_VOCAB_LEVEL_SYNC_HINT_ALREADY_SHARED =
-  "该词今日已同步给学生，点「下一个」不会重复发送";
-
-/** 点「下一个」触发同步时的进度条文案 */
+/** 点「下一个」触发同步时的进度条文案（勿用于勾选熟悉程度） */
 export const JP_VOCAB_SYNC_ON_NEXT_PROGRESS_LABEL =
-  "正在同步该单词给学生，请稍等";
+  "此单词正在同步给学生复习…";
 
 /** 同步未完成时再点「下一个」的提示 */
 export const JP_VOCAB_SYNC_ON_NEXT_WAIT_HINT =
-  "正在同步该单词给学生，请稍等。";
+  "此单词正在同步给学生复习，请稍等。";

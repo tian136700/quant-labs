@@ -81,6 +81,10 @@ type JpVocabPageModalsProps = {
   displayQuizProgress: JpVocabDailyQuizProgress;
   quizTimeWeight: number;
   shareProgressMap: Record<number, number | null>;
+  progressKindByWordId?: Record<
+    number,
+    import("@/lib/jp-vocab-save-progress").JpVocabSaveProgressKind
+  >;
   sharedTodayWordIds: Set<number>;
   studentPeekedCurrentWord: boolean;
   todayWeakExportWordsCount: number;
@@ -292,6 +296,7 @@ export function JpVocabPageModals(props: JpVocabPageModalsProps) {
         canOperate={props.canOperate}
         shareUiEnabled={props.teacherShareUiEnabled}
         shareProgressMap={props.shareProgressMap as Record<number, number>}
+        progressKindByWordId={props.progressKindByWordId}
         sharedTodayWordIds={props.sharedTodayWordIds}
         studentPeeked={props.studentPeekedCurrentWord}
         onClose={props.onQuizFlashcardClose}

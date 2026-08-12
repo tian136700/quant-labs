@@ -55,6 +55,10 @@ export type JpVocabWordTableProps = {
   wordSyncState: Record<number, "queued" | "syncing">;
   deletingId: number | null;
   shareProgressMap: Record<number, number>;
+  progressKindByWordId?: Record<
+    number,
+    import("@/lib/jp-vocab-save-progress").JpVocabSaveProgressKind
+  >;
   sharedTodayWordIds: Set<number>;
   refs: Record<string, JpVocabRef>;
   dailySeqByWordId: Map<number, number>;
@@ -98,6 +102,7 @@ export function JpVocabWordTable({
   wordSyncState,
   deletingId,
   shareProgressMap,
+  progressKindByWordId = {},
   sharedTodayWordIds,
   refs,
   dailySeqByWordId,
@@ -524,9 +529,7 @@ export function JpVocabWordTable({
                         {isSharing || isQueued || isSyncing ? (
                           <JpVocabSaveProgressBar
                             label={jpVocabSaveProgressLabel(
-                              sharedTodayWordIds.has(w.id)
-                                ? "save_level"
-                                : "sync_to_student",
+                              progressKindByWordId[w.id] ?? "save_level",
                               { queued: isQueued && !isSyncing }
                             )}
                             percent={

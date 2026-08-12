@@ -18,8 +18,8 @@ type Props = {
   overallFromUsages: EnVocabLevel | null;
   reviewLocked: boolean;
   isSaving: boolean;
-  levelSyncHintShort: string;
-  levelSyncHint: string;
+  levelSyncHintShort: string | null;
+  levelSyncHint: string | null;
   locale: "zh" | "en";
   priorityLabel: string;
   riskBadgeTier: string;
@@ -136,7 +136,7 @@ export function EnVocabFlashcardPageFooter(props: Props) {
                 </div>
               )}
             </div>
-            {!isStudy ? (
+            {!isStudy && levelSyncHintShort && levelSyncHint ? (
               <>
                 <span
                   className="jp-vocab-teacher-quiz__level-sync-hint jp-vocab-teacher-quiz__level-sync-hint--desktop"

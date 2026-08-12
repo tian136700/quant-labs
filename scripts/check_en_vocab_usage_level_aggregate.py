@@ -138,7 +138,7 @@ def main() -> int:
             "shareProgressMap",
             "patchShareProgress",
             "JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT",
-            "正在同步该单词给学生，请稍等",
+            "此单词正在同步给学生复习…",
         ]:
             if n not in hook_text:
                 errors.append(f"useEnVocabReviewActions.ts: missing {n!r}")

@@ -39,13 +39,6 @@ import { lockBodyScroll } from "@/lib/body-scroll-lock";
 import { useEnVocabFlashcardClassNotesFetch } from "@/hooks/useEnVocabFlashcardClassNotesFetch";
 import { useEnVocabWordContentFetch } from "@/hooks/useEnVocabWordContentFetch";
 
-import {
-  EN_VOCAB_LEVEL_SYNC_HINT,
-  EN_VOCAB_LEVEL_SYNC_HINT_ALREADY_SHARED,
-  EN_VOCAB_LEVEL_SYNC_HINT_ALREADY_SHARED_SHORT,
-  EN_VOCAB_LEVEL_SYNC_HINT_SHORT,
-  EN_VOCAB_SYNC_ON_NEXT_PROGRESS_LABEL,
-} from "@/components/en-vocab-teacher-quiz-flashcard/helpers";
 import { advanceEnVocabTeacherQuizNext } from "@/components/en-vocab-teacher-quiz-flashcard/advanceTeacherQuizNext";
 import { EnVocabFlashcardAlerts } from "@/components/en-vocab-teacher-quiz-flashcard/EnVocabFlashcardAlerts";
 import { EnVocabFlashcardPageBody } from "@/components/en-vocab-teacher-quiz-flashcard/EnVocabFlashcardPageBody";
@@ -71,6 +64,10 @@ type Props = {
   canOperate?: boolean;
   shareUiEnabled?: boolean;
   shareProgressMap?: Record<number, number>;
+  progressKindByWordId?: Record<
+    number,
+    import("@/lib/jp-vocab-save-progress").JpVocabSaveProgressKind
+  >;
   sharedTodayWordIds?: ReadonlySet<number>;
   /** 学生已自行查看老师当前抽查词 */
   studentPeeked?: boolean;
@@ -118,6 +115,7 @@ export function EnVocabTeacherQuizFlashcardModal({
   canOperate = false,
   shareUiEnabled = false,
   shareProgressMap = {},
+  progressKindByWordId = {},
   sharedTodayWordIds,
   studentPeeked = false,
   previewMode = false,
@@ -537,27 +535,15 @@ export function EnVocabTeacherQuizFlashcardModal({
   const sharingPercent = shareProgressMap[w.id] ?? 0;
   const isShared = sharedTodayWordIds?.has(w.id) ?? false;
   const saveBusy = isSharing || isQueued || isSyncing || isSaving;
-  const saveProgressKind: JpVocabSaveProgressKind = isSharing
-    ? "sync_to_student"
-    : "save_level";
-  const saveProgressLabel = isSharing
-    ? EN_VOCAB_SYNC_ON_NEXT_PROGRESS_LABEL
-    : jpVocabSaveProgressLabel(saveProgressKind, {
-        queued: isQueued && !isSyncing,
-      });
+  // 禁止用 map 有无推断成同步给学生——勾选保存也走同一 map
+  const saveProgressKind: JpVocabSaveProgressKind =
+    progressKindByWordId[w.id] ?? "save_level";
+  const saveProgressLabel = jpVocabSaveProgressLabel(saveProgressKind, {
+    queued: isQueued && !isSyncing,
+  });
   const saveProgressPercent = isSharing
     ? sharingPercent
     : jpVocabSaveProgressDisplayPercent(null);
-  const levelSyncHintShort = isShared
-    ? EN_VOCAB_LEVEL_SYNC_HINT_ALREADY_SHARED_SHORT
-    : usePerUsageLevels
-      ? "点「下一个」时同步给学生"
-      : EN_VOCAB_LEVEL_SYNC_HINT_SHORT;
-  const levelSyncHint = isShared
-    ? EN_VOCAB_LEVEL_SYNC_HINT_ALREADY_SHARED
-    : usePerUsageLevels
-      ? "每条用法都勾完后，点「下一个」才同步给学生复习查看（每词只同步一次）"
-      : EN_VOCAB_LEVEL_SYNC_HINT;
   const canGoPrev = session.currentIndex > 0;
   const isLast = session.currentIndex === session.wordIds.length - 1;
   /* 备注在底栏熟悉程度/统计上方，不再占右侧栏 */
@@ -730,8 +716,8 @@ export function EnVocabTeacherQuizFlashcardModal({
             overallFromUsages={overallFromUsages}
             reviewLocked={reviewLocked}
             isSaving={isSaving}
-            levelSyncHintShort={levelSyncHintShort}
-            levelSyncHint={levelSyncHint}
+            levelSyncHintShort={null}
+            levelSyncHint={null}
             locale={locale}
             priorityLabel={priorityLabel}
             riskBadgeTier={riskBadgeTier}
