@@ -8,7 +8,7 @@ import type { EnVocabWord } from "@/lib/types";
 export const EN_VOCAB_TEACHER_VISIBLE_DEFAULT = EN_VOCAB_DAILY_QUIZ_TOP;
 
 export type EnVocabTeacherVisibleLimit = {
-  /** 北京时间 YYYY-MM-DD；跨日回到默认 20 */
+  /** 北京时间 YYYY-MM-DD；跨日回到默认 EN_VOCAB_DAILY_QUIZ_TOP */
   date: string;
   limit: number;
   count: number;
@@ -45,7 +45,7 @@ export function normalizeEnVocabTeacherVisibleLimit(
   const obj = raw as Record<string, unknown>;
   const date = typeof obj.date === "string" && obj.date ? obj.date : today;
 
-  /** 跨日：抽查目标回到默认 20，清空可见池 */
+  /** 跨日：抽查目标回到默认 EN_VOCAB_DAILY_QUIZ_TOP，清空可见池 */
   if (date !== today) {
     return {
       date: today,

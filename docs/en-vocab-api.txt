@@ -90,7 +90,7 @@ Query
   "daily_quiz_style": { … },
   "display_order": { "date": "YYYY-MM-DD", "ids": […], … },
   "shared_today_word_ids": [12, 45],
-  "teacher_visible_limit": { "quiz_target": 20, "visible_ids": […], … }
+  "teacher_visible_limit": { "quiz_target": 25, "visible_ids": […], … }
 }
 
 重要（1102）
@@ -296,7 +296,7 @@ POST · 管理员设今日抽查数量
 {
   "ok": true,
   "teacher_visible_limit": {
-    "quiz_target": 20,
+    "quiz_target": 25,
     "visible_ids": […],
     "released_today": true,
     …
@@ -318,7 +318,7 @@ curl -sS -X POST 'https://english.info-quests.com/api/en-vocab' \
   -H 'Cookie: 你的登录 Cookie' \
   -H 'Content-Type: application/json' \
   -H 'x-locale: zh' \
-  -d '{"action":"set_daily_quiz_target","count":20}'
+  -d '{"action":"set_daily_quiz_target","count":25}'
 
 
 ────────────────────────────────

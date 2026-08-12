@@ -26,7 +26,7 @@ export const SHOW_RANDOM_HIGHLIGHT = false;
 export const SHOW_RISK_CHART = false;
 
 /** 默认今日抽查数量（管理员可改；跨日回到此值；见 en-vocab-teacher-visible.ts） */
-export const EN_VOCAB_DAILY_QUIZ_TOP = 20;
+export const EN_VOCAB_DAILY_QUIZ_TOP = 25;
 
 /** 单词表默认每页条数（对齐日语抽问） */
 export const EN_VOCAB_PAGE_SIZE = 20;

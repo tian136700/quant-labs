@@ -5,7 +5,7 @@ import {
 } from "@/lib/jp-vocab-teacher-visible";
 import type { JpVocabWord } from "@/lib/types";
 
-/** 每日抽查目标默认 N（与单词表序号 1–N、跨日重置一致；对齐英语 EN_VOCAB_DAILY_QUIZ_TOP=20） */
+/** 每日抽查目标默认 N（与单词表序号 1–N、跨日重置一致；英语见 EN_VOCAB_DAILY_QUIZ_TOP） */
 export const JP_VOCAB_DAILY_QUIZ_TOP = 20;
 
 export type JpVocabDailyQuizProgress = {
