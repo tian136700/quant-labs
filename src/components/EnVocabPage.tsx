@@ -252,8 +252,6 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     refsRef,
     persistCache,
     loadWords,
-    applySyncPatches,
-    persistCache,
     syncTeacherVisibleLimitFromServer,
   } = useEnVocabPageSync({
     checking,

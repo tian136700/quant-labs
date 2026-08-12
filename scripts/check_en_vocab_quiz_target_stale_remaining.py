@@ -80,6 +80,22 @@ def main() -> int:
     if "syncTeacherVisibleLimitFromServer" not in page:
         errors.append("EnVocabPage: 须把 syncTeacherVisibleLimitFromServer 传给抽查 hook")
 
+    m = re.search(
+        r"const\s*\{([^}]+)\}\s*=\s*useEnVocabPageSync",
+        page,
+        re.S,
+    )
+    if not m:
+        errors.append("EnVocabPage: 找不到 useEnVocabPageSync 解构")
+    else:
+        names = re.findall(r"\b([A-Za-z_][A-Za-z0-9_]*)\b", m.group(1))
+        names = [n for n in names if n != "as"]
+        dup = sorted({n for n in names if names.count(n) > 1})
+        if dup:
+            errors.append(
+                f"EnVocabPage: useEnVocabPageSync 解构重复: {', '.join(dup)}"
+            )
+
     if errors:
         print("check_en_vocab_quiz_target_stale_remaining: FAIL")
         for e in errors:
