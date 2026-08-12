@@ -194,24 +194,35 @@ function hasJpVocabClassNotesPresent(notes: string | null | undefined): boolean 
   return Boolean(notes && String(notes).trim());
 }
 
-/** 老师可见池 / 管理员 very 后 rematerialize：轻量列表，不含 class_notes 等正文 */
+/**
+ * 老师可见池 / 管理员 very 后 rematerialize：轻量列表。
+ * 热路径禁止 seedIfEmpty（每次 COUNT(*)）；表空时由其它入口 seed。
+ */
 export async function listJpVocabWordsForPool(
   db: D1Database
 ): Promise<JpVocabWord[]> {
-  await seedIfEmpty(db);
   await ensureVocabWordSchema(db);
 
   if (jpVocabDbState.devStoreEnabled) {
     return sortJpVocabWords(jpVocabDbState.devWords).map((w) => ({
       ...w,
+      reading: null,
+      meaning: null,
+      pos: null,
       class_notes: null,
       mnemonic: null,
+      annotation: null,
+      course_label: null,
+      oral_frequency: null,
+      exam_frequency: null,
       example_sentences: null,
       example_sentences_source: null,
       usage: null,
       usage_source: null,
       connection: null,
       connection_source: null,
+      related_compounds: null,
+      related_compounds_source: null,
     }));
   }
 

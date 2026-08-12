@@ -22,7 +22,6 @@ import {
   ensureVocabWordSchema,
   mapReviewWordRow,
   nowIso,
-  seedIfEmpty,
 } from "./helpers";
 import {
   ensureJpVocabDailyDisplayOrder,
@@ -96,7 +95,7 @@ export async function recordJpVocabReview(
   const countTowardDailyQuiz = options?.countTowardDailyQuiz !== false;
   const reviewOpts = { countTowardDailyQuiz };
 
-  await seedIfEmpty(db);
+  // 勾选热路径：禁止 seedIfEmpty（每次 COUNT(*)）；词表已有数据时 schema 缓存后几乎零成本
   await ensureVocabWordSchema(db);
   // 勾选默认不分享：勿每次 ensure shared 表（多余 D1）
   if (options?.shareToStudy) {
@@ -263,7 +262,7 @@ export async function recordJpVocabReview(
 async function rematerializeJpVocabTeacherVisibleAfterAdminVerySkip(
   db: D1Database
 ): Promise<JpVocabTeacherVisibleLimit> {
-  // 必须用 lite 列表：全量 WORD_SELECT（含 class_notes/例句）易 1102
+  // 必须用 lite 列表：禁 class_notes/例句/释义；listJpVocabWordsForPool 亦禁 seedIfEmpty
   const words = await listJpVocabWordsForPool(db);
   const displayOrder = await ensureJpVocabDailyDisplayOrder(db, words);
   const visible = await getJpVocabTeacherVisibleLimit(db);

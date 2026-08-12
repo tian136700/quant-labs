@@ -457,12 +457,11 @@ export const WORD_SELECT_LIST = `SELECT id, word, reading, meaning, pos, kind, r
   last_review_level, last_review_at, srs_interval_days, srs_due_date, created_at, updated_at FROM jp_vocab_word`;
 
 /**
- * 可见池 / 日序 rematerialize 用：禁止扫 class_notes、例句、巧记、用法等大字段。
- * 管理员勾「非常熟悉」后若用 WORD_SELECT 全表 → 极易 Worker 1102。
+ * 可见池 / 日序 rematerialize 用：只留排序与 skip 判定字段。
+ * 禁止扫 class_notes / 例句 / 巧记 / 用法 / 释义正文 —— 管理员勾「非常熟悉」全表扫这些会 1102。
  */
-export const WORD_SELECT_POOL = `SELECT id, word, reading, meaning, pos, kind, ref_key,
-  cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, annotation, course_label,
-  oral_frequency, exam_frequency,
+export const WORD_SELECT_POOL = `SELECT id, word, kind, ref_key,
+  cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date,
   last_review_level, last_review_at, srs_interval_days, srs_due_date, created_at, updated_at
   FROM jp_vocab_word`;
 

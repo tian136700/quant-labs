@@ -21,10 +21,42 @@ def main() -> int:
 
     if "WORD_SELECT_POOL" not in helpers:
         errors.append("helpers must define WORD_SELECT_POOL (no class_notes body)")
+    # POOL 只留 skip/排序字段；扫 meaning/例句仍会在管理员勾 very 时 1102
+    pool_match = re.search(
+        r"export const WORD_SELECT_POOL = `([\s\S]*?)`;",
+        helpers,
+    )
+    if not pool_match:
+        errors.append("helpers WORD_SELECT_POOL definition not found")
+    else:
+        pool_sql = pool_match.group(1)
+        for forbidden in (
+            "class_notes",
+            "example_sentences",
+            "mnemonic",
+            "usage",
+            "connection",
+            "related_compounds",
+            "meaning",
+            "reading",
+            "annotation",
+        ):
+            if forbidden in pool_sql:
+                errors.append(f"WORD_SELECT_POOL must not select {forbidden}")
     if "listJpVocabWordsForPool" not in words:
         errors.append("words must export listJpVocabWordsForPool")
+    if "seedIfEmpty" in words.split("export async function listJpVocabWordsForPool")[1].split(
+        "export async function "
+    )[0]:
+        # only flag if seedIfEmpty call remains inside listJpVocabWordsForPool body
+        pool_fn = words.split("export async function listJpVocabWordsForPool", 1)[1]
+        pool_body = pool_fn.split("\nexport async function ", 1)[0]
+        if "seedIfEmpty(" in pool_body:
+            errors.append("listJpVocabWordsForPool must not call seedIfEmpty (hot path)")
     if "listJpVocabWordsForPool" not in review:
         errors.append("rematerialize must use listJpVocabWordsForPool")
+    if "seedIfEmpty(" in review:
+        errors.append("recordJpVocabReview must not call seedIfEmpty (admin very 热路径)")
     if re.search(
         r"rematerializeJpVocabTeacherVisibleAfterAdminVerySkip[\s\S]*?listJpVocabWords\(",
         review,

@@ -12,6 +12,8 @@ Fails if:
    (must *StudyPageClient + next/dynamic { ssr: false } + force-static).
 4b) /en-vocab + /en-vocab/admin must use EnVocabPageClient + force-static
    (not force-dynamic static EnVocabPage; document SSR → Worker 1102).
+4c) /jp-vocab + /jp-vocab/admin must use JpVocabPageClient + force-static
+   (same; admin 勾选后整页 1102 曾复发).
 5) JpVocabPage / jp-vocab-coach statically import @/lib/jp-vocab-export
    (must use @/lib/jp-vocab-export-select for filters; await import export).
 6) tool-dot conversion/convert.ts statically imports docx
@@ -191,6 +193,31 @@ def main() -> int:
         errs.append(
             "EnVocabPageClient.tsx: must accept variant teacher|admin "
             "(shared shell for /en-vocab and /en-vocab/admin)"
+        )
+    # /jp-vocab + /jp-vocab/admin 曾直接 SSR JpVocabPage → 文档请求 1102
+    check_ssr_false_shell(
+        errs,
+        client_name="JpVocabPageClient",
+        inner_name="JpVocabPage",
+        app_page=SRC / "app" / "jp-vocab" / "page.tsx",
+        app_label="app/jp-vocab/page.tsx",
+        require_force_static=True,
+    )
+    check_ssr_false_shell(
+        errs,
+        client_name="JpVocabPageClient",
+        inner_name="JpVocabPage",
+        app_page=SRC / "app" / "jp-vocab" / "admin" / "page.tsx",
+        app_label="app/jp-vocab/admin/page.tsx",
+        require_force_static=True,
+    )
+    jp_page_client = (SRC / "components" / "JpVocabPageClient.tsx").read_text(
+        encoding="utf-8"
+    )
+    if "variant" not in jp_page_client:
+        errs.append(
+            "JpVocabPageClient.tsx: must accept variant teacher|admin "
+            "(shared shell for /jp-vocab and /jp-vocab/admin)"
         )
     check_study_shell(
         errs,
