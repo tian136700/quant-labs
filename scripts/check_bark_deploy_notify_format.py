@@ -100,6 +100,10 @@ def main() -> int:
         for x in ("文件：", "请到线上", "维护中心", "127.0.0.1:17823")
     ):
         return _fail(f"failure body has banned text: {fail_body!r}")
+    if "下一步：在 Cursor 原对话回一句即可触发自动修" not in fail_body:
+        return _fail(
+            "failure body must tip user to reply in Cursor to trigger autofix"
+        )
 
     # 失败须有提示音，且与成功铃声不同（勿再 passive 静音）
     fail_fn = re.search(

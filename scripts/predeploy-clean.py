@@ -100,6 +100,15 @@ def run_css_comment_guard() -> int:
     return subprocess.call([sys.executable, str(script)], cwd=str(ROOT))
 
 
+def run_hook_destructure_guard() -> int:
+    """Fail fast：const { a, a } = useFoo 会让 Next 报 Identifier already declared。"""
+    script = ROOT / "scripts" / "check_no_duplicate_hook_destructure.py"
+    if not script.is_file():
+        return 0
+    print("predeploy: 检查 hook 解构无重复绑定…", flush=True)
+    return subprocess.call([sys.executable, str(script)], cwd=str(ROOT))
+
+
 def write_app_deploy_version() -> int:
     """Bake a unique deploy stamp into the Worker + client bundle."""
     script = ROOT / "scripts" / "write_app_deploy_version.py"
@@ -131,6 +140,16 @@ def main() -> int:
             flush=True,
         )
         return css_rc
+
+    destructure_rc = run_hook_destructure_guard()
+    if destructure_rc != 0:
+        print(
+            "predeploy 中止：hook 解构重复会直接导致 Next 构建失败"
+            "（见 scripts/check_no_duplicate_hook_destructure.py）",
+            file=sys.stderr,
+            flush=True,
+        )
+        return destructure_rc
 
     if local_dev:
         stop_dev_server()

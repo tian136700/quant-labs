@@ -36,6 +36,10 @@ def main() -> int:
         return fail("feature-remark-stop must write pending_deploy_followup")
     if "file=sys.stderr" not in feature:
         return fail("feature-remark status prints must go to stderr (keep stdout clean)")
+    if "_run_prepublish_gates" not in feature:
+        return fail("feature-remark-stop must run prepublish gates before POST")
+    if "check_no_duplicate_hook_destructure" not in feature:
+        return fail("feature-remark-stop must gate on hook destructure duplicates")
 
     fix = FIX_HOOK.read_text(encoding="utf-8")
     if "followup_message" not in fix:
@@ -73,6 +77,10 @@ def main() -> int:
     session = session_hook.read_text(encoding="utf-8")
     if "last_deploy_failure" not in session or "additional_context" not in session:
         return fail("deploy-auto-fix-session must inject failure context")
+    if "回一句" not in session and "followup" not in session:
+        return fail("deploy-auto-fix-session must tip reply-to-trigger autofix")
+    if "Identifier" not in session and "Failed to compile" not in session:
+        return fail("deploy-auto-fix-session must parse compile Identifier errors")
 
     wait = WAIT.read_text(encoding="utf-8")
     if "/api/deploy-logs" not in wait:
@@ -85,6 +93,10 @@ def main() -> int:
         return fail("wait_deploy_result must mark pending phase failed_awaiting_fix on failure")
     if "is_deploy_transient_republish_failure" not in wait and "_try_auto_republish_transient" not in wait:
         return fail("wait_deploy_result must auto-republish transient /_document or CF failures")
+    if "原对话回一句" not in wait and "触发自动修" not in wait:
+        return fail("wait_deploy_result failure tip must mention reply-to-trigger autofix")
+    if "--- tip ---" not in fix:
+        return fail("deploy-auto-fix-stop materialize tip must include --- tip ---")
 
     if "notify_deploy_autofix" not in fix and "正在修复" not in fix:
         return fail("deploy-auto-fix-stop must Bark 正在修复 on failure path")
@@ -117,6 +129,17 @@ def main() -> int:
         return fail("bark_notify autofix title must be 正在修复")
     if 'title = "成功"' not in bark or 'title = "失败"' not in bark:
         return fail("success/failure Bark titles must stay 成功/失败")
+    if "下一步：在 Cursor 原对话回一句即可触发自动修" not in bark:
+        return fail("failure Bark body must tip reply-to-trigger autofix")
+
+    rule_dup = ROOT / ".cursor" / "rules" / "hook-destructure-no-dup.mdc"
+    if not rule_dup.is_file():
+        return fail("missing hook-destructure-no-dup.mdc")
+    predeploy = (ROOT / "scripts" / "predeploy-clean.py").read_text(encoding="utf-8")
+    if "run_hook_destructure_guard" not in predeploy:
+        return fail("predeploy-clean must run hook destructure guard")
+    if "构建级错误" not in rule and "预发门禁" not in rule:
+        return fail("deploy-auto-fix-followup.mdc must document prepublish compile gates")
 
     # feature-remark 应在 loc-split 之前、deploy-auto-fix 之前；fix hook 在 feature 之后
     stop_block = re.search(r'"stop"\s*:\s*\[(.*?)\]', hooks, re.S)

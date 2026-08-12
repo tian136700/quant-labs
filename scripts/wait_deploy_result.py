@@ -290,6 +290,9 @@ def main() -> int:
                         f"summary={summary}\n"
                         f"started_at={full.get('started_at')}\n"
                         f"finished_at={full.get('finished_at')}\n"
+                        f"--- tip ---\n"
+                        f"在 Cursor 原对话回一句（或停一轮）即可触发自动修 followup；"
+                        f"不必从维护中心复制日志。\n"
                         f"--- details ---\n{tail}\n"
                     )
                     FAILURE_FILE.write_text(payload, encoding="utf-8")
