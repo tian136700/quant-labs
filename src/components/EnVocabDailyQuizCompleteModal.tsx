@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
+import { tryCloseBrowserTab } from "@/lib/try-close-browser-tab";
 
 type Props = {
   open: boolean;
@@ -15,6 +16,9 @@ type Props = {
   onClose: () => void;
 };
 
+const CLOSE_TAB_HINT =
+  "浏览器不允许自动关闭此标签，请手动关闭本窗口。";
+
 /** 老师端本轮抽查完成提示（对齐日语完成弹窗；不展示数量） */
 export function EnVocabDailyQuizCompleteModal({
   open,
@@ -23,6 +27,7 @@ export function EnVocabDailyQuizCompleteModal({
   onClose,
 }: Props) {
   const [mounted, setMounted] = useState(false);
+  const [closeTabHint, setCloseTabHint] = useState<string | null>(null);
   const showViewLast = Boolean(onViewLastWord) && !flashcardStillOpen;
 
   useEffect(() => {
@@ -30,7 +35,10 @@ export function EnVocabDailyQuizCompleteModal({
   }, []);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setCloseTabHint(null);
+      return;
+    }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
@@ -74,7 +82,6 @@ export function EnVocabDailyQuizCompleteModal({
               ? "将停留在最后一个词；可点「上一个」回看。"
               : "可以回看刚抽过的词条。"}
           </p>
-          <p>您可以选择关闭当前页面。</p>
         </div>
         <div className="en-vocab-complete-modal-actions">
           {showViewLast ? (
@@ -86,15 +93,30 @@ export function EnVocabDailyQuizCompleteModal({
               查看上一个单词
             </button>
           ) : null}
-          <button
-            type="button"
-            className={`btn-rsi-filter en-vocab-complete-modal-btn${
-              showViewLast ? "" : " btn-rsi-filter--primary"
-            }`}
-            onClick={onClose}
-          >
-            好的
-          </button>
+          <div className="en-vocab-complete-modal-actions-row">
+            <button
+              type="button"
+              className="btn-rsi-filter en-vocab-complete-modal-btn"
+              onClick={() => {
+                setCloseTabHint(null);
+                tryCloseBrowserTab(() => setCloseTabHint(CLOSE_TAB_HINT));
+              }}
+            >
+              关闭本窗口
+            </button>
+            <button
+              type="button"
+              className="btn-rsi-filter btn-rsi-filter--primary en-vocab-complete-modal-btn"
+              onClick={onClose}
+            >
+              停留在本页面
+            </button>
+          </div>
+          {closeTabHint ? (
+            <p className="en-vocab-complete-modal-close-hint" role="status">
+              {closeTabHint}
+            </p>
+          ) : null}
         </div>
       </div>
       <style jsx>{`
@@ -161,8 +183,25 @@ export function EnVocabDailyQuizCompleteModal({
           flex-direction: column;
           gap: 0.5rem;
         }
+        .en-vocab-complete-modal-actions-row {
+          display: flex;
+          flex-direction: row;
+          gap: 0.5rem;
+          width: 100%;
+        }
+        .en-vocab-complete-modal-actions-row .en-vocab-complete-modal-btn {
+          flex: 1;
+          min-width: 0;
+          width: auto;
+        }
         .en-vocab-complete-modal-btn {
           width: 100%;
+        }
+        .en-vocab-complete-modal-close-hint {
+          margin: 0.15rem 0 0;
+          font-size: 0.8125rem;
+          line-height: 1.45;
+          color: var(--muted);
         }
         @media (max-width: 480px) {
           .en-vocab-complete-modal-overlay {

@@ -29,10 +29,12 @@ def main() -> None:
     modal = MODAL.read_text(encoding="utf-8")
     if "本轮单词已抽查完成" not in modal:
         fail("EnVocabDailyQuizCompleteModal missing copy 本轮单词已抽查完成")
-    if "您可以选择关闭当前页面" not in modal:
-        fail("EnVocabDailyQuizCompleteModal must hint 您可以选择关闭当前页面")
-    if "window.close" in modal:
-        fail("complete modal must NOT call window.close (hint only)")
+    if "关闭本窗口" not in modal:
+        fail("EnVocabDailyQuizCompleteModal must have 关闭本窗口 button")
+    if "停留在本页面" not in modal:
+        fail("EnVocabDailyQuizCompleteModal must have 停留在本页面 button")
+    if "tryCloseBrowserTab" not in modal:
+        fail("EnVocabDailyQuizCompleteModal must use tryCloseBrowserTab")
     if "flashcardStillOpen" not in modal:
         fail("EnVocabDailyQuizCompleteModal must support flashcardStillOpen")
     if "z-index: 1105" not in modal and "z-index:\n          1105" not in modal:

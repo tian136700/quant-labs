@@ -60,14 +60,19 @@ def main() -> None:
     )
     if "本轮单词已抽查完成" not in modal:
         fail("complete modal title must be 本轮单词已抽查完成")
-    if "您可以选择关闭当前页面" not in modal:
-        fail("complete modal must hint 您可以选择关闭当前页面")
-    if "window.close" in modal or "window.close(" in modal:
-        fail("complete modal must NOT call window.close (hint only)")
+    if "关闭本窗口" not in modal:
+        fail("complete modal must have 关闭本窗口 button")
+    if "停留在本页面" not in modal:
+        fail("complete modal must have 停留在本页面 button")
+    if "tryCloseBrowserTab" not in modal:
+        fail("complete modal must use tryCloseBrowserTab for close-tab")
     if not re.search(r"z-index:\s*1105", modal):
         fail("complete modal z-index must be > flashcard (~1002), expected 1105")
     if "flashcardStillOpen" not in modal:
         fail("complete modal must support flashcardStillOpen")
+    helper = (ROOT / "src/lib/try-close-browser-tab.ts").read_text(encoding="utf-8")
+    if "window.close" not in helper:
+        fail("try-close-browser-tab.ts must call window.close")
 
     print("OK: jp teacher quiz complete stay-on-last-word guards passed.")
 

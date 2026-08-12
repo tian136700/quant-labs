@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import type { JpVocabCoachLevelCounts } from "@/lib/jp-vocab-coach";
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
+import { tryCloseBrowserTab } from "@/lib/try-close-browser-tab";
 
 type Variant = "teacher" | "study";
 
@@ -33,9 +34,8 @@ const COPY: Record<
     lines: [
       "本轮单词/语法已全部抽查完毕，辛苦了！",
       "将停留在最后一个词；可点「上一个」回看。",
-      "您可以选择关闭当前页面。",
     ],
-    button: "好的",
+    button: "停留在本页面",
   },
   study: {
     title: "今日单词已抽背完",
@@ -46,6 +46,9 @@ const COPY: Record<
     button: "知道了",
   },
 };
+
+const CLOSE_TAB_HINT =
+  "浏览器不允许自动关闭此标签，请手动关闭本窗口。";
 
 export function JpVocabDailyQuizCompleteModal({
   open,
@@ -59,6 +62,7 @@ export function JpVocabDailyQuizCompleteModal({
   onClose,
 }: Props) {
   const [mounted, setMounted] = useState(false);
+  const [closeTabHint, setCloseTabHint] = useState<string | null>(null);
   const copy = COPY[variant];
   const coachCount =
     variant === "teacher" && levelCounts
@@ -67,13 +71,17 @@ export function JpVocabDailyQuizCompleteModal({
   const showCoachAction = variant === "teacher" && onGoToCoach;
   const showViewLast =
     variant === "teacher" && onViewLastWord && !flashcardStillOpen;
+  const showTeacherStayClose = variant === "teacher";
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setCloseTabHint(null);
+      return;
+    }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !coachBusy) onClose();
     };
@@ -87,6 +95,9 @@ export function JpVocabDailyQuizCompleteModal({
   }, [open]);
 
   if (!open || !mounted) return null;
+
+  // total 保留 props 兼容；统计数字暂不展示
+  void total;
 
   return createPortal(
     <div
@@ -109,7 +120,6 @@ export function JpVocabDailyQuizCompleteModal({
         <h2 id="jp-vocab-complete-modal-title" className="jp-vocab-complete-modal-title">
           {copy.title}
         </h2>
-        {/* 统计数字暂不展示，只保留「今日已完成」 */}
 
         <div className="jp-vocab-complete-modal-body">
           {copy.lines.map((line) => (
@@ -142,16 +152,43 @@ export function JpVocabDailyQuizCompleteModal({
                   : "进入今日带读"}
             </button>
           ) : null}
-          <button
-            type="button"
-            className={`btn-rsi-filter jp-vocab-complete-modal-btn${
-              showViewLast || showCoachAction ? "" : " btn-rsi-filter--primary"
-            }`}
-            disabled={coachBusy}
-            onClick={onClose}
-          >
-            {copy.button}
-          </button>
+          {showTeacherStayClose ? (
+            <div className="jp-vocab-complete-modal-actions-row">
+              <button
+                type="button"
+                className="btn-rsi-filter jp-vocab-complete-modal-btn"
+                disabled={coachBusy}
+                onClick={() => {
+                  setCloseTabHint(null);
+                  tryCloseBrowserTab(() => setCloseTabHint(CLOSE_TAB_HINT));
+                }}
+              >
+                关闭本窗口
+              </button>
+              <button
+                type="button"
+                className="btn-rsi-filter btn-rsi-filter--primary jp-vocab-complete-modal-btn"
+                disabled={coachBusy}
+                onClick={onClose}
+              >
+                停留在本页面
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="btn-rsi-filter btn-rsi-filter--primary jp-vocab-complete-modal-btn"
+              disabled={coachBusy}
+              onClick={onClose}
+            >
+              {copy.button}
+            </button>
+          )}
+          {closeTabHint ? (
+            <p className="jp-vocab-complete-modal-close-hint" role="status">
+              {closeTabHint}
+            </p>
+          ) : null}
         </div>
       </div>
       <style jsx>{`
@@ -199,7 +236,6 @@ export function JpVocabDailyQuizCompleteModal({
           font-weight: 600;
           color: var(--text);
         }
-        
         .jp-vocab-complete-modal-body {
           width: 100%;
           margin-bottom: 1rem;
@@ -219,8 +255,25 @@ export function JpVocabDailyQuizCompleteModal({
           flex-direction: column;
           gap: 0.5rem;
         }
+        .jp-vocab-complete-modal-actions-row {
+          display: flex;
+          flex-direction: row;
+          gap: 0.5rem;
+          width: 100%;
+        }
+        .jp-vocab-complete-modal-actions-row .jp-vocab-complete-modal-btn {
+          flex: 1;
+          min-width: 0;
+          width: auto;
+        }
         .jp-vocab-complete-modal-btn {
           width: 100%;
+        }
+        .jp-vocab-complete-modal-close-hint {
+          margin: 0.15rem 0 0;
+          font-size: 0.8125rem;
+          line-height: 1.45;
+          color: var(--muted);
         }
         @media (max-width: 480px) {
           .jp-vocab-complete-modal-overlay {
