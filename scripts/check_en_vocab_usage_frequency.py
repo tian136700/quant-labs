@@ -55,6 +55,12 @@ def main() -> None:
         fail("usage prompt/validate must forbid ambiguous slash POS (动词/名词)")
     if "EN_VOCAB_USAGE_AMBIGUOUS_POS_RE" not in ai:
         fail("missing EN_VOCAB_USAGE_AMBIGUOUS_POS_RE")
+    if "名词作定语" not in ai or "quality service" not in ai:
+        fail("usage prompt must forbid labeling noun attributives as 形容词")
+    if "noun_attrib_as_adj" not in ai or "enVocabPosLooksNounOnly" not in ai:
+        fail("validate must reject noun_attrib_as_adj when pos is noun-only")
+    if "EN_VOCAB_USAGE_ADJ_LABEL_RE" not in ai:
+        fail("missing EN_VOCAB_USAGE_ADJ_LABEL_RE")
     if "分类：" not in ai or "托业" not in ai:
         fail("usage prompt must adapt exam focus by category")
     if "oralFrequency" not in ai or "examFrequency" not in ai:
@@ -113,6 +119,8 @@ def main() -> None:
         fail("online prompt must forbid splitting one sense by object/scene")
     if "几乎可互换" not in online:
         fail("online prompt must self-check interchangeable example sentences")
+    if "名词作定语" not in online or "quality service" not in online:
+        fail("online prompt must forbid labeling noun attributives as 形容词")
     if "category_focus" not in online or "托业" not in online:
         fail("online batch prompt must adapt by category")
 

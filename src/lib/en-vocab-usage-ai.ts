@@ -44,6 +44,7 @@ export const EN_VOCAB_USAGE_UPLOAD_SPEC = {
     "同一副词/形容词的近义改写不算新用法（如 carefully「仔细地完成工作」与「谨慎地避免出错」须合并为 1 条）",
     "自检：两条候选用法若造出的例句几乎可互换，说明仍是同一核心义，必须合并",
     "每条用法必须只标一种词性（动词 / 名词 / 形容词…）；禁止「动词/名词」「形容词/名词」等含糊写法——例句是哪种词性就标哪种；若名词与动词义都常用，拆成两条并各配例句",
+    "名词作定语（quality service / business trip）仍标「名词：作定语…」，禁止标成「形容词」——学生会误以为该词可当形容词",
     "不要 markdown、不要整段散文、不要造例句（例句另有 fill 阶段）",
     "写回时请传 source，建议「本地 gemma4:26b」；人手为「手动」",
   ],
@@ -54,12 +55,41 @@ export const EN_VOCAB_USAGE_UPLOAD_SPEC = {
     "missing_frequency",
     "invalid_frequency",
     "ambiguous_pos",
+    "noun_attrib_as_adj",
   ],
 } as const;
 
 /** 用法行开头禁止「动词/名词」这类含糊词性（须单一词性，或拆成两条） */
 export const EN_VOCAB_USAGE_AMBIGUOUS_POS_RE =
   /^(?:\[\s*口语\s*[：:]?\s*\d{1,2}\s*[|｜]\s*考试\s*[：:]?\s*\d{1,2}\s*\]\s*|\[\d{1,2}\]\s*)?(?:动词|名词|形容词|副词|介词|连词|代词|数词|感叹词|动词短语|名词短语|形容词短语|系动词|及物动词|不及物动词)\s*[\/／]\s*(?:动词|名词|形容词|副词|介词|连词|代词|数词|感叹词|动词短语|名词短语|形容词短语|系动词|及物动词|不及物动词)/u;
+
+/** 用法正文以「形容词：」开头（频次括号后） */
+export const EN_VOCAB_USAGE_ADJ_LABEL_RE = /^形容词\s*[：:]/u;
+
+/**
+ * 词性栏仅名词（n / noun / 名词），不含 adj。
+ * 用于挡住「名词作定语」被误标成形容词（quality service 等）。
+ */
+export function enVocabPosLooksNounOnly(pos?: string | null): boolean {
+  const raw = String(pos ?? "").trim();
+  if (!raw) return false;
+  const parts = raw
+    .split(/[/／|,，\s]+/)
+    .map((p) => p.trim().toLowerCase())
+    .filter(Boolean);
+  if (parts.length === 0) return false;
+  const isAdj = (p: string) =>
+    p === "a" ||
+    p === "a." ||
+    p === "adj" ||
+    p === "adj." ||
+    p === "adjective" ||
+    p === "形容词";
+  const isNoun = (p: string) =>
+    p === "n" || p === "n." || p === "noun" || p === "名词";
+  if (parts.some(isAdj)) return false;
+  return parts.every(isNoun);
+}
 
 export type EnVocabUsagePoint = {
   n: number;
@@ -135,6 +165,8 @@ ${buildEnVocabUsageCategoryFocusLine(category)}
 - 聚焦该分类语境下的高频用法；托业词优先职场/商务；不要堆冷僻义。
 - 用中文解释；可在引号内保留英文短语或术语。
 - 每条用法开头必须只标一种词性（如「动词：」「名词：」）。❌ 禁止「动词/名词」「形容词/名词」「名词/动词」等含糊写法。例句实际是哪种词性就标哪种（如 file a claim → 名词；claimed that → 动词）。若名词义与动词义都常用且意思不同，拆成两条，各写清词性并稍后各配例句。
+- ❌ 禁止把「名词作定语」误标成「形容词」。例如 quality service、business trip、stone wall：前置的 quality / business / stone 仍是名词，须写「名词：作定语，表示……」，不要写「形容词：……」——学生会误以为该词可以当形容词用。
+- ✅ 只有真正的形容词才标「形容词：」（可单独作表语，如 The service is good / This plan is attractive）。词性栏若只有 n，用法里禁止出现「形容词：」。
 
 口语频率 / 考试频率（必须，对齐日语）：
 - 每条用法都必须打两个 1～10 分：口语频率=日常会话/口语里该义常用度；考试频率=该分类考试语境（托业职场 / 雅思托福读写听等）常用度。
@@ -619,6 +651,15 @@ export function validateEnVocabUsageAiOutput(
   for (const p of points) {
     if (EN_VOCAB_USAGE_AMBIGUOUS_POS_RE.test(p.text.trim())) {
       return { ok: false, reason: "ambiguous_pos" };
+    }
+  }
+
+  // 词性栏仅名词时，禁止用法标「形容词：」（名词作定语 ≠ 形容词）
+  if (enVocabPosLooksNounOnly(_input?.pos)) {
+    for (const p of points) {
+      if (EN_VOCAB_USAGE_ADJ_LABEL_RE.test(p.text.trim())) {
+        return { ok: false, reason: "noun_attrib_as_adj" };
+      }
     }
   }
 

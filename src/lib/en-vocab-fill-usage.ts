@@ -7,6 +7,9 @@ import {
   enVocabUsageHasCompleteFrequency,
   enVocabUsageHasExamLabel,
   enVocabUsagePointHasCompleteFrequency,
+  EN_VOCAB_USAGE_ADJ_LABEL_RE,
+  EN_VOCAB_USAGE_AMBIGUOUS_POS_RE,
+  enVocabPosLooksNounOnly,
   normalizeEnVocabUsageSource,
   parseEnVocabUsagePoints,
   serializeEnVocabUsagePoints,
@@ -364,6 +367,30 @@ export async function applyEnVocabUsageUpdates(
           id: wordId,
           word: String(row.word),
           reason: "invalid_format:missing_frequency",
+        });
+        continue;
+      }
+      // force 放宽条数，但仍挡含糊词性 /「名词作定语」误标形容词
+      if (
+        points.some((p) =>
+          EN_VOCAB_USAGE_AMBIGUOUS_POS_RE.test(p.text.trim())
+        )
+      ) {
+        skipped.push({
+          id: wordId,
+          word: String(row.word),
+          reason: "invalid_format:ambiguous_pos",
+        });
+        continue;
+      }
+      if (
+        enVocabPosLooksNounOnly(row.pos) &&
+        points.some((p) => EN_VOCAB_USAGE_ADJ_LABEL_RE.test(p.text.trim()))
+      ) {
+        skipped.push({
+          id: wordId,
+          word: String(row.word),
+          reason: "invalid_format:noun_attrib_as_adj",
         });
         continue;
       }
