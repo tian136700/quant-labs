@@ -12,8 +12,8 @@ import { listJpLessonTeachers } from "@/lib/jp-lesson-teacher-db";
 import {
   ensureJpLessonManualScheduleSchema,
   listJpLessonManualSchedules,
-  type JpLessonManualSchedule,
 } from "@/lib/jp-lesson-manual-schedule-db";
+import type { JpLessonManualSchedule } from "@/lib/jp-lesson-manual-schedule";
 import { parseManualScheduleLinkedLessonsJson } from "@/lib/jp-lesson-manual-schedule-linked";
 
 /** 日历描述里学习内容预览上限（字符）；整课词表/例句不要进手机日历 */
