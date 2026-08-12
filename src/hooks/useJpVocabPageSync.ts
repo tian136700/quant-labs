@@ -379,12 +379,22 @@ export function useJpVocabPageSync(options: {
 
   useEffect(() => {
     if (checking || !user) return;
-    if (!enableBackgroundSyncPoll) return;
 
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
+    /** 关词条 sync 后仍须拉目标：可见 2 分钟 / 后台 10 分钟（只打轻量 teacher-visible） */
+    const TEACHER_VISIBLE_ONLY_ACTIVE_MS = 2 * 60_000;
+    const TEACHER_VISIBLE_ONLY_HIDDEN_MS = 10 * 60_000;
+
     const pollDelay = () => {
+      if (!enableBackgroundSyncPoll) {
+        return resolveVocabPollIntervalMs({
+          activeMs: TEACHER_VISIBLE_ONLY_ACTIVE_MS,
+          hiddenMs: TEACHER_VISIBLE_ONLY_HIDDEN_MS,
+          username: usernameRef.current,
+        });
+      }
       if (teacherQuizIdleRef?.current) {
         return resolveVocabPollIntervalMs({
           activeMs: VOCAB_TEACHER_QUIZ_SYNC_IDLE_MS,

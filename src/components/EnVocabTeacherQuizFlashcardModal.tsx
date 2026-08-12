@@ -355,13 +355,16 @@ export function EnVocabTeacherQuizFlashcardModal({
           session.wordIds.length - sessionChecked
         );
         const useDaily =
-          dailyQuizProgress != null && dailyQuizProgress.total > 0;
+          dailyQuizProgress != null &&
+          (dailyQuizProgress.total > 0 || dailyQuizProgress.complete);
         const unchecked = useDaily
-          ? Math.max(
-              0,
-              dailyQuizProgress!.total -
-                enVocabDailyQuizProgressDisplayChecked(dailyQuizProgress!)
-            )
+          ? dailyQuizProgress!.complete
+            ? 0
+            : Math.max(
+                0,
+                dailyQuizProgress!.total -
+                  enVocabDailyQuizProgressDisplayChecked(dailyQuizProgress!)
+              )
           : sessionUnchecked;
         const complete = useDaily
           ? Boolean(dailyQuizProgress!.complete) ||
@@ -492,17 +495,23 @@ export function EnVocabTeacherQuizFlashcardModal({
     0,
     session.wordIds.length - sessionUncheckedCount
   );
-  const useDailyProgress = dailyQuizProgress != null && dailyQuizProgress.total > 0;
+  const useDailyProgress =
+    dailyQuizProgress != null &&
+    (dailyQuizProgress.total > 0 || dailyQuizProgress.complete);
   // 本轮进度：分母用今日抽查池大小（须稳定，勿用「仅剩未勾选」短分母）；
   // 分子取「页面进度」与「本会话已勾」较大值（防 page 短暂 0 时卡片卡 0/N）
   const dailyChecked = useDailyProgress
     ? enVocabDailyQuizProgressDisplayChecked(dailyQuizProgress)
     : 0;
   const sessionTotal = useDailyProgress
-    ? dailyQuizProgress.total
+    ? dailyQuizProgress.complete && dailyQuizProgress.total <= 0
+      ? Math.max(session.wordIds.length, dailyChecked)
+      : dailyQuizProgress.total
     : session.wordIds.length;
   const sessionChecked = useDailyProgress
-    ? Math.min(sessionTotal, Math.max(dailyChecked, sessionLocalChecked))
+    ? dailyQuizProgress.complete
+      ? sessionTotal
+      : Math.min(sessionTotal, Math.max(dailyChecked, sessionLocalChecked))
     : sessionLocalChecked;
   const uncheckedCount = Math.max(0, sessionTotal - sessionChecked);
   const remainingLabel =

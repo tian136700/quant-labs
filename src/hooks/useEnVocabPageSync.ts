@@ -179,26 +179,33 @@ export function useEnVocabPageSync(options: {
     []
   );
 
-  const syncTeacherVisibleLimitFromServer = useCallback(async () => {
+  const syncTeacherVisibleLimitFromServer = useCallback(async (): Promise<
+    EnVocabTeacherVisibleLimit | null
+  > => {
     try {
       const res = await fetch("/api/en-vocab/teacher-visible", {
         credentials: "include",
         cache: "no-store",
         signal: AbortSignal.timeout(15_000),
       });
-      if (!res.ok) return;
+      if (!res.ok) return null;
       const data = (await res.json()) as {
         ok: boolean;
         teacher_visible_limit?: Partial<EnVocabTeacherVisibleLimit>;
       };
-      if (data.ok) {
+      if (data.ok && data.teacher_visible_limit) {
+        const next = normalizeEnVocabTeacherVisibleLimit(
+          data.teacher_visible_limit
+        );
         applyTeacherVisibleSync(data.teacher_visible_limit, {
           trustRemote: true,
         });
+        return next;
       }
     } catch {
       /* ignore — 不得拖住词表 loading */
     }
+    return null;
   }, [applyTeacherVisibleSync]);
 
   const loadWords = useCallback(async (opts?: { force?: boolean }) => {
@@ -438,15 +445,26 @@ export function useEnVocabPageSync(options: {
     teacherQuizPollIdle,
   ]);
 
-  // 今日抽查数量：独立低频轮询（对齐日语，勿塞进每 5s 的词条 sync）
+  // 今日抽查数量：轻量 teacher-visible 必须与「词条 sync 轮询」解耦。
+  // 关 sync 后若也不拉目标，管理员改成 25 后老师端仍按旧分母（如 35）→「已抽 25 还剩 10」。
   useEffect(() => {
     if (checking || !user) return;
-    if (!enableBackgroundSyncPoll) return;
 
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
+    /** sync 开着时仍用约 30s；关掉词条 sync 后改为可见 2 分钟 / 后台 10 分钟（只打轻量接口） */
+    const TEACHER_VISIBLE_ONLY_ACTIVE_MS = 2 * 60_000;
+    const TEACHER_VISIBLE_ONLY_HIDDEN_MS = 10 * 60_000;
+
     const pollDelay = () => {
+      if (!enableBackgroundSyncPoll) {
+        return resolveVocabPollIntervalMs({
+          activeMs: TEACHER_VISIBLE_ONLY_ACTIVE_MS,
+          hiddenMs: TEACHER_VISIBLE_ONLY_HIDDEN_MS,
+          username: usernameRef.current,
+        });
+      }
       if (teacherQuizIdleRef?.current) {
         return resolveVocabPollIntervalMs({
           activeMs: VOCAB_TEACHER_QUIZ_SYNC_IDLE_MS,
@@ -514,5 +532,6 @@ export function useEnVocabPageSync(options: {
     loadWords,
     applySyncPatches,
     persistCache: persistEnVocabPageCache,
+    syncTeacherVisibleLimitFromServer,
   };
 }

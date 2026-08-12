@@ -31,9 +31,14 @@ import {
   reconcileEnVocabTeacherQuizSession,
   resolveEnVocabTeacherQuizRefreshResumeIndex,
   resolveEnVocabTeacherQuizResumeIndex,
+  sortEnVocabQuizTargetWordsByDailySeq,
   type EnVocabTeacherQuizMode,
   type EnVocabTeacherQuizSession,
 } from "@/lib/en-vocab-teacher-quiz";
+import {
+  isEnVocabWordInTeacherVisiblePool,
+  type EnVocabTeacherVisibleLimit,
+} from "@/lib/en-vocab-teacher-visible";
 import {
   clearEnVocabTeacherQuizSession,
   readEnVocabTeacherQuizSession,
@@ -73,6 +78,8 @@ export function useEnVocabTeacherQuiz(options: {
   setStatus: (message: string) => void;
   /** 本轮会话真正抽完（卡片关闭前）→ 弹出完成提示 */
   onTeacherQuizSessionFinished?: () => void;
+  /** 开抽前拉最新今日抽查数量（防旧分母假「还剩 N」）；返回最新 limit 供立刻建池 */
+  syncTeacherVisibleLimitFromServer?: () => Promise<EnVocabTeacherVisibleLimit | null>;
 }) {
   const {
     locale,
@@ -95,6 +102,7 @@ export function useEnVocabTeacherQuiz(options: {
     setSharedTodayWordIds,
     setStatus,
     onTeacherQuizSessionFinished,
+    syncTeacherVisibleLimitFromServer,
   } = options;
 
   const usernameRef = useRef(user?.username);
@@ -311,36 +319,62 @@ export function useEnVocabTeacherQuiz(options: {
 
   const requestTeacherQuizSession = useCallback(
     (mode: EnVocabTeacherQuizMode, startWordId?: number) => {
-      const next = createEnVocabTeacherQuizSession(
-        mode,
-        quizTargetWords,
-        dailySeqByWordId,
-        startWordId,
-        quizWordHasLevel
-      );
-      if (!next) {
-        setStatus(
-          quizTarget > 0
-            ? "今日抽查池内词条均已勾选熟悉程度。"
-            : "今日暂无抽查词条。"
+      void (async () => {
+        // 开抽前对齐今日目标；用返回的 limit 立刻建池（勿等 React 重渲染，否则仍用旧分母）
+        let poolWords = quizTargetWords;
+        let poolTarget = quizTarget;
+        if (syncTeacherVisibleLimitFromServer) {
+          const fresh = await syncTeacherVisibleLimitFromServer();
+          if (fresh) {
+            poolTarget = Math.min(
+              Math.max(0, fresh.quiz_target),
+              Math.max(0, words.length)
+            );
+            poolWords = sortEnVocabQuizTargetWordsByDailySeq(
+              words.filter((w) =>
+                isEnVocabWordInTeacherVisiblePool(
+                  w.id,
+                  fresh,
+                  dailySeqByWordId
+                )
+              ),
+              dailySeqByWordId
+            );
+          }
+        }
+        const next = createEnVocabTeacherQuizSession(
+          mode,
+          poolWords,
+          dailySeqByWordId,
+          startWordId,
+          quizWordHasLevel
         );
-        return;
-      }
-      if (user && shouldShowEnVocabTeacherQuizIntro(user.id)) {
-        setPendingTeacherQuizSession(next);
-        setShowTeacherQuizIntro(true);
-        return;
-      }
-      launchTeacherQuizSession(next);
+        if (!next) {
+          setStatus(
+            poolTarget > 0
+              ? "今日抽查池内词条均已勾选熟悉程度。"
+              : "今日暂无抽查词条。"
+          );
+          return;
+        }
+        if (user && shouldShowEnVocabTeacherQuizIntro(user.id)) {
+          setPendingTeacherQuizSession(next);
+          setShowTeacherQuizIntro(true);
+          return;
+        }
+        launchTeacherQuizSession(next);
+      })();
     },
     [
       quizTargetWords,
-      dailySeqByWordId,
       quizTarget,
+      words,
+      dailySeqByWordId,
       quizWordHasLevel,
       user,
       launchTeacherQuizSession,
       setStatus,
+      syncTeacherVisibleLimitFromServer,
     ]
   );
 

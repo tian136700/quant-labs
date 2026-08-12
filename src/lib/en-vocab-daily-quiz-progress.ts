@@ -65,10 +65,12 @@ export function computeEnVocabTeacherPageQuizProgress(
     forceComplete?: boolean;
   }
 ): EnVocabDailyQuizProgress {
-  if (options?.forceComplete) {
-    return { total: 0, checked: 0, remaining: 0, complete: true };
-  }
   const total = pendingWords.length;
+  if (options?.forceComplete) {
+    // 完成态也保留分母（今日池大小），禁止 total:0——否则卡片会退回「仅会话词数」
+    // 误显示「还剩 N」、开场页按旧目标假剩余。
+    return { total, checked: total, remaining: 0, complete: true };
+  }
   let checked = 0;
   for (const word of pendingWords) {
     if (hasLevel(word.id)) checked += 1;
