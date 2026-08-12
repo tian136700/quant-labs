@@ -5,6 +5,7 @@ import { fixedDropdownPanelStyle } from "@/lib/fixed-dropdown-panel";
 import type { EnVocabMediaType } from "@/lib/types";
 import { saveVocabRefImageToDevice, vocabRefSaveResultToast } from "@/lib/vocab-ref-save-image";
 import {
+  prefersVocabRefPdfShare,
   saveVocabRefPdfToDevice,
   vocabRefPdfSaveResultToast,
 } from "@/lib/vocab-ref-save-pdf";
@@ -183,7 +184,9 @@ function ImageExportFormatMenu({
           >
             <span className="jp-ref-download-item-title">整图 PDF</span>
             <span className="jp-ref-download-item-desc">
-              完整一页不拆分；手机分享里选「存储到文件」
+              {prefersVocabRefPdfShare()
+                ? "完整一页不拆分；分享里选「存储到文件」"
+                : "完整一页不拆分；电脑直接下载 PDF"}
             </span>
           </button>
           {showPaginated ? (
@@ -279,11 +282,14 @@ export function EnVocabRefDownloadMenu({
         mediaUrl,
         filename
       );
-      // 生成后再确认：点「确定」保住 iPhone 用户手势，才能弹出系统分享 →「存储到文件」
-      const ok = window.confirm(
-        "PDF 已生成。确定保存到手机吗？\n\n在 iPhone 上请点「存储到文件」（不要选 Google 云端硬盘）。"
-      );
-      if (!ok) return;
+      // 手机：生成后再确认，点「确定」保住用户手势 → 系统分享「存储到文件」
+      // 电脑：直接下载，禁止再弹手机端保存确认
+      if (prefersVocabRefPdfShare()) {
+        const ok = window.confirm(
+          "PDF 已生成。确定保存吗？\n\n请在分享面板选「存储到文件」（不要选 Google 云端硬盘）。"
+        );
+        if (!ok) return;
+      }
       const result = await saveVocabRefPdfToDevice({ blob, filename: pdfName });
       const toast = vocabRefPdfSaveResultToast(result);
       if (toast) onStatus?.(toast);
