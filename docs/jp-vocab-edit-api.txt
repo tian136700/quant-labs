@@ -11,7 +11,8 @@
 接续请写在 `connection`，不要塞进 `usage`。
 本次提交了非空 `example_sentences` 时，会先做格式规范化（剥掉
 「译文：訳文：…」叠日文标签、「译文：/ …」等），再走与补全相同的例句校验
-（拒 ～占位、漏假名、译文夹日语等；通过后写回规范化文本）。
+（拒 ～占位、漏假名、译文夹日语、死译壳、間假句、注意する误用を、
+相談する に/と 译文对调等；通过后写回规范化文本）。
 未剥净、或仍含「訳文：」的脏输入在校验阶段会拒（`gloss_has_yakuwen_label`）。
 
 
@@ -94,8 +95,19 @@ kind=grammar 且词条**不是**「变形/变化规则」类活用课时，若�
   - ❌ 禁止日文「訳文：」或「译文：訳文：…」叠标签（规范化会剥；
     仍残留则拒 `gloss_has_yakuwen_label`）
   - ❌ 禁止译文夹日语假名 / 日语句（`gloss_not_chinese`）
+  - ❌ 禁止死译壳（`literal_chinese_gloss`）：
+    「关于…说话」；「安静地说话／讲话」（静かに話す → 请小声说话）
 - 禁止例句里保留词典占位 `～` / `〜`（`lemma_placeholder_in_sentence`）
 - 须有句末标点；语法例句须用到该语法点
+- 一类形容词过去式禁止叠「でした」（`i_adj_past_deshita`：
+  ❌面白かったでした → ✅面白かったです）
+- 「間／あいだ」假句与误译：
+  - ❌忙しい間です／我现在很忙 → `aida_fake_state_predicate`
+  - ❌の間に…译成「……后」→ `gloss_aida_ni_as_after`
+- 「注意する」小心某事须接「に」（`chuui_suru_wo_particle`：
+  ❌約束を注意 → ✅約束に注意）
+- 「相談する」に／と 译文须对齐（`soudan_particle_gloss_mismatch`）：
+  人に＝向/找某人商量；人と＝和某人一起商量（勿对调）
 - 条数不够 / 块格式不完整会拒（need_more_japanese_lines / need_four_lines）
 
 未传 `example_sentences`、或传空串清成 NULL：不走上述校验。
@@ -104,9 +116,21 @@ kind=grammar 且词条**不是**「变形/变化规则」类活用课时，若�
   今日(きょう)は大変(たいへん)寒(さむ)いです。
   译文：今天非常冷。
 
+  静(しず)かに話(はな)してください。
+  译文：请小声说话。
+
+  車(くるま) に 注意(ちゅうい)します。
+  译文：小心汽车。
+
 样例（错误，勿写）：
   今日(きょう)は大変(たいへん)寒(さむ)いです。
   译文：訳文：今天非常冷。
+
+  静(しず)かに話(はな)してください。
+  译文：请安静地说话。
+
+  約束(やくそく) を 注意(ちゅうい)してください。
+  译文：小心你的承诺。
 
 
 接序 connection（选填）
@@ -176,10 +200,22 @@ kind=grammar 且词条**不是**「变形/变化规则」类活用课时，若�
                                                      // gloss_has_yakuwen_label
 400  { "ok": false, "error": "译文须为中文，不能夹日语假名或日语句子" }
                                                      // gloss_not_chinese
+400  { "ok": false, "error": "译文须自然口语（❌关于…说话／安静地说话 → ✅谈谈…／请小声说话）" }
+                                                     // literal_chinese_gloss
 400  { "ok": false, "error": "例句里不能写「～」占位，请换成具体内容" }
                                                      // lemma_placeholder_in_sentence
 400  { "ok": false, "error": "句中汉字须全部标注假名" }
                                                      // incomplete_kanji_furigana
+400  { "ok": false, "error": "一类形容词过去式后用「です／ですね」，不要叠「でした」（❌面白かったでした → ✅面白かったです）" }
+                                                     // i_adj_past_deshita
+400  { "ok": false, "error": "不要写「忙しい間です」这类假句；「間」须体现之间／期间（✅本とノートの間に…／会議の間…）" }
+                                                     // aida_fake_state_predicate
+400  { "ok": false, "error": "「の間に」是之内／期间，不要译成「……后」（❌一小时后 → ✅一小时内）" }
+                                                     // gloss_aida_ni_as_after
+400  { "ok": false, "error": "「注意する」小心某事须接「に」（❌約束を注意 → ✅約束に注意／車に注意）" }
+                                                     // chuui_suru_wo_particle
+400  { "ok": false, "error": "「相談する」：に＝向/找某人商量；と＝和某人一起商量（译文勿与助词对调）" }
+                                                     // soudan_particle_gloss_mismatch
 400  { "ok": false, "error": "每条例句下一行须有「译文：」" }
                                                      // missing_chinese_gloss
 400  { "ok": false, "error": "日语例句须有句末标点" }
@@ -296,9 +332,15 @@ with urllib.request.urlopen(req, timeout=60) as resp:
         src/lib/jp-vocab-db/notes_fields.ts → updateJpVocabWordEntry
         （例句校验）jp-vocab-example-sentences-ai.ts
           → validateJpVocabExampleSentencesAiOutput
-          → gloss_has_yakuwen_label / gloss_not_chinese
+          → gloss_has_yakuwen_label / gloss_not_chinese / literal_chinese_gloss
+          → i_adj_past_deshita / aida_fake_state_predicate / gloss_aida_ni_as_after
+          → chuui_suru_wo_particle / soudan_particle_gloss_mismatch
         （译文剥标签）jp-vocab-example-sentences.ts
           → stripJpVocabExampleGlossLabel / formatJpVocabExampleGlossLine
         （接序）jp-vocab-connection-ai.ts → normalizeJpVocabConnectionText
         （相关构词）jp-vocab-related-compounds.ts
           → validateJpVocabRelatedCompoundsAiOutput
+        回归：scripts/check_jp_vocab_example_aida_gloss.py
+              scripts/check_jp_vocab_example_chuui_particle.py
+              scripts/check_jp_vocab_example_soudan_particle.py
+              scripts/check_jp_vocab_example_gloss.py

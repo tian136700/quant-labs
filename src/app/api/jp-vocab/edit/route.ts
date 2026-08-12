@@ -23,6 +23,8 @@ const ERR = {
     empty: "Usage cannot be empty",
     gloss_has_yakuwen_label: 'Do not write Japanese「訳文：」; use「译文：」+ Chinese only',
     gloss_not_chinese: "Gloss must be Chinese (no Japanese kana/sentences)",
+    literal_chinese_gloss:
+      "Use natural Chinese (❌关于…说话 / 安静地说话 → ✅谈谈… / 小声说话)",
     lemma_placeholder_in_sentence: "Do not leave ～ placeholders in examples",
     incomplete_kanji_furigana: "Every kanji needs furigana",
     i_adj_past_deshita: "i-adjective past uses です, not でした (no かったでした)",
@@ -59,6 +61,8 @@ const ERR = {
     empty: "用法不能为空",
     gloss_has_yakuwen_label: "译文不要写日文「訳文：」，只需「译文：」+中文",
     gloss_not_chinese: "译文须为中文，不能夹日语假名或日语句子",
+    literal_chinese_gloss:
+      "译文须自然口语（❌关于…说话／安静地说话 → ✅谈谈…／请小声说话）",
     lemma_placeholder_in_sentence: "例句里不能写「～」占位，请换成具体内容",
     incomplete_kanji_furigana: "句中汉字须全部标注假名",
     i_adj_past_deshita: "一类形容词过去式后用「です／ですね」，不要叠「でした」（❌面白かったでした → ✅面白かったです）",

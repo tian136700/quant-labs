@@ -465,7 +465,7 @@ export function EnVocabTeacherQuizFlashcardModal({
       : reviewLocked
         ? "勾选已满 1 小时，无法再修改熟悉程度"
         : isSaving
-          ? "正在保存熟悉程度…"
+          ? "正在存储你勾选的数据…"
           : !canOperate
             ? "请登录后再勾选熟悉程度"
             : undefined;

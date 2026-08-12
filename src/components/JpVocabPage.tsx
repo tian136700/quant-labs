@@ -1,5 +1,4 @@
 "use client";
-
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
@@ -58,12 +57,10 @@ import {
   writeStoredJpVocabPageSize,
 } from "@/lib/jp-vocab-page-helpers";
 import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
-
 type JpVocabPageVariant = "teacher" | "admin";
 type JpVocabPageProps = {
   variant: JpVocabPageVariant;
 };
-
 export function JpVocabPage({ variant }: JpVocabPageProps) {
   const { locale } = useI18n();
   const router = useRouter();
@@ -89,7 +86,6 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
   const teacherShareUiEnabled =
     JP_VOCAB_TEACHER_SHARE_ENABLED && isTeacherMode && canShareToStudy;
   const showTeacherCoachEntry = isTeacherMode && canAccessJpVocabCoach;
-
   const openJpAuth = useCallback(() => {
     openAuthPanel({
       mode: "login",
