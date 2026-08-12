@@ -20,6 +20,15 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+SCRIPTS = ROOT / "scripts"
+if str(SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS))
+
+from lib.next_document_deploy_retry import (  # noqa: E402
+    hub_transient_republish_max,
+    is_deploy_transient_republish_failure,
+)
+
 STATE_DIR = ROOT / ".cursor" / "hooks" / ".state"
 FAILURE_FILE = STATE_DIR / "last_deploy_failure.txt"
 PENDING_FILE = STATE_DIR / "pending_deploy_followup.json"
@@ -100,6 +109,91 @@ def _get_log(log_id: int) -> dict | None:
         return None
     row = data.get("row")
     return row if isinstance(row, dict) else None
+
+
+def _post_json(path: str, body: dict, timeout: float = 15.0) -> dict:
+    raw_body = json.dumps(body, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(
+        f"{BASE}{path}",
+        data=raw_body,
+        method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        raw = resp.read().decode("utf-8", errors="replace")
+    return json.loads(raw) if raw else {}
+
+
+def _read_pending() -> dict | None:
+    if not PENDING_FILE.is_file():
+        return None
+    try:
+        data = json.loads(PENDING_FILE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _write_pending(data: dict) -> None:
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    PENDING_FILE.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _try_auto_republish_transient(
+    *,
+    rid: int,
+    details: str,
+    summary: str,
+) -> int | None:
+    """瞬时失败（/_document / CF 5xx）自动再 POST publish；返回新的 since_id 继续等。"""
+    blob = f"{summary}\n{details}"
+    if not is_deploy_transient_republish_failure(blob):
+        return None
+    pending = _read_pending() or {}
+    used = int(pending.get("transient_republish") or 0)
+    max_n = hub_transient_republish_max()
+    if used >= max_n:
+        print(
+            f"[wait-deploy] 瞬时失败已自动重发 {used}/{max_n} 次，不再重入队",
+            flush=True,
+        )
+        return None
+    remark = str(pending.get("remark") or summary or "自动重试部署").strip()
+    if "（瞬时失败自动重试）" not in remark:
+        remark = f"{remark}（瞬时失败自动重试）"
+    try:
+        result = _post_json(
+            "/api/manual/publish",
+            {"message": remark, "source": "auto"},
+        )
+    except Exception as exc:
+        print(f"[wait-deploy] 自动重发 publish 失败: {exc}", file=sys.stderr, flush=True)
+        return None
+    if not result.get("ok") and result.get("status") not in {"queued", "running", "ok"}:
+        # 维护中心有时 ok=true + queued；宽松认 queued/running
+        if "queued" not in str(result).lower() and "running" not in str(result).lower():
+            print(
+                f"[wait-deploy] 自动重发被拒绝: {result}",
+                file=sys.stderr,
+                flush=True,
+            )
+            return None
+    used += 1
+    pending["transient_republish"] = used
+    pending["phase"] = "waiting_after_transient_republish"
+    pending["since_log_id"] = rid + 1
+    pending["remark"] = remark
+    pending["republished_at"] = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime())
+    _write_pending(pending)
+    print(
+        f"[wait-deploy] 识别为瞬时失败（/_document 或 CF API），"
+        f"已自动重新入队部署 ({used}/{max_n})；继续等待 log>={rid + 1}…",
+        flush=True,
+    )
+    return rid + 1
 
 
 def _manual_snapshot() -> dict:
@@ -199,6 +293,18 @@ def main() -> int:
                         f"--- details ---\n{tail}\n"
                     )
                     FAILURE_FILE.write_text(payload, encoding="utf-8")
+                    next_since = _try_auto_republish_transient(
+                        rid=rid,
+                        details=details,
+                        summary=summary,
+                    )
+                    if next_since is not None:
+                        # 瞬时失败已重入队：清失败文件，继续等新一轮
+                        FAILURE_FILE.unlink(missing_ok=True)
+                        target_id = next_since
+                        last_status = ""
+                        time.sleep(args.poll)
+                        continue
                     # 标 pending：下一轮任意 Agent stop 应立刻 followup 修（勿干等用户）
                     try:
                         if PENDING_FILE.is_file():

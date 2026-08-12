@@ -83,9 +83,20 @@ def main() -> int:
         return fail("wait_deploy_result must clear pending on success")
     if "failed_awaiting_fix" not in wait:
         return fail("wait_deploy_result must mark pending phase failed_awaiting_fix on failure")
+    if "is_deploy_transient_republish_failure" not in wait and "_try_auto_republish_transient" not in wait:
+        return fail("wait_deploy_result must auto-republish transient /_document or CF failures")
 
     if "notify_deploy_autofix" not in fix and "正在修复" not in fix:
         return fail("deploy-auto-fix-stop must Bark 正在修复 on failure path")
+    if "_try_auto_republish_transient" not in fix and "FOLLOWUP_TRANSIENT" not in fix:
+        return fail("deploy-auto-fix-stop must auto-republish transient failures before code fix")
+
+    lib_doc = ROOT / "scripts" / "lib" / "next_document_deploy_retry.py"
+    if not lib_doc.is_file():
+        return fail("missing scripts/lib/next_document_deploy_retry.py")
+    lib_txt = lib_doc.read_text(encoding="utf-8")
+    if "is_next_document_collect_flake" not in lib_txt:
+        return fail("next_document_deploy_retry must export is_next_document_collect_flake")
 
     rule = RULE.read_text(encoding="utf-8")
     if "禁止" not in rule or "followup" not in rule:

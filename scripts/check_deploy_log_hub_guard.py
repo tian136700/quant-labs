@@ -26,8 +26,17 @@ if "is_next_document_collect_flake" not in text:
     errors.append("缺少 /_document Collecting page data 偶发失败检测")
 if "run_live_tee" not in text:
     errors.append("缺少 run_live_tee（捕获输出以便识别 /_document flake）")
-if "retried after /_document flake" not in text:
-    errors.append("缺少 /_document flake 自动重试一次")
+if "next_document_deploy_retry" not in text and "NEXT_DOCUMENT_DEPLOY_RETRIES" not in text:
+    # 实现可在本文件或 lib；至少须引用共享重试
+    lib = (ROOT / "scripts" / "lib" / "next_document_deploy_retry.py").read_text(
+        encoding="utf-8"
+    )
+    if "is_next_document_collect_flake" not in lib:
+        errors.append("缺少 scripts/lib/next_document_deploy_retry.py")
+if "retried" not in text or "/_document flake" not in text:
+    errors.append("缺少 /_document flake 自动重试")
+if "next_document_deploy_retry_count" not in text:
+    errors.append("缺少 next_document_deploy_retry_count（/_document 多次重试）")
 
 if errors:
     print("check_deploy_log_hub_guard FAILED:", file=sys.stderr)
