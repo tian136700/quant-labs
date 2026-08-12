@@ -103,6 +103,59 @@ def main() -> None:
     ):
         fail(f"p5={p5!r}")
 
+    # 短句：日程，日语，李老师，11:30 → 今天 11:30，默认 30 分钟
+    t6 = "日程，日语，李老师，11:30"
+    if looks_like_schedule_query(t6):
+        fail("short create must not be schedule_query")
+    if not looks_like_schedule_chat(t6):
+        fail("short create should look like schedule_chat")
+    p6 = parse_schedule_chat_text(t6, now=now)
+    if not isinstance(p6, ScheduleChatDraft):
+        fail(f"parse6 failed: {p6}")
+    if (
+        p6.class_at != "2026-07-26 11:30:00"
+        or p6.title != "日语"
+        or p6.teacher != "李"
+        or p6.duration_minutes != 30
+    ):
+        fail(f"p6={p6!r}")
+
+    # 时段可写在时间后面；未写日期仍是今天
+    t6b = "日语，李老师，11:30，早上"
+    p6b = parse_schedule_chat_text(t6b, now=now)
+    if not isinstance(p6b, ScheduleChatDraft):
+        fail(f"parse6b failed: {p6b}")
+    if p6b.class_at != "2026-07-26 11:30:00" or p6b.duration_minutes != 30:
+        fail(f"p6b={p6b!r}")
+
+    # 明天 + 30min
+    t7 = "明天，日语，李老师，11:30，30min"
+    p7 = parse_schedule_chat_text(t7, now=now)
+    if not isinstance(p7, ScheduleChatDraft):
+        fail(f"parse7 failed: {p7}")
+    if (
+        p7.class_at != "2026-07-27 11:30:00"
+        or p7.title != "日语"
+        or p7.teacher != "李"
+        or p7.duration_minutes != 30
+    ):
+        fail(f"p7={p7!r}")
+
+    # 特定日期写在前面 + 40MM
+    t8 = "8月13日，英语，星老师，16:00，40MM"
+    if not looks_like_schedule_chat(t8):
+        fail("dated short create should look like schedule_chat")
+    p8 = parse_schedule_chat_text(t8, now=now)
+    if not isinstance(p8, ScheduleChatDraft):
+        fail(f"parse8 failed: {p8}")
+    if (
+        p8.class_at != "2026-08-13 16:00:00"
+        or p8.title != "英语"
+        or p8.teacher != "星"
+        or p8.duration_minutes != 40
+    ):
+        fail(f"p8={p8!r}")
+
     # —— 查询日程表 ——
     q1 = "请给我最近一段时间的日程表"
     if not looks_like_schedule_query(q1):
@@ -162,20 +215,34 @@ def main() -> None:
     if "（无课）" not in body:
         fail("empty days should show 无课")
 
-    # 接线：telegram_bot 必须实现回复函数
+    # 接线：telegram_bot 必须分发日程意图；实现可在 replies_schedule
     bot_src = (LIB / "bots" / "telegram_bot.py").read_text(encoding="utf-8")
+    replies_src = (LIB / "bots" / "telegram_replies_schedule.py").read_text(
+        encoding="utf-8"
+    )
+    for needle in (
+        "from bots.telegram_replies_schedule import",
+        "_reply_schedule_chat",
+        "_reply_schedule_chat_ingest",
+        "_reply_schedule_query",
+        "schedule_query",
+        "schedule_help",
+        "schedule_create_help_text",
+    ):
+        if needle not in bot_src:
+            fail(f"telegram_bot.py missing {needle!r}")
+    if 'intent="schedule_teacher"' not in replies_src and "schedule_teacher" not in bot_src:
+        fail("schedule_teacher pick wiring missing")
     for needle in (
         "def _reply_schedule_chat(",
         "def _reply_schedule_chat_ingest(",
         "def _reply_schedule_query(",
-        'intent="schedule_teacher"',
-        "schedule_query",
-        "schedule_help",
-        "schedule_create_help_text",
         "format_schedule_already_exists_text",
+        "parse_schedule_chat_text",
+        'intent="schedule_teacher"',
     ):
-        if needle not in bot_src:
-            fail(f"telegram_bot.py missing {needle!r}")
+        if needle not in replies_src:
+            fail(f"telegram_replies_schedule.py missing {needle!r}")
 
     print("OK: schedule chat parse")
 

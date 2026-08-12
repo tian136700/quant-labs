@@ -20,7 +20,7 @@ export function useJpVocabFlashcardClassNotesFetch(opts: {
   setNotesWord: Dispatch<SetStateAction<JpVocabWord | null>>;
   notesLoading: boolean;
 } {
-  const { open, word, locale, onWordUpdated } = opts;
+  const { open, word, locale } = opts;
   const [notesWord, setNotesWord] = useState<JpVocabWord | null>(null);
   const [notesLoading, setNotesLoading] = useState(false);
 
@@ -59,7 +59,9 @@ export function useJpVocabFlashcardClassNotesFetch(opts: {
         if (cancelled || !parsed.ok || !parsed.data.ok || !parsed.data.word) return;
         const merged = mergeJpVocabWordAfterClassNotesFetch(word, parsed.data.word);
         setNotesWord(merged);
-        onWordUpdated?.(merged);
+        // 勿 onWordUpdated(开卡时的旧快照)：经 handleWordSaved 整词合并会冲掉
+        // 老师刚勾选的熟悉程度乐观更新，表现为「要点好几次才点上」。
+        // 备注正文已在本卡 notesWord；列表缓存下次 sync/软刷新即可。
       } catch {
         /* ignore */
       } finally {
@@ -76,7 +78,6 @@ export function useJpVocabFlashcardClassNotesFetch(opts: {
     word?.class_notes_present,
     word?.class_notes,
     locale,
-    onWordUpdated,
     word,
   ]);
 

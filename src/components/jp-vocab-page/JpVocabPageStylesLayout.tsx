@@ -357,6 +357,10 @@ export function JpVocabPageStylesLayout() {
           opacity: 0.55;
           cursor: not-allowed;
         }
+        .jp-vocab-level-opt.is-checked:disabled,
+        .jp-vocab-level-opt.is-checked {
+          opacity: 1;
+        }
         .jp-vocab-level-opt--readonly:disabled {
           opacity: 0.72;
         }

@@ -1319,6 +1319,12 @@ export function JpVocabTeacherQuizFlashcardStyles() {
         .jp-vocab-teacher-quiz-card .jp-vocab-level-opt:disabled {
           cursor: not-allowed;
         }
+        /* 已勾选满不透明：保存中半透明会让手机看起来像「点了没上」 */
+        .jp-vocab-teacher-quiz-card .jp-vocab-level-opt.is-checked,
+        .jp-vocab-teacher-quiz-card .jp-vocab-level-opt.is-checked:disabled,
+        .jp-vocab-teacher-quiz-card .jp-vocab-level-opt.is-checked.is-saving {
+          opacity: 1;
+        }
         .jp-vocab-teacher-quiz-card .jp-vocab-level-opt--locked:disabled:not(.is-checked) {
           opacity: 0.78;
         }

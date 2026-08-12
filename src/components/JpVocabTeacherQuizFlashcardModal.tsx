@@ -49,6 +49,7 @@ import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
 import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
 import { JpVocabFlashcardAlerts } from "@/components/jp-vocab-teacher-quiz-flashcard/JpVocabFlashcardAlerts";
+import { useJpVocabFlashcardLevelDraft } from "@/components/jp-vocab-teacher-quiz-flashcard/useJpVocabFlashcardLevelDraft";
 import { JpVocabFlashcardHeader } from "@/components/jp-vocab-teacher-quiz-flashcard/JpVocabFlashcardHeader";
 import { JpVocabFlashcardManualFillExamples } from "@/components/jp-vocab-teacher-quiz-flashcard/JpVocabFlashcardManualFillExamples";
 import { useJpVocabTeacherQuizNextAdvance } from "@/components/jp-vocab-teacher-quiz-flashcard/useJpVocabTeacherQuizNextAdvance";
@@ -176,7 +177,7 @@ export function JpVocabTeacherQuizFlashcardModal({
   const showAnswerTimer =
     open && !previewMode && !isCoachMode && !isStudyMode && word != null;
 
-  const selectedLevel =
+  const parentSelectedLevel =
     word && session
       ? isCoachMode
         ? sessionLevel[word.id] ?? coachLevelByWordId?.get(word.id)
@@ -184,6 +185,10 @@ export function JpVocabTeacherQuizFlashcardModal({
             displayOrder,
           })
       : undefined;
+  const { selected: selectedLevel, paintLevel } = useJpVocabFlashcardLevelDraft(
+    word?.id,
+    parentSelectedLevel
+  );
 
   const wordHasLevel = (wordId: number) => {
     const item = wordsById.get(wordId);
@@ -749,8 +754,9 @@ export function JpVocabTeacherQuizFlashcardModal({
               <div className="jp-vocab-levels" role="group" aria-label="学生熟悉程度">
                 {LEVELS.map((lv) => {
                   const checked = selected === lv.key;
+                  // 保存中禁止 disabled：半透明会把已勾冲淡，手机上像「点了没上」
                   const levelDisabled =
-                    previewMode || isCoach || reviewLocked || isSaving;
+                    previewMode || isCoach || reviewLocked;
                   return (
                     <button
                       key={lv.key}
@@ -763,9 +769,10 @@ export function JpVocabTeacherQuizFlashcardModal({
                           : ""
                       }${lv.key === "very" ? " jp-vocab-level-opt--very" : ""}${
                         lv.key === "weak" ? " jp-vocab-level-opt--weak" : ""
-                      }`}
+                      }${isSaving && checked ? " is-saving" : ""}`}
                       disabled={levelDisabled}
                       aria-pressed={checked}
+                      aria-busy={isSaving && checked ? true : undefined}
                       title={
                         isStudy
                           ? "可改成对自己更严；只保存在本机，不会同步给老师"
@@ -782,6 +789,7 @@ export function JpVocabTeacherQuizFlashcardModal({
                       onClick={() => {
                         if (levelDisabled) return;
                         setNextBlockedHint(false);
+                        paintLevel(lv.key);
                         onSelectLevel(w.id, lv.key);
                       }}
                     >

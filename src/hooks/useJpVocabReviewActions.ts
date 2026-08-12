@@ -118,6 +118,8 @@ export function useJpVocabReviewActions(options: {
   const shareProgressTimersRef = useRef<Map<number, ReturnType<typeof setInterval>>>(
     new Map()
   );
+  /** 保存中又点了熟悉程度：先亮 UI，网络空闲后再写最新一档（避免要点多次才「点上」） */
+  const pendingLevelByWordRef = useRef<Record<number, JpVocabLevel>>({});
 
   const patchShareProgress = useCallback((wordId: number, percent: number | null) => {
     setShareProgressMap((prev) => {
@@ -215,10 +217,6 @@ export function useJpVocabReviewActions(options: {
       setStatus("勾选已满 1 小时，无法再修改熟悉程度。");
       return;
     }
-    if (wordSyncState[wordId]) {
-      setStatus("正在提交，请勿重复提交");
-      return;
-    }
 
     const snapshot = words.find((w) => w.id === wordId);
     if (!snapshot) return;
@@ -235,6 +233,7 @@ export function useJpVocabReviewActions(options: {
     const displayOrderSnapshot = displayOrderRef.current;
     const sharedIdsSnapshot = [...sharedTodayWordIdsRef.current];
 
+    // 先亮勾选（必须在 sync 门禁之前）：保存中再点也不能「点了没反应」
     setSessionLevel((prev) => ({ ...prev, [wordId]: level }));
     setSessionReviewAt((prev) => ({ ...prev, [wordId]: nowMs }));
     setDisplayOrder((prev) => markJpVocabRoundChecked(prev, wordId));
@@ -256,6 +255,12 @@ export function useJpVocabReviewActions(options: {
       markJpVocabRoundChecked(displayOrderSnapshot, wordId),
       sharedIdsSnapshot
     );
+
+    if (wordSyncState[wordId]) {
+      pendingLevelByWordRef.current[wordId] = level;
+      setStatus("已更新界面，当前保存完成后会写入最新勾选…");
+      return;
+    }
 
     setWordSyncPhase(wordId, "queued");
     patchShareProgress(wordId, JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT);
@@ -282,6 +287,10 @@ export function useJpVocabReviewActions(options: {
         );
 
         try {
+          const levelToSave =
+            pendingLevelByWordRef.current[wordId] ?? level;
+          delete pendingLevelByWordRef.current[wordId];
+
           const res = await fetch("/api/jp-vocab", {
             method: "POST",
             headers: {
@@ -289,7 +298,7 @@ export function useJpVocabReviewActions(options: {
               [LOCALE_HEADER]: locale,
             },
             credentials: "include",
-            body: JSON.stringify({ word_id: wordId, level }),
+            body: JSON.stringify({ word_id: wordId, level: levelToSave }),
           });
           const data = (await res.json()) as {
             ok: boolean;
@@ -351,10 +360,26 @@ export function useJpVocabReviewActions(options: {
           setWordSyncPhase(wordId, null);
         }
       });
+      const pendingAfter = pendingLevelByWordRef.current[wordId];
+      if (pendingAfter != null) {
+        delete pendingLevelByWordRef.current[wordId];
+        void recordLevel(wordId, pendingAfter, source);
+      }
     } catch (err) {
       clearShareTimer(wordId);
       patchShareProgress(wordId, null);
       setWordSyncPhase(wordId, null);
+      const pendingAfter = pendingLevelByWordRef.current[wordId];
+      if (pendingAfter != null) {
+        delete pendingLevelByWordRef.current[wordId];
+        void recordLevel(wordId, pendingAfter, source);
+        setStatus(
+          err instanceof Error
+            ? `${err.message}；已保留最新勾选并重试保存`
+            : "保存失败；已保留最新勾选并重试保存"
+        );
+        return;
+      }
       if (snapshot) {
         setWords((prev) =>
           prev.map((w) => (w.id === wordId ? snapshot : w))
@@ -475,6 +500,12 @@ export function useJpVocabReviewActions(options: {
       patchShareProgress(wordId, null);
       setWordSyncPhase(wordId, null);
 
+      const pendingAfterShare = pendingLevelByWordRef.current[wordId];
+      if (pendingAfterShare != null) {
+        delete pendingLevelByWordRef.current[wordId];
+        void recordLevel(wordId, pendingAfterShare, "flashcard");
+      }
+
       if (result.kind === "already") {
         setSharedTodayWordIds((prev) => new Set([...prev, wordId]));
         return true;
@@ -527,6 +558,11 @@ export function useJpVocabReviewActions(options: {
       clearShareTimer(wordId);
       patchShareProgress(wordId, null);
       setWordSyncPhase(wordId, null);
+      const pendingAfterShare = pendingLevelByWordRef.current[wordId];
+      if (pendingAfterShare != null) {
+        delete pendingLevelByWordRef.current[wordId];
+        void recordLevel(wordId, pendingAfterShare, "flashcard");
+      }
       setStatus(err instanceof Error ? err.message : String(err));
       return false;
     }
