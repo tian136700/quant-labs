@@ -1,0 +1,108 @@
+日语新课 · 批量新增语法 API
+========================
+
+用途
+----
+在「日语新课」页点「新增」，或脚本/其它项目调用同一 action：
+粘贴编号语法块 + 教材课次 + 学习状态，写入 **一条** `kind=grammar` 新课。
+
+- 未完成 / 学习中：只建新课，不同步抽问
+- 已完成：建课并标已完成后，按条 upsert 到日语抽问
+  - 抽问里已有同 lemma（语法或单词）→ **跳过**该条
+  - 写入释义 / 标注 / 课次 / 口语·考试频次（新建或空字段）
+
+
+线上地址
+--------
+POST https://japanese.info-quests.com/api/jp-lesson
+
+说明：也可用 finance.info-quests.com 同路径（同一 Worker / 同一 D1）。
+
+
+本机开发（可选）
+---------------
+POST http://127.0.0.1:3002/api/jp-lesson
+
+
+鉴权
+----
+须登录 Cookie 会话，且具备「日语新课 · 编辑/操作」权限（与页内改状态相同）。
+
+
+请求
+----
+Content-Type: application/json
+
+{
+  "action": "bulk_create_grammar",
+  "course_label": "标日第26课",
+  "progress_status": "completed",
+  "text": "1. ～でしょう\n释义：……\n标注：考试和口语常用\n口语频次：9\n考试频次：9\n\n2. ～かもしれません\n释义：……\n…"
+}
+
+| 字段 | 必填 | 说明 |
+|------|------|------|
+| action | 是 | 固定 `bulk_create_grammar` |
+| course_label | 是 | 教材课次，如「标日第26课」 |
+| progress_status | 是 | `pending` 未完成 / `learning` 学习中 / `completed` 已完成 |
+| text | 是 | 编号块粘贴文本 |
+
+
+粘贴格式
+--------
+每条一块，编号可用 `1.` / `1、` / `1．`：
+
+1. 语法词条
+释义：……
+标注：口语常用 | 考试常用 | 口语考试都常用 | 考试和口语常用
+口语频次：8
+考试频次：8
+
+「考试和口语常用」「口语和考试常用」会规范成「口语考试都常用」。
+「口语频率」「考试频率」与「频次」均可。
+
+
+成功响应（节选）
+----------------
+{
+  "ok": true,
+  "lesson": { "id": 217, "kind": "grammar", "course_label": "标日第26课", … },
+  "item_count": 7,
+  "vocab_sync": { "processed": 7, "inserted": 5, "updated": 0, "skipped": 2 },
+  "skipped_words": ["それで", "～でしょう"]
+}
+
+未完成 / 学习中时 `vocab_sync` 为 null，`skipped_words` 为 []。
+
+
+失败
+----
+| error | 含义 |
+|-------|------|
+| course_label_required | 未填课次 |
+| progress_status_invalid | 状态非法 |
+| text_empty / no_items | 粘贴为空或未识别编号条 |
+| invalid_annotation | 某条标注无法规范 |
+| content_empty 等 | 建课失败 |
+
+
+curl 例
+-------
+curl -sS -X POST 'https://japanese.info-quests.com/api/jp-lesson' \
+  -H 'Content-Type: application/json' \
+  -H 'Cookie: …登录会话…' \
+  -d '{
+    "action":"bulk_create_grammar",
+    "course_label":"标日第26课",
+    "progress_status":"pending",
+    "text":"1. ～でしょう\n释义：推测。\n标注：考试和口语常用\n口语频次：9\n考试频次：9\n"
+  }'
+
+
+实现
+----
+- 解析：src/lib/jp-lesson-bulk-grammar-parse.ts
+- 写入：src/lib/jp-lesson-bulk-grammar.ts
+- 路由：src/app/api/jp-lesson/route.ts → action bulk_create_grammar
+- 页面：JpLessonBulkGrammarModal.tsx
+- 回归：python3 scripts/check_jp_lesson_bulk_grammar.py

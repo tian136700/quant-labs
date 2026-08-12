@@ -33,17 +33,34 @@ export function isJpVocabAnnotation(
   return (JP_VOCAB_ANNOTATION_VALUES as readonly string[]).includes(t);
 }
 
+/** 粘贴 / OCR 别名 → 三选一（如「考试和口语常用」） */
+export function canonicalizeJpVocabAnnotationAlias(
+  raw: string | null | undefined
+): string {
+  const t = (raw || "").trim();
+  if (!t) return "";
+  if (
+    t === "考试和口语常用" ||
+    t === "口语和考试常用" ||
+    t === "口语考试常用" ||
+    t === "考试口语都常用"
+  ) {
+    return "口语考试都常用";
+  }
+  return t;
+}
+
 /** 空 → null；非法非空 → null（读库容错） */
 export function normalizeJpVocabAnnotation(
   raw: string | null | undefined
 ): JpVocabAnnotation | null {
-  const t = (raw || "").trim();
+  const t = canonicalizeJpVocabAnnotationAlias(raw);
   if (!t) return null;
   return isJpVocabAnnotation(t) ? t : null;
 }
 
 /**
- * 上传校验：空允许；非空必须是三选一。
+ * 上传校验：空允许；非空必须是三选一（含别名）。
  * 返回规范化值或 error。
  */
 export function parseJpVocabAnnotationInput(
@@ -51,7 +68,7 @@ export function parseJpVocabAnnotationInput(
 ):
   | { ok: true; value: JpVocabAnnotation | null }
   | { ok: false; error: "invalid_annotation" } {
-  const t = (raw || "").trim();
+  const t = canonicalizeJpVocabAnnotationAlias(raw);
   if (!t) return { ok: true, value: null };
   if (!isJpVocabAnnotation(t)) return { ok: false, error: "invalid_annotation" };
   return { ok: true, value: t };

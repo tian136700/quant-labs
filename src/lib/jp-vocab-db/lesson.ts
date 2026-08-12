@@ -102,6 +102,7 @@ import {
   resolveJpLessonItemKinds,
 } from "@/lib/jp-lesson-shared";
 import { normalizeJpVocabAnnotation } from "@/lib/jp-vocab-annotation";
+import { clampJpVocabFrequency } from "@/lib/jp-vocab-frequency";
 import { listJpLessons } from "@/lib/jp-lesson-db";
 import { listJpLessonNotesByLessonId, replaceLessonNotesForItem, ensureJpLessonVocabSkipNote } from "@/lib/jp-lesson-note-db";
 import type { JpLessonRecord } from "@/lib/types";
@@ -141,6 +142,10 @@ export type JpVocabLessonUpsertItem = {
   annotation?: string | null;
   /** 教材课次（如标日初级上册第23课）；已有不覆盖 */
   course_label?: string | null;
+  /** 口语出现频率 1～10；已有不覆盖 */
+  oral_frequency?: number | null;
+  /** 考试出现频率 1～10；已有不覆盖 */
+  exam_frequency?: number | null;
   /** 新课 content 原文（可能为ます形）；跳过写笔记时用 */
   lesson_item_word?: string | null;
 };
@@ -161,6 +166,11 @@ export type UpsertJpVocabFromLessonOptions = {
   upsertRefs?: boolean;
   /** 新课 id；单词已存在时写跳过备注 */
   lessonId?: number;
+  /**
+   * 批量新增语法等：lemma 已在抽问（任意 kind）则整条跳过，不补空字段。
+   * 默认 false，保留「列表标已完成」对旧语法补空字段行为。
+   */
+  skipExistingGrammar?: boolean;
 };
 
 /** 仅当日已有日序时 append；空日序跳过，避免全库 ensure → 1102 */
@@ -207,12 +217,14 @@ export async function upsertJpVocabFromLesson(
 
   // 新课「已完成」同步：created_at 记北京时间，今天不进抽查池，次日凌晨置顶
   // 释义：仅 grammar 写入 meaning（已有不覆盖）；单词由 fill-meaning（tokken）补
-  // 单词：抽问已有辞书形则跳过并给新课该项写备注；语法仍补空字段
+  // 单词：抽问已有辞书形则跳过并给新课该项写备注；语法默认仍补空字段
+  // skipExistingGrammar：批量新增语法时 lemma 已存在则整条跳过
   const ts = beijingDateTimeString();
   const lessonId =
     opts.lessonId != null && Number.isInteger(opts.lessonId) && opts.lessonId > 0
       ? opts.lessonId
       : null;
+  const skipExistingGrammar = Boolean(opts.skipExistingGrammar);
   let inserted = 0;
   let updated = 0;
   let skipped = 0;
@@ -239,9 +251,11 @@ export async function upsertJpVocabFromLesson(
         item.course_label != null && String(item.course_label).trim()
           ? String(item.course_label).trim().slice(0, 120)
           : null;
+      const oralFrequency = clampJpVocabFrequency(item.oral_frequency);
+      const examFrequency = clampJpVocabFrequency(item.exam_frequency);
       const idx = jpVocabDbState.devWords.findIndex((w) => w.word === word);
       if (idx >= 0) {
-        if (kind === "word") {
+        if (kind === "word" || skipExistingGrammar) {
           skipped += 1;
           await noteWordSkipped(item, word);
           continue;
@@ -261,11 +275,21 @@ export async function upsertJpVocabFromLesson(
           courseLabel && !cur.course_label?.trim()
             ? courseLabel
             : cur.course_label ?? null;
+        const nextOral =
+          oralFrequency != null && cur.oral_frequency == null
+            ? oralFrequency
+            : cur.oral_frequency ?? null;
+        const nextExam =
+          examFrequency != null && cur.exam_frequency == null
+            ? examFrequency
+            : cur.exam_frequency ?? null;
         if (
           nextExamples !== (cur.example_sentences ?? null) ||
           nextMeaning !== (cur.meaning ?? null) ||
           nextAnnotation !== (cur.annotation ?? null) ||
-          nextCourseLabel !== (cur.course_label ?? null)
+          nextCourseLabel !== (cur.course_label ?? null) ||
+          nextOral !== (cur.oral_frequency ?? null) ||
+          nextExam !== (cur.exam_frequency ?? null)
         ) {
           jpVocabDbState.devWords[idx] = {
             ...cur,
@@ -277,6 +301,8 @@ export async function upsertJpVocabFromLesson(
                 : cur.meaning_source ?? null,
             annotation: nextAnnotation,
             course_label: nextCourseLabel,
+            oral_frequency: nextOral,
+            exam_frequency: nextExam,
             updated_at: ts,
           };
           updated += 1;
@@ -302,6 +328,8 @@ export async function upsertJpVocabFromLesson(
         class_notes: null,
         annotation,
         course_label: courseLabel,
+        oral_frequency: oralFrequency,
+        exam_frequency: examFrequency,
         example_sentences: exampleSentences,
         meaning_source: meaning ? JP_VOCAB_LESSON_MEANING_SOURCE : null,
         created_at: ts,
@@ -336,10 +364,13 @@ export async function upsertJpVocabFromLesson(
       item.course_label != null && String(item.course_label).trim()
         ? String(item.course_label).trim().slice(0, 120)
         : null;
+    const oralFrequency = clampJpVocabFrequency(item.oral_frequency);
+    const examFrequency = clampJpVocabFrequency(item.exam_frequency);
 
     const existing = await db
       .prepare(
-        `SELECT id, meaning, example_sentences, annotation, course_label FROM jp_vocab_word WHERE word = ?1 LIMIT 1`
+        `SELECT id, meaning, example_sentences, annotation, course_label, oral_frequency, exam_frequency
+         FROM jp_vocab_word WHERE word = ?1 LIMIT 1`
       )
       .bind(word)
       .first<{
@@ -348,10 +379,12 @@ export async function upsertJpVocabFromLesson(
         example_sentences: string | null;
         annotation: string | null;
         course_label: string | null;
+        oral_frequency: number | null;
+        exam_frequency: number | null;
       }>();
 
     if (existing) {
-      if (kind === "word") {
+      if (kind === "word" || skipExistingGrammar) {
         skipped += 1;
         await noteWordSkipped(item, word);
         continue;
@@ -368,7 +401,22 @@ export async function upsertJpVocabFromLesson(
         courseLabel && !(existing.course_label || "").trim()
           ? courseLabel
           : null;
-      if (nextExamples || nextMeaning || nextAnnotation || nextCourseLabel) {
+      const nextOral =
+        oralFrequency != null && clampJpVocabFrequency(existing.oral_frequency) == null
+          ? oralFrequency
+          : null;
+      const nextExam =
+        examFrequency != null && clampJpVocabFrequency(existing.exam_frequency) == null
+          ? examFrequency
+          : null;
+      if (
+        nextExamples ||
+        nextMeaning ||
+        nextAnnotation ||
+        nextCourseLabel ||
+        nextOral != null ||
+        nextExam != null
+      ) {
         await db
           .prepare(
             `UPDATE jp_vocab_word
@@ -380,8 +428,16 @@ export async function upsertJpVocabFromLesson(
                  END,
                  annotation = COALESCE(?4, annotation),
                  course_label = COALESCE(?5, course_label),
-                 updated_at = ?6
-             WHERE id = ?7`
+                 oral_frequency = CASE
+                   WHEN ?6 IS NOT NULL AND oral_frequency IS NULL THEN ?6
+                   ELSE oral_frequency
+                 END,
+                 exam_frequency = CASE
+                   WHEN ?7 IS NOT NULL AND exam_frequency IS NULL THEN ?7
+                   ELSE exam_frequency
+                 END,
+                 updated_at = ?8
+             WHERE id = ?9`
           )
           .bind(
             nextExamples,
@@ -389,6 +445,8 @@ export async function upsertJpVocabFromLesson(
             JP_VOCAB_LESSON_MEANING_SOURCE,
             nextAnnotation,
             nextCourseLabel,
+            nextOral,
+            nextExam,
             ts,
             existing.id
           )
@@ -400,8 +458,8 @@ export async function upsertJpVocabFromLesson(
 
     const insertResult = await db
       .prepare(
-        `INSERT INTO jp_vocab_word (word, reading, meaning, kind, ref_key, cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, example_sentences, meaning_source, annotation, course_label, created_at, updated_at)
-         VALUES (?1, NULL, ?2, ?3, ?4, 0, 0, 0, 0, NULL, NULL, ?5, ?6, ?7, ?8, ?9, ?9)`
+        `INSERT INTO jp_vocab_word (word, reading, meaning, kind, ref_key, cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, example_sentences, meaning_source, annotation, course_label, oral_frequency, exam_frequency, created_at, updated_at)
+         VALUES (?1, NULL, ?2, ?3, ?4, 0, 0, 0, 0, NULL, NULL, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?11)`
       )
       .bind(
         word,
@@ -412,6 +470,8 @@ export async function upsertJpVocabFromLesson(
         meaning ? JP_VOCAB_LESSON_MEANING_SOURCE : null,
         annotation,
         courseLabel,
+        oralFrequency,
+        examFrequency,
         ts
       )
       .run();

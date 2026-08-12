@@ -15,6 +15,7 @@ import {
   type JpLessonApiPayload,
 } from "@/lib/jp-api-cache";
 import type { JpLessonExamplesViewTarget } from "@/components/JpLessonExamplesViewModal";
+import { JpLessonBulkGrammarModal } from "@/components/JpLessonBulkGrammarModal";
 import { isJpLessonCurrentlyInClass } from "@/lib/jp-lesson-in-class";
 import {
   buildJpLessonDisplayGroupsById,
@@ -148,6 +149,7 @@ export function JpLessonPage() {
   const [viewingExamples, setViewingExamples] = useState<JpLessonExamplesViewTarget | null>(
     null
   );
+  const [bulkGrammarOpen, setBulkGrammarOpen] = useState(false);
   const [expandedContentIds, setExpandedContentIds] = useState<Record<number, boolean>>({});
   const [expandedMeaningsIds, setExpandedMeaningsIds] = useState<Record<number, boolean>>({});
   const [sectionSort, setSectionSort] = useState(DEFAULT_JP_LESSON_SECTION_SORT);
@@ -639,6 +641,22 @@ export function JpLessonPage() {
         </div>
       ) : null}
 
+      {canOperate ? (
+        <div className="jp-lesson-toolbar-row" style={{ marginBottom: "0.75rem" }}>
+          <button
+            type="button"
+            className="btn-rsi-filter btn-rsi-filter--primary"
+            onClick={() => setBulkGrammarOpen(true)}
+            disabled={loading}
+          >
+            新增
+          </button>
+          <span style={{ color: "var(--muted)", fontSize: "0.8rem", marginLeft: "0.5rem" }}>
+            批量粘贴语法 → 建新课；选已完成则同步抽问
+          </span>
+        </div>
+      ) : null}
+
       <div className="jp-lesson-search" role="search">
         <label htmlFor="jp-lesson-search" className="jp-lesson-search__label">
           查单词 / 语法 / 老师
@@ -790,6 +808,28 @@ export function JpLessonPage() {
         setViewingExamples={setViewingExamples}
         setAiPlanModalOpen={setAiPlanModalOpen}
         handleAiPlanAttached={handleAiPlanAttached}
+      />
+
+      <JpLessonBulkGrammarModal
+        open={bulkGrammarOpen}
+        onClose={() => setBulkGrammarOpen(false)}
+        onCreated={({ lesson, progress, itemCount, inserted, skipped }) => {
+          void loadLessons({ force: true });
+          if (progress === "completed") {
+            setMobileStatusFilter("completed");
+            const skipPart =
+              skipped > 0 ? `，跳过已有 ${skipped} 条` : "";
+            setStatus(
+              `已新增语法课 #${lesson.id}（${itemCount} 条），同步抽问 ${inserted} 条${skipPart}`
+            );
+          } else if (progress === "learning") {
+            setMobileStatusFilter("learning");
+            setStatus(`已新增语法课 #${lesson.id}（${itemCount} 条）· 学习中`);
+          } else {
+            setMobileStatusFilter("pending");
+            setStatus(`已新增语法课 #${lesson.id}（${itemCount} 条）· 未完成`);
+          }
+        }}
       />
 
       <JpLessonApiUploadDocs />

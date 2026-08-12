@@ -9,6 +9,7 @@ import {
   updateJpLessonTeacherAssignment,
 } from "@/lib/jp-lesson-db";
 import { completeJpLessonContentItems } from "@/lib/jp-lesson-complete-content-items";
+import { bulkCreateJpLessonGrammar } from "@/lib/jp-lesson-bulk-grammar";
 import { updateJpLessonContentMeanings } from "@/lib/jp-lesson-db-content";
 import { incrementJpLessonLinkCopyCount } from "@/lib/jp-lesson-db-link-copy";
 import { deleteJpLesson } from "@/lib/jp-lesson-db-delete";
@@ -176,6 +177,8 @@ export async function POST(request: Request) {
       content?: string;
       meanings?: string | null;
       item_indexes?: number[];
+      text?: string;
+      course_label?: string;
       class_schedules?: Array<{
         class_at: string;
         duration_minutes: number | null;
@@ -224,6 +227,46 @@ export async function POST(request: Request) {
       }
 
       return jsonResponse({ ok: true });
+    }
+
+    if (body.action === "bulk_create_grammar") {
+      const text = typeof body.text === "string" ? body.text : "";
+      const courseLabel =
+        typeof body.course_label === "string" ? body.course_label : "";
+      const progress =
+        typeof body.progress_status === "string" &&
+        VALID_PROGRESS.includes(body.progress_status as JpLessonProgressStatus)
+          ? (body.progress_status as JpLessonProgressStatus)
+          : null;
+      if (!progress) {
+        return jsonResponse(
+          { ok: false, error: "progress_status_invalid" },
+          400
+        );
+      }
+      const result = await bulkCreateJpLessonGrammar(env.DB, {
+        text,
+        course_label: courseLabel,
+        progress_status: progress,
+        operatorUsername: user.username,
+      });
+      if (!result.ok) {
+        return jsonResponse(
+          {
+            ok: false,
+            error: result.error,
+            detail: result.detail ?? null,
+          },
+          400
+        );
+      }
+      return jsonResponse({
+        ok: true,
+        lesson: result.lesson,
+        item_count: result.item_count,
+        vocab_sync: result.vocab_sync,
+        skipped_words: result.skipped_words,
+      });
     }
 
     if (body.action === "set_content") {

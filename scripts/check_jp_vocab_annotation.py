@@ -27,10 +27,12 @@ def main() -> int:
     must_contain(helpers, "ADD COLUMN annotation", "vocab schema")
     must_contain(helpers, "annotation,", "WORD_SELECT")
 
+    lesson_sync = ROOT / "src/lib/jp-lesson-vocab-sync.ts"
+    must_contain(lesson_sync, "itemAnnotations", "sync to vocab")
+    must_contain(lesson_sync, "annotation: itemAnnotations", "sync field")
+
     lesson_db = ROOT / "src/lib/jp-lesson-db.ts"
     must_contain(lesson_db, "ADD COLUMN annotations", "lesson schema")
-    must_contain(lesson_db, "itemAnnotations", "sync to vocab")
-    must_contain(lesson_db, "annotation: itemAnnotations", "sync field")
 
     upload = ROOT / "src/app/api/jp-lesson/upload/route.ts"
     must_contain(upload, "annotations", "upload API")
