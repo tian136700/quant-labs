@@ -42,6 +42,11 @@ def main() -> None:
         fail("start panel must use two-column grid (list + start)")
     if "pointer-events: none" not in start:
         fail("pending list rows must be non-interactive (pointer-events: none)")
+    # UI copy only — comments may mention the forbidden pattern
+    if "（今日目标" in start or "今日目标 {" in start:
+        fail("start panel must not show 今日目标 (only remaining round count)")
+    if "quizTarget" in start:
+        fail("start panel must not take quizTarget prop")
 
     word_list = WORD_LIST.read_text(encoding="utf-8")
     if "EnVocabTeacherQuizStartPanel" not in word_list:

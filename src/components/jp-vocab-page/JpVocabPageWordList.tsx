@@ -133,7 +133,6 @@ export function JpVocabPageWordList(props: JpVocabPageWordListProps) {
         {showStart ? (
           <JpVocabTeacherQuizStartPanel
             remainingCount={props.remainingQuizCount ?? 0}
-            quizTarget={props.quizTarget}
             pendingWords={props.pendingQuizWords ?? []}
             loading={props.loading}
             onStart={() => props.onStartTeacherQuiz?.()}

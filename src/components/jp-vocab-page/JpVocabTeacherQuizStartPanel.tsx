@@ -26,8 +26,6 @@ export type JpVocabTeacherQuizPendingWord = {
 type JpVocabTeacherQuizStartPanelProps = {
   /** 本轮还需抽查的词条数（池内未勾选） */
   remainingCount: number;
-  /** 今日抽查目标总数 */
-  quizTarget: number;
   /** 本轮待抽词条（只读预览；与 remainingCount 一致） */
   pendingWords?: JpVocabTeacherQuizPendingWord[];
   loading?: boolean;
@@ -38,10 +36,10 @@ type JpVocabTeacherQuizStartPanelProps = {
 /**
  * 老师端开场页：左只读待抽列表 + 右开始抽查。
  * 仍不展示可点词表，避免未开始乱点。对齐英语 StartPanel。
+ * 只显示本轮剩余数，禁止附带「今日目标 N 个」。
  */
 export function JpVocabTeacherQuizStartPanel({
   remainingCount,
-  quizTarget,
   pendingWords = [],
   loading = false,
   disabled = false,
@@ -102,11 +100,6 @@ export function JpVocabTeacherQuizStartPanel({
             {count}
           </strong>{" "}
           个词条
-          {quizTarget > 0 && count !== quizTarget ? (
-            <span className="jp-vocab-teacher-quiz-start-panel__count-hint">
-              （今日目标 {quizTarget} 个）
-            </span>
-          ) : null}
         </p>
         <p className="jp-vocab-teacher-quiz-start-panel__hint">
           请点下方按钮开始抽查。开始后才会同步当前词条，学生才能「查看老师正在抽查的单词」。
@@ -232,13 +225,6 @@ export function JpVocabTeacherQuizStartPanel({
           font-size: 1.35rem;
           font-weight: 700;
           color: var(--accent, #4c8bf5);
-        }
-        .jp-vocab-teacher-quiz-start-panel__count-hint {
-          display: inline-block;
-          margin-left: 0.15rem;
-          font-size: 0.85rem;
-          font-weight: 400;
-          color: var(--muted);
         }
         .jp-vocab-teacher-quiz-start-panel__hint {
           margin: 0 0 1.05rem;

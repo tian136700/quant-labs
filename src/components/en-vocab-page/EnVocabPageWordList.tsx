@@ -187,7 +187,6 @@ export function EnVocabPageWordList(props: EnVocabPageWordListProps) {
         showTeacherQuizStartLanding && !teacherQuizInProgress ? (
           <EnVocabTeacherQuizStartPanel
             remainingCount={remainingQuizCount}
-            quizTarget={quizTarget}
             pendingWords={pendingQuizWords}
             loading={loading}
             onStart={() => onStartTeacherQuiz?.()}
