@@ -151,6 +151,10 @@
    文件：docs/manual-schedule-recurring-expand-api.txt
    调用：POST https://finance.info-quests.com/api/admin/manual-schedule-recurring-expand
 
+37. 统一日程导出 API（Mac CalDAV → 网易 → iPhone）
+   文件：docs/schedule-events-api.txt
+   调用：GET https://finance.info-quests.com/api/admin/schedule-events
+
 —— 其它跨项目说明（*-howto.txt）——
 
 1. 本机 Bark 推送 — 跨项目复制说明（整段可复制给别的项目 Agent）

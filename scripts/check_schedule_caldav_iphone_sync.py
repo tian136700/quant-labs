@@ -102,13 +102,26 @@ def main() -> int:
         return _fail("schedule-caldav-events-load.ts must not import jp/en-lesson-db")
     if re.search(r"\blist(Jp|En)Lessons\s*\(", load_ts):
         return _fail("schedule-caldav-events-load.ts must not call listJpLessons/listEnLessons")
-    if "JP_LITE_SELECT" not in load_ts or "EN_LITE_SELECT" not in load_ts:
-        return _fail("schedule-caldav-events-load.ts must define JP/EN lite selects")
+    if "JP_JOINED_SELECT" not in load_ts or "EN_JOINED_SELECT" not in load_ts:
+        return _fail("schedule-caldav-events-load.ts must define JP/EN joined schedule selects")
     if "SUBSTR(" not in load_ts:
         return _fail(
             "lite SELECT must SUBSTR(content) in SQL "
             "(not pull full content then truncate in JS)"
         )
+    if "resolveScheduleCalDavDateWindow" not in load_ts:
+        return _fail("load must resolve a date window (default past/future days)")
+    if "SCHEDULE_CALDAV_DEFAULT_FUTURE_DAYS" not in load_ts:
+        return _fail("load must define default future window days")
+
+    route = ROOT / "src" / "app" / "api" / "admin" / "schedule-events" / "route.ts"
+    if not route.is_file():
+        return _fail("missing schedule-events route")
+    route_ts = route.read_text(encoding="utf-8")
+    if "searchParams.get(\"from\")" not in route_ts and "searchParams.get('from')" not in route_ts:
+        return _fail("schedule-events route must accept from/to query")
+    if "lite" not in route_ts:
+        return _fail("schedule-events route must accept lite=1")
 
     if "--fetch-retries" not in sync_py or "--events-file" not in sync_py:
         return _fail(
@@ -123,6 +136,17 @@ def main() -> int:
             return _fail("schedule_chat_command.py missing kick_schedule_caldav_sync")
         if "已触发同步到手机日历" not in chat:
             return _fail("success text should mention phone sync")
+        # Telegram 查表必须带日期窗 + lite，并对 1102 重试
+        if "lite=True" not in chat:
+            return _fail("Telegram schedule query must call fetch_schedule_events(..., lite=True)")
+        if "from_date=rng.start" not in chat or "to_date=rng.end" not in chat:
+            return _fail(
+                "Telegram schedule query must pass from_date/to_date from query range"
+            )
+        if 'params["lite"]' not in chat and "params['lite']" not in chat:
+            return _fail("fetch_schedule_events must put lite=1 on schedule-events URL")
+        if "1102" not in chat:
+            return _fail("Telegram fetch_schedule_events must retry on Worker 1102")
     kick_wired = False
     if REPLIES_SCHEDULE.is_file() and "kick_schedule_caldav_sync" in REPLIES_SCHEDULE.read_text(
         encoding="utf-8"

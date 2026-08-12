@@ -38,6 +38,9 @@ Token 常见来源：
 {
   "ok": true,
   "timezone": "Asia/Shanghai",
+  "from": "2026-07-29",
+  "to": "2027-02-08",
+  "lite": false,
   "count": 184,
   "events": [
     {
@@ -54,18 +57,28 @@ Token 常见来源：
 }
 
 
+Query（可选）
+-------------
+- from=YYYY-MM-DD  to=YYYY-MM-DD
+  北京日（含端点）。缺省：今天前 14 天 ～ 后 180 天。
+  Telegram 查「今天～最近一周」应显式传 from/to，减小体积。
+- lite=1
+  省略 description（Telegram 列表只用 summary）。防 Worker Error 1102。
+
+
 失败
 ----
 - 401 Unauthorized：Token 错或缺失
-- 503 + Cloudflare Error 1102：Worker 资源超限（历史上因全量拉教案大字段）
+- 400 from_to_invalid：日期不是 YYYY-MM-DD
+- 503 + Cloudflare Error 1102：Worker 资源超限（历史上因全量拉教案大字段 / 无日期窗）
 - 503 + Error 1027 / 429：Workers 日请求配额
 
 
 实现约束（防 1102）
 -------------------
-- 必须走 `loadScheduleCalDavBundle` 轻量查询
+- 必须走 `loadScheduleCalDavBundle`：课表 JOIN + 日期窗（禁止先拉全部学习中/已完成再展开）
 - 禁止 `listJpLessons` / `listEnLessons`（会带全量释义/例句）
-- 只取学习中 + 已完成、且有课表的教案；学习内容预览截断
+- 学习内容预览 `SUBSTR` 截断；Telegram 用 `lite=1`
 - 文件：`src/lib/schedule-caldav-events-load.ts`、`schedule-caldav-events.ts`
 
 
@@ -73,9 +86,20 @@ curl 例
 -------
 TOKEN="$(grep '^JP_REVIEW_UPLOAD_TOKEN=' ~/.config/info-quests/jp-review-sync.env | cut -d= -f2-)"
 
+# 全量窗（CalDAV）
 curl -sS \
   -H "Authorization: Bearer ${TOKEN}" \
+  -H "User-Agent: Mozilla/5.0" \
   "https://finance.info-quests.com/api/admin/schedule-events" | head -c 400
+echo
+
+# Telegram 风格：今天起 7 天 + lite
+FROM=$(TZ=Asia/Shanghai date +%F)
+TO=$(TZ=Asia/Shanghai date -v+6d +%F 2>/dev/null || TZ=Asia/Shanghai date -d '+6 days' +%F)
+curl -sS \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "User-Agent: Mozilla/5.0" \
+  "https://finance.info-quests.com/api/admin/schedule-events?from=${FROM}&to=${TO}&lite=1" | head -c 400
 echo
 
 
