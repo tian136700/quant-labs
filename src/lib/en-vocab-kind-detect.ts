@@ -20,6 +20,10 @@ const AB_PATTERN_RE =
 const TENSE_NAME_RE =
   /\b(?:present|past|future)\s+(?:simple|perfect|continuous|progressive|perfect\s+continuous)\b|\b(?:passive\s+voice|active\s+voice|conditional\s+(?:I{1,3}|1|2|3)|subjunctive\s+mood|reported\s+speech|relative\s+clause|attributive\s+clause)\b/i;
 
+/** will be to / will be doing … 等将来安排句型 */
+const WILL_BE_PATTERN_RE =
+  /\bwill\s+be\s+(?:to\b|doing\b)/i;
+
 const ELLIPSIS_SLOT_RE = /(?:…|\.{3}|～|~)/;
 
 export type EnVocabKindSuggest = "word" | "grammar";
@@ -33,6 +37,7 @@ export function enVocabLemmaLooksLikeGrammar(raw: string): boolean {
 
   if (AB_PATTERN_RE.test(word)) return true;
   if (TENSE_NAME_RE.test(word)) return true;
+  if (WILL_BE_PATTERN_RE.test(word)) return true;
   if (ELLIPSIS_SLOT_RE.test(word)) return true;
   if (SLOT_WORD_RE.test(word)) return true;
   if (LETTER_SLOT_RE.test(word) && /\s/.test(word)) return true;

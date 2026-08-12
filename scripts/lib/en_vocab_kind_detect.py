@@ -25,6 +25,7 @@ TENSE_NAME_RE = re.compile(
     r"attributive\s+clause)\b",
     re.I,
 )
+WILL_BE_PATTERN_RE = re.compile(r"\bwill\s+be\s+(?:to\b|doing\b)", re.I)
 ELLIPSIS_SLOT_RE = re.compile(r"(?:…|\.{3}|～|~)")
 
 
@@ -35,6 +36,8 @@ def en_vocab_lemma_looks_like_grammar(raw: str) -> bool:
     if AB_PATTERN_RE.search(word):
         return True
     if TENSE_NAME_RE.search(word):
+        return True
+    if WILL_BE_PATTERN_RE.search(word):
         return True
     if ELLIPSIS_SLOT_RE.search(word):
         return True

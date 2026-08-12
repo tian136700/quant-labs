@@ -61,10 +61,13 @@ CASES = [
     ("cater to somebody", True),
     ("either A or B", True),
     ("Present Perfect", True),
+    ("will be to", True),
+    ("will be doing something", True),
     ("look forward to", False),
     ("however", False),
     ("give up", False),
     ("attractive", False),
+    ("renew a lease", False),
     ("not only A but also B", True),
     ("depend on something", True),
 ]
