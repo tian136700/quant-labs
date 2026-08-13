@@ -696,13 +696,14 @@ def fetch_words_from_d1(
 
 
 def fetch_candidates(token: str, *, limit: int) -> list[dict[str, Any]]:
-    """合并各阶段 list_missing；按已有字段决定 needs（只缺例句不整词重烧）。
+    """合并各阶段 list_missing；按「哪个队列报缺」决定 needs。
 
-    排序：优先当日序号（daily_seq）靠前——这些更可能进今日抽查池。
+    重要：usage list_missing 行常不带 example_sentences 字段。
+    若用「字段是否为空」推断，会把「只缺双频」误判成「只缺例句」再烧 Claude。
     """
     by_id: dict[int, dict[str, Any]] = {}
 
-    def merge(rows: list) -> None:
+    def merge(rows: list, *, missing_keys: set[str]) -> None:
         for row in rows:
             wid = int(row.get("id") or 0)
             if wid <= 0:
@@ -721,10 +722,15 @@ def fetch_candidates(token: str, *, limit: int) -> list[dict[str, Any]]:
                     "usage": row.get("usage"),
                     "example_sentences": row.get("example_sentences"),
                     "daily_seq": row.get("daily_seq"),
-                    "needs": resolve_online_needs(row),
+                    "missing_keys": set(),
+                    "needs_frequency_only": bool(row.get("needs_frequency_only")),
                     "triggered": True,
                 }
                 by_id[wid] = cur
+            cur_missing: set[str] = cur.setdefault("missing_keys", set())
+            cur_missing |= set(missing_keys)
+            if row.get("needs_frequency_only"):
+                cur["needs_frequency_only"] = True
             for field in (
                 "reading",
                 "meaning",
@@ -751,10 +757,52 @@ def fetch_candidates(token: str, *, limit: int) -> list[dict[str, Any]]:
                     prev_n = None
                 if prev_n is None or seq_n < prev_n:
                     cur["daily_seq"] = seq_n
-            cur["needs"] = resolve_online_needs(cur)
+
+    def needs_from_missing_keys(cur: dict[str, Any]) -> dict[str, bool]:
+        kind = str(cur.get("kind") or "word")
+        keys: set[str] = set(cur.get("missing_keys") or ())
+        # 误标改语法：KIND 队列不贡献字段；仍按语法整词补
+        if cur.get("reclassify_to_grammar") or kind == "grammar":
+            # 若只因 usage 频率进队，且已是 grammar → 只补 usage
+            if keys <= {"usage"}:
+                return {
+                    "reading": False,
+                    "meaning": False,
+                    "pos": False,
+                    "usage": True,
+                    "example_sentences": False,
+                }
+            return full_refresh_needs("grammar")
+        needs = {
+            "reading": "reading" in keys,
+            "meaning": "meaning" in keys,
+            "pos": "pos" in keys or "meaning" in keys,
+            "usage": "usage" in keys,
+            "example_sentences": "example_sentences" in keys,
+        }
+        # 只缺双频：绝不要连带例句
+        if cur.get("needs_frequency_only") and keys <= {"usage"}:
+            return {
+                "reading": False,
+                "meaning": False,
+                "pos": False,
+                "usage": True,
+                "example_sentences": False,
+            }
+        # 无任何字段标记时兜底（不应发生）
+        if not any(needs.values()):
+            return resolve_online_needs(cur)
+        return needs
 
     scan_limit = max(limit * 8, 24)
-    for url in (READING_URL, MEANING_URL, USAGE_URL, EXAMPLES_URL, KIND_URL):
+    endpoint_fields: list[tuple[str, set[str]]] = [
+        (READING_URL, {"reading"}),
+        (MEANING_URL, {"meaning", "pos"}),
+        (USAGE_URL, {"usage"}),
+        (EXAMPLES_URL, {"example_sentences"}),
+        (KIND_URL, set()),  # 仅收集改标候选
+    ]
+    for url, keys in endpoint_fields:
         try:
             data = call_api(
                 url,
@@ -762,9 +810,8 @@ def fetch_candidates(token: str, *, limit: int) -> list[dict[str, Any]]:
                 {"mode": "list_missing", "limit": scan_limit},
                 user_agent="en-vocab-fill-online-batch/1.0",
             )
-            merge(list(data.get("missing") or []))
+            merge(list(data.get("missing") or []), missing_keys=keys)
         except Exception as err:
-            # fill-kind 未上线等：仍可按启发式改标 + 其它缺项队列
             print(f"    list_missing skip {url}: {err}", flush=True)
 
     rows = list(by_id.values())
@@ -774,9 +821,7 @@ def fetch_candidates(token: str, *, limit: int) -> list[dict[str, Any]]:
         if kind != "grammar" and en_vocab_lemma_looks_like_grammar(word):
             cur["reclassify_to_grammar"] = True
             cur["kind"] = "grammar"
-            cur["needs"] = resolve_online_needs(cur)
-        else:
-            cur["needs"] = resolve_online_needs(cur)
+        cur["needs"] = needs_from_missing_keys(cur)
 
     def _daily_sort_key(r: dict[str, Any]) -> tuple[int, int]:
         try:

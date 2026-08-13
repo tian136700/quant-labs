@@ -291,6 +291,12 @@ def main() -> int:
             errors.append(
                 "en-vocab-fill-online-batch-api.py: must poison when examples not applied"
             )
+        # 只缺双频：须按 list_missing 队列打 needs，禁止用「行里没有 example_sentences 键」误判缺例句
+        if "missing_keys" not in ot or "needs_frequency_only" not in ot:
+            errors.append(
+                "en-vocab-fill-online-batch-api.py: must track list_missing "
+                "missing_keys / needs_frequency_only (avoid false example-only)"
+            )
         sys.path.insert(0, str(ROOT / "scripts" / "lib"))
         try:
             import importlib.util
