@@ -73,7 +73,10 @@ _IPA_FIND = re.compile(r"[/\[\]]([^/\\[\]]{1,60})[/\[\]]")
 
 SYSTEM = (
     "You fill English learner flashcards for junior-high / IELTS-TOEFL high-frequency review. "
-    "Return ONLY one JSON object. No markdown fences, no commentary. "
+    "Return ONLY one JSON object that COMPLETELY fills the card in ONE shot "
+    "(kind + reading + meaning + pos + usage with dual [口语n|考试m] + example_sentences). "
+    "Never omit usage dual scores or examples—partial output forces another paid call. "
+    "No markdown fences, no commentary. "
     "All string values MUST use double quotes; escape any \" inside strings as \\\". "
     "IPA reading MUST be a JSON string like \"/ʌp ˈtuː/\", never a bare /…/ token. "
     "If the lemma is a grammar pattern / sentence frame (both A and B, cater to somebody, "
@@ -97,7 +100,7 @@ SYSTEM = (
     "English line + 译文：Chinese line (NOT a JSON/Python array of objects); "
     "one short sentence per usage that MATCHES that usage "
     "(if usage is passive be expected to, the example MUST be passive; "
-    "if usage is a phrase like get out, include that phrase); "
+    "if usage is a phrase like get out / get through, include that exact phrase); "
     "tense/inflection OK; keep other words VERY basic; "
     "NO hard vocabulary, NO long subordinate clauses—focus on the target usage."
 )
@@ -548,9 +551,9 @@ def source_label() -> str:
 
 
 def full_refresh_needs(kind: str) -> dict[str, bool]:
-    """线上模式：整词重拉（付费更准，覆盖写回）。
+    """线上付费：一词一次必须整包（音标/释义/词性/用法/例句）。
 
-    语法：不补音标/词性；仍补 meaning（误标改语法后常见空释义）。
+    语法：不补音标/词性；仍补 meaning + usage + example_sentences。
     """
     if kind == "grammar":
         return {
@@ -569,40 +572,27 @@ def full_refresh_needs(kind: str) -> dict[str, bool]:
     }
 
 
-def _field_filled(value: Any) -> bool:
-    return bool(str(value or "").strip())
-
-
 def resolve_online_needs(row: dict[str, Any]) -> dict[str, bool]:
-    """按库里已有字段决定本轮 needs，避免「只缺例句」却整词再烧一遍 Claude。
+    """付费调用一律整词 needs——禁止「只补例句/只补双频」再连烧第二轮 token。
 
-    - 核心字段（音标/释义/用法）已齐、只缺例句 → 只补例句
-    - 否则 → 整词刷新（首次补全 / 缺多项）
+    任一 list_missing 进队（哪怕只缺双频）→ 仍一次打满并 force 覆盖写回。
     """
     kind = str(row.get("kind") or "word")
-    has_meaning = _field_filled(row.get("meaning"))
-    has_usage = _field_filled(row.get("usage"))
-    has_examples = _field_filled(row.get("example_sentences"))
-    if kind == "grammar":
-        if has_meaning and has_usage and not has_examples:
-            return {
-                "reading": False,
-                "meaning": False,
-                "pos": False,
-                "usage": False,
-                "example_sentences": True,
-            }
-        return full_refresh_needs("grammar")
-    has_reading = _field_filled(row.get("reading"))
-    if has_reading and has_meaning and has_usage and not has_examples:
-        return {
-            "reading": False,
-            "meaning": False,
-            "pos": False,
-            "usage": False,
-            "example_sentences": True,
-        }
-    return full_refresh_needs("word")
+    return full_refresh_needs("grammar" if kind == "grammar" else "word")
+
+
+def expected_applied_keys(needs: dict[str, bool]) -> list[str]:
+    """本轮 apply 必须全部成功的 done 标签（缺一即 incomplete）。"""
+    out: list[str] = []
+    if needs.get("reading"):
+        out.append("reading")
+    if needs.get("meaning") or needs.get("pos"):
+        out.append("meaning/pos")
+    if needs.get("usage"):
+        out.append("usage")
+    if needs.get("example_sentences"):
+        out.append("example_sentences")
+    return out
 
 
 DB_NAME = "strategy-compare-db"
@@ -625,15 +615,7 @@ def _row_from_db(row: dict[str, Any]) -> dict[str, Any]:
         "usage_source": row.get("usage_source"),
         "example_sentences_source": row.get("example_sentences_source"),
         "reading_source": row.get("reading_source"),
-        "needs": resolve_online_needs(
-            {
-                "kind": kind,
-                "reading": row.get("reading"),
-                "meaning": row.get("meaning"),
-                "usage": row.get("usage"),
-                "example_sentences": row.get("example_sentences"),
-            }
-        ),
+        "needs": full_refresh_needs(kind),
         "triggered": True,
     }
 
@@ -696,14 +678,13 @@ def fetch_words_from_d1(
 
 
 def fetch_candidates(token: str, *, limit: int) -> list[dict[str, Any]]:
-    """合并各阶段 list_missing；按「哪个队列报缺」决定 needs。
+    """合并各阶段 list_missing；进队后一律整词 needs（一次付费打满，禁止按字段拆烧）。
 
-    重要：usage list_missing 行常不带 example_sentences 字段。
-    若用「字段是否为空」推断，会把「只缺双频」误判成「只缺例句」再烧 Claude。
+    排序：优先当日序号（daily_seq）靠前——这些更可能进今日抽查池。
     """
     by_id: dict[int, dict[str, Any]] = {}
 
-    def merge(rows: list, *, missing_keys: set[str]) -> None:
+    def merge(rows: list) -> None:
         for row in rows:
             wid = int(row.get("id") or 0)
             if wid <= 0:
@@ -722,15 +703,10 @@ def fetch_candidates(token: str, *, limit: int) -> list[dict[str, Any]]:
                     "usage": row.get("usage"),
                     "example_sentences": row.get("example_sentences"),
                     "daily_seq": row.get("daily_seq"),
-                    "missing_keys": set(),
-                    "needs_frequency_only": bool(row.get("needs_frequency_only")),
+                    "needs": full_refresh_needs(kind),
                     "triggered": True,
                 }
                 by_id[wid] = cur
-            cur_missing: set[str] = cur.setdefault("missing_keys", set())
-            cur_missing |= set(missing_keys)
-            if row.get("needs_frequency_only"):
-                cur["needs_frequency_only"] = True
             for field in (
                 "reading",
                 "meaning",
@@ -743,7 +719,6 @@ def fetch_candidates(token: str, *, limit: int) -> list[dict[str, Any]]:
             ):
                 if row.get(field) and not cur.get(field):
                     cur[field] = row.get(field)
-            # 取各阶段返回里更靠前的当日序号
             seq = row.get("daily_seq")
             try:
                 seq_n = int(seq) if seq is not None else None
@@ -757,52 +732,11 @@ def fetch_candidates(token: str, *, limit: int) -> list[dict[str, Any]]:
                     prev_n = None
                 if prev_n is None or seq_n < prev_n:
                     cur["daily_seq"] = seq_n
-
-    def needs_from_missing_keys(cur: dict[str, Any]) -> dict[str, bool]:
-        kind = str(cur.get("kind") or "word")
-        keys: set[str] = set(cur.get("missing_keys") or ())
-        # 误标改语法：KIND 队列不贡献字段；仍按语法整词补
-        if cur.get("reclassify_to_grammar") or kind == "grammar":
-            # 若只因 usage 频率进队，且已是 grammar → 只补 usage
-            if keys <= {"usage"}:
-                return {
-                    "reading": False,
-                    "meaning": False,
-                    "pos": False,
-                    "usage": True,
-                    "example_sentences": False,
-                }
-            return full_refresh_needs("grammar")
-        needs = {
-            "reading": "reading" in keys,
-            "meaning": "meaning" in keys,
-            "pos": "pos" in keys or "meaning" in keys,
-            "usage": "usage" in keys,
-            "example_sentences": "example_sentences" in keys,
-        }
-        # 只缺双频：绝不要连带例句
-        if cur.get("needs_frequency_only") and keys <= {"usage"}:
-            return {
-                "reading": False,
-                "meaning": False,
-                "pos": False,
-                "usage": True,
-                "example_sentences": False,
-            }
-        # 无任何字段标记时兜底（不应发生）
-        if not any(needs.values()):
-            return resolve_online_needs(cur)
-        return needs
+            # 队列里见到就整词刷新（含只缺双频）
+            cur["needs"] = full_refresh_needs(str(cur.get("kind") or "word"))
 
     scan_limit = max(limit * 8, 24)
-    endpoint_fields: list[tuple[str, set[str]]] = [
-        (READING_URL, {"reading"}),
-        (MEANING_URL, {"meaning", "pos"}),
-        (USAGE_URL, {"usage"}),
-        (EXAMPLES_URL, {"example_sentences"}),
-        (KIND_URL, set()),  # 仅收集改标候选
-    ]
-    for url, keys in endpoint_fields:
+    for url in (READING_URL, MEANING_URL, USAGE_URL, EXAMPLES_URL, KIND_URL):
         try:
             data = call_api(
                 url,
@@ -810,7 +744,7 @@ def fetch_candidates(token: str, *, limit: int) -> list[dict[str, Any]]:
                 {"mode": "list_missing", "limit": scan_limit},
                 user_agent="en-vocab-fill-online-batch/1.0",
             )
-            merge(list(data.get("missing") or []), missing_keys=keys)
+            merge(list(data.get("missing") or []))
         except Exception as err:
             print(f"    list_missing skip {url}: {err}", flush=True)
 
@@ -821,7 +755,9 @@ def fetch_candidates(token: str, *, limit: int) -> list[dict[str, Any]]:
         if kind != "grammar" and en_vocab_lemma_looks_like_grammar(word):
             cur["reclassify_to_grammar"] = True
             cur["kind"] = "grammar"
-        cur["needs"] = needs_from_missing_keys(cur)
+            cur["needs"] = full_refresh_needs("grammar")
+        else:
+            cur["needs"] = full_refresh_needs(str(cur.get("kind") or "word"))
 
     def _daily_sort_key(r: dict[str, Any]) -> tuple[int, int]:
         try:
@@ -1122,15 +1058,16 @@ def process_one(
     )
     if reclassify:
         row["kind"] = "grammar"
-        needs = resolve_online_needs({**row, "kind": "grammar"})
-        # 误标改语法：释义/用法常需重写；若库里已有齐套仍只补缺项
-        if not any(needs.values()):
-            needs = full_refresh_needs("grammar")
+        needs = full_refresh_needs("grammar")
+        row["needs"] = needs
+    else:
+        # 付费一律整词：进队原因不论缺什么，本轮一次打满
+        needs = full_refresh_needs(str(row.get("kind") or "word"))
         row["needs"] = needs
     need_list = [k for k, v in needs.items() if v]
     print(
         f"  [{index}/{total}] id={wid} word={word!r} "
-        f"kind={row.get('kind')} needs={need_list}"
+        f"kind={row.get('kind')} full_bundle={need_list}"
         + (" reclassify→grammar" if reclassify else ""),
         flush=True,
     )
@@ -1234,16 +1171,14 @@ def process_one(
         if reclassify or str(payload.get("kind") or "") == "grammar"
         else "word"
     )
-    # 例句本轮需要却没写上 → 不算搞定（否则下一轮又整词烧 Claude）
-    examples_needed = bool(needs.get("example_sentences")) and bool(
-        payload.get("example_sentences")
-    )
-    examples_applied = "example_sentences" in done
-    incomplete = examples_needed and not examples_applied
+    # 整包缺一不可：音标/释义/用法/例句任一没写入 → 不算成功（禁止下次再拆着烧）
+    required = expected_applied_keys(needs)
+    missing_applied = [k for k in required if k not in done]
+    incomplete = bool(missing_applied)
     status = "success" if done and not incomplete else ("partial" if done else "failed")
     err = ""
     if incomplete:
-        err = "examples_not_applied"
+        err = "incomplete_bundle:" + ",".join(missing_applied)
     elif not done:
         err = "apply_none"
     report_word_run_to_maintenance_center(

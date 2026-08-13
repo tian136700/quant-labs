@@ -284,18 +284,27 @@ def main() -> int:
             )
         if "def resolve_online_needs" not in ot:
             errors.append(
-                "en-vocab-fill-online-batch-api.py: missing resolve_online_needs "
-                "(only-examples must not full-refresh)"
+                "en-vocab-fill-online-batch-api.py: missing resolve_online_needs"
             )
-        if "examples_not_applied" not in ot:
+        if "full_refresh_needs" not in ot or "expected_applied_keys" not in ot:
             errors.append(
-                "en-vocab-fill-online-batch-api.py: must poison when examples not applied"
+                "en-vocab-fill-online-batch-api.py: must full_bundle via "
+                "full_refresh_needs + expected_applied_keys"
             )
-        # 只缺双频：须按 list_missing 队列打 needs，禁止用「行里没有 example_sentences 键」误判缺例句
-        if "missing_keys" not in ot or "needs_frequency_only" not in ot:
+        if "incomplete_bundle" not in ot:
             errors.append(
-                "en-vocab-fill-online-batch-api.py: must track list_missing "
-                "missing_keys / needs_frequency_only (avoid false example-only)"
+                "en-vocab-fill-online-batch-api.py: must fail incomplete_bundle "
+                "when any field missing from apply"
+            )
+        # 禁止按字段拆烧：不得再写 needs_from_missing_keys / 只补双频分支
+        if "def needs_from_missing_keys" in ot or "needs_frequency_only →" in ot:
+            errors.append(
+                "en-vocab-fill-online-batch-api.py: must not split paid fills "
+                "by field (one full bundle only)"
+            )
+        if "COMPLETELY fills the card in ONE shot" not in ot:
+            errors.append(
+                "en-vocab-fill-online-batch-api.py SYSTEM: must demand one-shot complete JSON"
             )
         sys.path.insert(0, str(ROOT / "scripts" / "lib"))
         try:
