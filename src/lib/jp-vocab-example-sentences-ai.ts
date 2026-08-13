@@ -229,6 +229,20 @@ export function jpVocabExampleHasSukiKiraiWaParticle(
   );
 }
 
+/** 造句 prompt：仅当本词是喜欢/讨厌时钉在「词条：」旁（总规则 9e 易被长清单淹没）。 */
+export function jpVocabSukiKiraiParticlePromptHint(word: string): string | null {
+  const lemma = String(word || "")
+    .replace(/[～~〜]/g, "")
+    .trim()
+    .replace(/だ$/, "");
+  if (!SUKI_KIRAI_STEMS.has(lemma)) return null;
+  return (
+    `接续必守：本词对象用「が」，两句都用が。` +
+    `❌「魚は${lemma}です」（换场景时不要把が改成は）→ ✅「魚が${lemma}です」。` +
+    `可以说「私は魚が${lemma}です」；禁止对象上用は。`
+  );
+}
+
 /**
  * 「相談する」：に＝向某人请教／找某人商量；と＝和某人一起商量。
  * 拒译文与助词对调：に却写「和…谈」；と却写「咨询了…」。
@@ -436,6 +450,7 @@ export function buildJpVocabExampleSentencesAiPrompt(
     input.kind === "grammar" && grammarCore
       ? `语法点：句中必须出现「${grammarCore}」（教助词时不要换成别的助词；例如「～が」不要写成只有「は」的句子）。词条里的「～」「〜」是占位符，禁止写进例句；请换成具体内容，如「天気予報によると…」「彼によると…」。若语法核是假名（如「あたり」「ところ」），优先写假名；写「辺り／所」亦可，但假名读音须正确（あたり≠へん）。`
       : null,
+    jpVocabSukiKiraiParticlePromptHint(input.word),
     hasDa
       ? `造句用词干：${stem}（「だ」是な形容词辞书形词尾，例句里用「${stem}」即可，不必带「だ」）`
       : null,

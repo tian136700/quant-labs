@@ -55,11 +55,16 @@ def main() -> int:
     for needle in (
         "suki_kirai_wa_particle",
         "jpVocabExampleHasSukiKiraiWaParticle",
+        "jpVocabSukiKiraiParticlePromptHint",
         "魚は嫌いです",
+        "两句都用が",
         'reason: "suki_kirai_wa_particle"',
     ):
         if needle not in ai:
             fail(f"{AI.name} missing {needle!r}")
+
+    if "jpVocabSukiKiraiParticlePromptHint(input.word)" not in ai:
+        fail("buildJpVocabExampleSentencesAiPrompt must pin lemma-side が hint")
 
     if ai.count("jpVocabExampleHasSukiKiraiWaParticle(") < 2:
         fail("validate and online normalize must both call HasSukiKiraiWaParticle")
@@ -75,6 +80,8 @@ def main() -> int:
     batch = BATCH.read_text(encoding="utf-8")
     if "魚は嫌いです" not in batch:
         fail("online-batch WORD_SYSTEM must ban 魚は嫌いです")
+    if "_suki_kirai_particle_hint" not in batch or "两句都用が" not in batch:
+        fail("online-batch build_prompt must pin lemma-side が hint")
 
     edit = EDIT.read_text(encoding="utf-8")
     if "suki_kirai_wa_particle" not in edit:

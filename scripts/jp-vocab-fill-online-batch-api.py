@@ -320,6 +320,23 @@ def required_keys_for_row(row: dict[str, Any]) -> tuple[str, ...]:
     return required_keys_from_needs(row, is_conjugation=is_conjugation_word)
 
 
+_SUKI_KIRAI_STEMS = frozenset({"好き", "嫌い", "大好き", "大嫌い"})
+
+
+def _suki_kirai_particle_hint(word: str) -> str:
+    """词条旁点名：好き／嫌い 对象用が。总规则 WORD_SYSTEM 对单条易被淹没。"""
+    lemma = re.sub(r"[～~〜]", "", (word or "")).strip()
+    if lemma.endswith("だ"):
+        lemma = lemma[:-1]
+    if lemma not in _SUKI_KIRAI_STEMS:
+        return ""
+    return (
+        f"接续必守：本词对象用「が」，两句都用が。"
+        f"❌魚は{lemma}です（换场景时不要把が改成は）→ ✅魚が{lemma}です。"
+        f"可以说「私は魚が{lemma}です」；禁止对象上用は。"
+    )
+
+
 def build_prompt(row: dict[str, Any], *, full_bundle: bool = True) -> str:
     word = str(row.get("word") or "").strip()
     kind = str(row.get("kind") or "word")
@@ -378,8 +395,11 @@ def build_prompt(row: dict[str, Any], *, full_bundle: bool = True) -> str:
             "前句（动词句／一类形容词句／二类形容词句／名词句）＋しかし｜后句句首，表示转折。"
         )
 
+    suki_hint = _suki_kirai_particle_hint(word)
+    suki_block = f"{suki_hint}\n" if suki_hint else ""
+
     return f"""词条：{word}
-类型：{kind_label}
+{suki_block}类型：{kind_label}
 {f"教材课次：{str(row.get('course_label') or '').strip()}（例句难度对齐本课附近，禁止明显超纲）" if str(row.get("course_label") or "").strip() else ""}
 
 {bundle_rule}
