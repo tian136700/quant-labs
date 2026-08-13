@@ -3,6 +3,7 @@ import "server-only";
 import {
   buildEnVocabExampleSentencesAiPrompt,
   EN_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC,
+  enVocabExampleSentencesNeedFill,
   expectedEnVocabExampleCountFromUsage,
   validateEnVocabExampleSentencesAiOutput,
 } from "@/lib/en-vocab-example-sentences-ai";
@@ -18,9 +19,11 @@ import {
 } from "@/lib/en-vocab-db";
 import { sortEnVocabFillRowsByDailyOrder } from "@/lib/en-vocab-fill-daily-priority";
 
-/** 缺例句且已有用法（例句阶段门禁） */
-const MISSING_EXAMPLES_WITH_USAGE_SQL = `(example_sentences IS NULL OR TRIM(example_sentences) = '')
-  AND usage IS NOT NULL AND TRIM(usage) != ''`;
+/**
+ * 已有编号用法即可进扫描；是否缺例句在 JS 里按「条数 < 用法数」判断。
+ * 禁止只认 example_sentences 整字段为空（否则 3 用法 2 例句永远不入队）。
+ */
+const HAS_USAGE_SQL = `usage IS NOT NULL AND TRIM(usage) != ''`;
 
 export type EnVocabMissingExampleSentenceRow = {
   id: number;
@@ -36,6 +39,11 @@ export type EnVocabMissingExampleSentenceRow = {
   daily_seq?: number | null;
   prompt: string;
 };
+
+type EnVocabExampleFillCandidate = Omit<
+  EnVocabMissingExampleSentenceRow,
+  "prompt" | "daily_seq"
+>;
 
 export type EnVocabFillExampleSentenceApplied = {
   id: number;
@@ -60,72 +68,44 @@ export type ListEnVocabMissingExampleSentencesOptions = {
   kind?: "word" | "grammar";
 };
 
-export async function countEnVocabWordsMissingExampleSentences(
+async function listEnVocabExampleFillCandidates(
   db: D1Database,
   options: Pick<ListEnVocabMissingExampleSentencesOptions, "kind"> = {}
-): Promise<number> {
-  const kind = options.kind;
-  const result =
-    kind === "word" || kind === "grammar"
-      ? await db
-          .prepare(
-            `SELECT COUNT(*) AS n FROM en_vocab_word
-             WHERE ${MISSING_EXAMPLES_WITH_USAGE_SQL}
-               AND kind = ?1`
-          )
-          .bind(kind)
-          .first<{ n: number }>()
-      : await db
-          .prepare(
-            `SELECT COUNT(*) AS n FROM en_vocab_word
-             WHERE ${MISSING_EXAMPLES_WITH_USAGE_SQL}`
-          )
-          .first<{ n: number }>();
-  return Number(result?.n ?? 0);
-}
-
-export async function listEnVocabWordsMissingExampleSentences(
-  db: D1Database,
-  options: ListEnVocabMissingExampleSentencesOptions = {}
-): Promise<EnVocabMissingExampleSentenceRow[]> {
+): Promise<EnVocabExampleFillCandidate[]> {
   await ensureEnVocabWordSchema(db);
   const kind = options.kind;
-  const limit =
-    typeof options.limit === "number" &&
-    Number.isFinite(options.limit) &&
-    options.limit > 0
-      ? Math.floor(options.limit)
-      : null;
-
-  let sql = `SELECT id, word, kind, reading, meaning, pos, usage FROM en_vocab_word
-       WHERE ${MISSING_EXAMPLES_WITH_USAGE_SQL}`;
+  let sql = `SELECT id, word, kind, reading, meaning, pos, usage, example_sentences
+       FROM en_vocab_word
+       WHERE ${HAS_USAGE_SQL}`;
   const binds: Array<string | number> = [];
   if (kind === "word" || kind === "grammar") {
     sql += ` AND kind = ?${binds.length + 1}`;
     binds.push(kind);
   }
 
-  const [orderIds, result] = await Promise.all([
-    peekEnVocabDailyDisplayOrderIds(db),
-    (binds.length > 0 ? db.prepare(sql).bind(...binds) : db.prepare(sql)).all<{
-      id: number;
-      word: string;
-      kind: string;
-      reading: string | null;
-      meaning: string | null;
-      pos: string | null;
-      usage: string | null;
-    }>(),
-  ]);
+  const result = (
+    binds.length > 0 ? db.prepare(sql).bind(...binds) : db.prepare(sql)
+  ).all<{
+    id: number;
+    word: string;
+    kind: string;
+    reading: string | null;
+    meaning: string | null;
+    pos: string | null;
+    usage: string | null;
+    example_sentences: string | null;
+  }>();
+  const rows = (await result).results ?? [];
 
-  const mapped: Array<
-    Omit<EnVocabMissingExampleSentenceRow, "prompt" | "daily_seq">
-  > = [];
-  for (const row of result.results ?? []) {
+  const mapped: EnVocabExampleFillCandidate[] = [];
+  for (const row of rows) {
     const usage =
       row.usage != null ? String(row.usage).trim() || null : null;
     const expectedCount = expectedEnVocabExampleCountFromUsage(usage);
     if (expectedCount == null || !usage) continue;
+    if (!enVocabExampleSentencesNeedFill(usage, row.example_sentences)) {
+      continue;
+    }
 
     const word = String(row.word);
     const rowKind = String(row.kind);
@@ -145,19 +125,52 @@ export async function listEnVocabWordsMissingExampleSentences(
       expected_count: expectedCount,
     });
   }
+  return mapped;
+}
 
-  return sortEnVocabFillRowsByDailyOrder(mapped, orderIds, limit).map(
-    (row) => ({
-      ...row,
-      prompt: buildEnVocabExampleSentencesAiPrompt({
-        word: row.word,
-        kind: row.kind,
-        reading: row.reading,
-        meaning: row.meaning,
-        pos: row.pos,
-        usage: row.usage,
-      }),
-    })
+function withExampleFillPrompts(
+  rows: Array<EnVocabExampleFillCandidate & { daily_seq?: number | null }>
+): EnVocabMissingExampleSentenceRow[] {
+  return rows.map((row) => ({
+    ...row,
+    prompt: buildEnVocabExampleSentencesAiPrompt({
+      word: row.word,
+      kind: row.kind,
+      reading: row.reading,
+      meaning: row.meaning,
+      pos: row.pos,
+      usage: row.usage,
+    }),
+  }));
+}
+
+export async function countEnVocabWordsMissingExampleSentences(
+  db: D1Database,
+  options: Pick<ListEnVocabMissingExampleSentencesOptions, "kind"> = {}
+): Promise<number> {
+  const mapped = await listEnVocabExampleFillCandidates(db, options);
+  return mapped.length;
+}
+
+export async function listEnVocabWordsMissingExampleSentences(
+  db: D1Database,
+  options: ListEnVocabMissingExampleSentencesOptions = {}
+): Promise<EnVocabMissingExampleSentenceRow[]> {
+  const kind = options.kind;
+  const limit =
+    typeof options.limit === "number" &&
+    Number.isFinite(options.limit) &&
+    options.limit > 0
+      ? Math.floor(options.limit)
+      : null;
+
+  const [orderIds, mapped] = await Promise.all([
+    peekEnVocabDailyDisplayOrderIds(db),
+    listEnVocabExampleFillCandidates(db, { kind }),
+  ]);
+
+  return withExampleFillPrompts(
+    sortEnVocabFillRowsByDailyOrder(mapped, orderIds, limit)
   );
 }
 
@@ -165,17 +178,28 @@ export async function scanEnVocabWordsMissingExampleSentences(
   db: D1Database,
   options: ListEnVocabMissingExampleSentencesOptions = {}
 ): Promise<EnVocabFillExampleSentencesResult> {
-  const [missing, total_missing] = await Promise.all([
-    listEnVocabWordsMissingExampleSentences(db, options),
-    countEnVocabWordsMissingExampleSentences(db, options),
+  const kind = options.kind;
+  const limit =
+    typeof options.limit === "number" &&
+    Number.isFinite(options.limit) &&
+    options.limit > 0
+      ? Math.floor(options.limit)
+      : null;
+
+  const [orderIds, mapped] = await Promise.all([
+    peekEnVocabDailyDisplayOrderIds(db),
+    listEnVocabExampleFillCandidates(db, { kind }),
   ]);
+  const missing = withExampleFillPrompts(
+    sortEnVocabFillRowsByDailyOrder(mapped, orderIds, limit)
+  );
   return {
     updated: 0,
     applied: [],
     skipped: [],
     dry_run: true,
     missing,
-    total_missing,
+    total_missing: mapped.length,
     upload_spec: EN_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC,
   };
 }
@@ -264,7 +288,8 @@ export async function applyEnVocabExampleSentenceUpdates(
 
     const row = await db
       .prepare(
-        `SELECT id, word, kind, reading, meaning, pos, usage FROM en_vocab_word WHERE id = ?1`
+        `SELECT id, word, kind, reading, meaning, pos, usage, example_sentences
+         FROM en_vocab_word WHERE id = ?1`
       )
       .bind(wordId)
       .first<{
@@ -275,6 +300,7 @@ export async function applyEnVocabExampleSentenceUpdates(
         meaning: string | null;
         pos: string | null;
         usage: string | null;
+        example_sentences: string | null;
       }>();
     if (!row) {
       skipped.push({ id: wordId, word: String(wordId), reason: "not_found" });
@@ -328,13 +354,16 @@ export async function applyEnVocabExampleSentenceUpdates(
       if (normalized) exampleSentences = normalized;
     }
 
+    const existingExamples =
+      row.example_sentences != null ? String(row.example_sentences) : null;
+    const incomplete = enVocabExampleSentencesNeedFill(usage, existingExamples);
     const changed = await updateExampleSentencesIfEmpty(
       db,
       wordId,
       exampleSentences,
       source,
       dryRun,
-      force
+      force || incomplete
     );
     if (changed) {
       updated += 1;

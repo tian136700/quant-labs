@@ -318,8 +318,44 @@ def main() -> int:
             errors.append("apply path must call shieldEnVocabExampleSentencesUploadText")
         if "healed:structured_dump" not in ft:
             errors.append("clear_invalid must heal structured_dump when possible")
+        if "enVocabExampleSentencesNeedFill" not in ft:
+            errors.append(
+                "list_missing/apply must use enVocabExampleSentencesNeedFill "
+                "(empty OR count < usage slots)"
+            )
+        if "force || incomplete" not in ft:
+            errors.append(
+                "apply must overwrite incomplete example slots, not already_filled"
+            )
+        if (
+            "(example_sentences IS NULL OR TRIM(example_sentences) = '')\n"
+            "  AND usage IS NOT NULL"
+        ) in ft:
+            errors.append(
+                "list_missing must not only queue empty example_sentences"
+            )
     else:
         errors.append("missing en-vocab-fill-example-sentences.ts")
+
+    ai_lib = ROOT / "src" / "lib" / "en-vocab-example-sentences-ai.ts"
+    if ai_lib.is_file():
+        at = ai_lib.read_text(encoding="utf-8")
+        if "export function enVocabExampleSentencesNeedFill" not in at:
+            errors.append("missing enVocabExampleSentencesNeedFill helper")
+        if "parseEnVocabExampleSentenceItems(exampleSentences).length < expected" not in at:
+            errors.append(
+                "enVocabExampleSentencesNeedFill must compare example count to usage count"
+            )
+    else:
+        errors.append("missing en-vocab-example-sentences-ai.ts")
+
+    rule = ROOT / ".cursor" / "rules" / "en-vocab-fill.mdc"
+    if rule.is_file():
+        rt = rule.read_text(encoding="utf-8")
+        if "条数少于用法数" not in rt:
+            errors.append("en-vocab-fill.mdc must document incomplete example slots")
+    else:
+        errors.append("missing en-vocab-fill.mdc")
 
     if errors:
         print("[check_en_vocab_example_sentence_quality] FAIL:", file=sys.stderr)

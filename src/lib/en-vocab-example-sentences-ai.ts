@@ -73,6 +73,19 @@ export function expectedEnVocabExampleCountFromUsage(
   return points.length;
 }
 
+/**
+ * 卡片按序号 1:1 挂例句。空字段、或已有例句但条数少于用法数，都算缺，须进 list_missing。
+ * 无编号用法则不进例句队列（须先补 usage）。
+ */
+export function enVocabExampleSentencesNeedFill(
+  usage: string | null | undefined,
+  exampleSentences: string | null | undefined
+): boolean {
+  const expected = expectedEnVocabExampleCountFromUsage(usage);
+  if (expected == null) return false;
+  return parseEnVocabExampleSentenceItems(exampleSentences).length < expected;
+}
+
 export function buildEnVocabExampleSentencesAiPrompt(
   input: EnVocabExampleSentencesAiInput
 ): string {
