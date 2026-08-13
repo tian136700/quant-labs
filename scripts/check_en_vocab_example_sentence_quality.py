@@ -306,6 +306,15 @@ def main() -> int:
             errors.append(
                 "en-vocab-fill-online-batch-api.py SYSTEM: must demand one-shot complete JSON"
             )
+        if "def upgrade_legacy_single_score_usage" not in ot:
+            errors.append(
+                "en-vocab-fill-online-batch-api.py: must upgrade legacy [n] → "
+                "[口语n|考试n] when model omits dual scores"
+            )
+        if "usage fallback: upgraded legacy" not in ot:
+            errors.append(
+                "en-vocab-fill-online-batch-api.py: must log legacy usage frequency fallback"
+            )
         sys.path.insert(0, str(ROOT / "scripts" / "lib"))
         try:
             import importlib.util
@@ -314,6 +323,18 @@ def main() -> int:
             assert spec and spec.loader
             mod = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(mod)
+            legacy = mod.upgrade_legacy_single_score_usage(
+                "1. [9] 副词短语：用于列举理由时表示「首先；第一」。"
+            )
+            if "[口语9|考试9]" not in legacy or "首先" not in legacy:
+                errors.append(
+                    "upgrade_legacy_single_score_usage must map [9] → [口语9|考试9]"
+                )
+            truncated = mod.upgrade_legacy_single_score_usage("1. [9] 表示")
+            if truncated:
+                errors.append(
+                    "upgrade_legacy_single_score_usage must reject truncated body"
+                )
             dump = [
                 {
                     "sentence": "Air pollution is a growing concern in many cities.",

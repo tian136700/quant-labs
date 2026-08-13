@@ -314,6 +314,36 @@ def _extract_usage_frequency(
     return None, None, raw
 
 
+def upgrade_legacy_single_score_usage(existing: str) -> str:
+    """旧「1. [9] 中文」→「1. [口语9|考试9] 中文」。
+
+    模型三次写不出双分时，用库内旧单分正文兜底，避免 incomplete_bundle:usage 空烧熔断。
+    正文过短（截断脏数据）或已是双分 → 返回空，仍走失败路径。
+    """
+    text = strip_exam_labels(str(existing or "")).strip()
+    if not text:
+        return ""
+    lines_out: list[str] = []
+    for line in text.splitlines():
+        trimmed = line.strip()
+        if not trimmed:
+            continue
+        m = NUMBERED_USAGE_RE.match(trimmed)
+        body = (m.group(2) if m else trimmed).strip()
+        body = LEADING_INDEX_RE.sub("", body).strip()
+        o, e, body_text = _extract_usage_frequency(body)
+        if not body_text or len(body_text) < 8:
+            return ""
+        if o is not None and e is not None:
+            lines_out.append(f"{len(lines_out) + 1}. [口语{o}|考试{e}] {body_text}")
+            continue
+        if e is None:
+            return ""
+        # 旧单分：口语/考试都用原分（卡片能展示双条；频率任务可再精调）
+        lines_out.append(f"{len(lines_out) + 1}. [口语{e}|考试{e}] {body_text}")
+    return "\n".join(lines_out).strip()
+
+
 def normalize_usage(value: Any) -> str:
     """用法 →「1. [口语7|考试8] 中文…」；支持字符串或 [{text, oral, exam}, …]。
 
@@ -993,6 +1023,14 @@ def generate_bundle(row: dict[str, Any], needs: dict[str, bool]) -> dict[str, An
                     out["pos"] = pos
             if usage and needs.get("example_sentences"):
                 data = retry_data
+        if not usage:
+            # 模型仍无双分：库内旧 [n] 单分且正文完整 → 本地升成双分，勿 incomplete_bundle:usage
+            usage = upgrade_legacy_single_score_usage(str(row.get("usage") or ""))
+            if usage:
+                print(
+                    "    usage fallback: upgraded legacy [n] → [口语n|考试n]",
+                    flush=True,
+                )
         if usage:
             out["usage"] = usage
 
