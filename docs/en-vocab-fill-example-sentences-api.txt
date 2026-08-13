@@ -1,0 +1,227 @@
+英语抽背 · 例句补全 API（给 Mac 定时 / Agent / 其它项目调用）
+========================================================
+
+用途
+----
+拉取缺例句词条（须已有 usage；一条用法对应一句），或把生成好的例句写回 D1。
+也可清空全部例句 / 清掉格式损坏的例句后重补。
+
+**禁止在 Worker 内调大模型**——本地 Ollama 或线上 tokken Claude 在 Mac 跑，
+再经本接口 apply。线上整词补齐见 `scripts/en-vocab-fill-online-batch-api.py`。
+
+
+线上地址
+--------
+POST https://finance.info-quests.com/api/en-vocab/fill-example-sentences
+
+说明：
+- 也可用 `english.info-quests.com` 同路径（同一 Worker / 同一 D1）。
+- 样例客户端：`scripts/en-vocab-fill-example-sentences-api.py`
+- 线上付费整词：`scripts/en-vocab-fill-online-batch-api.py`（BACKEND=1）
+
+
+本机开发（可选）
+---------------
+POST http://127.0.0.1:3002/api/en-vocab/fill-example-sentences
+
+
+鉴权
+----
+Header:
+  Authorization: Bearer <JP_REVIEW_UPLOAD_TOKEN>
+
+Token 与 jp-review-sync 共用，常见配置：
+  ~/.config/info-quests/jp-review-sync.env → JP_REVIEW_UPLOAD_TOKEN
+  或 ~/.config/info-quests/en-vocab-fill.env
+
+
+限流
+----
+与其它日语/英语 fill-* 共用：同一 IP×路径约 ≥5s 一次
+（`VOCAB_FILL_API_MIN_INTERVAL_MS`）。
+超限返回 429 + Retry-After；客户端须等待后重试（勿当成 1027 整轮退出）。
+
+
+mode 一览
+---------
+| mode | 说明 |
+|------|------|
+| list_missing（默认；空 body 亦同） | 拉缺例句；每条含 prompt；须已有 usage |
+| apply | 写回 updates（有 updates 时自动走 apply） |
+| clear_all | 清空全部词条例句（可 dry_run） |
+| clear_invalid | 清掉格式损坏的例句（可 dry_run + limit） |
+
+
+公共字段
+--------
+mode              见上表
+dry_run           选填。true=不写库
+limit             list_missing / clear_invalid：最多处理几条
+kind              list_missing：只拉 "word" 或 "grammar"
+source            apply：整批默认来源（单条 updates[].source 优先）
+force             apply：true=覆盖已有例句，并放宽严校验（见下）
+updates           apply：数组，见下
+
+
+force 与校验（重要）
+--------------------
+与 fill-reading / fill-meaning / fill-usage 对齐：
+
+| force | validateFormat | 行为 |
+|-------|----------------|------|
+| false / 省略 | true（严） | 完整句、条数与用法 1:1、词形须用到 lemma 等 |
+| true | false（放宽） | 付费原文尽量入库；仍挡 Python/JSON 列表字面量等 structured dump |
+
+线上付费整词必须传 `"force": true`。
+曾硬编码 force 仍严校验 → word_not_used / wrong_example_count 拒收 →
+下一轮整词再打 Claude 烧 token；现已修复。
+
+
+apply · updates[] 字段
+----------------------
+word_id             必填。词条 id
+example_sentences   必填。英文行 + 「译文：」中文行交替；勿 JSON/Python 数组字面量
+source              选填。覆盖整批 source（如「Claude」「Agent现写」「手动」）
+example_sentences_source  同 source（兼容旧字段）
+
+
+存库格式（示例）
+----------------
+```text
+As for the budget, we will review it next week.
+译文：至于预算，我们下周会审查。
+The meeting went well.
+译文：会议进行得很顺利。
+```
+
+- 一条 usage → 一句英文 + 一行「译文：」
+- 禁止行首 `1.` / `2.` 编号（展示层会加）
+- 禁止 `[{'sentence':…}]` / JSON 数组原样入库
+
+
+list_missing 响应要点
+---------------------
+missing[]：
+  id / word / kind / reading / meaning / pos / usage
+  expected_count   与 usage 编号条数一致
+  daily_seq        当日序号（优先补今日池）
+  prompt           给本地/付费模型的造句提示
+
+另有：total_missing、upload_spec
+
+
+apply 响应要点
+--------------
+updated     成功写库条数
+applied[]   id / word / example_sentences / example_sentences_source
+skipped[]   id / word / reason（如 invalid_format:…、usage_required、not_found）
+dry_run
+
+
+常见 skipped.reason
+-------------------
+usage_required              无 usage（非 force 路径）
+invalid_format:structured_dump   列表/字典字面量未还原
+invalid_format:word_not_used     严校验：句中未用到词条（force=false 时）
+invalid_format:wrong_example_count  严校验：例句条数 ≠ 用法数（force=false 时）
+not_found
+
+
+curl 示例
+---------
+# 拉缺例句
+curl -sS -X POST \
+  'https://finance.info-quests.com/api/en-vocab/fill-example-sentences' \
+  -H "Authorization: Bearer $JP_REVIEW_UPLOAD_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"list_missing","limit":5}'
+
+# 本地 Ollama 写回（严校验）
+curl -sS -X POST \
+  'https://finance.info-quests.com/api/en-vocab/fill-example-sentences' \
+  -H "Authorization: Bearer $JP_REVIEW_UPLOAD_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "mode":"apply",
+    "source":"gemma4:26b · 本地",
+    "updates":[{
+      "word_id":245,
+      "example_sentences":"As for the budget, we will review it next week.\n译文：至于预算，我们下周会审查。"
+    }]
+  }'
+
+# 线上付费 / 覆盖写回（force=true → 放宽严校验，仍挡 structured dump）
+curl -sS -X POST \
+  'https://finance.info-quests.com/api/en-vocab/fill-example-sentences' \
+  -H "Authorization: Bearer $JP_REVIEW_UPLOAD_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "mode":"apply",
+    "force":true,
+    "source":"Claude",
+    "updates":[{
+      "word_id":227,
+      "example_sentences":"Check-out is at 11 a.m.\n译文：退房时间是上午11点。\nI will check out tomorrow morning.\n译文：我明天早上退房。"
+    }]
+  }'
+
+# 清空全部例句（先 dry_run）
+curl -sS -X POST \
+  'https://finance.info-quests.com/api/en-vocab/fill-example-sentences' \
+  -H "Authorization: Bearer $JP_REVIEW_UPLOAD_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"clear_all","dry_run":true}'
+
+
+Python 最小例
+-------------
+```python
+import json, os, urllib.request
+
+URL = "https://finance.info-quests.com/api/en-vocab/fill-example-sentences"
+TOKEN = os.environ["JP_REVIEW_UPLOAD_TOKEN"]
+
+def post(body: dict) -> dict:
+    req = urllib.request.Request(
+        URL,
+        data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {TOKEN}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=60) as r:
+        return json.load(r)
+
+missing = post({"mode": "list_missing", "limit": 3})
+print("total_missing", missing.get("total_missing"))
+
+# 线上付费写回务必 force=true
+result = post({
+    "mode": "apply",
+    "force": True,
+    "source": "Claude",
+    "updates": [{
+        "word_id": 245,
+        "example_sentences": (
+            "As for the budget, we will review it next week.\n"
+            "译文：至于预算，我们下周会审查。"
+        ),
+    }],
+})
+print(result.get("updated"), result.get("skipped"))
+```
+
+
+相关
+----
+- 规则：.cursor/rules/en-vocab-fill.mdc
+- 线上整词：scripts/en-vocab-fill-online-batch-api.py
+- 本地阶段：scripts/en-vocab-fill-example-sentences-api.py
+- 代码：src/app/api/en-vocab/fill-example-sentences/route.ts
+        src/lib/en-vocab-fill-example-sentences.ts
+        src/lib/en-vocab-example-sentences-ai.ts
+- 回归：python3 scripts/check_en_vocab_example_sentence_quality.py
+- 同类：docs/en-vocab-fill-kind-api.txt、docs/en-vocab-fill-frequency-api.txt
+        docs/jp-vocab-fill-example-sentences-api.txt
