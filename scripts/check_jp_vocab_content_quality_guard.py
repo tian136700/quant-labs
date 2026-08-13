@@ -102,6 +102,8 @@ def main() -> int:
         fail("example-sentences-ai 须禁「安静地说话」、改「小声说话」")
     if "chuui_suru_wo_particle" not in ai or "jpVocabExampleHasChuuiSuruWoParticle" not in ai:
         fail("example-sentences-ai 须拒 chuui_suru_wo_particle（注意する＋を）")
+    if "suki_kirai_wa_particle" not in ai or "jpVocabExampleHasSukiKiraiWaParticle" not in ai:
+        fail("example-sentences-ai 须拒 suki_kirai_wa_particle（好き／嫌い＋は）")
     if (
         "soudan_particle_gloss_mismatch" not in ai
         or "jpVocabExampleHasSoudanParticleGlossMismatch" not in ai
@@ -171,6 +173,19 @@ def main() -> int:
     )
     if chuui_run.returncode != 0:
         fail(f"chuui particle check failed: {chuui_run.stderr or chuui_run.stdout}")
+
+    suki_check = ROOT / "scripts/check_jp_vocab_example_suki_kirai_particle.py"
+    if not suki_check.is_file():
+        fail("missing check_jp_vocab_example_suki_kirai_particle.py")
+    suki_run = subprocess.run(
+        [sys.executable, str(suki_check)],
+        capture_output=True,
+        text=True,
+        timeout=90,
+        cwd=ROOT,
+    )
+    if suki_run.returncode != 0:
+        fail(f"suki/kirai particle check failed: {suki_run.stderr or suki_run.stdout}")
 
     soudan_check = ROOT / "scripts/check_jp_vocab_example_soudan_particle.py"
     if not soudan_check.is_file():

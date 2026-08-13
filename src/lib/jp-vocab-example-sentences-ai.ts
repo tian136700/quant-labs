@@ -108,6 +108,7 @@ export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
     "中文译文必须自然通顺（口语）；禁止逐词硬译（如「について話す」→「关于…说话」；应作「谈谈…」或「聊聊…」；「静かに話す」→「请小声说话」，禁止「请安静地说话」）",
     "「間／あいだ」须体现「AとB的之间」或「某段时间期间」：❌忙しい間です／我现在很忙；✅本とノートの間に…／会議の間…；「の間に」是之内／期间，禁止译成「……后」",
     "「注意する」小心某事须接「に」：❌約束を注意 → ✅車に注意／約束に注意",
+    "「好き／嫌い／大好き／大嫌い」对象须接「が」：❌魚は嫌いです → ✅魚が嫌いです（は表对比，初学卡片勿用）",
     "「相談する」：人に＝向/找某人商量；人と＝和某人一起商量；译文勿与助词对调",
     "释义栏的「关于……」等只是义项提示，不要每句译文都机械套同一套壳",
     "句中每一个汉字都必须立刻半角括号假名（不能只标词条本身）：如 今日(きょう)は気分(きぶん)がいいです；词尾假名如 静か(しずか)、落(お)ち着(つ)き；括号内只能是假名、不要空格、不要整句读音尾注；禁止句末语法说明括号；页面展示会转成汉字下方小字",
@@ -148,6 +149,7 @@ export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
     "aida_fake_state_predicate",
     "gloss_aida_ni_as_after",
     "chuui_suru_wo_particle",
+    "suki_kirai_wa_particle",
     "soudan_particle_gloss_mismatch",
     "lemma_placeholder_in_sentence",
     "hangul_in_japanese_line",
@@ -201,6 +203,30 @@ export function jpVocabExampleHasChuuiSuruWoParticle(
   );
   if (/注意を払/.test(compact)) return false;
   return /を注意/.test(compact);
+}
+
+const SUKI_KIRAI_STEMS = new Set(["好き", "嫌い", "大好き", "大嫌い"]);
+
+/**
+ * 「好き／嫌い」对象用「が」：❌魚は嫌いです → ✅魚が嫌いです。
+ * 只在教这些词条时拒；「は嫌いな」（定语）不拒；「私は魚が嫌いです」不拒。
+ */
+export function jpVocabExampleHasSukiKiraiWaParticle(
+  japaneseLine: string,
+  word: string
+): boolean {
+  const lemma = String(word || "")
+    .replace(/[～~〜]/g, "")
+    .trim()
+    .replace(/だ$/, "");
+  if (!SUKI_KIRAI_STEMS.has(lemma)) return false;
+  const compact = stripAllJpVocabParenBlocks(String(japaneseLine || "")).replace(
+    /\s+/g,
+    ""
+  );
+  return /は(?:あまり|全然|とても|ちょっと|少し|まだ|もう|そんなに|すごく|本当に)*(?:大)?(?:好き|嫌い)(?!な)/.test(
+    compact
+  );
 }
 
 /**
@@ -519,8 +545,9 @@ ${
    - ❌「今、忙しい間です。」／译文「我现在很忙。」（把間当成状态，且没用到「之间／期间」）
    - ✅「本とノートの間に、ペンがあります。」／「会議の間、静かにしてください。」
    - 「の間に」= 在……之内／期间，禁止译成「……后」（❌一小时后 → ✅一小时内／开会期间）。
-9c. 「注意する」（小心／注意某事）接「に」：❌「約束を注意してください」→ ✅「約束に注意してください」／「車に注意します」。
-9d. 「相談する」：人に相談＝向/找某人商量；人と相談＝和某人一起商量。译文须对齐助词，勿对调。
+   9c. 「注意する」（小心／注意某事）接「に」：❌「約束を注意してください」→ ✅「約束に注意してください」／「車に注意します」。
+   9d. 「相談する」：人に相談＝向/找某人商量；人と相談＝和某人一起商量。译文须对齐助词，勿对调。
+   9e. 「好き／嫌い／大好き／大嫌い」对象接「が」，禁止用「は」：❌「魚は嫌いです」→ ✅「魚が嫌いです」。对比的「は」初学卡片不要写。
 10. 只输出「日语」行与下一行「译文：」+中文交替；「译文：」后直接写中文，禁止「译文：/ …」、日文「訳文：」叠标签或行首斜杠；不要行首编号、不要 markdown、不要解释、不要额外语法说明。
 ${
   input.kind === "grammar"
@@ -670,6 +697,9 @@ export function validateJpVocabExampleSentencesAiOutput(
     }
     if (jpVocabExampleHasChuuiSuruWoParticle(item.text, input.word)) {
       return { ok: false, reason: "chuui_suru_wo_particle" };
+    }
+    if (jpVocabExampleHasSukiKiraiWaParticle(item.text, input.word)) {
+      return { ok: false, reason: "suki_kirai_wa_particle" };
     }
     if (
       jpVocabExampleHasSoudanParticleGlossMismatch(
@@ -834,6 +864,9 @@ export function normalizeJpVocabExampleSentencesForOnlineApply(
     }
     if (jpVocabExampleHasChuuiSuruWoParticle(item.text, input.word)) {
       return { ok: false, reason: "chuui_suru_wo_particle" };
+    }
+    if (jpVocabExampleHasSukiKiraiWaParticle(item.text, input.word)) {
+      return { ok: false, reason: "suki_kirai_wa_particle" };
     }
     if (
       jpVocabExampleHasSoudanParticleGlossMismatch(

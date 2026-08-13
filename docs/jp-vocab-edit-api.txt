@@ -106,6 +106,8 @@ kind=grammar 且词条**不是**「变形/变化规则」类活用课时，若�
   - ❌の間に…译成「……后」→ `gloss_aida_ni_as_after`
 - 「注意する」小心某事须接「に」（`chuui_suru_wo_particle`：
   ❌約束を注意 → ✅約束に注意）
+- 「好き／嫌い」对象须接「が」（`suki_kirai_wa_particle`：
+  ❌魚は嫌いです → ✅魚が嫌いです）
 - 「相談する」に／と 译文须对齐（`soudan_particle_gloss_mismatch`）：
   人に＝向/找某人商量；人と＝和某人一起商量（勿对调）
 - 条数不够 / 块格式不完整会拒（need_more_japanese_lines / need_four_lines）
@@ -214,6 +216,8 @@ kind=grammar 且词条**不是**「变形/变化规则」类活用课时，若�
                                                      // gloss_aida_ni_as_after
 400  { "ok": false, "error": "「注意する」小心某事须接「に」（❌約束を注意 → ✅約束に注意／車に注意）" }
                                                      // chuui_suru_wo_particle
+400  { "ok": false, "error": "「好き／嫌い」的对象须接「が」（❌魚は嫌いです → ✅魚が嫌いです）" }
+                                                     // suki_kirai_wa_particle
 400  { "ok": false, "error": "「相談する」：に＝向/找某人商量；と＝和某人一起商量（译文勿与助词对调）" }
                                                      // soudan_particle_gloss_mismatch
 400  { "ok": false, "error": "每条例句下一行须有「译文：」" }
@@ -334,7 +338,7 @@ with urllib.request.urlopen(req, timeout=60) as resp:
           → validateJpVocabExampleSentencesAiOutput
           → gloss_has_yakuwen_label / gloss_not_chinese / literal_chinese_gloss
           → i_adj_past_deshita / aida_fake_state_predicate / gloss_aida_ni_as_after
-          → chuui_suru_wo_particle / soudan_particle_gloss_mismatch
+          → chuui_suru_wo_particle / suki_kirai_wa_particle / soudan_particle_gloss_mismatch
         （译文剥标签）jp-vocab-example-sentences.ts
           → stripJpVocabExampleGlossLabel / formatJpVocabExampleGlossLine
         （接序）jp-vocab-connection-ai.ts → normalizeJpVocabConnectionText
@@ -342,5 +346,6 @@ with urllib.request.urlopen(req, timeout=60) as resp:
           → validateJpVocabRelatedCompoundsAiOutput
         回归：scripts/check_jp_vocab_example_aida_gloss.py
               scripts/check_jp_vocab_example_chuui_particle.py
+              scripts/check_jp_vocab_example_suki_kirai_particle.py
               scripts/check_jp_vocab_example_soudan_particle.py
               scripts/check_jp_vocab_example_gloss.py

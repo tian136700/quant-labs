@@ -34,6 +34,8 @@ const ERR = {
       "の間に means within/during, not “after” (❌一小时后 → ✅一小时内)",
     chuui_suru_wo_particle:
       "注意する takes に, not を (❌約束を注意 → ✅約束に注意)",
+    suki_kirai_wa_particle:
+      "好き／嫌い takes が, not は (❌魚は嫌いです → ✅魚が嫌いです)",
     soudan_particle_gloss_mismatch:
       "相談する: に＝向/找某人商量；と＝和某人一起商量 (don’t swap glosses)",
     missing_chinese_gloss: "Each example needs a 译文： line",
@@ -72,6 +74,8 @@ const ERR = {
       "「の間に」是之内／期间，不要译成「……后」（❌一小时后 → ✅一小时内）",
     chuui_suru_wo_particle:
       "「注意する」小心某事须接「に」（❌約束を注意 → ✅約束に注意／車に注意）",
+    suki_kirai_wa_particle:
+      "「好き／嫌い」的对象须接「が」（❌魚は嫌いです → ✅魚が嫌いです）",
     soudan_particle_gloss_mismatch:
       "「相談する」：に＝向/找某人商量；と＝和某人一起商量（译文勿与助词对调）",
     missing_chinese_gloss: "每条例句下一行须有「译文：」",
