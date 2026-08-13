@@ -84,6 +84,18 @@ def main() -> None:
     must_contain(TOAST, "speakEnVocabText")
     must_contain(TOAST, "EnVocabSpeakButton")
     must_contain(TOAST, "再听一次")
+    must_contain(TOAST, 'title="再听一次"')
+    # 听音不看词：禁止弹框渲染单词字形（text 只给 TTS）
+    must_not_contain(
+        TOAST,
+        "en-vocab-pronounce-toast__word",
+        "visible word spelling in student pronounce toast",
+    )
+    must_not_contain(
+        TOAST,
+        ">{signal.text}<",
+        "signal.text rendered as visible copy",
+    )
 
     must_contain(BODY, "EnVocabSendPronounceButton")
     must_contain(BODY, "showSendPronounce")

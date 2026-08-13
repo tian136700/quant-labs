@@ -55,12 +55,13 @@ export function EnVocabStudentPronounceToast({
         >
           老师发送了读音
         </p>
-        <p className="en-vocab-pronounce-toast__word">{signal.text}</p>
+        {/* 听音不看词：字形只给 TTS，弹框不渲染拼写；title 也不带单词 */}
         <div className="en-vocab-pronounce-toast__speak">
           <EnVocabSpeakButton
             text={signal.text}
             variant="label"
             labelText="再听一次"
+            title="再听一次"
           />
         </div>
         <p className="en-vocab-pronounce-toast__hint">
@@ -105,27 +106,24 @@ export function EnVocabStudentPronounceToast({
           cursor: pointer;
         }
         .en-vocab-pronounce-toast__title {
-          margin: 0 0 0.5rem;
+          margin: 0 0 1rem;
           font-size: 0.9375rem;
           font-weight: 600;
           color: var(--muted);
-        }
-        .en-vocab-pronounce-toast__word {
-          margin: 0 0 1rem;
-          font-size: 1.65rem;
-          font-weight: 700;
-          line-height: 1.25;
-          word-break: break-word;
-          color: var(--text);
         }
         .en-vocab-pronounce-toast__speak {
           display: flex;
           justify-content: center;
         }
         .en-vocab-pronounce-toast__speak .en-vocab-speak-btn--label {
-          min-height: 3rem;
-          padding: 0.65rem 1.1rem;
+          min-height: 3.25rem;
+          min-width: 10rem;
+          padding: 0.75rem 1.25rem;
           font-weight: 700;
+        }
+        .en-vocab-pronounce-toast__speak .en-vocab-speak-btn--label svg {
+          width: 1.35rem;
+          height: 1.35rem;
         }
         .en-vocab-pronounce-toast__hint {
           margin: 0.75rem 0 0;
@@ -134,8 +132,10 @@ export function EnVocabStudentPronounceToast({
           line-height: 1.4;
         }
         @media (max-width: 767px) {
-          .en-vocab-pronounce-toast__word {
-            font-size: 1.45rem;
+          .en-vocab-pronounce-toast__speak .en-vocab-speak-btn--label {
+            min-height: 3.5rem;
+            width: 100%;
+            max-width: 16rem;
           }
         }
       `}</style>
