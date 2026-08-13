@@ -292,6 +292,10 @@ def poison_seconds_for_generate_error(
     """generate 失败用多久跳过该词：瞬时错误短退避，内容/校验失败用 default。"""
     if is_transient_anthropic_error(reason):
         return max(60, int(TRANSIENT_ANTHROPIC_POISON_SEC))
+    lower = (reason or "").lower()
+    # 例句未写入：短毒丸（约 30min），等 Worker force 放宽后再试；禁止每轮整词烧
+    if "examples_not_applied" in lower or "examples_skipped" in lower:
+        return max(60, 30 * 60)
     try:
         return max(60, int(default_sec))
     except (TypeError, ValueError):

@@ -250,6 +250,16 @@ def main() -> int:
         rt = route.read_text(encoding="utf-8")
         if "clear_invalid" not in rt:
             errors.append("fill-example-sentences route: missing clear_invalid")
+        # force 必须放宽 validateFormat（与 reading/meaning/usage 一致），否则付费例句被拒后整词连环烧 token
+        if "validateFormat: !Boolean(body.force)" not in rt:
+            errors.append(
+                "fill-example-sentences route: force must set "
+                "validateFormat: !Boolean(body.force)"
+            )
+        if re.search(r"validateFormat:\s*true", rt):
+            errors.append(
+                "fill-example-sentences route: must not hardcode validateFormat: true"
+            )
     else:
         errors.append("missing fill-example-sentences route")
 
@@ -271,6 +281,15 @@ def main() -> int:
         if "禁止：对 list/dict 直接 str()" not in ot:
             errors.append(
                 "en-vocab-fill-online-batch-api.py: missing anti-str(list) guard comment"
+            )
+        if "def resolve_online_needs" not in ot:
+            errors.append(
+                "en-vocab-fill-online-batch-api.py: missing resolve_online_needs "
+                "(only-examples must not full-refresh)"
+            )
+        if "examples_not_applied" not in ot:
+            errors.append(
+                "en-vocab-fill-online-batch-api.py: must poison when examples not applied"
             )
         sys.path.insert(0, str(ROOT / "scripts" / "lib"))
         try:

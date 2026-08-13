@@ -102,8 +102,9 @@ export async function POST(request: Request) {
     if (updates.length > 0 || body.mode === "apply") {
       const result = await applyEnVocabExampleSentenceUpdates(env.DB, updates, {
         dryRun,
-        // force 只覆盖已有例句；完整句 / 词性对齐门禁仍须过（与用法 force 拒 missing_frequency 同理）
-        validateFormat: true,
+        // 与 reading/meaning/usage 一致：force → 放宽严校验（仍挡 structured dump）
+        // 曾硬编码 true → 付费结果被 word_not_used/wrong_example_count 拒收 → 下一轮整词再烧 Claude
+        validateFormat: !Boolean(body.force),
         defaultSource: batchSource || null,
         force: Boolean(body.force),
       });

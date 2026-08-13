@@ -548,7 +548,7 @@ def source_label() -> str:
 
 
 def full_refresh_needs(kind: str) -> dict[str, bool]:
-    """线上模式：只要触发检测，就整词重拉（付费更准，覆盖写回）。
+    """线上模式：整词重拉（付费更准，覆盖写回）。
 
     语法：不补音标/词性；仍补 meaning（误标改语法后常见空释义）。
     """
@@ -567,6 +567,42 @@ def full_refresh_needs(kind: str) -> dict[str, bool]:
         "usage": True,
         "example_sentences": True,
     }
+
+
+def _field_filled(value: Any) -> bool:
+    return bool(str(value or "").strip())
+
+
+def resolve_online_needs(row: dict[str, Any]) -> dict[str, bool]:
+    """按库里已有字段决定本轮 needs，避免「只缺例句」却整词再烧一遍 Claude。
+
+    - 核心字段（音标/释义/用法）已齐、只缺例句 → 只补例句
+    - 否则 → 整词刷新（首次补全 / 缺多项）
+    """
+    kind = str(row.get("kind") or "word")
+    has_meaning = _field_filled(row.get("meaning"))
+    has_usage = _field_filled(row.get("usage"))
+    has_examples = _field_filled(row.get("example_sentences"))
+    if kind == "grammar":
+        if has_meaning and has_usage and not has_examples:
+            return {
+                "reading": False,
+                "meaning": False,
+                "pos": False,
+                "usage": False,
+                "example_sentences": True,
+            }
+        return full_refresh_needs("grammar")
+    has_reading = _field_filled(row.get("reading"))
+    if has_reading and has_meaning and has_usage and not has_examples:
+        return {
+            "reading": False,
+            "meaning": False,
+            "pos": False,
+            "usage": False,
+            "example_sentences": True,
+        }
+    return full_refresh_needs("word")
 
 
 DB_NAME = "strategy-compare-db"
@@ -589,7 +625,15 @@ def _row_from_db(row: dict[str, Any]) -> dict[str, Any]:
         "usage_source": row.get("usage_source"),
         "example_sentences_source": row.get("example_sentences_source"),
         "reading_source": row.get("reading_source"),
-        "needs": full_refresh_needs(kind),
+        "needs": resolve_online_needs(
+            {
+                "kind": kind,
+                "reading": row.get("reading"),
+                "meaning": row.get("meaning"),
+                "usage": row.get("usage"),
+                "example_sentences": row.get("example_sentences"),
+            }
+        ),
         "triggered": True,
     }
 
@@ -652,7 +696,7 @@ def fetch_words_from_d1(
 
 
 def fetch_candidates(token: str, *, limit: int) -> list[dict[str, Any]]:
-    """合并各阶段 list_missing；任一字段缺 → 整词进入刷新队列。
+    """合并各阶段 list_missing；按已有字段决定 needs（只缺例句不整词重烧）。
 
     排序：优先当日序号（daily_seq）靠前——这些更可能进今日抽查池。
     """
@@ -677,11 +721,20 @@ def fetch_candidates(token: str, *, limit: int) -> list[dict[str, Any]]:
                     "usage": row.get("usage"),
                     "example_sentences": row.get("example_sentences"),
                     "daily_seq": row.get("daily_seq"),
-                    "needs": full_refresh_needs(kind),
+                    "needs": resolve_online_needs(row),
                     "triggered": True,
                 }
                 by_id[wid] = cur
-            for field in ("reading", "meaning", "pos", "category", "usage", "kind", "word"):
+            for field in (
+                "reading",
+                "meaning",
+                "pos",
+                "category",
+                "usage",
+                "example_sentences",
+                "kind",
+                "word",
+            ):
                 if row.get(field) and not cur.get(field):
                     cur[field] = row.get(field)
             # 取各阶段返回里更靠前的当日序号
@@ -698,9 +751,7 @@ def fetch_candidates(token: str, *, limit: int) -> list[dict[str, Any]]:
                     prev_n = None
                 if prev_n is None or seq_n < prev_n:
                     cur["daily_seq"] = seq_n
-            # 若后来发现是 grammar，收窄 needs
-            if str(cur.get("kind") or "") == "grammar":
-                cur["needs"] = full_refresh_needs("grammar")
+            cur["needs"] = resolve_online_needs(cur)
 
     scan_limit = max(limit * 8, 24)
     for url in (READING_URL, MEANING_URL, USAGE_URL, EXAMPLES_URL, KIND_URL):
@@ -723,9 +774,9 @@ def fetch_candidates(token: str, *, limit: int) -> list[dict[str, Any]]:
         if kind != "grammar" and en_vocab_lemma_looks_like_grammar(word):
             cur["reclassify_to_grammar"] = True
             cur["kind"] = "grammar"
-            cur["needs"] = full_refresh_needs("grammar")
-        elif kind == "grammar":
-            cur["needs"] = full_refresh_needs("grammar")
+            cur["needs"] = resolve_online_needs(cur)
+        else:
+            cur["needs"] = resolve_online_needs(cur)
 
     def _daily_sort_key(r: dict[str, Any]) -> tuple[int, int]:
         try:
@@ -1026,12 +1077,15 @@ def process_one(
     )
     if reclassify:
         row["kind"] = "grammar"
-        needs = full_refresh_needs("grammar")
+        needs = resolve_online_needs({**row, "kind": "grammar"})
+        # 误标改语法：释义/用法常需重写；若库里已有齐套仍只补缺项
+        if not any(needs.values()):
+            needs = full_refresh_needs("grammar")
         row["needs"] = needs
     need_list = [k for k, v in needs.items() if v]
     print(
         f"  [{index}/{total}] id={wid} word={word!r} "
-        f"kind={row.get('kind')} full_refresh={need_list}"
+        f"kind={row.get('kind')} needs={need_list}"
         + (" reclassify→grammar" if reclassify else ""),
         flush=True,
     )
@@ -1135,27 +1189,40 @@ def process_one(
         if reclassify or str(payload.get("kind") or "") == "grammar"
         else "word"
     )
+    # 例句本轮需要却没写上 → 不算搞定（否则下一轮又整词烧 Claude）
+    examples_needed = bool(needs.get("example_sentences")) and bool(
+        payload.get("example_sentences")
+    )
+    examples_applied = "example_sentences" in done
+    incomplete = examples_needed and not examples_applied
+    status = "success" if done and not incomplete else ("partial" if done else "failed")
+    err = ""
+    if incomplete:
+        err = "examples_not_applied"
+    elif not done:
+        err = "apply_none"
     report_word_run_to_maintenance_center(
         {
             "word_id": wid,
             "word": word,
             "kind": report_kind,
-            "status": "success" if done else "failed",
+            "status": status,
             "source": source,
             "applied": str(done),
             "preview": preview_text,
-            "error": "" if done else "apply_none",
+            "error": err,
             "finished_at": now_local_str(),
         }
     )
-    if not done:
-        mark_poison(wid, word, "apply_none")
+    if not done or incomplete:
+        reason = err or "apply_none"
+        mark_poison(wid, word, reason)
         after_attempt(
             scope="en-online",
             word_id=wid,
             word=word,
             fixed=False,
-            detail="apply_none",
+            detail=reason,
         )
         return False
     after_attempt(
