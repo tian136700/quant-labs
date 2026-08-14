@@ -28,6 +28,7 @@ from en_vocab_fill_common import (  # noqa: E402
     resolve_ollama_model_chain,
     resolve_token,
 )
+from en_vocab_pos import rewrite_pos_for_lemma  # noqa: E402
 
 DEFAULT_API_URL = "https://finance.info-quests.com/api/en-vocab/fill-meaning"
 HAN_RE = re.compile(r"[\u4E00-\u9FFF]")
@@ -96,7 +97,7 @@ def map_pos_token(raw: str) -> str | None:
     return None
 
 
-def normalize_pos(raw: str) -> str | None:
+def normalize_pos(raw: str, word: str = "") -> str | None:
     parts: list[str] = []
     seen: set[str] = set()
     cleaned = re.sub(r"^(词性|pos)\s*[:：]\s*", "", str(raw or ""), flags=re.I)
@@ -108,7 +109,8 @@ def normalize_pos(raw: str) -> str | None:
         parts.append(mapped)
         if len(parts) >= 4:
             break
-    return "/".join(parts) if parts else None
+    joined = "/".join(parts) if parts else None
+    return rewrite_pos_for_lemma(word, joined)
 
 
 def parse_meaning_pos(
@@ -116,6 +118,7 @@ def parse_meaning_pos(
     *,
     need_meaning: bool,
     need_pos: bool,
+    word: str = "",
 ) -> tuple[str | None, str | None]:
     meaning: str | None = None
     pos: str | None = None
@@ -126,13 +129,13 @@ def parse_meaning_pos(
         lower = line.lower()
         if lower.startswith(("词性", "pos")) or re.match(r"^pos\s*[:：]", lower):
             if need_pos and not pos:
-                pos = normalize_pos(line)
+                pos = normalize_pos(line, word)
             continue
         if lower.startswith(("释义", "意思", "中文", "meaning")):
             if need_meaning and not meaning:
                 meaning, _ = validate_meaning(line)
             continue
-        maybe_pos = normalize_pos(line)
+        maybe_pos = normalize_pos(line, word)
         # 整行都是词性 token
         if maybe_pos and re.fullmatch(
             r"[A-Za-z/／|,，;；.\s]+", line
@@ -173,7 +176,7 @@ def generate_for_row(
         if need_meaning:
             jobs.append("释义行：最常用 1～3 个中文义项，用中文分号「；」连接")
         if need_pos:
-            jobs.append("词性行：英文缩写（n/v/adj/adv…）；多词性用 /，例如 adj/n")
+            jobs.append("词性行：英文缩写（n/v/adj/adv/prep/phrase…）；多词性用 /，例如 adj/n。含空格的固定搭配用 phrase，不要标 adj/adv")
         prompt = (
             f"词条：{word}\n"
             + (f"音标：{reading}\n" if reading else "")
@@ -199,7 +202,10 @@ def generate_for_row(
             try:
                 content = call_ollama(work_prompt, model=use_model)
                 meaning, pos = parse_meaning_pos(
-                    content, need_meaning=need_meaning, need_pos=need_pos
+                    content,
+                    need_meaning=need_meaning,
+                    need_pos=need_pos,
+                    word=str(row.get("word") or ""),
                 )
                 if need_meaning and not meaning:
                     last_err = "invalid_meaning"

@@ -56,6 +56,7 @@ export const EN_VOCAB_USAGE_UPLOAD_SPEC = {
     "invalid_frequency",
     "ambiguous_pos",
     "noun_attrib_as_adj",
+    "phrase_labeled_as_adj_adv",
   ],
 } as const;
 
@@ -65,6 +66,13 @@ export const EN_VOCAB_USAGE_AMBIGUOUS_POS_RE =
 
 /** 用法正文以「形容词：」开头（频次括号后） */
 export const EN_VOCAB_USAGE_ADJ_LABEL_RE = /^形容词\s*[：:]/u;
+
+/** 多词搭配误把整条标成「形容词：/副词：」（应写「短语：作定语/状语用」） */
+export const EN_VOCAB_USAGE_BARE_ADJ_ADV_LABEL_RE = /^(?:形容词|副词)\s*[：:]/u;
+
+export function enVocabLemmaHasMultipleWords(raw?: string | null): boolean {
+  return /\s/.test(String(raw || "").trim());
+}
 
 /**
  * 词性栏仅名词（n / noun / 名词），不含 adj。
@@ -167,6 +175,7 @@ ${buildEnVocabUsageCategoryFocusLine(category)}
 - 每条用法开头必须只标一种词性（如「动词：」「名词：」）。❌ 禁止「动词/名词」「形容词/名词」「名词/动词」等含糊写法。例句实际是哪种词性就标哪种（如 file a claim → 名词；claimed that → 动词）。若名词义与动词义都常用且意思不同，拆成两条，各写清词性并稍后各配例句。
 - ❌ 禁止把「名词作定语」误标成「形容词」。例如 quality service、business trip、stone wall：前置的 quality / business / stone 仍是名词，须写「名词：作定语，表示……」，不要写「形容词：……」——学生会误以为该词可以当形容词用。
 - ✅ 只有真正的形容词才标「形容词：」（可单独作表语，如 The service is good / This plan is attractive）。词性栏若只有 n，用法里禁止出现「形容词：」。
+- 词条含空格的固定搭配（unbearably tough、in time）且词性栏是 phrase 时，用法开头写「短语：」，可注明「作定语/状语/形容词用」；不要只写「形容词：」「副词：」让人以为词条本身是单个形容词或副词。
 
 口语频率 / 考试频率（必须，对齐日语）：
 - 每条用法都必须打两个 1～10 分：口语频率=日常会话/口语里该义常用度；考试频率=该分类考试语境（托业职场 / 雅思托福读写听等）常用度。
@@ -659,6 +668,15 @@ export function validateEnVocabUsageAiOutput(
     for (const p of points) {
       if (EN_VOCAB_USAGE_ADJ_LABEL_RE.test(p.text.trim())) {
         return { ok: false, reason: "noun_attrib_as_adj" };
+      }
+    }
+  }
+
+  // 含空格的固定搭配：用法不要写成「形容词：/副词：」（词性栏是短语，可写「短语：作定语/状语用」）
+  if (enVocabLemmaHasMultipleWords(_input?.word)) {
+    for (const p of points) {
+      if (EN_VOCAB_USAGE_BARE_ADJ_ADV_LABEL_RE.test(p.text.trim())) {
+        return { ok: false, reason: "phrase_labeled_as_adj_adv" };
       }
     }
   }

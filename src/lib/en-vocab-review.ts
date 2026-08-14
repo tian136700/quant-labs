@@ -191,6 +191,26 @@ export function effectiveEnVocabDisplayLevel(
   return level;
 }
 
+/**
+ * 老师端进度 / 「下一个」是否算已抽。
+ * 今日已同步给学生（share / peek）在服务端会记次，但老师列表可能还没带回
+ * last_review_* —— 若不算已抽，进度会卡在 16/25，抽完仍停在 take care 卡上。
+ */
+export function enVocabTeacherQuizCountsAsChecked(options: {
+  word?: EnVocabWord;
+  sessionLevel?: EnVocabLevel;
+  displayOrder?: EnVocabDailyDisplayOrder;
+  sharedToday?: boolean;
+}): boolean {
+  if (options.sharedToday) return true;
+  if (!options.word) return false;
+  return (
+    effectiveEnVocabDisplayLevel(options.word, options.sessionLevel, {
+      displayOrder: options.displayOrder,
+    }) != null
+  );
+}
+
 export function reviewTimestampMs(iso: string | null | undefined): number | null {
   if (!iso) return null;
   // 与日语一致：无 T 的墙钟按北京时间解析（formatReviewIso 写的是北京墙钟）

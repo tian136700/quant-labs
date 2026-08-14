@@ -59,6 +59,10 @@ def main() -> None:
         fail("usage prompt must forbid labeling noun attributives as 形容词")
     if "noun_attrib_as_adj" not in ai or "enVocabPosLooksNounOnly" not in ai:
         fail("validate must reject noun_attrib_as_adj when pos is noun-only")
+    if "phrase_labeled_as_adj_adv" not in ai:
+        fail("validate must reject 形容词：/副词： on multi-word collocations")
+    if "EN_VOCAB_USAGE_BARE_ADJ_ADV_LABEL_RE" not in ai:
+        fail("missing EN_VOCAB_USAGE_BARE_ADJ_ADV_LABEL_RE")
     if "EN_VOCAB_USAGE_ADJ_LABEL_RE" not in ai:
         fail("missing EN_VOCAB_USAGE_ADJ_LABEL_RE")
     if "分类：" not in ai or "托业" not in ai:

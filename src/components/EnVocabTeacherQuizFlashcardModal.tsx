@@ -13,6 +13,7 @@ import {
   aggregateEnVocabUsageLevels,
   areEnVocabUsageLevelsComplete,
   effectiveEnVocabDisplayLevel,
+  enVocabTeacherQuizCountsAsChecked,
   formatEnVocabUncheckedUsagesHint,
   listIncompleteEnVocabUsageLevelIndices,
   resolveEnVocabUsageDraftLevels,
@@ -295,15 +296,18 @@ export function EnVocabTeacherQuizFlashcardModal({
   }, [currentWordSaveBusy]);
 
   const wordHasLevel = (wordId: number) => {
-    if (sessionLevel[wordId] != null) return true;
-    const item = wordsById.get(wordId);
-    if (!item) return false;
     if (
-      effectiveEnVocabDisplayLevel(item, sessionLevel[wordId], { displayOrder }) !=
-      null
+      enVocabTeacherQuizCountsAsChecked({
+        word: wordsById.get(wordId),
+        sessionLevel: sessionLevel[wordId],
+        displayOrder,
+        sharedToday: sharedTodayWordIds?.has(wordId) ?? false,
+      })
     ) {
       return true;
     }
+    const item = wordsById.get(wordId);
+    if (!item) return false;
     // 本会话用法草稿已勾齐也算已抽（写库失败/未回写 selected 时，「下一个」仍须能跳）
     const slotCount = listEnVocabUsagePointsForDisplay(item.usage).points.length;
     if (slotCount <= 0) return false;
@@ -482,12 +486,7 @@ export function EnVocabTeacherQuizFlashcardModal({
     isStudy || usageExampleModel.hasContent || contentLoading;
   const dailySeq = dailySeqByWordId.get(w.id);
   const sessionUncheckedCount = session.wordIds.reduce((count, id) => {
-    const item = wordsById.get(id);
-    if (!item) return count + 1;
-    return effectiveEnVocabDisplayLevel(item, sessionLevel[id], { displayOrder }) ==
-      null
-      ? count + 1
-      : count;
+    return wordHasLevel(id) ? count : count + 1;
   }, 0);
   const sessionLocalChecked = Math.max(
     0,
@@ -605,6 +604,11 @@ export function EnVocabTeacherQuizFlashcardModal({
       usePerUsageLevels &&
       areEnVocabUsageLevelsComplete(usageDraftLevels, usageSlotCount);
     if (!selected && !usagesComplete) {
+      // 已同步给学生 / 今日已计次：算抽过，勿再拦在用法勾选上（进度会假「还剩 N」）
+      if (isShared || wordHasLevel(w.id)) {
+        void runShareThenAdvance();
+        return;
+      }
       if (usePerUsageLevels) {
         showUncheckedUsagesBlocked(usageDraftLevels, "再点「下一个」");
         return;

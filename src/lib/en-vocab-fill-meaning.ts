@@ -241,8 +241,10 @@ export async function applyEnVocabMeaningUpdates(
     }
 
     if (posRaw && (force || posEmpty)) {
+      // force 也走 normalize：多词搭配误标 adj/adv → phrase
+      const normalized = normalizeEnVocabPos(posRaw, row.word);
       if (validateFormat) {
-        const validated = validateEnVocabPos(posRaw);
+        const validated = validateEnVocabPos(posRaw, row.word);
         if (!validated.ok) {
           skipped.push({
             id: wordId,
@@ -253,7 +255,7 @@ export async function applyEnVocabMeaningUpdates(
         }
         nextPos = validated.text;
       } else {
-        nextPos = posRaw;
+        nextPos = normalized ?? posRaw;
       }
     } else if (posRaw && !posEmpty) {
       posRaw = "";

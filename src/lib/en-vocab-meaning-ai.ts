@@ -12,6 +12,7 @@ export const EN_VOCAB_MEANING_UPLOAD_SPEC = {
     "中文释义；一词多义时只写最常用的 1～3 个义项",
     "义项之间用中文分号「；」分隔，不要用英文分号或顿号",
     "词性用英文缩写：n / v / adj / adv / prep / conj / pron / det / num / interj / phrase",
+    "词条含空格的固定搭配（unbearably tough、in time）词性用 phrase，不要按中心词标 adj/adv；短语动词（look forward to）仍标 v；复合介词（in spite of）仍标 prep",
     "多词性用斜杠「/」连接，如 adj/n；不要写中文「名词」「动词」",
     "不要编号、不要 markdown、不要整句解释",
     "写回时请传 source，建议「gemma4:26b 本地」；人手为「手动」",
@@ -83,7 +84,7 @@ export function buildEnVocabMeaningAiPrompt(input: EnVocabMeaningAiInput): strin
   }
   if (needPos) {
     jobs.push(
-      "词性行：英文缩写（n/v/adj/adv/prep/conj/pron…）；多词性用 /，例如：adj/n"
+      "词性行：英文缩写（n/v/adj/adv/prep/conj/pron/phrase…）；多词性用 /，例如：adj/n。含空格的固定搭配用 phrase，不要标 adj/adv"
     );
   }
 
@@ -97,6 +98,8 @@ ${jobs.map((j, i) => `${i + 1}. ${j}`).join("\n")}
 规则：
 - 不要编号、不要 markdown、不要例句
 - 释义必须是中文；词性必须是英文缩写
+- 词条含空格的固定搭配（如 unbearably tough）词性必须是 phrase，禁止按中心词标 adj/adv
+- 短语动词（look forward to / give up）仍标 v；复合介词仍标 prep
 - 只输出字段正文行`;
 }
 
@@ -142,8 +145,25 @@ function mapPosToken(raw: string): string | null {
   return null;
 }
 
-/** 规范化词性：adj/n；非法则 null */
-export function normalizeEnVocabPos(raw: string | null | undefined): string | null {
+/** 词条含空格 → 固定搭配；若只标了 adj/adv（中心词词性）应改成 phrase。 */
+export function enVocabLemmaNeedsPhrasePos(raw: string): boolean {
+  const word = String(raw || "").trim();
+  return Boolean(word && /\s/.test(word));
+}
+
+function rewritePosTokensForLemma(word: string, tokens: string[]): string[] {
+  if (!enVocabLemmaNeedsPhrasePos(word)) return tokens;
+  const lexical = tokens.filter((t) => t !== "phrase");
+  if (lexical.length === 0) return tokens;
+  const onlyAdjOrAdv = lexical.every((t) => t === "adj" || t === "adv");
+  return onlyAdjOrAdv ? ["phrase"] : tokens;
+}
+
+/** 规范化词性：adj/n；多词搭配误标 adj/adv 时改成 phrase；非法则 null */
+export function normalizeEnVocabPos(
+  raw: string | null | undefined,
+  word?: string | null
+): string | null {
   const parts: string[] = [];
   const seen = new Set<string>();
   for (const chunk of String(raw ?? "").split(/[\/／|,，;；]+/)) {
@@ -153,13 +173,15 @@ export function normalizeEnVocabPos(raw: string | null | undefined): string | nu
     parts.push(mapped);
     if (parts.length >= 4) break;
   }
-  return parts.length ? parts.join("/") : null;
+  const rewritten = rewritePosTokensForLemma(String(word ?? ""), parts);
+  return rewritten.length ? rewritten.join("/") : null;
 }
 
 export function validateEnVocabPos(
-  raw: string
+  raw: string,
+  word?: string | null
 ): { ok: true; text: string } | { ok: false; reason: string } {
-  const text = normalizeEnVocabPos(raw);
+  const text = normalizeEnVocabPos(raw, word);
   if (!text) return { ok: false, reason: "invalid_pos" };
   return { ok: true, text };
 }

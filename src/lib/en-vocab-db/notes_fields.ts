@@ -63,6 +63,7 @@ import { parseLessonContent } from "@/lib/en-lesson-shared";
 import { listEnLessons } from "@/lib/en-lesson-db";
 import { listEnLessonNotesByLessonId, replaceLessonNotesForItem } from "@/lib/en-lesson-note-db";
 import { shieldEnVocabUsageUploadText } from "@/lib/en-vocab-usage-ai";
+import { normalizeEnVocabPos } from "@/lib/en-vocab-meaning-ai";
 import { normalizeEnVocabCategory } from "@/lib/en-vocab-category";
 import {
   EN_VOCAB_TEACHER_QUIZ_LIVE_EMPTY,
@@ -283,7 +284,8 @@ export async function updateEnVocabWordFields(
       : current.meaning;
   const nextPos =
     fields.pos !== undefined
-      ? (fields.pos || "").trim() || null
+      ? normalizeEnVocabPos(fields.pos, nextWord) ??
+        ((fields.pos || "").trim() || null)
       : current.pos;
 
   if (fields.word !== undefined && !nextWord) {
@@ -396,7 +398,8 @@ export async function updateEnVocabWordEntry(
       : current.meaning;
   const nextPos =
     input.pos !== undefined
-      ? (input.pos || "").trim() || null
+      ? normalizeEnVocabPos(input.pos, nextWord) ??
+        ((input.pos || "").trim() || null)
       : current.pos;
   const nextCategory =
     input.category !== undefined

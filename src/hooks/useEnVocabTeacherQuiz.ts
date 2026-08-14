@@ -15,7 +15,7 @@ import {
   VOCAB_TEACHER_QUIZ_SYNC_IDLE_HIDDEN_MS,
   VOCAB_TEACHER_QUIZ_SYNC_IDLE_MS,
 } from "@/lib/vocab-teacher-quiz-sync-poll";
-import { effectiveEnVocabDisplayLevel } from "@/lib/en-vocab-review";
+import { enVocabTeacherQuizCountsAsChecked } from "@/lib/en-vocab-review";
 import type { EnVocabDailyDisplayOrder } from "@/lib/en-vocab-daily-order";
 import {
   computeEnVocabDailyQuizProgress,
@@ -74,6 +74,7 @@ export function useEnVocabTeacherQuiz(options: {
   /** 开卡后半小时无勾选 → live 轮询降频 */
   teacherQuizIdleRef?: MutableRefObject<boolean>;
   teacherQuizPollIdle?: boolean;
+  sharedTodayWordIds: Set<number>;
   setSharedTodayWordIds: Dispatch<SetStateAction<Set<number>>>;
   setStatus: (message: string) => void;
   /** 本轮会话真正抽完（卡片关闭前）→ 弹出完成提示 */
@@ -99,6 +100,7 @@ export function useEnVocabTeacherQuiz(options: {
     dailyQuizProgress,
     teacherQuizIdleRef,
     teacherQuizPollIdle = false,
+    sharedTodayWordIds,
     setSharedTodayWordIds,
     setStatus,
     onTeacherQuizSessionFinished,
@@ -137,13 +139,14 @@ export function useEnVocabTeacherQuiz(options: {
   const quizWordHasLevel = useCallback(
     (wordId: number) => {
       const w = words.find((item) => item.id === wordId);
-      if (!w) return false;
-      return (
-        effectiveEnVocabDisplayLevel(w, sessionLevel[wordId], { displayOrder }) !=
-        null
-      );
+      return enVocabTeacherQuizCountsAsChecked({
+        word: w,
+        sessionLevel: sessionLevel[wordId],
+        displayOrder,
+        sharedToday: sharedTodayWordIds.has(wordId),
+      });
     },
-    [words, sessionLevel, displayOrder]
+    [words, sessionLevel, displayOrder, sharedTodayWordIds]
   );
 
   const persistQuizSession = useCallback(
@@ -180,10 +183,14 @@ export function useEnVocabTeacherQuiz(options: {
       quizWordHasLevel
     );
 
+    const poolComplete =
+      quizTargetWords.length > 0 &&
+      quizTargetWords.every((w) => quizWordHasLevel(w.id));
     if (
       !expanded ||
       isEnVocabTeacherQuizSessionComplete(expanded, quizWordHasLevel) ||
-      computeEnVocabDailyQuizProgress(words, quizTarget).complete
+      computeEnVocabDailyQuizProgress(words, quizTarget).complete ||
+      poolComplete
     ) {
       clearEnVocabTeacherQuizSession(user.id);
       setQuizSession(null);
@@ -452,12 +459,19 @@ export function useEnVocabTeacherQuiz(options: {
         return;
       }
       rememberCompletedQuizWordIds(expanded.wordIds);
+      // 本轮抽完：留在最后一个词，弹「本轮单词已抽查完成」；仍可点「上一个」
+      setQuizSession({
+        ...expanded,
+        currentIndex: Math.max(0, expanded.wordIds.length - 1),
+      });
     } else {
       rememberCompletedQuizWordIds(quizSession.wordIds);
+      setQuizSession({
+        ...quizSession,
+        currentIndex: Math.max(0, quizSession.wordIds.length - 1),
+      });
     }
-    setShowQuizFlashcard(false);
-    setQuizSession(null);
-    if (user?.id) clearEnVocabTeacherQuizSession(user.id);
+    setShowQuizFlashcard(true);
     onTeacherQuizSessionFinished?.();
   }, [
     quizSession,
@@ -465,8 +479,33 @@ export function useEnVocabTeacherQuiz(options: {
     dailySeqByWordId,
     quizWordHasLevel,
     rememberCompletedQuizWordIds,
-    user?.id,
     onTeacherQuizSessionFinished,
+  ]);
+
+  /** 关抽查卡：若今日/本轮已完成则清会话，避免进度条已完成后仍占着抽查会话 */
+  const closeTeacherQuizFlashcard = useCallback(() => {
+    setShowQuizFlashcard(false);
+    const progressComplete =
+      dailyQuizProgress.complete ||
+      (quizTargetWords.length > 0 &&
+        quizTargetWords.every((w) => quizWordHasLevel(w.id)));
+    const sessionDone =
+      quizSession != null &&
+      isEnVocabTeacherQuizSessionComplete(quizSession, quizWordHasLevel);
+    if (progressComplete || sessionDone) {
+      if (quizSession?.wordIds.length) {
+        rememberCompletedQuizWordIds(quizSession.wordIds);
+      }
+      setQuizSession(null);
+      if (user?.id) clearEnVocabTeacherQuizSession(user.id);
+    }
+  }, [
+    dailyQuizProgress.complete,
+    quizTargetWords,
+    quizSession,
+    quizWordHasLevel,
+    rememberCompletedQuizWordIds,
+    user?.id,
   ]);
 
   const syncTeacherQuizLiveWord = useCallback(
@@ -652,6 +691,7 @@ export function useEnVocabTeacherQuiz(options: {
     startTeacherQuizWithRandomMode,
     resumeTeacherQuizFlashcard,
     finishTeacherQuiz,
+    closeTeacherQuizFlashcard,
     teacherQuizLocksTable,
     teacherQuizInProgress,
     quizFlashcardWordId,

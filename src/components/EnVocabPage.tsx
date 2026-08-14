@@ -85,7 +85,6 @@ import {
   writeStoredEnVocabPage,
   writeStoredEnVocabPageSize,
 } from "@/lib/en-vocab-page-helpers";
-import { clearEnVocabTeacherQuizSession } from "@/lib/en-vocab-teacher-quiz-storage";
 import { resolveEnVocabRefForPreview } from "@/lib/en-vocab-ref-shared";
 import type { EnVocabLevel, EnVocabRef, EnVocabWord } from "@/lib/types";
 import type { JpVocabDailyQuizProgress } from "@/lib/jp-vocab-daily-quiz-progress";
@@ -399,16 +398,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     dailySeqByWordId,
   });
 
-  const { onTeacherQuizSessionFinished } = useEnVocabDailyCompleteEffects({
-    userId: user?.id,
-    isAdminMode,
-    canOperate,
-    loading,
-    checking,
-    wordsLength: words.length,
-    dailyQuizProgress,
-    setShowDailyComplete,
-  });
+  const onTeacherQuizSessionFinishedRef = useRef<() => void>(() => {});
 
   const {
     quizSession,
@@ -431,6 +421,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     startTeacherQuizWithRandomMode,
     resumeTeacherQuizFlashcard,
     finishTeacherQuiz,
+    closeTeacherQuizFlashcard,
     teacherQuizLocksTable,
     teacherQuizInProgress,
     quizFlashcardWordId,
@@ -451,9 +442,10 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     dailySeqByWordId,
     dailyQuizProgress,
     teacherQuizIdleRef, teacherQuizPollIdle,
+    sharedTodayWordIds,
     setSharedTodayWordIds,
     setStatus,
-    onTeacherQuizSessionFinished,
+    onTeacherQuizSessionFinished: () => onTeacherQuizSessionFinishedRef.current(),
     syncTeacherVisibleLimitFromServer,
   });
 
@@ -485,6 +477,18 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     searchQuery,
     kindFilter,
   });
+
+  const { onTeacherQuizSessionFinished } = useEnVocabDailyCompleteEffects({
+    userId: user?.id,
+    isAdminMode,
+    canOperate,
+    loading,
+    checking,
+    wordsLength: words.length,
+    dailyQuizProgress: displayQuizProgress,
+    setShowDailyComplete,
+  });
+  onTeacherQuizSessionFinishedRef.current = onTeacherQuizSessionFinished;
 
   useEffect(() => {
     setTeacherQuizPollGate({
@@ -668,25 +672,6 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
   const hideTeacherQuizList = teacherQuizRoundOpen;
   const showTeacherQuizStartLanding =
     teacherQuizRoundOpen && !teacherQuizInProgress;
-
-  useEffect(() => {
-    if (!canOperate || isAdminMode || !quizSession) return;
-    if (!dailyQuizProgress.complete && !displayQuizProgress.complete) {
-      return;
-    }
-    setShowQuizFlashcard(false);
-    setQuizSession(null);
-    if (user?.id) clearEnVocabTeacherQuizSession(user.id);
-  }, [
-    canOperate,
-    isAdminMode,
-    quizSession,
-    dailyQuizProgress.complete,
-    displayQuizProgress.complete,
-    user?.id,
-    setShowQuizFlashcard,
-    setQuizSession,
-  ]);
 
   const openRemarksWord = useCallback(
     (word: EnVocabWord) => {
@@ -1081,7 +1066,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
         quizFlashcardStillOpen={showQuizFlashcard}
         onTeacherQuizIntroConfirm={handleTeacherQuizIntroConfirm}
         onTeacherQuizIntroClose={handleTeacherQuizIntroClose}
-        onQuizFlashcardClose={() => setShowQuizFlashcard(false)}
+        onQuizFlashcardClose={closeTeacherQuizFlashcard}
         onQuizComplete={finishTeacherQuiz}
         onRecordLevel={(wordId, level) => void recordLevel(wordId, level)}
         onRecordUsageLevels={(wordId, levels) => void recordUsageLevels(wordId, levels)}

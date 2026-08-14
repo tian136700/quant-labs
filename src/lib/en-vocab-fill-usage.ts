@@ -9,6 +9,8 @@ import {
   enVocabUsagePointHasCompleteFrequency,
   EN_VOCAB_USAGE_ADJ_LABEL_RE,
   EN_VOCAB_USAGE_AMBIGUOUS_POS_RE,
+  EN_VOCAB_USAGE_BARE_ADJ_ADV_LABEL_RE,
+  enVocabLemmaHasMultipleWords,
   enVocabPosLooksNounOnly,
   normalizeEnVocabUsageSource,
   parseEnVocabUsagePoints,
@@ -391,6 +393,19 @@ export async function applyEnVocabUsageUpdates(
           id: wordId,
           word: String(row.word),
           reason: "invalid_format:noun_attrib_as_adj",
+        });
+        continue;
+      }
+      if (
+        enVocabLemmaHasMultipleWords(row.word) &&
+        points.some((p) =>
+          EN_VOCAB_USAGE_BARE_ADJ_ADV_LABEL_RE.test(p.text.trim())
+        )
+      ) {
+        skipped.push({
+          id: wordId,
+          word: String(row.word),
+          reason: "invalid_format:phrase_labeled_as_adj_adv",
         });
         continue;
       }
