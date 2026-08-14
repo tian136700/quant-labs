@@ -109,6 +109,35 @@ def main() -> int:
     lib_txt = lib_doc.read_text(encoding="utf-8")
     if "is_next_document_collect_flake" not in lib_txt:
         return fail("next_document_deploy_retry must export is_next_document_collect_flake")
+    if "is_next_nft_json_trace_flake" not in lib_txt:
+        return fail("next_document_deploy_retry must export is_next_nft_json_trace_flake")
+    if "is_next_build_cache_flake" not in lib_txt:
+        return fail("next_document_deploy_retry must export is_next_build_cache_flake")
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from lib.next_document_deploy_retry import (  # noqa: WPS433
+        is_deploy_transient_republish_failure,
+        is_next_build_cache_flake,
+        is_next_nft_json_trace_flake,
+    )
+
+    sample_nft = """
+   Collecting build traces ...
+[Error: ENOENT: no such file or directory, open '/Users/Admin/Documents/code/us_stock_monitor/strategy-compare-cloud/.next/server/app/api/admin/en-lesson-teacher-review/route.js.nft.json'] {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '.../.next/server/app/api/admin/en-lesson-teacher-review/route.js.nft.json'
+}
+"""
+    if not is_next_nft_json_trace_flake(sample_nft):
+        return fail("nft.json ENOENT during traces must count as Next build-cache flake")
+    if not is_next_build_cache_flake(sample_nft):
+        return fail("is_next_build_cache_flake must include nft.json traces ENOENT")
+    if not is_deploy_transient_republish_failure(sample_nft):
+        return fail("wait/stop must auto-republish nft.json traces ENOENT")
+    if is_next_nft_json_trace_flake("Type error: Property 'x' does not exist"):
+        return fail("nft.json detector must not match TypeScript errors")
 
     rule = RULE.read_text(encoding="utf-8")
     if "禁止" not in rule or "followup" not in rule:
@@ -119,6 +148,8 @@ def main() -> int:
         return fail("rule must document orphan followup")
     if "deploy-auto-fix-session" not in rule:
         return fail("rule must mention sessionStart deploy-auto-fix-session")
+    if "nft.json" not in rule:
+        return fail("rule must document Collecting build traces nft.json ENOENT flake")
 
     bark = (ROOT / "scripts" / "maintenance_center" / "bark_notify.py").read_text(
         encoding="utf-8"

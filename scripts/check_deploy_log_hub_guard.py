@@ -24,6 +24,8 @@ if "is_detached_head" not in text:
     errors.append("缺少 detached HEAD 检测（is_detached_head）")
 if "is_next_document_collect_flake" not in text:
     errors.append("缺少 /_document Collecting page data 偶发失败检测")
+if "is_next_build_cache_flake" not in text:
+    errors.append("缺少 is_next_build_cache_flake（含 nft.json traces ENOENT）")
 if "run_live_tee" not in text:
     errors.append("缺少 run_live_tee（捕获输出以便识别 /_document flake）")
 if "next_document_deploy_retry" not in text and "NEXT_DOCUMENT_DEPLOY_RETRIES" not in text:
