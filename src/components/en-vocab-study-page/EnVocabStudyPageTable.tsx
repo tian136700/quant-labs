@@ -1,6 +1,7 @@
 "use client";
 
 import { EnEditIconButton } from "@/components/EnEditIconButton";
+import { EnVocabSpeakButton } from "@/components/EnVocabSpeakButton";
 import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import { effectiveTodayCheckCount } from "@/lib/en-vocab-daily-check";
 import { hasEnVocabClassNotes } from "@/lib/en-vocab-class-notes";
@@ -161,11 +162,54 @@ export function EnVocabStudyPageTable(props: EnVocabStudyPageTableProps) {
                     w.today_check_count ?? 0,
                     w.today_check_date
                   );
+                  const hasNotes = hasEnVocabClassNotes(
+                    w.class_notes,
+                    w.class_notes_present
+                  );
+                  const renderReadingMain = () => (
+                    <>
+                      {w.kind === "word" ? (
+                        <EnVocabSpeakButton text={w.word} />
+                      ) : null}
+                      {readingTrim ? (
+                        <span className="en-vocab-reading-text" title={readingTrim}>
+                          {readingTrim}
+                        </span>
+                      ) : w.kind === "word" ? (
+                        <span className="en-vocab-reading-text en-vocab-reading-text--pending">
+                          待补全
+                        </span>
+                      ) : null}
+                    </>
+                  );
+                  const renderNotesActions = () => (
+                    <div className="jp-vocab-notes-actions">
+                      {hasNotes ? (
+                        <button
+                          type="button"
+                          className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-mobile-action-btn jp-vocab-notes-view-btn"
+                          title={canOperate ? "查看并编辑备注" : "查看备注"}
+                          onClick={() => openRemarksWord(w)}
+                        >
+                          查看
+                        </button>
+                      ) : null}
+                      {canOperate ? (
+                        <EnEditIconButton
+                          title="编辑备注"
+                          className="jp-vocab-notes-edit-btn"
+                          onClick={() => setEditingRemarksWord(w)}
+                        />
+                      ) : null}
+                    </div>
+                  );
 
                   return (
                     <tr key={item.id} id={`jp-vocab-study-row-${w.id}`}>
                       <td className="jp-vocab-seq-col" data-label="序号">
-                        {index + 1}
+                        <span className="jp-vocab-seq-cell">
+                          <span className="jp-vocab-seq-num">{index + 1}</span>
+                        </span>
                       </td>
                       <td className="jp-vocab-kind-col" data-label="类型">
                         <span
@@ -188,18 +232,23 @@ export function EnVocabStudyPageTable(props: EnVocabStudyPageTableProps) {
                           </button>
                           <span className="jp-vocab-ref-hint">（点击查看详情卡片）</span>
                         </div>
+                        {/* 手机端读音列被藏掉；音标/喇叭须挂在词条下方（对齐日语 study） */}
+                        <div className="jp-vocab-mobile-reading-row jp-vocab-mobile-only">
+                          {renderReadingMain()}
+                        </div>
                       </td>
                       <td
                         className={`jp-vocab-reading-col${
-                          !readingTrim ? " jp-vocab-field-empty" : ""
+                          !readingTrim && w.kind !== "word" ? " jp-vocab-field-empty" : ""
                         }`}
                         data-label="读音"
-                        style={{ color: "var(--muted)" }}
                       >
-                        {readingTrim}
-                        {w.reading_source?.trim() ? (
-                          <JpVocabSourceLabel source={w.reading_source} />
-                        ) : null}
+                        <div className="en-vocab-reading-cell">
+                          <div className="en-vocab-reading-main">{renderReadingMain()}</div>
+                          {w.reading_source?.trim() ? (
+                            <JpVocabSourceLabel source={w.reading_source} />
+                          ) : null}
+                        </div>
                       </td>
                       <td
                         className={`jp-vocab-meaning-col${
@@ -208,9 +257,18 @@ export function EnVocabStudyPageTable(props: EnVocabStudyPageTableProps) {
                         data-label="释义"
                         style={{ color: "var(--muted)" }}
                       >
-                        {meaningTrim}
-                        {w.meaning_source?.trim() ? (
-                          <JpVocabSourceLabel source={w.meaning_source} />
+                        {meaningTrim ? (
+                          <div className="jp-vocab-meaning-cell">
+                            <span className="jp-vocab-meaning-desktop">{meaningTrim}</span>
+                            <details className="jp-vocab-meaning-fold jp-vocab-mobile-only">
+                              <summary className="jp-vocab-meaning-fold__summary">
+                                <span className="jp-vocab-fold-label">释义</span>
+                                <span className="jp-vocab-meaning-preview">{meaningTrim}</span>
+                              </summary>
+                              <p className="jp-vocab-meaning-full">{meaningTrim}</p>
+                            </details>
+                            <JpVocabSourceLabel source={w.meaning_source} />
+                          </div>
                         ) : null}
                       </td>
                       <td
@@ -220,7 +278,9 @@ export function EnVocabStudyPageTable(props: EnVocabStudyPageTableProps) {
                         data-label="词性"
                         style={{ color: "var(--muted)" }}
                       >
-                        {posTrim}
+                        {posTrim ? (
+                          <span className="jp-vocab-pos-badge">{posTrim}</span>
+                        ) : null}
                       </td>
                       <td className="jp-vocab-risk-col" data-label="优先级">
                         <span
@@ -312,30 +372,20 @@ export function EnVocabStudyPageTable(props: EnVocabStudyPageTableProps) {
                       {SHOW_REMARKS_COLUMN ? (
                         <td
                           className={`jp-vocab-notes-col${
-                            !hasEnVocabClassNotes(w.class_notes, w.class_notes_present) && !canOperate
-                              ? " jp-vocab-field-empty"
-                              : ""
+                            !hasNotes && !canOperate ? " jp-vocab-field-empty" : ""
                           }`}
                           data-label="备注"
                         >
-                          <div className="jp-vocab-notes-actions">
-                            {hasEnVocabClassNotes(w.class_notes, w.class_notes_present) ? (
-                              <button
-                                type="button"
-                                className="btn-rsi-filter btn-rsi-filter--compact"
-                                title={canOperate ? "查看并编辑备注" : "查看备注"}
-                                onClick={() => openRemarksWord(w)}
-                              >
-                                查看
-                              </button>
-                            ) : null}
-                            {canOperate ? (
-                              <EnEditIconButton
-                                title="编辑备注"
-                                onClick={() => setEditingRemarksWord(w)}
-                              />
-                            ) : null}
-                          </div>
+                          <div className="jp-vocab-notes-desktop">{renderNotesActions()}</div>
+                          <details className="jp-vocab-notes-fold jp-vocab-mobile-only">
+                            <summary className="jp-vocab-notes-fold__summary">
+                              <span className="jp-vocab-fold-label">备注</span>
+                              <span className="jp-vocab-notes-fold__hint">
+                                {hasNotes ? "查看 ›" : canOperate ? "编辑 ›" : "—"}
+                              </span>
+                            </summary>
+                            {renderNotesActions()}
+                          </details>
                         </td>
                       ) : null}
                       <td className="jp-vocab-action-col" data-label="操作">
@@ -343,7 +393,7 @@ export function EnVocabStudyPageTable(props: EnVocabStudyPageTableProps) {
                           <div className="jp-vocab-action-row">
                             <button
                               type="button"
-                              className="btn-rsi-filter btn-rsi-filter--compact"
+                              className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-mobile-action-btn"
                               title="以老师抽问卡片样式查看本词条"
                               onClick={() => onViewCard(item)}
                             >
@@ -352,7 +402,7 @@ export function EnVocabStudyPageTable(props: EnVocabStudyPageTableProps) {
                             {canOperate ? (
                               <button
                                 type="button"
-                                className="btn-rsi-filter btn-rsi-filter--compact"
+                                className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-mobile-action-btn"
                                 onClick={() => setEditingWord(w)}
                               >
                                 编辑

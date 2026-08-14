@@ -250,6 +250,11 @@
     display: none !important;
   }
 
+  /* study / 词表：桌面备注按钮在手机改走 notes-fold，须藏掉避免双份 */
+  .jp-vocab-notes-desktop {
+    display: none !important;
+  }
+
   .jp-vocab-table .jp-vocab-meaning-col {
     order: unset;
     grid-column: 1 / -1;
