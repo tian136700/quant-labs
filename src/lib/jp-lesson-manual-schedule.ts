@@ -1,3 +1,4 @@
+import { readApiJson } from "@/lib/api-json";
 import { resolveEnClassDurationMinutes } from "@/lib/en-lesson-shared";
 import {
   parseBeijingDateTime,
@@ -137,10 +138,19 @@ function clearLegacyJpLessonManualSchedulesFromLocalStorage(): void {
 async function parseManualScheduleResponse(
   res: Response
 ): Promise<Record<string, unknown>> {
-  const data = (await res.json()) as Record<string, unknown>;
-  if (!res.ok || data.ok === false) {
+  const parsed = await readApiJson<Record<string, unknown>>(res);
+  if (!parsed.ok) {
+    throw new Error(parsed.error);
+  }
+  const data = parsed.data;
+  if (data.ok === false) {
+    if (parsed.status === 401 || parsed.status === 403) {
+      throw new Error("请重新登录后再试");
+    }
     const error =
-      typeof data.error === "string" ? data.error : `request_failed_${res.status}`;
+      typeof data.error === "string"
+        ? data.error
+        : `request_failed_${parsed.status}`;
     throw new Error(error);
   }
   return data;

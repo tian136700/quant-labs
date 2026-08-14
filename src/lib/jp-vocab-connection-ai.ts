@@ -9,8 +9,11 @@ import {
 } from "@/lib/jp-vocab-connection-note-diversity";
 import { collapseJpVocabNaiFormType1PerEndingRows } from "@/lib/jp-vocab-connection-nai-form";
 import {
+  connectionHasBarePosContinuation,
   connectionHasMessyParenPlusSlash,
+  connectionHasPrefixPlusPos,
   expandConnectionTableLabelSlash,
+  rewriteJpVocabConnectionForTableParse,
   splitConnectionPlusOutsideParens,
 } from "@/lib/jp-vocab-connection-table-expand";
 
@@ -620,12 +623,12 @@ function expandConnectionTableLabelParensSlash(
  * 复杂接续拆成表格行：
  * 1) 多行「词类：说明」（如 ～ば）
  * 2) 同行「词类＋接续；…」（如 ～と）
- * ≥2 行/段才返回；否则 null（展示层用纯文本）。
+ * 先剥「用法N:」、纠正「前缀＋词类」续行，避免对比课整段落成纯文本。
  */
 export function parseJpVocabConnectionTableRows(
   raw: string | null | undefined
 ): JpVocabConnectionTableRow[] | null {
-  const text = String(raw ?? "").trim();
+  const text = rewriteJpVocabConnectionForTableParse(String(raw ?? "").trim());
   if (!text) return null;
   return (
     // 优先匹配「词类＋接什么」的标准公式行；
@@ -931,6 +934,14 @@ export function validateJpVocabConnectionAiOutput(
   // 写回拒：括号内同时塞 ／ 与 ＋（会拆成错列，如旧稿 572）
   if (connectionHasMessyParenPlusSlash(preCheckBody)) {
     return { ok: false, reason: "messy_paren_plus_slash" };
+  }
+  // 写回拒：「もしかしたら＋动词句」把本语法前缀写在「＋」左边
+  if (connectionHasPrefixPlusPos(preCheckBody)) {
+    return { ok: false, reason: "prefix_plus_pos" };
+  }
+  // 写回拒：词类单独成行、没有「＋接什么」（一类形容词句 / 名词句）
+  if (connectionHasBarePosContinuation(preCheckBody)) {
+    return { ok: false, reason: "bare_pos_continuation" };
   }
   // 写回拒：能拆成多段公式却没有任何「｜说明」→ 卡片说明列全是「—」
   if (connectionHasMissingTableNotes(preCheckBody)) {

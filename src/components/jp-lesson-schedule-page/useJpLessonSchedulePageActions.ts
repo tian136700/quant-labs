@@ -1,5 +1,6 @@
 "use client";
 
+import { formatCaughtApiError, readApiJson } from "@/lib/api-json";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import {
   formatAdminUserCredentials,
@@ -364,8 +365,8 @@ export function useJpLessonSchedulePageActions(options: UseJpLessonSchedulePageA
       setStatusMessage("已关联教材，并同步为新课「学习中」");
       window.setTimeout(() => setStatusMessage(""), 3500);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      setStatusMessage(err instanceof Error ? err.message : "关联教材失败");
+      setError(formatCaughtApiError(err));
+      setStatusMessage(formatCaughtApiError(err));
       window.setTimeout(() => setStatusMessage(""), 3500);
     } finally {
       window.clearInterval(timer);
@@ -517,7 +518,7 @@ export function useJpLessonSchedulePageActions(options: UseJpLessonSchedulePageA
       closeManualModal();
       window.setTimeout(() => setStatusMessage(""), 3500);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(formatCaughtApiError(err));
     } finally {
       savingManualScheduleRef.current = false;
       setSavingManualSchedule(false);
@@ -554,7 +555,7 @@ export function useJpLessonSchedulePageActions(options: UseJpLessonSchedulePageA
         window.setTimeout(() => setStatusMessage(""), 3000);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(formatCaughtApiError(err));
     }
   };
 
@@ -570,7 +571,7 @@ export function useJpLessonSchedulePageActions(options: UseJpLessonSchedulePageA
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       });
-      const data = (await res.json()) as {
+      const parsed = await readApiJson<{
         ok?: boolean;
         teacher?: JpLessonTeacher;
         renamed_teachers?: JpLessonTeacher[];
@@ -581,7 +582,9 @@ export function useJpLessonSchedulePageActions(options: UseJpLessonSchedulePageA
           password: string;
           disabled: boolean;
         };
-      };
+      }>(res);
+      if (!parsed.ok) return null;
+      const data = parsed.data;
       if (!data.ok || !data.teacher) {
         if (data.error === "name_duplicate") {
           return (
@@ -640,12 +643,14 @@ export function useJpLessonSchedulePageActions(options: UseJpLessonSchedulePageA
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       });
-      const data = (await res.json()) as {
+      const parsed = await readApiJson<{
         ok?: boolean;
         teacher?: EnLessonTeacher;
         renamed_teachers?: EnLessonTeacher[];
         error?: string;
-      };
+      }>(res);
+      if (!parsed.ok) return null;
+      const data = parsed.data;
       if (!data.ok || !data.teacher) {
         if (data.error === "name_duplicate") {
           return (
@@ -692,12 +697,14 @@ export function useJpLessonSchedulePageActions(options: UseJpLessonSchedulePageA
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       });
-      const data = (await res.json()) as {
+      const parsed = await readApiJson<{
         ok?: boolean;
         teacher?: KoLessonTeacher;
         renamed_teachers?: KoLessonTeacher[];
         error?: string;
-      };
+      }>(res);
+      if (!parsed.ok) return null;
+      const data = parsed.data;
       if (!data.ok || !data.teacher) {
         if (data.error === "name_duplicate") {
           return (
@@ -757,11 +764,15 @@ export function useJpLessonSchedulePageActions(options: UseJpLessonSchedulePageA
           class_schedules: normalized,
         }),
       });
-      const data = (await res.json()) as {
-        ok: boolean;
+      const parsed = await readApiJson<{
+        ok?: boolean;
         lesson?: JpLessonRecord;
         error?: string;
-      };
+      }>(res);
+      if (!parsed.ok) {
+        throw new Error(parsed.error);
+      }
+      const data = parsed.data;
       if (!data.ok || !data.lesson) {
         throw new Error(data.error || "保存失败");
       }
@@ -770,7 +781,7 @@ export function useJpLessonSchedulePageActions(options: UseJpLessonSchedulePageA
       setStatusMessage("上课时间已更新");
       window.setTimeout(() => setStatusMessage(""), 2500);
     } catch (err) {
-      setStatusMessage(err instanceof Error ? err.message : "保存失败");
+      setStatusMessage(formatCaughtApiError(err));
       window.setTimeout(() => setStatusMessage(""), 3500);
     } finally {
       savingNextClassRef.current = null;
@@ -811,11 +822,15 @@ export function useJpLessonSchedulePageActions(options: UseJpLessonSchedulePageA
           class_schedules: normalized,
         }),
       });
-      const data = (await res.json()) as {
-        ok: boolean;
+      const parsed = await readApiJson<{
+        ok?: boolean;
         lesson?: EnLessonRecord;
         error?: string;
-      };
+      }>(res);
+      if (!parsed.ok) {
+        throw new Error(parsed.error);
+      }
+      const data = parsed.data;
       if (!data.ok || !data.lesson) {
         throw new Error(data.error || "保存失败");
       }
@@ -824,7 +839,7 @@ export function useJpLessonSchedulePageActions(options: UseJpLessonSchedulePageA
       setStatusMessage("上课时间已更新");
       window.setTimeout(() => setStatusMessage(""), 2500);
     } catch (err) {
-      setStatusMessage(err instanceof Error ? err.message : "保存失败");
+      setStatusMessage(formatCaughtApiError(err));
       window.setTimeout(() => setStatusMessage(""), 3500);
     } finally {
       savingNextClassRef.current = null;

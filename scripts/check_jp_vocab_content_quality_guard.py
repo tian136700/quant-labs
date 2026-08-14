@@ -66,6 +66,8 @@ def main() -> int:
         "i_adj_past_deshita",
         "かったでした",
         "地球は太陽",
+        "prefix_plus_pos",
+        "もしかしたら＋动词句",
     ):
         if needle not in rule_text:
             fail(f"rule missing {needle!r}")
@@ -207,6 +209,12 @@ def main() -> int:
         fail("connection 须拒 connection_has_usage")
     if "no_plus_formula" not in conn:
         fail("connection 须拒 no_plus_formula（しかし等句首接续）")
+    if "prefix_plus_pos" not in conn:
+        fail("connection 须拒 prefix_plus_pos（もしかしたら＋动词句）")
+    if "bare_pos_continuation" not in conn:
+        fail("connection 须拒 bare_pos_continuation")
+    if "rewriteJpVocabConnectionForTableParse" not in conn:
+        fail("connection 拆表前须 rewriteJpVocabConnectionForTableParse")
     if "connectionHasFormulaShape" not in conn:
         fail("connection 须有 connectionHasFormulaShape")
     if "rewriteJpVocabConnectionPosToSimplifiedChinese" not in conn:

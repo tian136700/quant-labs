@@ -133,7 +133,10 @@
   → JpLessonSchedulePage.tsx（编排）
   → jp-lesson-schedule-page/（Styles、helpers、Layout）
   → jp-lesson-manual-schedule.ts
-  → GET|POST /api/jp-lesson/schedule
+  → GET /api/jp-lesson?view=schedule
+  → GET /api/en-lesson?view=schedule
+  → GET|POST|DELETE /api/jp-lesson/manual-schedules
+  （禁止 GET /api/jp-lesson/schedule：该路径不存在，会返回 HTML 404）
 ```
 
 （英语镜像：`EnLessonPage` → `en-lesson-*` → `/api/en-lesson/*`）

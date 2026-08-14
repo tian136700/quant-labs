@@ -58,6 +58,7 @@ import { jpVocabRefViewerPath } from "@/lib/jp-vocab-ref-shared";
 import { EN_SITE_URL } from "@/lib/en-site-host";
 import { JP_SITE_URL } from "@/lib/jp-site-host";
 import { enVocabRefViewerPath } from "@/lib/en-vocab-ref-shared";
+import { formatCaughtApiError, readApiJson } from "@/lib/api-json";
 import { copyTextToClipboard } from "@/lib/copy-text";
 import { buildScheduleTeacherMessageTemplate } from "@/lib/jp-lesson-schedule-teacher-message";
 import type {
@@ -209,7 +210,7 @@ export function JpLessonSchedulePage() {
       syncJpLessonManualScheduleCache(schedules);
     } catch (err) {
       if (!hasCache) {
-        setError(err instanceof Error ? err.message : String(err));
+        setError(formatCaughtApiError(err));
       }
     } finally {
       setManualSchedulesLoading(false);
@@ -256,7 +257,7 @@ export function JpLessonSchedulePage() {
       applyLessonPayload(payload);
     } catch (err) {
       if (!hasCache) {
-        setError(err instanceof Error ? err.message : String(err));
+        setError(formatCaughtApiError(err));
       }
     } finally {
       setLoading(false);
@@ -302,7 +303,7 @@ export function JpLessonSchedulePage() {
       applyEnLessonPayload(payload);
     } catch (err) {
       if (!hasCache) {
-        setError(err instanceof Error ? err.message : String(err));
+        setError(formatCaughtApiError(err));
       }
     } finally {
       setEnLoading(false);
@@ -320,12 +321,16 @@ export function JpLessonSchedulePage() {
       const res = await fetch("/api/admin/ko-lesson-teachers", {
         credentials: "include",
       });
-      const data = (await res.json()) as {
+      const parsed = await readApiJson<{
         ok?: boolean;
         teachers?: KoLessonTeacher[];
-      };
-      if (data.ok && Array.isArray(data.teachers)) {
-        setKoTeachers(sortJpLessonTeachersByLessonCount(data.teachers));
+      }>(res);
+      if (
+        parsed.ok &&
+        parsed.data.ok &&
+        Array.isArray(parsed.data.teachers)
+      ) {
+        setKoTeachers(sortJpLessonTeachersByLessonCount(parsed.data.teachers));
       }
     } catch {
       // 韩语老师列表仅用于手动日程选人；失败不挡日程主流程

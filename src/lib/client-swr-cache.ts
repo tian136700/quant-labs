@@ -66,16 +66,18 @@ export const CLIENT_SWR_FETCH_TIMEOUT_MS = 60_000;
 
 function clientSwrHttpErrorMessage(status: number, bodyText: string): string {
   const trimmed = bodyText.trim();
+  if (status === 401 || status === 403) {
+    return "请重新登录后再试";
+  }
   if (
+    trimmed.startsWith("<!DOCTYPE") ||
+    trimmed.startsWith("<html") ||
     status === 503 ||
     status === 502 ||
     /error code:\s*1102/i.test(trimmed) ||
     /\b1102\b/.test(trimmed)
   ) {
     return "服务暂时繁忙，请稍后重试或点「更新缓存」";
-  }
-  if (status === 401 || status === 403) {
-    return "请重新登录后再试";
   }
   if (trimmed.startsWith("{")) {
     try {

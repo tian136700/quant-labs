@@ -117,8 +117,8 @@ def main() -> None:
             fail(f"connection-ai missing {needle!r}")
     if "JP_VOCAB_CONNECTION_UPLOAD_SPEC" not in src:
         fail("connection-ai 须 re-export JP_VOCAB_CONNECTION_UPLOAD_SPEC")
-    if "version: 13" not in upload_spec and "version:13" not in upload_spec:
-        fail("upload-spec 须有 version（含ない形一类通用规则）")
+    if "version: 14" not in upload_spec and "version:14" not in upload_spec:
+        fail("upload-spec 须有 version（含 prefix_plus_pos / 剥用法N: 上表）")
 
     body = BODY.read_text(encoding="utf-8")
     if "JpVocabConnectionBody" not in body:

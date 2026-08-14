@@ -101,6 +101,20 @@ def main() -> None:
         fail("missing expandConnectionTableLabelSlash")
     if "messy_paren_plus_slash" not in src:
         fail("validate must reject messy_paren_plus_slash")
+    if "rewriteJpVocabConnectionForTableParse" not in expand:
+        fail("missing rewriteJpVocabConnectionForTableParse")
+    if "connectionHasPrefixPlusPos" not in expand:
+        fail("missing connectionHasPrefixPlusPos")
+    if "connectionHasBarePosContinuation" not in expand:
+        fail("missing connectionHasBarePosContinuation")
+    if "prefix_plus_pos" not in src:
+        fail("validate must reject prefix_plus_pos")
+    if "bare_pos_continuation" not in src:
+        fail("validate must reject bare_pos_continuation")
+    if "rewriteJpVocabConnectionForTableParse" not in src:
+        fail("parseJpVocabConnectionTableRows must rewrite before split")
+    if "もしかしたら＋动词句" not in prompt and "もしかしたら＋动词句" not in src_and_prompt:
+        fail("prompt must forbid もしかしたら＋动词句 prefix-plus-pos")
 
     print("ok: connection slash-morphology + id=521 かもしれない specimen guards")
 

@@ -8,6 +8,7 @@
  */
 
 import type { Locale } from "@/i18n/messages";
+import { readApiJson } from "@/lib/api-json";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import { findLessonTeacherByPickerName } from "@/lib/lesson-teacher-search";
 import type { ManualScheduleLinkedLessonSubject } from "@/lib/jp-lesson-manual-schedule-linked";
@@ -72,10 +73,18 @@ async function postLessonJson(
     },
     body: JSON.stringify(body),
   });
-  return (await res.json()) as {
-    ok: boolean;
+  const parsed = await readApiJson<{
+    ok?: boolean;
     lesson?: JpLessonRecord | EnLessonRecord;
     error?: string;
+  }>(res);
+  if (!parsed.ok) {
+    return { ok: false, error: parsed.error };
+  }
+  return {
+    ok: parsed.data.ok === true,
+    lesson: parsed.data.lesson,
+    error: parsed.data.error,
   };
 }
 
@@ -107,11 +116,15 @@ export async function ensureLessonTeacherInPersonnel(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name }),
     });
-    const data = (await res.json()) as {
+    const parsed = await readApiJson<{
       ok?: boolean;
       teacher?: JpLessonTeacher;
       error?: string;
-    };
+    }>(res);
+    if (!parsed.ok) {
+      return { ok: false, error: parsed.error };
+    }
+    const data = parsed.data;
     if (data.ok && data.teacher) {
       return { ok: true, teacher: data.teacher, created: true };
     }

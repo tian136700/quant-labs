@@ -28,7 +28,9 @@ export function sanitizeApiClientError(message: string): string {
   if (
     trimmed.includes("<!DOCTYPE") ||
     trimmed.includes("Unexpected token '<'") ||
-    trimmed.includes("Unexpected token \'<\'")
+    trimmed.includes("Unexpected token \'<\'") ||
+    /Failed to execute ['"]json['"]/i.test(trimmed) ||
+    /Unexpected token < in JSON/i.test(trimmed)
   ) {
     return "服务器暂时不可用，请稍后刷新页面。";
   }
@@ -45,6 +47,11 @@ export function sanitizeApiClientError(message: string): string {
     return "请求超时，服务器可能繁忙，请稍后刷新。";
   }
   return trimmed || "请求失败，请稍后重试。";
+}
+
+/** catch 块用：把 res.json() / HTML 错误页转成可读中文 */
+export function formatCaughtApiError(err: unknown): string {
+  return sanitizeApiClientError(err instanceof Error ? err.message : String(err));
 }
 
 export async function readApiJson<T extends Record<string, unknown>>(
