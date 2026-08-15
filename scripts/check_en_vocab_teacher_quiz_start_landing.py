@@ -47,6 +47,10 @@ def main() -> None:
         fail("start panel must not show 今日目标 (only remaining round count)")
     if "quizTarget" in start:
         fail("start panel must not take quizTarget prop")
+    if "order: -1" not in start and "order:-1" not in start:
+        fail("start panel mobile must put CTA above pending list (__main { order: -1 })")
+    if "max-width: 767px" not in start:
+        fail("start panel must have a phone breakpoint (max-width: 767px)")
 
     word_list = WORD_LIST.read_text(encoding="utf-8")
     if "EnVocabTeacherQuizStartPanel" not in word_list:

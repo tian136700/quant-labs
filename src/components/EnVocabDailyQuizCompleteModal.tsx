@@ -213,6 +213,12 @@ export function EnVocabDailyQuizCompleteModal({
             border-radius: 12px 12px 0 0;
             padding-bottom: calc(1.15rem + env(safe-area-inset-bottom, 0px));
           }
+          .en-vocab-complete-modal-actions-row {
+            flex-direction: column;
+          }
+          .en-vocab-complete-modal-actions-row .en-vocab-complete-modal-btn {
+            width: 100%;
+          }
           .en-vocab-complete-modal-btn {
             font-size: clamp(0.8125rem, 3.4vw, 0.9375rem);
             line-height: 1.35;

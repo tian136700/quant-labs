@@ -250,17 +250,20 @@ export function EnVocabTeacherQuizStartPanel({
             grid-template-columns: 1fr;
             padding: 0.9rem 0.75rem 0.95rem;
           }
-          .en-vocab-teacher-quiz-start-panel__list {
-            max-height: min(14rem, 40vh);
-            order: 0;
-          }
+          /* 小屏先露出「开始抽查」，待抽列表放下面，避免 SE/360 宽机要滑才看到主按钮 */
           .en-vocab-teacher-quiz-start-panel__main {
+            order: -1;
+          }
+          .en-vocab-teacher-quiz-start-panel__list {
+            max-height: min(12rem, 32vh);
             order: 1;
           }
           .en-vocab-teacher-quiz-start-panel__encourage {
             font-size: 1rem;
           }
           .en-vocab-teacher-quiz-start-panel__btn {
+            width: 100%;
+            min-height: 3rem;
             font-size: clamp(0.875rem, 3.6vw, 1rem);
             line-height: 1.35;
           }

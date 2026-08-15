@@ -250,21 +250,36 @@ export function EnVocabTeacherQuizIntroModal({
           accent-color: var(--accent);
           cursor: pointer;
         }
-        @media (max-width: 480px) {
+        @media (max-width: 767px) {
           .jp-vocab-teacher-quiz-intro-overlay {
             align-items: flex-end;
             padding: 0;
+            padding-bottom: env(safe-area-inset-bottom, 0px);
           }
           .jp-vocab-teacher-quiz-intro-modal {
             width: 100%;
+            max-height: calc(100dvh - env(safe-area-inset-top, 0px));
             border-radius: 12px 12px 0 0;
+            overflow: hidden;
+          }
+          .jp-vocab-teacher-quiz-intro-body {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+          }
+          .jp-vocab-teacher-quiz-intro-close {
+            width: 2.75rem;
+            height: 2.75rem;
           }
           .jp-vocab-teacher-quiz-intro-footer {
             flex-direction: column;
             align-items: stretch;
+            padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
           }
           .jp-vocab-teacher-quiz-intro-footer :global(.btn-rsi-filter) {
             width: 100%;
+            min-height: 3rem;
           }
         }
       `}</style>
