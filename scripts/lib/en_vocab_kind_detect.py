@@ -27,6 +27,8 @@ TENSE_NAME_RE = re.compile(
 )
 WILL_BE_PATTERN_RE = re.compile(r"\bwill\s+be\s+(?:to\b|doing\b)", re.I)
 ELLIPSIS_SLOT_RE = re.compile(r"(?:…|\.{3}|～|~)")
+# as ------- as possible / fill-in-the-blank 横线/下划线挖空
+DASH_BLANK_SLOT_RE = re.compile(r"(?:-{3,}|_{3,}|—{2,}|－{2,})")
 
 
 def en_vocab_lemma_looks_like_grammar(raw: str) -> bool:
@@ -40,6 +42,8 @@ def en_vocab_lemma_looks_like_grammar(raw: str) -> bool:
     if WILL_BE_PATTERN_RE.search(word):
         return True
     if ELLIPSIS_SLOT_RE.search(word):
+        return True
+    if DASH_BLANK_SLOT_RE.search(word):
         return True
     if SLOT_WORD_RE.search(word):
         return True

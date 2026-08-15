@@ -26,6 +26,9 @@ const WILL_BE_PATTERN_RE =
 
 const ELLIPSIS_SLOT_RE = /(?:…|\.{3}|～|~)/;
 
+/** as ------- as possible / 下划线挖空句型 */
+const DASH_BLANK_SLOT_RE = /(?:-{3,}|_{3,}|—{2,}|－{2,})/;
+
 export type EnVocabKindSuggest = "word" | "grammar";
 
 /**
@@ -39,6 +42,7 @@ export function enVocabLemmaLooksLikeGrammar(raw: string): boolean {
   if (TENSE_NAME_RE.test(word)) return true;
   if (WILL_BE_PATTERN_RE.test(word)) return true;
   if (ELLIPSIS_SLOT_RE.test(word)) return true;
+  if (DASH_BLANK_SLOT_RE.test(word)) return true;
   if (SLOT_WORD_RE.test(word)) return true;
   if (LETTER_SLOT_RE.test(word) && /\s/.test(word)) return true;
 

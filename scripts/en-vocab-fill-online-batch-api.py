@@ -1132,27 +1132,21 @@ def process_one(
                 token, word_id=wid, source=source, dry_run=dry_run
             )
         except Exception as err:
-            print(f"    fail reclassify: {err}", flush=True)
+            # 改标失败（如 Worker 429）不阻断本轮：仍按 grammar needs 生成，避免再烧 reading
+            print(
+                f"    warn reclassify kind→grammar deferred: {err}",
+                flush=True,
+            )
             report_word_run_to_maintenance_center(
                 {
                     "word_id": wid,
                     "word": word,
                     "kind": "grammar",
-                    "status": "failed",
-                    "error": f"reclassify:{err}",
-                    "finished_at": now_local_str(),
+                    "status": "running",
+                    "preview": f"reclassify_deferred:{err}"[:200],
+                    "started_at": now_local_str(),
                 }
             )
-            mark_poison(wid, word, f"reclassify:{err}")
-            after_attempt(
-                scope="en-online",
-                word_id=wid,
-                word=word,
-                fixed=False,
-                detail=f"reclassify:{err}",
-            )
-            return False
-
     try:
         payload = generate_bundle(row, needs)
     except Exception as err:
@@ -1188,6 +1182,13 @@ def process_one(
             detail="empty_payload",
         )
         return False
+
+    # 生成结果已是 grammar：勿再按 word 强制要 reading（防 incomplete_bundle:reading）
+    if str(payload.get("kind") or "") == "grammar":
+        needs = full_refresh_needs("grammar")
+        row["needs"] = needs
+        payload.pop("reading", None)
+        payload.pop("pos", None)
 
     preview = {
         k: (str(v)[:80] + ("…" if len(str(v)) > 80 else ""))

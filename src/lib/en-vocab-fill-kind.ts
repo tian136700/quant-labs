@@ -51,6 +51,7 @@ function classifyReason(word: string): string {
     return "tense_or_clause_name";
   }
   if (/(?:…|\.{3}|～|~)/.test(w)) return "ellipsis_slot";
+  if (/(?:-{3,}|_{3,}|—{2,}|－{2,})/.test(w)) return "dash_blank_slot";
   if (
     /\b(?:somebody|someone|something|somewhere|sb\.?|sth\.?)\b/i.test(w)
   ) {
