@@ -102,6 +102,8 @@ def main() -> int:
         return fail("deploy-auto-fix-stop must Bark 正在修复 on failure path")
     if "_try_auto_republish_transient" not in fix and "FOLLOWUP_TRANSIENT" not in fix:
         return fail("deploy-auto-fix-stop must auto-republish transient failures before code fix")
+    if "FOLLOWUP_HUB_RESTART" not in fix or "_try_dismiss_hub_restart_false_failure" not in fix:
+        return fail("deploy-auto-fix-stop must dismiss maintenance-center restart false failures")
 
     lib_doc = ROOT / "scripts" / "lib" / "next_document_deploy_retry.py"
     if not lib_doc.is_file():
@@ -114,11 +116,32 @@ def main() -> int:
     if "is_next_build_cache_flake" not in lib_txt:
         return fail("next_document_deploy_retry must export is_next_build_cache_flake")
 
+    lib_hub = ROOT / "scripts" / "lib" / "maintenance_center_restart_interrupt.py"
+    if not lib_hub.is_file():
+        return fail("missing scripts/lib/maintenance_center_restart_interrupt.py")
+    lib_hub_txt = lib_hub.read_text(encoding="utf-8")
+    if "is_maintenance_center_restart_interrupt" not in lib_hub_txt:
+        return fail("restart interrupt lib must export is_maintenance_center_restart_interrupt")
+    if "should_reconcile_stale_auto_running_row" not in lib_hub_txt:
+        return fail("restart interrupt lib must export should_reconcile_stale_auto_running_row")
+
+    server = (ROOT / "scripts" / "maintenance_center" / "server.py").read_text(encoding="utf-8")
+    if "should_reconcile_stale_auto_running_row" not in server:
+        return fail("server._reconcile_stale_auto_row must use should_reconcile_stale_auto_running_row")
+
+    if "is_maintenance_center_restart_interrupt" not in wait:
+        return fail("wait_deploy_result must skip finalizing hub-restart false errors")
+
     sys.path.insert(0, str(ROOT / "scripts"))
     from lib.next_document_deploy_retry import (  # noqa: WPS433
         is_deploy_transient_republish_failure,
         is_next_build_cache_flake,
         is_next_nft_json_trace_flake,
+    )
+    from lib.maintenance_center_restart_interrupt import (  # noqa: WPS433
+        hub_restart_interrupt_is_details_only,
+        is_maintenance_center_restart_interrupt,
+        should_reconcile_stale_auto_running_row,
     )
 
     sample_nft = """
@@ -146,6 +169,28 @@ def main() -> int:
     if is_deploy_transient_republish_failure(sample_wrangler_auth):
         return fail("expired wrangler login / missing token must not auto-republish")
 
+    sample_hub_restart = (
+        "任务中断（维护中心已重启，下方为已保存的日志）\n"
+        "started_at: 2026-08-15 15:47:00\n"
+        "summary: auto任务开始：部署\n"
+        "remark: auto idle deploy\n"
+    )
+    if not is_maintenance_center_restart_interrupt(sample_hub_restart):
+        return fail("hub restart interrupt must be detected")
+    if not hub_restart_interrupt_is_details_only(sample_hub_restart, sample_hub_restart):
+        return fail("hub restart short details must count as details-only false failure")
+    if should_reconcile_stale_auto_running_row(
+        {
+            "status": "running",
+            "started_at": "2026-08-15 15:47:00",
+            "trigger_source": "git-auto-push-once",
+        },
+        hub_has_active_auto_job=False,
+        deploy_lock_held=False,
+        now=__import__("datetime").datetime(2026, 8, 15, 15, 50, 0),
+    ):
+        return fail("fresh auto idle deploy must NOT be reconciled as hub-restart failure")
+
     rule = RULE.read_text(encoding="utf-8")
     if "禁止" not in rule or "followup" not in rule:
         return fail("deploy-auto-fix-followup.mdc must forbid wait followup interrupting Plan")
@@ -157,6 +202,8 @@ def main() -> int:
         return fail("rule must mention sessionStart deploy-auto-fix-session")
     if "nft.json" not in rule:
         return fail("rule must document Collecting build traces nft.json ENOENT flake")
+    if "维护中心已重启" not in rule:
+        return fail("rule must document hub-restart false failure (local, not Cloudflare)")
 
     bark = (ROOT / "scripts" / "maintenance_center" / "bark_notify.py").read_text(
         encoding="utf-8"

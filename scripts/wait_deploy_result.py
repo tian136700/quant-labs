@@ -28,6 +28,11 @@ from lib.next_document_deploy_retry import (  # noqa: E402
     hub_transient_republish_max,
     is_deploy_transient_republish_failure,
 )
+from lib.maintenance_center_restart_interrupt import (  # noqa: E402
+    external_auto_deploy_process_running,
+    hub_restart_interrupt_is_details_only,
+    is_maintenance_center_restart_interrupt,
+)
 
 STATE_DIR = ROOT / ".cursor" / "hooks" / ".state"
 FAILURE_FILE = STATE_DIR / "last_deploy_failure.txt"
@@ -281,6 +286,27 @@ def main() -> int:
                             PENDING_FILE.unlink(missing_ok=True)
                         verify_app_deploy_version()
                         return 0
+                    # 维护中心重启误标：git-auto-push 可能仍在跑，随后会 finish success
+                    if is_maintenance_center_restart_interrupt(
+                        summary
+                    ) or is_maintenance_center_restart_interrupt(details):
+                        if external_auto_deploy_process_running():
+                            print(
+                                f"[wait-deploy] log#{rid} 维护中心重启误标且外部部署仍在跑，"
+                                "继续等待（勿当 Cloudflare 业务失败）…",
+                                flush=True,
+                            )
+                            time.sleep(args.poll)
+                            continue
+                        if hub_restart_interrupt_is_details_only(details, summary):
+                            # 短详情假失败：再观望几轮，避免抢在 success 覆写前落 failure
+                            print(
+                                f"[wait-deploy] log#{rid} 仅为维护中心本地重启误标，"
+                                "暂不触发自动修，继续确认…",
+                                flush=True,
+                            )
+                            time.sleep(args.poll)
+                            continue
                     # failure
                     tail = details[-8000:] if details else summary
                     payload = (
