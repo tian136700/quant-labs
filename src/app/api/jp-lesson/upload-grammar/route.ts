@@ -5,7 +5,15 @@ import { saveJpVocabRefFileMeta } from "@/lib/jp-vocab-db";
 import { putJpVocabRefFile } from "@/lib/jp-vocab-ref-server";
 import { jpLessonRefKey, normalizeJpVocabRefKey } from "@/lib/jp-vocab-ref-shared";
 import { verifyUploadAuth } from "@/lib/jp-review";
-import type { JpLessonKind, JpVocabMediaType } from "@/lib/types";
+import type { JpVocabMediaType } from "@/lib/types";
+
+/**
+ * 标日等外部系统：单独上传「语法新课」。
+ * 等价于 POST /api/jp-lesson/upload + kind=grammar，但强制语法，避免误传成单词。
+ *
+ * 同 course_label 若已有未完成 grammar（如 combo 占位课），合并写入，不另建一条。
+ * 上传后列表为「未完成」；在日语新课里标「已完成」会分批 sync_to_vocab → 日语抽问。
+ */
 
 const MAX_BYTES = 20 * 1024 * 1024;
 
@@ -23,7 +31,6 @@ export async function POST(request: Request) {
     }
 
     const contentType = request.headers.get("content-type") || "";
-    let kind: JpLessonKind = "word";
     let content = "";
     let meanings: string | null = null;
     let annotations: string | null = null;
@@ -36,7 +43,6 @@ export async function POST(request: Request) {
 
     if (contentType.includes("multipart/form-data")) {
       const form = await request.formData();
-      kind = form.get("kind") === "grammar" ? "grammar" : "word";
       content = String(form.get("content") || "").trim();
       meanings = optionalFormText(form, "meanings");
       annotations = optionalFormText(form, "annotations");
@@ -57,7 +63,6 @@ export async function POST(request: Request) {
       }
     } else {
       const body = (await request.json()) as {
-        kind?: JpLessonKind;
         content?: string;
         meanings?: string | null;
         annotations?: string | null;
@@ -66,7 +71,6 @@ export async function POST(request: Request) {
         course_label?: string | null;
         ref_key?: string | null;
       };
-      kind = body.kind === "grammar" ? "grammar" : "word";
       content = String(body.content || "").trim();
       meanings = (body.meanings || "").trim() || null;
       annotations = (body.annotations || "").trim() || null;
@@ -83,13 +87,14 @@ export async function POST(request: Request) {
     const hasFile = Boolean(fileBytes?.byteLength);
 
     const result = await createOrUpsertJpLessonByCourseLabel(env.DB, {
-      kind,
+      kind: "grammar",
       content,
       meanings,
       annotations,
       example_sentences: exampleSentences,
       title,
       course_label: courseLabel,
+      // 合并已有课时保留原教案 ref；无 file 且无旧 ref 才用客户端 ref_key
       ref_key: hasFile ? null : refKey || null,
     });
 
@@ -127,6 +132,7 @@ export async function POST(request: Request) {
 
     return jsonResponse({
       ok: true,
+      kind: "grammar",
       lesson,
       upserted: result.upserted,
       superseded_pending_ids: result.superseded_pending_ids,
@@ -134,6 +140,7 @@ export async function POST(request: Request) {
       ref_view_path: assignedRefKey
         ? `/api/jp-vocab/ref/${assignedRefKey}`
         : null,
+      hint: "mark_completed_to_sync_quiz",
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

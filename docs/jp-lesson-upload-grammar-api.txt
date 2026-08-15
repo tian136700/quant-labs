@@ -1,0 +1,55 @@
+日语新课 · 单独上传语法 API（标日「上传语法」）
+==============================================
+
+用途
+----
+把某一课的语法条目 + 教案 PDF（如标日第27课）上传为日语新课里的 **一条 grammar**。
+若已有同 `course_label` 的 **未完成** grammar（例如先前只传了课文+习题 PDF 的占位课），
+则 **合并写入该条**（`upserted: true`），不另建；并可清掉误建的重复未完成课。
+上传后进度为「未完成」；在日语新课列表把该条标成 **已完成** 后，会自动分批
+`sync_to_vocab`，把语法同步进 **日语抽问**。
+
+线上
+----
+POST https://japanese.info-quests.com/api/jp-lesson/upload-grammar
+
+（兼容旧写法：POST /api/jp-lesson/upload + form 字段 kind=grammar）
+
+
+鉴权
+----
+Header:
+  Authorization: Bearer <JP_REVIEW_UPLOAD_TOKEN>
+
+
+请求（multipart/form-data）
+--------------------------
+必填：
+  content          语法标题列表，英文逗号分隔
+                   例：动词怎么修饰名词？／普通形修饰名词, 说「……那里」／～のところ
+
+选填：
+  meanings         与 content 用 | 对齐的释义
+  annotations      与 content 用 | 对齐的标注（口语常用|考试常用|…）
+  example_sentences 与 content 用 ||| 对齐
+  title / course_label   教材名，如「标日初级下册第27课」
+  file             教案 PDF/图片（最大 20MB）
+  media_type       pdf 或 image（可按文件类型推断）
+
+
+已完成 → 抽问
+-------------
+与单词课相同：客户端改 progress_status=completed 后循环 POST
+  action=sync_to_vocab
+服务端用 upsertJpVocabFromLesson（kind=grammar）写入抽问词库。
+
+
+响应要点
+--------
+ok / lesson / ref_key / upserted / superseded_pending_ids / hint
+
+
+本机标日调用
+-----------
+STT `biaori/course_upload.py` mode=grammar → 本接口。
+环境变量：JP_LESSON_UPLOAD_GRAMMAR_URL（默认同上线上地址）
