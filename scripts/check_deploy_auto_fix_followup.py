@@ -139,6 +139,13 @@ def main() -> int:
     if is_next_nft_json_trace_flake("Type error: Property 'x' does not exist"):
         return fail("nft.json detector must not match TypeScript errors")
 
+    sample_wrangler_auth = (
+        "In a non-interactive environment, it's necessary to set a "
+        "CLOUDFLARE_API_TOKEN environment variable for wrangler to work."
+    )
+    if is_deploy_transient_republish_failure(sample_wrangler_auth):
+        return fail("expired wrangler login / missing token must not auto-republish")
+
     rule = RULE.read_text(encoding="utf-8")
     if "禁止" not in rule or "followup" not in rule:
         return fail("deploy-auto-fix-followup.mdc must forbid wait followup interrupting Plan")

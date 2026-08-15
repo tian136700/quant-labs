@@ -42,6 +42,21 @@ def main() -> int:
     parsed_fail = extract_result_from_log(SAMPLE_UNIFIED)
     assert parsed_fail and parsed_fail.get("outcome") == "failed", parsed_fail
 
+    from maintenance_center.book_chapters_feed import parse_book_chapter_log
+    from maintenance_center.cron_tasks.registry import get_task
+
+    book_rows = parse_book_chapter_log(
+        "[2026-08-14 03:12:31] ok book_id=3 chapter_id=138 chars=2573 elapsed=46.1s section=1. 什么是电\n"
+        "[2026-08-14 03:14:22] skip min_interval wait=43.3\n"
+        "[2026-08-14 14:34:30] fail chapter_id=164 section=2. 发电机 err=timeout\n"
+    )
+    assert len(book_rows) == 2, book_rows
+    assert book_rows[0]["status"] == "failed" and book_rows[0]["chapter_id"] == 164, book_rows[0]
+    assert book_rows[1]["status"] == "success" and "什么是电" in book_rows[1]["section"], book_rows[1]
+    book_task = get_task("book-generate-electrical")
+    if book_task is None or book_task.title != "获取书籍章节":
+        raise SystemExit("FAIL: registry must include 获取书籍章节 (book-generate-electrical)")
+
     feed = __import__(
         "maintenance_center.jp_vocab_fill_feed",
         fromlist=[
@@ -56,15 +71,21 @@ def main() -> int:
     for row in snap.get("recent") or []:
         assert row.get("status") not in ("running", "applying"), row
 
-    # 维护中心须有独立顶栏「词条补全」（原日语补全），词条卡不在定时任务页里
+    # 顶栏「定时任务管理」= 原词条补全页（下拉选任务）；旧独立 view-cron 列表已取消
     index_html = (ROOT / "scripts/maintenance_center/static/index.html").read_text(
         encoding="utf-8"
     )
     app_js = (ROOT / "scripts/maintenance_center/static/app.js").read_text(encoding="utf-8")
     if 'data-view="view-jp-fill"' not in index_html:
         raise SystemExit("FAIL: missing top tab data-view=view-jp-fill")
+    if "定时任务管理" not in index_html:
+        raise SystemExit("FAIL: top tab should be 定时任务管理")
+    if 'data-view="view-cron"' in index_html:
+        raise SystemExit("FAIL: old 定时任务管理 tab (view-cron) must be removed")
+    if 'id="view-cron"' in index_html:
+        raise SystemExit("FAIL: old view-cron section must be removed")
     if "词条补全" not in index_html:
-        raise SystemExit("FAIL: top tab should be renamed to 词条补全")
+        raise SystemExit("FAIL: page must still mention 词条补全 (circuit copy)")
     if 'id="view-jp-fill"' not in index_html:
         raise SystemExit("FAIL: missing section#view-jp-fill")
     if 'id="vocab-fill-feed-card"' not in index_html and 'id="jp-vocab-fill-feed-card"' not in index_html:
@@ -154,6 +175,12 @@ def main() -> int:
         raise SystemExit("FAIL: missing 日语/英语 language tabs")
     if 'id="jp-fill-task-tabs"' not in index_html:
         raise SystemExit("FAIL: missing jp-fill-task-tabs")
+    if 'id="cron-task-select"' not in index_html:
+        raise SystemExit("FAIL: task pills must be a dropdown #cron-task-select")
+    if "获取书籍章节" not in index_html:
+        raise SystemExit("FAIL: dropdown must include 获取书籍章节")
+    if "applyCronTaskSelect" not in app_js or "bindBookChaptersControls" not in app_js:
+        raise SystemExit("FAIL: app.js must switch JP/EN/book from the task dropdown")
     if 'data-fill-task="jp-vocab-fill-pitch-accent"' not in index_html:
         raise SystemExit("FAIL: missing pitch-accent task tab")
     if "filterRecentByJpFillTask" not in app_js:
@@ -164,10 +191,10 @@ def main() -> int:
         raise SystemExit("FAIL: app.js must bind JP fill task tabs")
     if 'id="vocab-fill-panel-en"' not in index_html or 'id="en-fill-feed-rows"' not in index_html:
         raise SystemExit("FAIL: missing English fill panel")
-    # 词条卡须在 view-jp-fill 内，不在 view-cron 内
-    cron_chunk = index_html.split('id="view-cron"', 1)[1].split('id="view-jp-fill"', 1)[0]
-    if "vocab-fill-feed-card" in cron_chunk or "jp-vocab-fill-feed-card" in cron_chunk:
-        raise SystemExit("FAIL: jp-fill feed still embedded under view-cron")
+    if 'id="vocab-fill-panel-book"' not in index_html or 'id="book-chapters-rows"' not in index_html:
+        raise SystemExit("FAIL: missing 获取书籍章节 panel")
+    if 'id="vocab-fill-feed-card"' not in index_html.split('id="view-jp-fill"', 1)[-1]:
+        raise SystemExit("FAIL: vocab-fill-feed-card must live under view-jp-fill")
     if "function isJpFillViewActive" not in app_js:
         raise SystemExit("FAIL: isJpFillViewActive missing in app.js")
     if 'name === "view-jp-fill"' not in app_js:

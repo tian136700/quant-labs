@@ -60,6 +60,21 @@ def next_document_deploy_retry_count() -> int:
 
 def is_deploy_transient_republish_failure(output: str) -> bool:
     """失败日志只需重新入队、不必改业务代码。"""
+    try:
+        from lib.wrangler_deploy_auth import (  # type: ignore
+            is_wrangler_noninteractive_auth_failure,
+        )
+    except ImportError:
+        try:
+            from wrangler_deploy_auth import (  # type: ignore
+                is_wrangler_noninteractive_auth_failure,
+            )
+        except ImportError:
+            is_wrangler_noninteractive_auth_failure = None  # type: ignore[assignment]
+    if is_wrangler_noninteractive_auth_failure and is_wrangler_noninteractive_auth_failure(
+        output
+    ):
+        return False
     if is_next_build_cache_flake(output):
         return True
     try:
