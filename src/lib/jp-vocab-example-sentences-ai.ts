@@ -69,9 +69,9 @@ function lemmaSurfacesForExampleHit(
     if (part.length >= 3) {
       push(part.slice(0, -1));
     }
-    // 二字假名五段る动词（なる）：なりたい／なって／なります 都不含完整「なる」
-    // 勿只推词干「な」（会误匹配 など／なに）
-    if (/^[\u3040-\u309F]{2}る$/.test(part)) {
+    // 二字假名五段る动词（なる＝な+る）：なりたい／なって／なります 都不含完整「なる」
+    // 勿只推词干「な」（会误匹配 など／なに）。须「1 个假名 + る」，不是 {2}る（那是 3 拍，永远匹配不到「なる」）。
+    if (/^[\u3040-\u309F]る$/.test(part)) {
       const stem = part.slice(0, -1);
       push(`${stem}り`);
       push(`${stem}っ`);
@@ -83,7 +83,7 @@ function lemmaSurfacesForExampleHit(
   }
   // 词条本身亦为二字假名る动词时（reading 空）同样认活用
   for (const part of splitJpVocabLemmaSlashParts(word)) {
-    if (/^[\u3040-\u309F]{2}る$/.test(part)) {
+    if (/^[\u3040-\u309F]る$/.test(part)) {
       const stem = part.slice(0, -1);
       push(`${stem}り`);
       push(`${stem}っ`);
@@ -113,6 +113,7 @@ export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
     "释义栏的「关于……」等只是义项提示，不要每句译文都机械套同一套壳",
     "句中每一个汉字都必须立刻半角括号假名（不能只标词条本身）：如 今日(きょう)は気分(きぶん)がいいです；词尾假名如 静か(しずか)、落(お)ち着(つ)き；括号内只能是假名、不要空格、不要整句读音尾注；禁止句末语法说明括号；页面展示会转成汉字下方小字",
     "N5～N4、口语、短句；必须自然用到该词条 / 语法点（词条汉字或其读音假名活用皆可：戴＋reading かぶる／つける → 例「かぶって／つける」算用到；～する 动词可用ます形「…します／…しました」，如 スケッチする→スケッチします；勿只写无关句）",
+    "单词：每一句日语都必须出现该词条整词或读音（禁止只靠第一句带过）。禁止只写词条里一个字或近义词：葉子/はっぱ ≠ 葉(は)；事故 ≠ 第二句只写「注意」却把「意外」塞进译文",
     "语法例句：多用法时第 N 句对应第 N 条用法；仅 1 种用法时造 3 句，分别覆盖接续里不同词类/形态（如一类形容词／二类形容词／名词），不要三句同一接续；只用简单词、不要叠更难的语法（避免多焦点）；有课数时勿超纲（标日初级勿写中级/N2 词）",
     "例句须场景自洽、有头有尾：条件/前提与后半结果或建议要能自然连上，读起来像一整句日常对话，禁止无厘头硬凑（如「来るなら、どうぞ入ってください」／「来的话请进」缺语境）",
     "初学者友好：一句尽量只用一个话题助词「は」；时间/场景已用「今は」等时，主语改用「が」或省略，不要叠「今は傘は…」这类双は（语法虽对但 N5 易误判）",
@@ -519,6 +520,9 @@ ${
    - ❌「地球(ちきゅう)は太陽(たいよう)の周(まわ)りを回(まわ)ります。」（地球・太陽对 N5 过难）
    - ✅「このいすは よく回(まわ)ります。」／「時計(とけい)の針(はり)が回(まわ)っています。」
 2. 每条必须使用该词条（语法条须自然出现该语法点）。な形容词「〜だ」用词干，不要硬塞「だ」。
+   单词：**每一句**日语都必须出现词条整词或读音假名，禁止只写更短的相关字、也禁止只在译文里写中文近义。
+   - ❌词条「葉子／はっぱ」写成「葉(は)」（那是另一个词，读「は」不是「はっぱ」）→ ✅「葉子(はっぱ)」
+   - ❌词条「事故」第二句只写「注意してほしい」、译文才写「意外」→ ✅句中出现「事故」
 3. 一句尽量只用一个话题助词「は」。时间/场景已用「今は」「今日は」等时，主语用「が」或省略，不要叠两个「は」。
    - ❌「今(いま)は傘(かさ)は不要(ふよう)だ。」（语法虽对，N5 易误判）→ ✅「今(いま)は傘(かさ)が不要(ふよう)です。」或「傘(かさ)は要(い)りません。」
 3a. 助词左右与相邻词之间留半角空格（初学者易把「はいくら」「は高い」看成一个词）：
@@ -612,6 +616,46 @@ export function jpVocabGrammarLemmaAppearsInExamples(
     }
   }
   return false;
+}
+
+/**
+ * 单条例句是否用到词条。单词须每句单独命中（禁止第一句写「事故」、第二句只写「注意／意外」靠拼文过关）。
+ * 多字词须整词或读音活用，禁止只靠首字（事故≠仕事里的「事」）。
+ */
+export function jpVocabExampleLineUsesLemma(
+  japaneseLine: string,
+  input: Pick<JpVocabExampleSentencesAiInput, "word" | "kind" | "reading">
+): boolean {
+  const target = String(input.word || "").trim();
+  const combined = String(japaneseLine || "");
+  const combinedPlain = stripAllJpVocabParenBlocks(combined);
+  if (!target || !combinedPlain) return false;
+
+  if (input.kind === "grammar") {
+    const core = target.replace(/^[～~〜]+/, "").replace(/[～~〜]+$/, "");
+    const allKana = core.match(/[\u3040-\u30FFー]+/g) || [];
+    const longKana = allKana
+      .filter((run) => run.length >= 2)
+      .sort((a, b) => b.length - a.length);
+    if (longKana.length > 0) {
+      return longKana.some((n) =>
+        jpVocabGrammarLemmaAppearsInExamples(n, combinedPlain, combined)
+      );
+    }
+    if (core && !/[\u4E00-\u9FFF]/.test(core)) {
+      return combinedPlain.includes(core) || combinedPlain.includes(target);
+    }
+    // 「て形变形」等中文教学标题：不硬卡
+    return true;
+  }
+
+  const surfaces = lemmaSurfacesForExampleHit(target, input.reading);
+  if (surfaces.some((s) => combinedPlain.includes(s) || combined.includes(s))) {
+    return true;
+  }
+  const { stem } = jpVocabNaAdjParts(target);
+  const kans = (stem.match(/[\u4E00-\u9FFF]/g) || []).join("");
+  return Boolean(kans && (combinedPlain.includes(kans) || combined.includes(kans)));
 }
 
 /** 校验 AI 返回的例句块是否可用 */
@@ -740,51 +784,17 @@ export function validateJpVocabExampleSentencesAiOutput(
     if (jpVocabExampleMissingSentenceFinalPunct(item.text)) {
       return { ok: false, reason: "missing_sentence_final_punct" };
     }
-  }
-
-  const target = input.word.trim();
-  const combined = cleanedItems.map((item) => item.text).join("");
-  // 语法点检测：去掉全部括号，避免尾注里的「が」误判
-  const combinedPlain = stripAllJpVocabParenBlocks(combined);
-  if (input.kind === "grammar") {
-    const core = target.replace(/^[～~〜]+/, "").replace(/[～~〜]+$/, "");
-    const allKana = core.match(/[\u3040-\u30FFー]+/g) || [];
-    const longKana = allKana
-      .filter((run) => run.length >= 2)
-      .sort((a, b) => b.length - a.length);
-    if (longKana.length > 0) {
-      // ～ておく / ～てみる：须出现假名语法核或其词干（ておきました→ておき）
-      // 常见汉字表记：あたり↔辺り、ところ↔所（模型写汉字时勿误拒 grammar_not_used）
-      const hit = longKana.some((n) =>
-        jpVocabGrammarLemmaAppearsInExamples(n, combinedPlain, combined)
-      );
-      if (!hit) {
-        return { ok: false, reason: "grammar_not_used" };
-      }
-    } else if (core && !/[\u4E00-\u9FFF]/.test(core)) {
-      // ～が / ～を：纯短助词
-      if (!combinedPlain.includes(core) && !combinedPlain.includes(target)) {
-        return { ok: false, reason: "grammar_not_used" };
-      }
-    }
-    // 「て形变形」等中文教学标题：不硬卡全文出现
-  } else {
-    const surfaces = lemmaSurfacesForExampleHit(target, input.reading);
-    const hit = surfaces.some(
-      (s) => combinedPlain.includes(s) || combined.includes(s)
-    );
-    if (!hit) {
-      const { stem } = jpVocabNaAdjParts(target);
-      const kans = (stem.match(/[\u4E00-\u9FFF]/g) || []).join("");
-      if (!(kans && (combinedPlain.includes(kans) || combinedPlain.includes(kans[0]!)))) {
-        return { ok: false, reason: "word_not_used" };
-      }
+    if (!jpVocabExampleLineUsesLemma(item.text, input)) {
+      return {
+        ok: false,
+        reason: input.kind === "grammar" ? "grammar_not_used" : "word_not_used",
+      };
     }
   }
 
   if (input.kind === "grammar" && !isConj) {
     const align = validateJpVocabUsageExamplePairAlignment({
-      word: target,
+      word: input.word.trim(),
       kind: "grammar",
       usage: input.usage,
       example_sentences: serializeJpVocabExampleSentenceItems(cleanedItems),
@@ -895,24 +905,11 @@ export function normalizeJpVocabExampleSentencesForOnlineApply(
     if (jpVocabExampleHasIAdjPastDeshita(item.text)) {
       return { ok: false, reason: "i_adj_past_deshita" };
     }
-  }
-
-  if (input.kind !== "grammar") {
-    const target = input.word.trim();
-    const combined = items.map((item) => item.text).join("");
-    const combinedPlain = stripAllJpVocabParenBlocks(combined);
-    const surfaces = lemmaSurfacesForExampleHit(target, input.reading);
-    const hit = surfaces.some(
-      (s) => combinedPlain.includes(s) || combined.includes(s)
-    );
-    if (!hit) {
-      const { stem } = jpVocabNaAdjParts(target);
-      const kans = (stem.match(/[\u4E00-\u9FFF]/g) || []).join("");
-      if (
-        !(kans && (combinedPlain.includes(kans) || combinedPlain.includes(kans[0]!)))
-      ) {
-        return { ok: false, reason: "word_not_used" };
-      }
+    if (!jpVocabExampleLineUsesLemma(item.text, input)) {
+      return {
+        ok: false,
+        reason: input.kind === "grammar" ? "grammar_not_used" : "word_not_used",
+      };
     }
   }
 

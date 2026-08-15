@@ -3,8 +3,10 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,6 +25,18 @@ def must_not_contain(path: Path, needle: str, label: str) -> None:
 
 
 def run_node_smoke() -> None:
+    stub_root = Path(tempfile.mkdtemp(prefix="jp-vocab-so-stub-"))
+    so = stub_root / "node_modules" / "server-only"
+    so.mkdir(parents=True)
+    (so / "index.js").write_text("export {}\n", encoding="utf-8")
+    (so / "package.json").write_text(
+        '{"name":"server-only","type":"module"}\n', encoding="utf-8"
+    )
+    env = os.environ.copy()
+    extra = str(stub_root / "node_modules")
+    env["NODE_PATH"] = (
+        extra + (os.pathsep + env["NODE_PATH"] if env.get("NODE_PATH") else "")
+    )
     probe = subprocess.run(
         [
             "npx",
@@ -303,6 +317,66 @@ if (!youniStrict.ok) {
   process.exit(1);
 }
 
+// 事故：第一句有词、第二句只写「注意」却把「意外」塞进译文 → 须 word_not_used（曾拼文过关 id=408）
+const jikoInput = { word: "事故", kind: "word", reading: "じこ", meaning: "事故；意外事件" };
+const jikoBad = [
+  "昨日(きのう)、友達(ともだち)の自転車(じてんしゃ)が事故(じこ)にあった。",
+  "译文：昨天，朋友的自行车出了事故。",
+  "公園(こうえん)で子供(こども)たちが遊(あそ)んでいて、注意(ちゅうい)してほしい。",
+  "译文：孩子们在公园玩耍，请小心不要发生意外。",
+].join("\\n");
+const jikoBadOnline = normalizeJpVocabExampleSentencesForOnlineApply(jikoBad, jikoInput);
+if (jikoBadOnline.ok || jikoBadOnline.reason !== "word_not_used") {
+  console.error("FAIL: 事故 第二句未用词条 must be word_not_used online, got", jikoBadOnline);
+  process.exit(1);
+}
+const jikoBadStrict = validateJpVocabExampleSentencesAiOutput(jikoBad, jikoInput);
+if (jikoBadStrict.ok || jikoBadStrict.reason !== "word_not_used") {
+  console.error("FAIL: 事故 第二句未用词条 must be word_not_used strict, got", jikoBadStrict);
+  process.exit(1);
+}
+const jikoOk = [
+  "昨日(きのう)、友達(ともだち)の自転車(じてんしゃ)が事故(じこ)にあった。",
+  "译文：昨天，朋友的自行车出了事故。",
+  "公園(こうえん)で子供(こども)たちが遊(あそ)んでいて、事故(じこ)に注意(ちゅうい)してほしい。",
+  "译文：孩子们在公园玩耍，请小心别出事故。",
+].join("\\n");
+const jikoOkOnline = normalizeJpVocabExampleSentencesForOnlineApply(jikoOk, jikoInput);
+if (!jikoOkOnline.ok) {
+  console.error("FAIL: 事故 both sentences using lemma should pass online, got", jikoOkOnline.reason);
+  process.exit(1);
+}
+const jikoOkStrict = validateJpVocabExampleSentencesAiOutput(jikoOk, jikoInput);
+if (!jikoOkStrict.ok) {
+  console.error("FAIL: 事故 both sentences using lemma should pass strict, got", jikoOkStrict.reason);
+  process.exit(1);
+}
+
+// 葉子/はっぱ：写成单字葉(は) 须拒（不是浊化；葉≠葉子）
+const happaInput = { word: "葉子", kind: "word", reading: "はっぱ", meaning: "叶子" };
+const happaBad = [
+  "木(き)の葉(は)が風(かぜ)で落(お)ちました。(N5)",
+  "译文：树叶被风吹落了。",
+  "秋(あき)になると、葉(は)が黄色(きいろ)くなります。(N5)",
+  "译文：到了秋天，叶子会变黄。",
+].join("\\n");
+const happaBadOnline = normalizeJpVocabExampleSentencesForOnlineApply(happaBad, happaInput);
+if (happaBadOnline.ok || happaBadOnline.reason !== "word_not_used") {
+  console.error("FAIL: 葉子 written as 葉(は) must be word_not_used online, got", happaBadOnline);
+  process.exit(1);
+}
+const happaOk = [
+  "木(き)の葉子(はっぱ)が風(かぜ)で落(お)ちました。(N5)",
+  "译文：树上的叶子被风吹落了。",
+  "秋(あき)になると、葉子(はっぱ)が黄色(きいろ)くなります。(N5)",
+  "译文：到了秋天，叶子会变黄。",
+].join("\\n");
+const happaOkOnline = normalizeJpVocabExampleSentencesForOnlineApply(happaOk, happaInput);
+if (!happaOkOnline.ok) {
+  console.error("FAIL: 葉子(はっぱ) examples should pass online, got", happaOkOnline.reason);
+  process.exit(1);
+}
+
 console.log("node smoke ok");
 """,
         ],
@@ -310,11 +384,12 @@ console.log("node smoke ok");
         capture_output=True,
         text=True,
         timeout=120,
+        env=env,
     )
     if probe.returncode != 0:
         stderr = (probe.stderr or probe.stdout or "").strip()
-        if "Cannot find module" in stderr or "server-only" in stderr or probe.returncode == 2:
-            print("[check_jp_vocab_example_online_normalize] skip node smoke (tsx/server-only unavailable)")
+        if "Cannot find module" in stderr and "tsx" in stderr.lower():
+            print("[check_jp_vocab_example_online_normalize] skip node smoke (tsx unavailable)")
             return
         raise SystemExit(f"FAIL node smoke:\n{stderr}")
     print(probe.stdout.strip())
@@ -357,12 +432,37 @@ def main() -> int:
     must_contain(ai, "splitJpVocabLemmaSlashParts", "ai splits fullwidth reading slash")
     must_contain(ai, "[/／]", "ai lemma hit must split ／")
     must_contain(ai, "pushSuruVerbSurfaces", "ai recognizes ～する → …します")
+    must_contain(
+        ai,
+        r"/^[\u3040-\u309F]る$/",
+        "ai 二字假名る动词须匹配 なる（1假名+る），禁止 {2}る",
+    )
+    must_contain(
+        ai,
+        "jpVocabExampleLineUsesLemma",
+        "ai must check lemma per example sentence (not joined text)",
+    )
+    must_contain(
+        ai,
+        "jpVocabExampleLineUsesLemma(item.text",
+        "ai must call lemma check inside each example item",
+    )
+    must_not_contain(
+        ai,
+        "kans[0]",
+        "ai must not accept first-kanji-only hit (事故≠仕事の事)",
+    )
     must_contain(ai, "スケッチする", "ai prompt/regression mentions スケッチする ます形")
     must_contain(ai, "かぶって／つける", "ai prompt allows reading-form examples for 戴")
     must_contain(
         ROOT / "scripts/jp-vocab-fill-online-batch-api.py",
         "かぶる／つける",
         "online batch allows kana reading forms for kanji lemmas",
+    )
+    must_contain(
+        ROOT / "scripts/jp-vocab-fill-online-batch-api.py",
+        "每句整词",
+        "online batch WORD_SYSTEM requires lemma in every sentence",
     )
     must_contain(ai, "bad_furigana_paren", "ai online reject bad paren")
     must_contain(ai, "gloss_not_chinese", "ai reject Japanese-in-gloss")

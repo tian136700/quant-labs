@@ -68,6 +68,8 @@ def main() -> int:
         "地球は太陽",
         "prefix_plus_pos",
         "もしかしたら＋动词句",
+        "葉子",
+        "jpVocabExampleLineUsesLemma",
     ):
         if needle not in rule_text:
             fail(f"rule missing {needle!r}")
@@ -117,6 +119,10 @@ def main() -> int:
         fail("example-sentences-ai 须点名禁止「来るなら、どうぞ入ってください」无厘头句")
     if "地球" not in ai or "太陽" not in ai or "科学/百科难词" not in ai:
         fail("example-sentences-ai prompt 须禁止科学/百科难词（地球・太陽）")
+    if "jpVocabExampleLineUsesLemma" not in ai:
+        fail("example-sentences-ai 须每句单独查词 jpVocabExampleLineUsesLemma")
+    if "葉子" not in ai or "葉(は)" not in ai:
+        fail("example-sentences-ai prompt 须禁止葉子写成葉(は)")
     if "version: 6" not in ai and "version:6" not in ai:
         fail("JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC 须升到 version 6（含场景自洽）")
 

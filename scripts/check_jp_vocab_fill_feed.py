@@ -175,6 +175,12 @@ def main() -> int:
         raise SystemExit("FAIL: missing 日语/英语 language tabs")
     if 'id="jp-fill-task-tabs"' not in index_html:
         raise SystemExit("FAIL: missing jp-fill-task-tabs")
+    if 'id="cron-kind-select"' not in index_html:
+        raise SystemExit("FAIL: need two-level menus: #cron-kind-select then #cron-task-select")
+    if "书籍补全" not in index_html:
+        raise SystemExit("FAIL: kind dropdown must include 书籍补全")
+    if "fillCronTaskSelectForKind" not in app_js or "onCronKindChange" not in app_js:
+        raise SystemExit("FAIL: L2 task options must follow L1 kind")
     if 'id="cron-task-select"' not in index_html:
         raise SystemExit("FAIL: task pills must be a dropdown #cron-task-select")
     if "获取书籍章节" not in index_html:
@@ -191,6 +197,8 @@ def main() -> int:
         raise SystemExit("FAIL: app.js must bind JP fill task tabs")
     if 'id="vocab-fill-panel-en"' not in index_html or 'id="en-fill-feed-rows"' not in index_html:
         raise SystemExit("FAIL: missing English fill panel")
+    if "preview_url" not in app_js or "book-chapter-link" not in app_js:
+        raise SystemExit("FAIL: book section names must link to STT chapter preview")
     if 'id="vocab-fill-panel-book"' not in index_html or 'id="book-chapters-rows"' not in index_html:
         raise SystemExit("FAIL: missing 获取书籍章节 panel")
     if 'id="vocab-fill-feed-card"' not in index_html.split('id="view-jp-fill"', 1)[-1]:
