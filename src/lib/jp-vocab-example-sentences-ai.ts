@@ -32,6 +32,7 @@ import {
   splitJpVocabAiOutputConnectionSection,
 } from "@/lib/jp-vocab-connection-ai";
 import { validateJpVocabUsageExamplePairAlignment } from "@/lib/jp-vocab-usage-example-pair-align";
+import { jpVerbMasuToDictionaryForm } from "@/lib/jp-verb-masu-to-dictionary";
 
 /** 读音/词条多写：半角 `/` 与全角 `／` 均分段（戴 reading=かぶる／つける）。 */
 function splitJpVocabLemmaSlashParts(raw: string): string[] {
@@ -585,6 +586,54 @@ const JP_VOCAB_GRAMMAR_KANA_KANJI_ALIASES: Record<string, readonly string[]> = {
   ところ: ["所", "処"],
 };
 
+/** 语法核前导格助词（～と会います → と）；须在例句里出现。 */
+const JP_VOCAB_GRAMMAR_LEADING_PARTICLE_RE = /^([とにをがでへもや])/;
+
+/**
+ * ～と会います 等「汉字＋ます」语法核：勿只抽尾假名「います」（会误拒 会いました／会いに）。
+ * 返回可命中的表面形（会います／会い／会う／会っ…）。
+ */
+export function jpVocabGrammarKanjiMasuSurfaces(core: string): string[] {
+  const c = String(core || "").trim();
+  if (!c || !/[\u4E00-\u9FFF]/.test(c)) return [];
+  const m = c.match(
+    /[\u4E00-\u9FFF々][\u4E00-\u9FFF々\u3040-\u309Fー]*ます/
+  );
+  if (!m) return [];
+  const masu = m[0];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const push = (s: string) => {
+    const t = s.trim();
+    if (!t || seen.has(t)) return;
+    seen.add(t);
+    out.push(t);
+  };
+  push(masu);
+  push(masu.slice(0, -2)); // 会い（ます词干；亦覆盖 会いに／会いました）
+  const { dictionary, wasMasu } = jpVerbMasuToDictionaryForm(masu);
+  if (!wasMasu || !dictionary) return out;
+  push(dictionary);
+  if (dictionary.endsWith("う") && dictionary.length >= 2) {
+    const base = dictionary.slice(0, -1);
+    push(`${base}っ`);
+    push(`${base}わ`);
+    push(`${base}え`);
+    push(`${base}お`);
+  } else if (dictionary.endsWith("る") && dictionary.length >= 2) {
+    push(dictionary.slice(0, -1));
+  } else if (/[くぐ]$/.test(dictionary) && dictionary.length >= 2) {
+    push(`${dictionary.slice(0, -1)}い`);
+  } else if (dictionary.endsWith("す") && dictionary.length >= 2) {
+    push(`${dictionary.slice(0, -1)}し`);
+  } else if (dictionary.endsWith("つ") && dictionary.length >= 2) {
+    push(`${dictionary.slice(0, -1)}っ`);
+  } else if (/[ぬぶむ]$/.test(dictionary) && dictionary.length >= 2) {
+    push(`${dictionary.slice(0, -1)}ん`);
+  }
+  return out;
+}
+
 export function jpVocabGrammarLemmaAppearsInExamples(
   kanaRun: string,
   combinedPlain: string,
@@ -601,6 +650,11 @@ export function jpVocabGrammarLemmaAppearsInExamples(
   // ～ことができる／できます
   if (n.endsWith("できる") && n.length >= 5) {
     variants.push(`${n.slice(0, -3)}でき`);
+  }
+  // ～ています → ている／てる（辞书形叙述）
+  if (n.endsWith("ています") && n.length >= 4) {
+    variants.push(`${n.slice(0, -3)}いる`);
+    variants.push(`${n.slice(0, -3)}る`);
   }
   for (const v of variants) {
     if (combinedPlain.includes(v) || combinedRaw.includes(v)) return true;
@@ -633,6 +687,17 @@ export function jpVocabExampleLineUsesLemma(
 
   if (input.kind === "grammar") {
     const core = target.replace(/^[～~〜]+/, "").replace(/[～~〜]+$/, "");
+    // ～と会います：汉字ます核优先（勿只认尾假名「います」）
+    const kanjiMasu = jpVocabGrammarKanjiMasuSurfaces(core);
+    if (kanjiMasu.length > 0) {
+      const hit = kanjiMasu.some(
+        (s) => combinedPlain.includes(s) || combined.includes(s)
+      );
+      if (!hit) return false;
+      const lead = core.match(JP_VOCAB_GRAMMAR_LEADING_PARTICLE_RE);
+      if (lead && !combinedPlain.includes(lead[1])) return false;
+      return true;
+    }
     const allKana = core.match(/[\u3040-\u30FFー]+/g) || [];
     const longKana = allKana
       .filter((run) => run.length >= 2)

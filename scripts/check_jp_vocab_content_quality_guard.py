@@ -90,6 +90,8 @@ def main() -> int:
         fail("apply 须拒 gloss_has_yakuwen_label")
     if "jpVocabGrammarLemmaAppearsInExamples" not in ai:
         fail("example-sentences-ai 须有假名核汉字表记 jpVocabGrammarLemmaAppearsInExamples")
+    if "jpVocabGrammarKanjiMasuSurfaces" not in ai:
+        fail("example-sentences-ai 须有 jpVocabGrammarKanjiMasuSurfaces（～と会います 勿只认います）")
     if "あたり" not in ai or "辺り" not in ai:
         fail("example-sentences-ai 假名核表记须含 あたり↔辺り")
     if "grammar_not_used" not in ai:

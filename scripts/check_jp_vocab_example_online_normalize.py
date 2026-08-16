@@ -317,6 +317,45 @@ if (!youniStrict.ok) {
   process.exit(1);
 }
 
+// ～と会います：勿只认尾假名「います」（曾熔断 id=761）；须认会い＋と
+const auInput = {
+  word: "～と会います",
+  kind: "grammar",
+  usage: "1. [口语9|考试8] 和某人见面时，见面对象用助词「と」。(N5)",
+};
+const auOk = [
+  "田中(たなか)さん と 駅(えき) で 会(あ)います。",
+  "译文：我在车站和田中见面。",
+  "友達(ともだち) と 午後(ごご) 会(あ)いました。",
+  "译文：我和朋友下午见了面。",
+  "明日(あした)、先生(せんせい) と 会(あ)います。",
+  "译文：明天我和老师见面。",
+].join("\\n");
+const auOkOnline = normalizeJpVocabExampleSentencesForOnlineApply(auOk, auInput);
+if (!auOkOnline.ok) {
+  console.error("FAIL: ～と会います good examples should pass online, got", auOkOnline.reason);
+  process.exit(1);
+}
+const auOkStrict = validateJpVocabExampleSentencesAiOutput(auOk, auInput);
+if (!auOkStrict.ok) {
+  console.error("FAIL: ～と会います good examples should pass strict, got", auOkStrict.reason);
+  process.exit(1);
+}
+// 只有「に会います」无「と」→ grammar_not_used
+const auNiOnly = [
+  "田中(たなか)さん に 駅(えき) で 会(あ)います。",
+  "译文：我在车站见田中。",
+  "友達(ともだち) に 午後(ごご) 会(あ)いました。",
+  "译文：我下午见了朋友。",
+  "明日(あした)、先生(せんせい) に 会(あ)います。",
+  "译文：明天我见老师。",
+].join("\\n");
+const auNiOnline = normalizeJpVocabExampleSentencesForOnlineApply(auNiOnly, auInput);
+if (auNiOnline.ok || auNiOnline.reason !== "grammar_not_used") {
+  console.error("FAIL: ～と会います without と must be grammar_not_used, got", auNiOnline);
+  process.exit(1);
+}
+
 // 事故：第一句有词、第二句只写「注意」却把「意外」塞进译文 → 须 word_not_used（曾拼文过关 id=408）
 const jikoInput = { word: "事故", kind: "word", reading: "じこ", meaning: "事故；意外事件" };
 const jikoBad = [

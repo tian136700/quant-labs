@@ -827,14 +827,68 @@ _GRAMMAR_KANA_KANJI_ALIASES = {
     "ところ": ("所", "処"),
 }
 
+_GRAMMAR_LEADING_PARTICLE_RE = re.compile(r"^([とにをがでへもや])")
+_GRAMMAR_KANJI_MASU_RE = re.compile(
+    r"[\u4E00-\u9FFF々][\u4E00-\u9FFF々\u3040-\u309Fー]*ます"
+)
 
-def grammar_examples_hit_lemma(word: str, examples: str) -> bool:
-    """例句是否出现语法假名核（含汉字表记／する・できる的ます形）。"""
-    core = str(word or "").strip()
-    core = re.sub(r"^[～~〜]+", "", core)
-    core = re.sub(r"[～~〜]+$", "", core)
-    raw = str(examples or "")
-    plain = re.sub(r"[（(][^）)]*[）)]", "", raw)
+
+def _grammar_kanji_masu_surfaces(core: str) -> list[str]:
+    """～と会います → 会います／会い／会う…（与 Worker jpVocabGrammarKanjiMasuSurfaces 对齐）。"""
+    if not core or not re.search(r"[\u4E00-\u9FFF]", core):
+        return []
+    m = _GRAMMAR_KANJI_MASU_RE.search(core)
+    if not m:
+        return []
+    masu = m.group(0)
+    out: list[str] = []
+    seen: set[str] = set()
+
+    def push(s: str) -> None:
+        t = (s or "").strip()
+        if not t or t in seen:
+            return
+        seen.add(t)
+        out.append(t)
+
+    push(masu)
+    push(masu[:-2])  # 会い
+    # 轻量辞书形：…います→…う（会います→会う）；…えます→…える 等不在此硬推
+    if masu.endswith("います") and len(masu) >= 4:
+        push(masu[:-3] + "う")  # 会う
+        base = masu[:-3]
+        push(base + "っ")
+        push(base + "わ")
+    elif masu.endswith("えます") and len(masu) >= 4:
+        push(masu[:-2] + "る")  # 食べます→食べる（stem 食べ + る）
+    return out
+
+
+def _example_japanese_lines(examples: str) -> list[str]:
+    lines: list[str] = []
+    for ln in str(examples or "").replace("\r\n", "\n").splitlines():
+        s = ln.strip()
+        if not s:
+            continue
+        if re.match(r"^(译文|訳文|翻譯|翻译)\s*[:：]", s):
+            continue
+        if s.startswith("【"):
+            break
+        lines.append(s)
+    return lines
+
+
+def _line_hits_grammar_lemma(core: str, line: str) -> bool:
+    plain = re.sub(r"[（(][^）)]*[）)]", "", line)
+    raw = line
+    kanji_masu = _grammar_kanji_masu_surfaces(core)
+    if kanji_masu:
+        if not any(s in plain or s in raw for s in kanji_masu):
+            return False
+        lead = _GRAMMAR_LEADING_PARTICLE_RE.match(core)
+        if lead and lead.group(1) not in plain:
+            return False
+        return True
     long_kana = sorted(
         re.findall(r"[\u3040-\u30FFー]{2,}", core), key=len, reverse=True
     )
@@ -844,11 +898,13 @@ def grammar_examples_hit_lemma(word: str, examples: str) -> bool:
         variants = [n]
         if len(n) >= 3:
             variants.append(n[:-1])
-        # ～ようにする → ようにします；～ことができる → ことができます
         if n.endswith("する") and len(n) >= 4:
             variants.append(n[:-2] + "し")
         if n.endswith("できる") and len(n) >= 5:
             variants.append(n[:-3] + "でき")
+        if n.endswith("ています") and len(n) >= 4:
+            variants.append(n[:-3] + "いる")
+            variants.append(n[:-3] + "る")
         for v in variants:
             if v in plain or v in raw:
                 return True
@@ -860,6 +916,16 @@ def grammar_examples_hit_lemma(word: str, examples: str) -> bool:
                 return True
     return False
 
+
+def grammar_examples_hit_lemma(word: str, examples: str) -> bool:
+    """例句是否出现语法核（逐句；含汉字ます词干／する・できる的ます形）。"""
+    core = str(word or "").strip()
+    core = re.sub(r"^[～~〜]+", "", core)
+    core = re.sub(r"[～~〜]+$", "", core)
+    lines = _example_japanese_lines(examples)
+    if not lines:
+        return False
+    return all(_line_hits_grammar_lemma(core, ln) for ln in lines)
 
 def salvage_connection_from_examples(ex: str) -> str:
     """模型偶把【接序】塞进例句字段；写库前拆出。"""
