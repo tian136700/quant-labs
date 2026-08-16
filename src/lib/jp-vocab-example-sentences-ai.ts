@@ -33,6 +33,7 @@ import {
 } from "@/lib/jp-vocab-connection-ai";
 import { validateJpVocabUsageExamplePairAlignment } from "@/lib/jp-vocab-usage-example-pair-align";
 import { jpVerbMasuToDictionaryForm } from "@/lib/jp-verb-masu-to-dictionary";
+import { jpVocabExampleHasHidoiKowaiGlossMismatch } from "@/lib/jp-vocab-example-hidoi-gloss";
 
 /** 读音/词条多写：半角 `/` 与全角 `／` 均分段（戴 reading=かぶる／つける）。 */
 function splitJpVocabLemmaSlashParts(raw: string): string[] {
@@ -106,7 +107,7 @@ export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
   rules: [
     "存库不要写行首序号（展示层会加 1、2、3…）",
     "每条：日语一行，下一行必须以「译文：」开头的中文（「译文：」后直接中文，禁止「译文：/ …」「译文：訳文：…」或日文「訳文：」标签）",
-    "中文译文必须自然通顺（口语）；禁止逐词硬译（如「について話す」→「关于…说话」；应作「谈谈…」或「聊聊…」；「静かに話す」→「请小声说话」，禁止「请安静地说话」）",
+    "中文译文必须自然通顺（口语）；禁止逐词硬译（如「について話す」→「关于…说话」；应作「谈谈…」或「聊聊…」；「静かに話す」→「请小声说话」，禁止「请安静地说话」；「酷い／ひどい」禁止译成「可怕…」，可怕≈怖い，应作过分／糟糕／残酷）",
     "「間／あいだ」须体现「AとB的之间」或「某段时间期间」：❌忙しい間です／我现在很忙；✅本とノートの間に…／会議の間…；「の間に」是之内／期间，禁止译成「……后」",
     "「注意する」小心某事须接「に」：❌約束を注意 → ✅車に注意／約束に注意",
     "「好き／嫌い／大好き／大嫌い」对象须接「が」：❌魚は嫌いです → ✅魚が嫌いです（は表对比，初学卡片勿用）",
@@ -153,6 +154,7 @@ export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
     "chuui_suru_wo_particle",
     "suki_kirai_wa_particle",
     "soudan_particle_gloss_mismatch",
+    "hidoi_kowai_gloss",
     "lemma_placeholder_in_sentence",
     "hangul_in_japanese_line",
     "grammar_not_used",
@@ -568,6 +570,7 @@ ${
    9c. 「注意する」（小心／注意某事）接「に」：❌「約束を注意してください」→ ✅「約束に注意してください」／「車に注意します」。
    9d. 「相談する」：人に相談＝向/找某人商量；人と相談＝和某人一起商量。译文须对齐助词，勿对调。
    9e. 「好き／嫌い／大好き／大嫌い」对象接「が」，禁止用「は」：❌「魚は嫌いです」→ ✅「魚が嫌いです」。对比的「は」初学卡片不要写。
+   9f. 「酷い／ひどい」禁止译成「可怕…」（可怕≈怖い）；应作「过分／糟糕／残酷」：❌「那是一个可怕的故事」→ ✅「这事也太过分了」。
 10. 只输出「日语」行与下一行「译文：」+中文交替；「译文：」后直接写中文，禁止「译文：/ …」、日文「訳文：」叠标签或行首斜杠；不要行首编号、不要 markdown、不要解释、不要额外语法说明。
 ${
   input.kind === "grammar"
@@ -834,6 +837,9 @@ export function validateJpVocabExampleSentencesAiOutput(
     ) {
       return { ok: false, reason: "soudan_particle_gloss_mismatch" };
     }
+    if (jpVocabExampleHasHidoiKowaiGlossMismatch(glossBody, input.word)) {
+      return { ok: false, reason: "hidoi_kowai_gloss" };
+    }
     if (
       input.kind !== "grammar" &&
       countJpVocabExampleWaTopicMarkers(item.text) >= 2
@@ -966,6 +972,9 @@ export function normalizeJpVocabExampleSentencesForOnlineApply(
       )
     ) {
       return { ok: false, reason: "soudan_particle_gloss_mismatch" };
+    }
+    if (jpVocabExampleHasHidoiKowaiGlossMismatch(glossBody, input.word)) {
+      return { ok: false, reason: "hidoi_kowai_gloss" };
     }
     if (jpVocabExampleHasIAdjPastDeshita(item.text)) {
       return { ok: false, reason: "i_adj_past_deshita" };

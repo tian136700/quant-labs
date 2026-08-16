@@ -16,6 +16,15 @@ import {
   rewriteJpVocabConnectionForTableParse,
   splitConnectionPlusOutsideParens,
 } from "@/lib/jp-vocab-connection-table-expand";
+import {
+  connectionHasWrongTokiNoParticle,
+  rewriteJpVocabConnectionTokiNoParticle,
+} from "@/lib/jp-vocab-connection-toki";
+
+export {
+  connectionHasWrongTokiNoParticle,
+  rewriteJpVocabConnectionTokiNoParticle,
+} from "@/lib/jp-vocab-connection-toki";
 
 export const JP_VOCAB_CONNECTION_SECTION_MARKER = "【接序】";
 
@@ -792,7 +801,9 @@ export function normalizeJpVocabConnectionText(
         rewriteJpVocabConnectionBareMorphologyLabels(
           rewriteJpVocabConnectionPosToSimplifiedChinese(
             rewriteJpVocabConnectionSchoolVerbClassTerms(
-              stripJpVocabConnectionUsageNoise(String(raw ?? ""))
+              rewriteJpVocabConnectionTokiNoParticle(
+                stripJpVocabConnectionUsageNoise(String(raw ?? ""))
+              )
             )
           )
         )
@@ -942,6 +953,10 @@ export function validateJpVocabConnectionAiOutput(
   // 写回拒：词类单独成行、没有「＋接什么」（一类形容词句 / 名词句）
   if (connectionHasBarePosContinuation(preCheckBody)) {
     return { ok: false, reason: "bare_pos_continuation" };
+  }
+  // 写回拒：～時／とき 把の接到动词／形容词上（の只接名词；二类是な＋時）
+  if (connectionHasWrongTokiNoParticle(preCheckBody)) {
+    return { ok: false, reason: "toki_no_on_verb_adj" };
   }
   // 写回拒：能拆成多段公式却没有任何「｜说明」→ 卡片说明列全是「—」
   if (connectionHasMissingTableNotes(preCheckBody)) {

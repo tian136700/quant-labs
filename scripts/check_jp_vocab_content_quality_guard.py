@@ -210,6 +210,19 @@ def main() -> int:
     if soudan_run.returncode != 0:
         fail(f"soudan particle check failed: {soudan_run.stderr or soudan_run.stdout}")
 
+    hidoi_check = ROOT / "scripts/check_jp_vocab_example_hidoi_gloss.py"
+    if not hidoi_check.is_file():
+        fail("missing check_jp_vocab_example_hidoi_gloss.py")
+    hidoi_run = subprocess.run(
+        [sys.executable, str(hidoi_check)],
+        capture_output=True,
+        text=True,
+        timeout=20,
+        cwd=ROOT,
+    )
+    if hidoi_run.returncode != 0:
+        fail(f"hidoi gloss check failed: {hidoi_run.stderr or hidoi_run.stdout}")
+
     conn = (ROOT / "src/lib/jp-vocab-connection-ai.ts").read_text(encoding="utf-8")
     if "bare_numbered_lines" not in conn:
         fail("connection 须拒 bare_numbered_lines")
@@ -245,6 +258,21 @@ def main() -> int:
     if slash_run.returncode != 0:
         fail(
             f"slash morphology check failed: {slash_run.stderr or slash_run.stdout}"
+        )
+
+    toki_check = ROOT / "scripts/check_jp_vocab_connection_toki_no.py"
+    if not toki_check.is_file():
+        fail("missing check_jp_vocab_connection_toki_no.py")
+    toki_run = subprocess.run(
+        [sys.executable, str(toki_check)],
+        capture_output=True,
+        text=True,
+        timeout=20,
+        cwd=ROOT,
+    )
+    if toki_run.returncode != 0:
+        fail(
+            f"toki の particle check failed: {toki_run.stderr or toki_run.stdout}"
         )
 
     sent_conn = ROOT / "scripts/check_jp_vocab_connection_sentence_connector.py"
