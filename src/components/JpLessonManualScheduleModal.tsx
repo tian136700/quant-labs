@@ -61,6 +61,10 @@ type Props = {
   onSave: (draft: JpLessonManualScheduleDraft) => void;
 };
 
+type ManualScheduleFieldErrorKey = "title" | "date" | "time";
+
+type ManualScheduleFieldErrors = Partial<Record<ManualScheduleFieldErrorKey, string>>;
+
 const DURATION_OPTIONS = JP_LESSON_CLASS_DURATION_MINUTES.map((minutes) => ({
   value: String(minutes),
   label: minutes === 60 ? "1小时" : `${minutes}分钟`,
@@ -158,6 +162,7 @@ export function JpLessonManualScheduleModal({
   /** 新建默认关；编辑已有长期系列时为 true 且不可关掉 */
   const [recurring, setRecurring] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<ManualScheduleFieldErrors>({});
   const [addingTeacher, setAddingTeacher] = useState(false);
   const editingIsRecurringSeries =
     editing != null &&
@@ -205,6 +210,7 @@ export function JpLessonManualScheduleModal({
         Number(editing.recurring_id) > 0
     );
     setError("");
+    setFieldErrors({});
     setAddingTeacher(false);
     saveInitiatedRef.current = false;
   }, [open, editing, initialDate]);
@@ -219,6 +225,7 @@ export function JpLessonManualScheduleModal({
     setTitleChoice(preset);
     setCustomTitle("");
     setError("");
+    setFieldErrors((prev) => ({ ...prev, title: undefined }));
     // 闲鱼英语抽查：自动填上课老师 + 30 分钟（须与人员管理英语老师同名）
     if (preset === "闲鱼英语抽查") {
       applyTeacherName("闲鱼英语抽查");
@@ -258,6 +265,7 @@ export function JpLessonManualScheduleModal({
   const activateCustomTitle = () => {
     setTitleChoice("custom");
     setError("");
+    setFieldErrors((prev) => ({ ...prev, title: undefined }));
   };
 
   const teacherSubject = useMemo(
@@ -350,20 +358,32 @@ export function JpLessonManualScheduleModal({
     saveInitiatedRef.current = true;
 
     const trimmedTitle = title.trim();
+    const nextFieldErrors: ManualScheduleFieldErrors = {};
     if (!trimmedTitle) {
-      saveInitiatedRef.current = false;
-      setError(
+      nextFieldErrors.title =
         titleChoice === "custom" || !titleChoice
           ? "请选择或填写日程标题"
-          : "请填写日程标题"
+          : "请填写日程标题";
+    }
+    if (!date.trim()) {
+      nextFieldErrors.date = "请选择日期";
+    }
+    if (!time.trim()) {
+      nextFieldErrors.time = "请选择时间";
+    }
+    if (Object.keys(nextFieldErrors).length > 0) {
+      saveInitiatedRef.current = false;
+      setFieldErrors(nextFieldErrors);
+      setError(
+        nextFieldErrors.title
+          ? nextFieldErrors.title
+          : nextFieldErrors.date && nextFieldErrors.time
+            ? "请选择日期和时间"
+            : nextFieldErrors.date ?? nextFieldErrors.time ?? "请补全必填项"
       );
       return;
     }
-    if (!date.trim() || !time.trim()) {
-      saveInitiatedRef.current = false;
-      setError("请选择日期和时间");
-      return;
-    }
+    setFieldErrors({});
 
     const classAt = nextClassAtFromDatetimeLocalValue(`${date}T${time}`);
     if (!classAt) {
@@ -454,10 +474,13 @@ export function JpLessonManualScheduleModal({
                 <div className="jp-lesson-next-class-fields">
                   {showFullFields ? (
                     <div className="jp-lesson-next-class-field">
-                      <span>标题</span>
+                      <span>
+                        标题 <em className="jp-lesson-next-class-required">*</em>
+                      </span>
                       <select
-                        className="jp-lesson-next-class-input"
+                        className={`jp-lesson-next-class-input${fieldErrors.title ? " is-invalid" : ""}`}
                         aria-label="日程标题"
+                        aria-invalid={fieldErrors.title ? "true" : "false"}
                         value={
                           titleChoice === "custom"
                             ? "custom"
@@ -487,9 +510,10 @@ export function JpLessonManualScheduleModal({
                       {titleChoice === "custom" ? (
                         <input
                           type="text"
-                          className="jp-lesson-next-class-input"
+                          className={`jp-lesson-next-class-input${fieldErrors.title ? " is-invalid" : ""}`}
                           style={{ marginTop: "0.35rem" }}
                           value={customTitle}
+                          aria-invalid={fieldErrors.title ? "true" : "false"}
                           placeholder="自定义标题"
                           onChange={(e) => {
                             activateCustomTitle();
@@ -497,23 +521,52 @@ export function JpLessonManualScheduleModal({
                           }}
                         />
                       ) : null}
+                      {fieldErrors.title ? (
+                        <p className="jp-lesson-next-class-field-error" role="alert">
+                          {fieldErrors.title}
+                        </p>
+                      ) : null}
                     </div>
                   ) : null}
                   <label className="jp-lesson-next-class-field">
-                    <span>日期</span>
+                    <span>
+                      日期 <em className="jp-lesson-next-class-required">*</em>
+                    </span>
                     <input
                       type="date"
-                      className="jp-lesson-next-class-input"
+                      className={`jp-lesson-next-class-input${fieldErrors.date ? " is-invalid" : ""}`}
                       value={date}
-                      onChange={(e) => setDate(e.target.value)}
+                      aria-invalid={fieldErrors.date ? "true" : "false"}
+                      onChange={(e) => {
+                        setDate(e.target.value);
+                        setFieldErrors((prev) => ({ ...prev, date: undefined }));
+                        setError("");
+                      }}
                     />
+                    {fieldErrors.date ? (
+                      <p className="jp-lesson-next-class-field-error" role="alert">
+                        {fieldErrors.date}
+                      </p>
+                    ) : null}
                   </label>
                   <div className="jp-lesson-next-class-field">
-                    <span>时间</span>
+                    <span>
+                      时间 <em className="jp-lesson-next-class-required">*</em>
+                    </span>
                     <JpLessonHalfHourTimeGridPicker
                       value={time}
-                      onChange={setTime}
+                      invalid={Boolean(fieldErrors.time)}
+                      onChange={(next) => {
+                        setTime(next);
+                        setFieldErrors((prev) => ({ ...prev, time: undefined }));
+                        setError("");
+                      }}
                     />
+                    {fieldErrors.time ? (
+                      <p className="jp-lesson-next-class-field-error" role="alert">
+                        {fieldErrors.time}
+                      </p>
+                    ) : null}
                   </div>
                   <label className="jp-lesson-next-class-field jp-lesson-manual-recurring-field">
                     <span>长期固定</span>
@@ -776,6 +829,24 @@ export function JpLessonManualScheduleModal({
           background: color-mix(in srgb, var(--bg) 35%, var(--panel));
           color: inherit;
           font-size: 0.875rem;
+        }
+
+        .jp-lesson-next-class-input.is-invalid,
+        :global(.lesson-hm-time-select--invalid .lesson-hm-time-select__select) {
+          border-color: #ff7b7b;
+          box-shadow: 0 0 0 1px color-mix(in srgb, #ff7b7b 55%, transparent);
+        }
+
+        .jp-lesson-next-class-required {
+          color: #ff8d8d;
+          font-style: normal;
+        }
+
+        .jp-lesson-next-class-field-error {
+          margin: 0;
+          font-size: 0.8rem;
+          line-height: 1.4;
+          color: #ff9b9b;
         }
 
         .jp-lesson-manual-title-choices {

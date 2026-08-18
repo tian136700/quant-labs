@@ -39,6 +39,7 @@ function splitTimeHm(time: string): { hour: string; minute: string } | null {
 export type LessonHmTimeSelectProps = {
   value: string;
   disabled?: boolean;
+  invalid?: boolean;
   onChange: (value: string) => void;
   /**
    * 兼容旧半点网格调用方；已忽略。
@@ -54,6 +55,7 @@ export type LessonHmTimeSelectProps = {
 export function LessonHmTimeSelect({
   value,
   disabled,
+  invalid = false,
   onChange,
 }: LessonHmTimeSelectProps) {
   const parts = useMemo(() => splitTimeHm(value), [value]);
@@ -74,7 +76,9 @@ export function LessonHmTimeSelect({
   };
 
   return (
-    <div className="lesson-hm-time-select">
+    <div
+      className={`lesson-hm-time-select${invalid ? " lesson-hm-time-select--invalid" : ""}`}
+    >
       <label className="lesson-hm-time-select__field">
         <span className="lesson-hm-time-select__field-label">时</span>
         <select
@@ -169,6 +173,11 @@ export function LessonHmTimeSelect({
           color: inherit;
           font: inherit;
           font-variant-numeric: tabular-nums;
+        }
+
+        .lesson-hm-time-select--invalid .lesson-hm-time-select__select {
+          border-color: #ff7b7b;
+          box-shadow: 0 0 0 1px color-mix(in srgb, #ff7b7b 55%, transparent);
         }
 
         .lesson-hm-time-select__select:disabled {
