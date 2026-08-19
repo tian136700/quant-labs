@@ -24,6 +24,7 @@ export const JP_VOCAB_MEANING_UPLOAD_SPEC = {
     "只写最常用 1～3 个义项，按常用程度排序：第 1 个最常用，其后递减（例：送る → 送人；送东西）",
     "一词多种常用读音（如 前=まえ/ぜん、中=なか/ちゅう）时：不同读音/大义项用半角斜杠 / 分隔，段数与 reading 字段一致",
     "同一大义项下的近义仍用中文分号 ；，不要用英文分号或顿号",
+    "若本质只有 1 个意思，不要堆同义词凑条数（如卓球只写乒乓球）",
     "斜杠前是第一义（训读等），斜杠后是第二义（音读/构词等）；例：前 → 前面；以前/前面的；预先的",
     "词性用中文：名词、他动词、自动词、动词、い形容词、な形容词、副词…；多词性用 /",
     "动词尽量区分：他动词→「他动词」；自动词→「自动词」；不分/拿不准→「动词」",
@@ -54,6 +55,10 @@ const MEANING_SECTION_LINE_RE =
 
 const MEANING_SECTION_PREFIX_RE =
   /^(?:【\s*(?:释义|意思)\s*】|(?:释义|意思))\s*[:：]?\s*/i;
+const JP_VOCAB_MEANING_SENSE_ALIAS: Record<string, string> = {
+  // 「卓球」在中文里通常应统一为「乒乓球」，避免「桌球」歧义成台球。
+  桌球: "乒乓球",
+};
 
 export type JpVocabMeaningAiInput = {
   word: string;
@@ -204,9 +209,11 @@ function normalizeJpVocabMeaningSubSenses(raw: string): string {
       .trim()
       .replace(/^[\d]+[.、．)\]]\s*/, "")
       .replace(/[。.]+$/, "");
-    if (!item || seen.has(item) || MEANING_META_LABEL_RE.test(item)) continue;
-    seen.add(item);
-    parts.push(item);
+    if (!item || MEANING_META_LABEL_RE.test(item)) continue;
+    const canonical = JP_VOCAB_MEANING_SENSE_ALIAS[item] ?? item;
+    if (seen.has(canonical)) continue;
+    seen.add(canonical);
+    parts.push(canonical);
     if (parts.length >= JP_VOCAB_MEANING_UPLOAD_SPEC.max_senses) break;
   }
   return parts.join(JP_VOCAB_MEANING_UPLOAD_SPEC.sub_separator);
@@ -221,6 +228,19 @@ export function normalizeJpVocabMeaningText(raw: string): string {
     .filter(Boolean);
   if (!majorParts.length) return "";
   return majorParts.join(JP_VOCAB_MEANING_UPLOAD_SPEC.major_separator);
+}
+
+/** 按词条再做一层展示/存库规范：单义词尽量只保留一个稳定说法。 */
+export function normalizeJpVocabMeaningForWord(
+  word: string | null | undefined,
+  raw: string | null | undefined
+): string {
+  const text = normalizeJpVocabMeaningText(String(raw || ""));
+  if (!text) return "";
+  const lemma = String(word || "").trim();
+  // 手动兜底：卓球 = table tennis，中文保留「乒乓球」即可。
+  if (lemma === "卓球") return "乒乓球";
+  return text;
 }
 
 const HAN_RE = /[\u4E00-\u9FFF]/;

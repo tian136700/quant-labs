@@ -7,6 +7,7 @@ import {
   buildJpVocabMeaningAiPrompt,
   isJpVocabMeaningMetaLabel,
   JP_VOCAB_MEANING_UPLOAD_SPEC,
+  normalizeJpVocabMeaningForWord,
   normalizeJpVocabMeaningText,
   validateJpVocabMeaningAiOutput,
 } from "@/lib/jp-vocab-meaning-ai";
@@ -316,9 +317,13 @@ export async function applyJpVocabMeaningUpdates(
           });
           continue;
         }
-        nextMeaning = validated.text;
+        nextMeaning = normalizeJpVocabMeaningForWord(row.word, validated.text) || null;
       } else {
-        nextMeaning = normalizeJpVocabMeaningText(meaningRaw) || meaningRaw;
+        nextMeaning =
+          normalizeJpVocabMeaningForWord(
+            row.word,
+            normalizeJpVocabMeaningText(meaningRaw) || meaningRaw
+          ) || null;
       }
     } else if (meaningRaw && !meaningEmpty) {
       meaningRaw = "";

@@ -105,6 +105,7 @@ import {
   JP_VOCAB_EXAMPLE_SENTENCES_SOURCE_MANUAL,
   normalizeJpVocabExampleSentencesSource,
 } from "@/lib/jp-vocab-example-sentences";
+import { normalizeJpVocabMeaningForWord } from "@/lib/jp-vocab-meaning-ai";
 import { validateJpVocabConnectionAiOutput } from "@/lib/jp-vocab-connection-ai";
 import { validateJpVocabRelatedCompoundsAiOutput } from "@/lib/jp-vocab-related-compounds";
 import {
@@ -320,7 +321,7 @@ export async function updateJpVocabWordFields(
   const nextReading = lemma.reading;
   const nextMeaning =
     fields.meaning !== undefined
-      ? (fields.meaning || "").trim() || null
+      ? normalizeJpVocabMeaningForWord(current.word, fields.meaning) || null
       : current.meaning;
   let nextMeaningSource = current.meaning_source ?? null;
   if (fields.meaning !== undefined) {
@@ -475,7 +476,7 @@ export async function updateJpVocabWordEntry(
   const nextReading = nextKind === "grammar" ? null : lemma.reading;
   const nextMeaning =
     input.meaning !== undefined
-      ? (input.meaning || "").trim() || null
+      ? normalizeJpVocabMeaningForWord(nextWord, input.meaning) || null
       : current.meaning;
   let nextMeaningSource = current.meaning_source ?? null;
   if (input.meaning_source !== undefined) {

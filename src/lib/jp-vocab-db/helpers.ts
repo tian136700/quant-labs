@@ -108,6 +108,7 @@ import {
   JP_VOCAB_EXAMPLE_SENTENCES_SOURCE_MANUAL,
   normalizeJpVocabExampleSentencesSource,
 } from "@/lib/jp-vocab-example-sentences";
+import { normalizeJpVocabMeaningForWord } from "@/lib/jp-vocab-meaning-ai";
 import { normalizeJpVocabNaAdjStoredEntry } from "@/lib/jp-vocab-na-adj";
 import { ensureJpVocabCoachSchema } from "@/lib/jp-vocab-coach-db";
 
@@ -181,11 +182,16 @@ export function mapRefRow(row: Record<string, unknown>): JpVocabRef {
 export function mapRow(row: Record<string, unknown>): JpVocabWord {
   const todayCheckDate =
     row.today_check_date != null ? String(row.today_check_date) : null;
+  const word = String(row.word);
+  const normalizedMeaning = normalizeJpVocabMeaningForWord(
+    word,
+    row.meaning != null ? String(row.meaning) : null
+  );
   return {
     id: Number(row.id),
-    word: String(row.word),
+    word,
     reading: row.reading != null ? String(row.reading) : null,
-    meaning: row.meaning != null ? String(row.meaning) : null,
+    meaning: normalizedMeaning || null,
     pos:
       row.pos != null && String(row.pos).trim() ? String(row.pos) : null,
     kind: row.kind === "grammar" ? "grammar" : "word",
