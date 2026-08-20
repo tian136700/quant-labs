@@ -33,6 +33,13 @@ export {
   copyIpGeoOntoLoginHistory,
 } from "./login_history";
 
+export type { TouchUserActivityIpResult } from "./activity_ip";
+export {
+  USER_ACTIVITY_IP_THROTTLE_MS,
+  touchUserActivityIp,
+  touchAuthUserActivityIpFromRequest,
+} from "./activity_ip";
+
 export type { EtrIpGeoCacheRow } from "./ip_geo_cache";
 export {
   ensureEtrIpGeoCacheSchema,

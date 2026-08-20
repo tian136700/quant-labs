@@ -81,7 +81,7 @@ def main() -> int:
         ),
         (
             ROOT / "scripts/maintenance_center/cron_tasks/registry.py",
-            ["login-ip-geo-backfill", "StartInterval=30"],
+            ["login-ip-geo-backfill", "StartInterval=600"],
         ),
         (
             ROOT / "schema.sql",
@@ -89,7 +89,7 @@ def main() -> int:
         ),
         (
             ROOT / "src/components/admin-users-page/admin-users-page-helpers.tsx",
-            ["查看历史登录IP", "onViewHistory", "admin-user-ip-history"],
+            ["查看历史IP", "onViewHistory", "admin-user-ip-history"],
         ),
     ]
     failed = False

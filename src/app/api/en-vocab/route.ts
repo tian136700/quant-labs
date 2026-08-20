@@ -22,6 +22,7 @@ import {
 } from "@/lib/en-vocab-daily-quiz-style";
 import { isEnVocabLevel } from "@/lib/en-vocab-review";
 import { trackEnVocabTeacherQuizDayAfterReview } from "@/lib/en-vocab-teacher-quiz-day";
+import { touchAuthUserActivityIpFromRequest } from "@/lib/etr-auth-db";
 import type { EnVocabLevel } from "@/lib/types";
 
 const AUTH_MSG = {
@@ -210,6 +211,7 @@ export async function POST(request: Request) {
             trackErr
           );
         }
+        await touchAuthUserActivityIpFromRequest(env.DB, user, request);
       }
       return jsonResponse({
         ok: true,
@@ -241,6 +243,7 @@ export async function POST(request: Request) {
           trackErr
         );
       }
+      await touchAuthUserActivityIpFromRequest(env.DB, user, request);
     }
 
     return jsonResponse({

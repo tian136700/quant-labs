@@ -23,6 +23,7 @@ import {
   type JpVocabDailyQuizStyle,
 } from "@/lib/jp-vocab-daily-quiz-style";
 import { trackJpVocabTeacherQuizDayAfterReview } from "@/lib/jp-vocab-teacher-quiz-day";
+import { touchAuthUserActivityIpFromRequest } from "@/lib/etr-auth-db";
 import type { JpVocabLevel } from "@/lib/types";
 
 const AUTH_MSG = {
@@ -209,6 +210,11 @@ export async function POST(request: Request) {
           trackErr
         );
       }
+    }
+
+    // 勾选熟悉程度 = 正在抽查：刷新用户管理最近 IP（节流）
+    if (user && !isAdminForReview) {
+      await touchAuthUserActivityIpFromRequest(env.DB, user, request);
     }
 
     return jsonResponse({

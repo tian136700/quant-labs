@@ -12,6 +12,7 @@ import {
   updateKoPronLetter,
 } from "@/lib/ko-pron-db";
 import { trackKoPronTeacherQuizDayAfterReview } from "@/lib/ko-pron-teacher-quiz-day";
+import { touchAuthUserActivityIpFromRequest } from "@/lib/etr-auth-db";
 import type { KoPronLevel } from "@/lib/types";
 
 const AUTH_MSG = {
@@ -206,6 +207,7 @@ export async function POST(request: Request) {
           trackErr
         );
       }
+      await touchAuthUserActivityIpFromRequest(env.DB, user, request);
     }
 
     return jsonResponse({ ok: true, letter, word: letter });

@@ -10,6 +10,7 @@ import {
   requireEnVocabStudyAccess,
 } from "@/lib/en-vocab-auth";
 import { isEnVocabTeacherQuizLiveStudentPeeked } from "@/lib/en-vocab-teacher-quiz-live";
+import { touchAuthUserActivityIpFromRequest } from "@/lib/etr-auth-db";
 
 const TEACHER_AUTH_MSG = {
   en: "Please log in as a teacher.",
@@ -162,6 +163,10 @@ export async function PUT(request: Request) {
     }
 
     const live = await setEnVocabTeacherQuizLiveWord(env.DB, wordId);
+    // 抽查 live 换词/开卡：刷新用户管理「最近 IP」（节流，失败不挡主流程）
+    if (wordId != null) {
+      await touchAuthUserActivityIpFromRequest(env.DB, user, request);
+    }
     return jsonResponse({ ok: true, live });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

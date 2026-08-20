@@ -187,7 +187,7 @@ export function AdminUsersList({
                 }`}
                 onClick={() => onToggleSort("last_login_at")}
               >
-                {locale === "zh" ? "最近登录" : "Last login"}
+                {locale === "zh" ? "最近活跃" : "Last active"}
                 {sortLabel("last_login_at")}
               </button>
               <button
@@ -255,12 +255,12 @@ export function AdminUsersList({
                       wide
                     />
                     <AdminUserCardField
-                      label={locale === "zh" ? "最后一次登录（北京时间）" : "Last login (Beijing)"}
+                      label={locale === "zh" ? "最近活跃（北京时间）" : "Last active (Beijing)"}
                       value={formatAdminDateTime(row.last_login_at)}
                       wide
                     />
                     <AdminUserCardField
-                      label={locale === "zh" ? "最后一次登录 IP" : "Last login IP"}
+                      label={locale === "zh" ? "最近 IP" : "Recent IP"}
                       value={
                         <AdminUserIpDisplay
                           ip={row.last_login_ip}
@@ -324,19 +324,19 @@ export function AdminUsersList({
                     </th>
                     <th
                       className="admin-user-col-login"
-                      title={locale === "zh" ? "最后一次登录（北京时间）" : "Last login (Beijing)"}
+                      title={locale === "zh" ? "最近活跃（北京时间）" : "Last active (Beijing)"}
                     >
                       <button
                         type="button"
                         className="admin-user-sort-btn"
                         onClick={() => onToggleSort("last_login_at")}
                       >
-                        {locale === "zh" ? "最后登录" : "Last login"}
+                        {locale === "zh" ? "最近活跃" : "Last active"}
                         {sortLabel("last_login_at")}
                       </button>
                     </th>
                     <th className="admin-user-ip-col">
-                      {locale === "zh" ? "登录 IP" : "Login IP"}
+                      {locale === "zh" ? "最近 IP" : "Recent IP"}
                     </th>
                     <th className="admin-user-col-status">
                       <button

@@ -8,6 +8,7 @@ import {
   revealKoPronTeacherQuizLiveReading,
   setKoPronTeacherQuizLiveLetter,
 } from "@/lib/ko-pron-db";
+import { touchAuthUserActivityIpFromRequest } from "@/lib/etr-auth-db";
 
 const STUDY_AUTH = {
   en: "Please log in to view today's pronunciation.",
@@ -51,7 +52,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const locale = localeFromRequest(request);
   try {
-    const { env, allowed } = await requireKoPronAccess(request);
+    const { env, user, allowed } = await requireKoPronAccess(request);
     if (!allowed) {
       return jsonResponse({ ok: false, error: TEACHER_AUTH[locale] }, 401);
     }
@@ -79,6 +80,7 @@ export async function POST(request: Request) {
         );
       }
       const live = await revealKoPronTeacherQuizLiveReading(env.DB, letterId);
+      await touchAuthUserActivityIpFromRequest(env.DB, user, request);
       return jsonResponse({ ok: true, live });
     }
 
@@ -97,6 +99,9 @@ export async function POST(request: Request) {
       env.DB,
       letterId == null ? null : letterId
     );
+    if (letterId != null) {
+      await touchAuthUserActivityIpFromRequest(env.DB, user, request);
+    }
     return jsonResponse({ ok: true, live });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

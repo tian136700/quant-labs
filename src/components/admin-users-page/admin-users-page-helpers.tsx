@@ -177,7 +177,7 @@ export function AdminUserCardField({
 /** 长于该长度则默认收起，点「展开」看全文（IPv4 通常不触发） */
 export const ADMIN_USER_IP_COLLAPSE_AT = 18;
 
-/** 最后登录 IP：短地址一行展示；长 IPv6 默认折叠，可展开；下方可挂「查看历史登录 IP」 */
+/** 最近 IP：短地址一行展示；长 IPv6 默认折叠，可展开；下方可挂「查看历史 IP」 */
 export function AdminUserIpDisplay({
   ip,
   locale,
@@ -197,7 +197,7 @@ export function AdminUserIpDisplay({
       className="admin-user-ip-history"
       onClick={onViewHistory}
     >
-      {locale === "zh" ? "查看历史登录IP" : "Login IP history"}
+      {locale === "zh" ? "查看历史IP" : "IP history"}
     </button>
   ) : null;
 
