@@ -1,0 +1,216 @@
+登录会话 · english-teacher-review/auth API
+==========================================
+
+用途
+----
+全站老师/管理员/学生共用的登录会话接口（Cookie：`etr_session`）：
+
+| 方法 | 作用 |
+|------|------|
+| GET  | 校验当前会话是否有效；已登录时顺带记「今天进站 IP」 |
+| POST action=login    | 账号密码登录，写 Cookie |
+| POST action=logout   | 退出，清 Cookie |
+| POST action=register | 注册（默认关闭，见 PUBLIC_REGISTRATION_ENABLED） |
+
+网页 `TeacherReviewAuth`、日语/英语/韩语抽问页进站都会先打 **GET** 校验会话。
+
+进站记 IP（用户管理「最近 IP / 最近活跃」）
+------------------------------------------
+- **不必重新输密码**：只要 Cookie 仍有效，今天第一次 GET 本接口就会写回
+  `etr_users.last_login_ip` / `last_login_at`
+- **同 IP + 同北京自然日**：只记一次（节流，避免打爆 D1）
+- **IP 变了**或**跨北京日**：再写；IP 变了会追加 `etr_user_login_history`（归属地队列照旧）
+- 登录 POST 成功时仍会记登录 IP（与历史一致）
+- 抽查 live / 勾选熟悉程度也会兜底 touch（同一天同 IP 不会反复写）
+
+实现：`touchAuthUserActivityIpFromRequest`（`src/lib/etr-auth-db/activity_ip.ts`）
+规则：`.cursor/rules/admin-users-quiz-activity-ip.mdc`
+
+
+线上地址
+--------
+GET  https://finance.info-quests.com/api/english-teacher-review/auth
+POST https://finance.info-quests.com/api/english-teacher-review/auth
+
+也可用 japanese / english / korean 同路径（同一 Worker / 同一 D1）。
+
+
+本机开发（可选）
+---------------
+GET  http://127.0.0.1:3002/api/english-teacher-review/auth
+POST http://127.0.0.1:3002/api/english-teacher-review/auth
+
+
+鉴权 / Cookie
+-------------
+- 会话 Cookie 名：`etr_session`（HttpOnly；浏览器自动带）
+- 脚本调用须 `credentials: include`，或自行保存/回传 `Set-Cookie`
+- Header（可选，影响错误文案语言）：
+    x-locale: zh | en
+    Content-Type: application/json   ← 仅 POST
+
+
+GET · 校验会话
+--------------
+无 body。带 Cookie 即可。
+
+成功（已登录）：
+{
+  "ok": true,
+  "authenticated": true,
+  "user": {
+    "id": 1,
+    "username": "LiLaoshi",
+    "role": "jp_vocab",
+    "expires_at": "2026-09-19T…",
+    "expires_hint": "…",
+    "permissions": ["jp_vocab:operate", …],
+    "can_operate_jp_vocab": true,
+    "can_operate_en_vocab": false
+  }
+}
+说明：已登录时服务端会 touch 当天活跃 IP（见上文）；响应体不返回 IP。
+
+成功（未登录）：
+{ "ok": true, "authenticated": false, "user": null }
+
+维护中：
+{ "ok": true, "authenticated": false, "user": null, "maintenance": true }
+
+会话冲突（清 Cookie）：
+{ "ok": true, "authenticated": false, "user": null, "session_conflict": true }
++ Set-Cookie 清除 etr_session
+
+过期/脏 Cookie 已清：
+{ "ok": true, "authenticated": false, "user": null, "stale_cookie_cleared": true }
+
+失败（500）：
+{ "ok": false, "error": "…", "authenticated": false }
+
+
+POST · login
+------------
+Body:
+{
+  "action": "login",
+  "username": "LiLaoshi",
+  "password": "……"
+}
+
+成功：
+{
+  "ok": true,
+  "user": { …同上 publicAuthUser… }
+}
++ Set-Cookie: etr_session=…（并清掉冲突的旧会话 Cookie）
+
+失败示例：
+401  { "ok": false, "error": "用户名或密码错误。" }
+429  { "ok": false, "error": "登录失败次数过多，请稍后再试。", "retry_after_sec": 60 }
+503  { "ok": false, "maintenance": true }
+400  { "ok": false, "error": "请填写所有必填项。" }
+
+
+POST · logout
+-------------
+Body:
+{ "action": "logout" }
+
+成功：
+{ "ok": true }
++ Set-Cookie 清除 etr_session
+
+
+POST · register（默认关）
+------------------------
+Body:
+{
+  "action": "register",
+  "username": "new_teacher",
+  "password": "至少6位",
+  "password_confirm": "至少6位"
+}
+
+若 PUBLIC_REGISTRATION_ENABLED=false（线上常态）：
+403  { "ok": false, "error": "暂不开放网上注册。" }
+
+
+curl 示例
+---------
+# 1) 登录并保存 Cookie
+curl -sS -c /tmp/etr.txt -b /tmp/etr.txt \
+  -X POST 'https://finance.info-quests.com/api/english-teacher-review/auth' \
+  -H 'Content-Type: application/json' \
+  -H 'x-locale: zh' \
+  -d '{"action":"login","username":"LiLaoshi","password":"YOUR_PASSWORD"}'
+
+# 2) 进站校验会话（会记今天 IP，同日同 IP 只写一次）
+curl -sS -c /tmp/etr.txt -b /tmp/etr.txt \
+  'https://finance.info-quests.com/api/english-teacher-review/auth'
+
+# 3) 退出
+curl -sS -c /tmp/etr.txt -b /tmp/etr.txt \
+  -X POST 'https://finance.info-quests.com/api/english-teacher-review/auth' \
+  -H 'Content-Type: application/json' \
+  -d '{"action":"logout"}'
+
+本机把域名换成 http://127.0.0.1:3002 即可。
+
+
+Python 最小例
+-------------
+import json
+import urllib.request
+
+BASE = "http://127.0.0.1:3002"  # 或 https://finance.info-quests.com
+COOKIE_JAR = {}  # 简易：只演示单 cookie；生产请用 http.cookiejar
+
+
+def request(method: str, path: str, body: dict | None = None) -> dict:
+    data = None if body is None else json.dumps(body).encode("utf-8")
+    req = urllib.request.Request(
+        BASE + path,
+        data=data,
+        method=method,
+        headers={
+            "Content-Type": "application/json",
+            "x-locale": "zh",
+            **(
+                {"Cookie": "; ".join(f"{k}={v}" for k, v in COOKIE_JAR.items())}
+                if COOKIE_JAR
+                else {}
+            ),
+        },
+    )
+    with urllib.request.urlopen(req) as resp:
+        raw = resp.read().decode("utf-8")
+        # 解析 Set-Cookie（极简）
+        for h in resp.headers.get_all("Set-Cookie") or []:
+            part = h.split(";", 1)[0]
+            if "=" in part:
+                name, val = part.split("=", 1)
+                if name.strip() == "etr_session":
+                    if "Max-Age=0" in h or not val:
+                        COOKIE_JAR.pop("etr_session", None)
+                    else:
+                        COOKIE_JAR["etr_session"] = val
+        return json.loads(raw)
+
+
+login = request(
+    "POST",
+    "/api/english-teacher-review/auth",
+    {"action": "login", "username": "Admin", "password": "YOUR_PASSWORD"},
+)
+print("login", login.get("ok"), (login.get("user") or {}).get("username"))
+
+# 进站：已登录则服务端记今天 IP
+me = request("GET", "/api/english-teacher-review/auth")
+print("authenticated", me.get("authenticated"), (me.get("user") or {}).get("username"))
+
+
+相关
+----
+- 用户管理列表（看最近 IP）：docs/admin-users-api.txt
+- 登录 IP 历史 / 归属地：用户管理页「查看历史IP」；规则 admin-users-ip9-geo-throttle.mdc
+- 源码：src/app/api/english-teacher-review/auth/route.ts
