@@ -4,6 +4,7 @@ import {
   logoutSession,
   registerUser,
   resolveAuthSession,
+  touchAuthUserActivityIpFromRequest,
 } from "@/lib/etr-auth-db";
 import {
   clearAllSessionCookieHeaders,
@@ -143,6 +144,8 @@ export async function GET(request: Request) {
 
     if (resolved.status === "authenticated") {
       const locale = localeFromRequest(request);
+      // 已登录进站：记今天的 IP（同 IP 同北京日只写一次；不必重新输密码）
+      await touchAuthUserActivityIpFromRequest(env.DB, resolved.user, request);
       return jsonResponse({
         ok: true,
         authenticated: true,

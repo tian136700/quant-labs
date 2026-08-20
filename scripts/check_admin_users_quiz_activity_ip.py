@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression: teacher quiz must refresh last_login_* (activity IP), throttled."""
+"""Regression: site visit / quiz refresh last_login_* once per Beijing day."""
 
 from __future__ import annotations
 
@@ -20,6 +20,8 @@ def main() -> int:
             ROOT / "src/lib/etr-auth-db/activity_ip.ts",
             [
                 "USER_ACTIVITY_IP_THROTTLE_MS",
+                "beijingYmdFromMs",
+                "Asia/Shanghai",
                 "touchUserActivityIp",
                 "touchAuthUserActivityIpFromRequest",
                 "recordUserLoginHistory",
@@ -29,6 +31,10 @@ def main() -> int:
         (
             ROOT / "src/lib/etr-auth-db/index.ts",
             ["touchAuthUserActivityIpFromRequest", "activity_ip"],
+        ),
+        (
+            ROOT / "src/app/api/english-teacher-review/auth/route.ts",
+            ["touchAuthUserActivityIpFromRequest"],
         ),
         (
             ROOT / "src/app/api/jp-vocab/teacher-quiz-live/route.ts",
@@ -60,7 +66,11 @@ def main() -> int:
         ),
         (
             ROOT / ".cursor/rules/admin-users-quiz-activity-ip.mdc",
-            ["touchAuthUserActivityIpFromRequest", "USER_ACTIVITY_IP_THROTTLE"],
+            [
+                "touchAuthUserActivityIpFromRequest",
+                "北京自然日",
+                "english-teacher-review/auth",
+            ],
         ),
     ]
 
