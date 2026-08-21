@@ -29,6 +29,14 @@ const ELLIPSIS_SLOT_RE = /(?:…|\.{3}|～|~)/;
 /** as ------- as possible / 下划线挖空句型 */
 const DASH_BLANK_SLOT_RE = /(?:-{3,}|_{3,}|—{2,}|－{2,})/;
 
+/** unaware that + 从句 / adj. + that / V + N 等「加号挖空」句型 */
+const PLUS_SLOT_RE =
+  /(?:\s\+\s|\+\s*[\u4e00-\u9fff]|\b(?:that|which|who|whom|where|when|if|whether|to)\s*\+|\+\s*(?:clause|n\.?|v\.?|adj\.?|adv\.?|sth\.?|sb\.?)\b)/i;
+
+/** 词条里带中文语法课名：从句 / 句型 / 时态 … */
+const ZH_GRAMMAR_LABEL_RE =
+  /(?:从句|句型|句式|搭配|语法|时态|语态|结构|用法说明)/;
+
 export type EnVocabKindSuggest = "word" | "grammar";
 
 /**
@@ -43,6 +51,8 @@ export function enVocabLemmaLooksLikeGrammar(raw: string): boolean {
   if (WILL_BE_PATTERN_RE.test(word)) return true;
   if (ELLIPSIS_SLOT_RE.test(word)) return true;
   if (DASH_BLANK_SLOT_RE.test(word)) return true;
+  if (PLUS_SLOT_RE.test(word)) return true;
+  if (ZH_GRAMMAR_LABEL_RE.test(word)) return true;
   if (SLOT_WORD_RE.test(word)) return true;
   if (LETTER_SLOT_RE.test(word) && /\s/.test(word)) return true;
 

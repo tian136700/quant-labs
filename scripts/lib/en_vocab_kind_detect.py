@@ -29,6 +29,17 @@ WILL_BE_PATTERN_RE = re.compile(r"\bwill\s+be\s+(?:to\b|doing\b)", re.I)
 ELLIPSIS_SLOT_RE = re.compile(r"(?:…|\.{3}|～|~)")
 # as ------- as possible / fill-in-the-blank 横线/下划线挖空
 DASH_BLANK_SLOT_RE = re.compile(r"(?:-{3,}|_{3,}|—{2,}|－{2,})")
+# unaware that + 从句 / adj. + that / V + N 等「加号挖空」句型
+PLUS_SLOT_RE = re.compile(
+    r"(?:\s\+\s|\+\s*[\u4e00-\u9fff]|"
+    r"\b(?:that|which|who|whom|where|when|if|whether|to)\s*\+|"
+    r"\+\s*(?:clause|n\.?|v\.?|adj\.?|adv\.?|sth\.?|sb\.?)\b)",
+    re.I,
+)
+# 词条里带中文语法课名：从句 / 句型 / 时态 …
+ZH_GRAMMAR_LABEL_RE = re.compile(
+    r"(?:从句|句型|句式|搭配|语法|时态|语态|结构|用法说明)"
+)
 
 
 def en_vocab_lemma_looks_like_grammar(raw: str) -> bool:
@@ -44,6 +55,10 @@ def en_vocab_lemma_looks_like_grammar(raw: str) -> bool:
     if ELLIPSIS_SLOT_RE.search(word):
         return True
     if DASH_BLANK_SLOT_RE.search(word):
+        return True
+    if PLUS_SLOT_RE.search(word):
+        return True
+    if ZH_GRAMMAR_LABEL_RE.search(word):
         return True
     if SLOT_WORD_RE.search(word):
         return True

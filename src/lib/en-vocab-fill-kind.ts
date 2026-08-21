@@ -53,6 +53,16 @@ function classifyReason(word: string): string {
   if (/(?:…|\.{3}|～|~)/.test(w)) return "ellipsis_slot";
   if (/(?:-{3,}|_{3,}|—{2,}|－{2,})/.test(w)) return "dash_blank_slot";
   if (
+    /(?:\s\+\s|\+\s*[\u4e00-\u9fff]|\b(?:that|which|who|whom|where|when|if|whether|to)\s*\+)/i.test(
+      w
+    )
+  ) {
+    return "plus_slot";
+  }
+  if (/(?:从句|句型|句式|搭配|语法|时态|语态|结构)/.test(w)) {
+    return "zh_grammar_label";
+  }
+  if (
     /\b(?:somebody|someone|something|somewhere|sb\.?|sth\.?)\b/i.test(w)
   ) {
     return "indefinite_slot";

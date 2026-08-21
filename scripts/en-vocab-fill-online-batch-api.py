@@ -819,7 +819,7 @@ def apply_kind_grammar(
     source: str,
     dry_run: bool,
 ) -> bool:
-    """误标单词 → grammar。"""
+    """误标单词 → grammar。已是 grammar / 本次改成 grammar → True；拒收 → False。"""
     if dry_run:
         print(f"    dry-run reclassify kind→grammar id={word_id}", flush=True)
         return True
@@ -836,9 +836,19 @@ def apply_kind_grammar(
     ok = int(r.get("updated") or 0) > 0
     if ok:
         print(f"    reclassified kind→grammar id={word_id}", flush=True)
-    elif r.get("skipped"):
-        print(f"    kind skip={r.get('skipped')}", flush=True)
-    return ok
+        return True
+    skipped = r.get("skipped") or []
+    if isinstance(skipped, list):
+        for row in skipped:
+            if not isinstance(row, dict):
+                continue
+            reason = str(row.get("reason") or "")
+            if reason == "already_grammar":
+                print(f"    kind already grammar id={word_id}", flush=True)
+                return True
+        if skipped:
+            print(f"    kind skip={skipped}", flush=True)
+    return False
 
 
 def apply_bundle(
@@ -1217,18 +1227,21 @@ def process_one(
     )
     print(f"    applied={done} source={source}", flush=True)
     preview_text = json.dumps(preview, ensure_ascii=False)
-    report_kind = (
-        "grammar"
-        if reclassify or str(payload.get("kind") or "") == "grammar"
-        else "word"
-    )
+    want_grammar = reclassify or str(payload.get("kind") or "") == "grammar"
+    report_kind = "grammar" if want_grammar else "word"
     # 整包缺一不可：音标/释义/用法/例句任一没写入 → 不算成功（禁止下次再拆着烧）
     required = expected_applied_keys(needs)
     missing_applied = [k for k in required if k not in done]
+    # 模型/本地认定 grammar，但线上仍拒改 kind → 假成功会清零熔断、同词死循环烧钱
+    kind_stuck = want_grammar and "kind" not in done
+    if kind_stuck and "kind" not in missing_applied:
+        missing_applied.append("kind")
     incomplete = bool(missing_applied)
     status = "success" if done and not incomplete else ("partial" if done else "failed")
     err = ""
-    if incomplete:
+    if kind_stuck:
+        err = "kind_reclassify_failed"
+    elif incomplete:
         err = "incomplete_bundle:" + ",".join(missing_applied)
     elif not done:
         err = "apply_none"
