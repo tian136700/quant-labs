@@ -20,7 +20,7 @@ import { LOCALE_HEADER } from "@/lib/locale-detect";
 import { jpVocabSaveProgressLabel } from "@/lib/jp-vocab-save-progress";
 import type { EnLessonKind, EnLessonRecord } from "@/lib/types";
 
-const CATEGORY_OPTIONS = [...EN_VOCAB_CATEGORY_PRESETS, "托业"] as const;
+const CATEGORY_OPTIONS = [...EN_VOCAB_CATEGORY_PRESETS] as const;
 
 type Props = {
   open: boolean;

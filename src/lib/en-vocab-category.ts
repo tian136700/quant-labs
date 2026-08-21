@@ -6,8 +6,15 @@
 /** 默认分类：现有线上词条均属雅思托福 */
 export const EN_VOCAB_DEFAULT_CATEGORY = "雅思托福";
 
+/** IT 面试技术英语（与雅思托福 / 托业并列） */
+export const EN_VOCAB_IT_INTERVIEW_CATEGORY = "IT面试";
+
 /** 已知分类（UI 下拉；上传也可写自由文本） */
-export const EN_VOCAB_CATEGORY_PRESETS = [EN_VOCAB_DEFAULT_CATEGORY] as const;
+export const EN_VOCAB_CATEGORY_PRESETS = [
+  EN_VOCAB_DEFAULT_CATEGORY,
+  "托业",
+  EN_VOCAB_IT_INTERVIEW_CATEGORY,
+] as const;
 
 export type EnVocabCategoryPreset = (typeof EN_VOCAB_CATEGORY_PRESETS)[number];
 
@@ -24,7 +31,16 @@ const CATEGORY_ALIASES: Record<string, string> = {
   "ielts toefl": EN_VOCAB_DEFAULT_CATEGORY,
   /** 托业单独一类，勿并进雅思托福 */
   托业: "托业",
+  托业词汇: "托业",
   toeic: "托业",
+  /** IT 面试技术英语；STT 本地「IT面试类高频词汇」等别名 */
+  IT面试: EN_VOCAB_IT_INTERVIEW_CATEGORY,
+  "IT 面试": EN_VOCAB_IT_INTERVIEW_CATEGORY,
+  IT面试类高频词汇: EN_VOCAB_IT_INTERVIEW_CATEGORY,
+  IT面试类高频词汇类: EN_VOCAB_IT_INTERVIEW_CATEGORY,
+  it面试: EN_VOCAB_IT_INTERVIEW_CATEGORY,
+  "it interview": EN_VOCAB_IT_INTERVIEW_CATEGORY,
+  it_interview: EN_VOCAB_IT_INTERVIEW_CATEGORY,
 };
 
 /**
@@ -35,7 +51,12 @@ export function normalizeEnVocabCategory(raw?: string | null): string {
   const t = (raw || "").trim();
   if (!t) return EN_VOCAB_DEFAULT_CATEGORY;
   const mapped = CATEGORY_ALIASES[t.toLowerCase()] ?? CATEGORY_ALIASES[t];
-  return mapped || t;
+  if (mapped) return mapped;
+  // 含「IT面试」的长名（本地词库）也归到标准分类
+  if (t.includes("IT面试") || t.toLowerCase().includes("it面试")) {
+    return EN_VOCAB_IT_INTERVIEW_CATEGORY;
+  }
+  return t;
 }
 
 /** 列表展示：空则显示默认分类 */
@@ -44,7 +65,7 @@ export function displayEnVocabCategory(raw?: string | null): string {
 }
 
 /**
- * 窄列 / iPad 用：至少两个字，方便一眼分辨教材类型（托福 / 托业 / 雅思…）。
+ * 窄列 / iPad 用：至少两个字，方便一眼分辨教材类型（托福 / 托业 / 雅思 / IT…）。
  * 完整名仍用 displayEnVocabCategory + title。
  */
 export function shortEnVocabCategoryLabel(raw?: string | null): string {
@@ -55,6 +76,14 @@ export function shortEnVocabCategoryLabel(raw?: string | null): string {
   if (key === "托福" || key === "toefl") return "托福";
   if (key === "托业" || key === "toeic") return "托业";
   if (key === "雅思" || key === "ielts") return "雅思";
+  if (
+    key === "it面试" ||
+    key === "it 面试" ||
+    full === EN_VOCAB_IT_INTERVIEW_CATEGORY ||
+    full.includes("IT面试")
+  ) {
+    return "面试";
+  }
 
   const chars = Array.from(full);
   if (chars.length <= 2) return full || "—";

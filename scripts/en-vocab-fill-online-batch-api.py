@@ -550,6 +550,13 @@ def build_prompt(row: dict[str, Any], needs: dict[str, bool]) -> str:
             "选题按托业这类职场/商务英语考试的高频语境，"
             "优先邮件、会议、办公室、客户沟通、日常工作场景用法。"
         )
+    elif "IT面试" in category or "面试" in category or "interview" in category.lower():
+        category_focus = (
+            "选题按 IT / 软件工程技术面试的高频语境，"
+            "优先系统设计、架构、算法数据结构、微服务、缓存、并发、"
+            "CI/CD、线上排障、代码评审等面试问答与白板讨论用法；"
+            "释义与例句也要偏技术面试口语，少用纯日常生活闲聊义。"
+        )
     else:
         category_focus = f"选题按「{category}」这一分类对应语境的高频用法。"
     return f"""词条：{word}

@@ -127,6 +127,8 @@ def main() -> None:
         fail("online prompt must forbid labeling noun attributives as 形容词")
     if "category_focus" not in online or "托业" not in online:
         fail("online batch prompt must adapt by category")
+    if "IT面试" not in online and "技术面试" not in online:
+        fail("online batch prompt must adapt for IT面试 category")
 
     edit = read("src/components/EnVocabEditModal.tsx")
     if "[口语" not in edit:
