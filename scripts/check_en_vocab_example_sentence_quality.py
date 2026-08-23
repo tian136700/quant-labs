@@ -116,6 +116,8 @@ def main() -> int:
                 "assessEnVocabUsagePosExampleAlignment",
                 "enVocabLemmaAppearsInSentence",
                 "enVocabSlotLemmaAppearsInSentence",
+                "enVocabLemmaTokensAppearInOrder",
+                "enVocabLemmaHasPlaceholderSlots",
                 "listEnVocabLemmaSurfaceForms",
                 "lemma_only_example",
                 "english_phrase_not_sentence",
@@ -132,6 +134,7 @@ def main() -> int:
                 "assessEnVocabExampleEnglishSentence",
                 "assessEnVocabUsagePosExampleAlignment",
                 "enVocabLemmaAppearsInSentence",
+                "will be in 冒充 will be to",
                 "完整句子",
                 "lemma_only_example",
                 "english_phrase_not_sentence",
@@ -147,6 +150,7 @@ def main() -> int:
             [
                 "assess_english_sentence",
                 "assess_usage_pos_example_alignment",
+                "_lemma_tokens_appear_in_order",
                 "english_phrase_not_sentence",
                 "lemma_only_example",
                 "usage_pos_example_mismatch",
@@ -200,9 +204,50 @@ def main() -> int:
         if not lemma_ok(sent, word):
             errors.append(f"lemma_ok failed: {word!r} in {sent!r}")
 
-    # 用法词性 ↔ 例句形态对齐（honor 名词 vs are honored）
+    # 固定多词语法：须按序出现全部词元（will be to ≠ will be in）
     import importlib.util
 
+    lemma_order_cases = [
+        (
+            "She will be in Tokyo next week for the client meeting.",
+            "will be to",
+            "grammar",
+            False,
+        ),
+        (
+            "The team will be to visit Tokyo next week for the client meeting.",
+            "will be to",
+            "grammar",
+            True,
+        ),
+        (
+            "It will be to the manager to approve the budget.",
+            "will be to",
+            "grammar",
+            True,
+        ),
+        (
+            "It will be up to the manager to approve the budget.",
+            "will be to",
+            "grammar",
+            True,
+        ),
+    ]
+    py_path = ROOT / "scripts" / "en-vocab-fill-example-sentences-api.py"
+    spec = importlib.util.spec_from_file_location(
+        "en_vocab_fill_example_sentences_api_order", py_path
+    )
+    assert spec and spec.loader
+    order_mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(order_mod)
+    for sent, word, kind, expected in lemma_order_cases:
+        got = order_mod.word_used(sent, word, kind)
+        if got != expected:
+            errors.append(
+                f"word_used({word!r}, {kind!r}): {sent!r} → {got}, expected {expected}"
+            )
+
+    # 用法词性 ↔ 例句形态对齐（honor 名词 vs are honored）
     py_path = ROOT / "scripts" / "en-vocab-fill-example-sentences-api.py"
     spec = importlib.util.spec_from_file_location(
         "en_vocab_fill_example_sentences_api", py_path

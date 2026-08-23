@@ -218,6 +218,46 @@ const EN_VOCAB_INDEFINITE_SLOT_RE =
 
 const EN_VOCAB_LETTER_SLOT_RE = /\b[A-C]\b/g;
 
+/** 词条分词（含 will be to 里的 to；不含占位 somebody / A） */
+export function enVocabLemmaTokenSequence(lemma: string): string[] {
+  return lemma
+    .trim()
+    .replace(/^～/, "")
+    .split(/[\s/]+/)
+    .map((w) => w.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+export function enVocabLemmaHasPlaceholderSlots(lemma: string): boolean {
+  return (
+    EN_VOCAB_INDEFINITE_SLOT_RE.test(lemma) ||
+    EN_VOCAB_LETTER_SLOT_RE.test(lemma) ||
+    /\b(?:will\s+be|be)\s+doing\b/i.test(lemma)
+  );
+}
+
+/**
+ * 固定多词语法（如 will be to）须按序出现全部词元，含 to/in 等短词。
+ * 避免 will be in 因 will+be 锚点误过 word_not_used。
+ */
+export function enVocabLemmaTokensAppearInOrder(
+  sentence: string,
+  lemma: string
+): boolean {
+  const tokens = enVocabLemmaTokenSequence(lemma);
+  if (tokens.length < 2) return false;
+  const lower = sentence.toLowerCase();
+  let from = 0;
+  for (const tok of tokens) {
+    const escaped = tok.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(`\\b${escaped}\\b`, "i");
+    const m = re.exec(lower.slice(from));
+    if (!m || m.index == null) return false;
+    from += m.index + m[0].length;
+  }
+  return true;
+}
+
 /**
  * 句型模板（somebody / A and B / will be doing …）是否在例句中出现。
  * 占位换成灵活匹配，避免硬要求字面 somebody。
@@ -232,6 +272,14 @@ export function enVocabSlotLemmaAppearsInSentence(
 
   // 1) 字面整词（含 somebody）
   if (lower.includes(raw.toLowerCase().replace(/^～/, ""))) return true;
+
+  // 1b) 无占位符的固定多词语法：须按序出现全部词元（will be to ≠ will be in）
+  if (!enVocabLemmaHasPlaceholderSlots(raw)) {
+    const seq = enVocabLemmaTokenSequence(raw);
+    if (seq.length >= 2) {
+      return enVocabLemmaTokensAppearInOrder(sentence, raw);
+    }
+  }
 
   // 2) 占位 → 通配：A/B/C、somebody…；doing（进行时模板）→ \w+ing
   let pattern = raw;

@@ -146,7 +146,7 @@ ${singlePoint.n}. ${singlePoint.text}
    正确示例：The issue is hard today.
    正确示例：They will issue a statement soon.
 2. 英文须出现目标词或其常见词形/搭配（可改时态；多词词条如 Present Perfect / get out 须写出该短语）。
-3. 语法条同样须在句中自然出现该语法点对应的词条文字。
+3. 语法条须按序出现词条全部词元（如 will be to 必须含 will、be、to；禁止 will be in 冒充 will be to）。
 4. 英文下一行写中文译义，必须以「译文：」开头；「译文：」后直接写中文，禁止「译文：/ …」。中文必须翻译上面那一整句英文，禁止英文短语配中文整句。
 5. 只输出英文行与下一行「译文：」+中文；不要行首编号、不要 markdown、不要解释。
 6. 禁止输出 JSON / Python 列表或对象（如 [{"sentence":"...","translation":"..."}] 或 [{'sentence':...}]）。必须是纯文本交替行。`;
@@ -195,7 +195,7 @@ ${usageBlock}
    正确示例：The issue is hard today.
    正确示例：They will issue a statement soon.
 2. 每条英文须出现目标词或其常见词形/搭配（可改时态；多词词条须写出该短语）。
-3. 语法条同样须在句中自然出现该语法点对应的词条文字。
+3. 语法条须按序出现词条全部词元（如 will be to 必须含 will、be、to；禁止 will be in 冒充 will be to）。
 4. 每条英文下一行写中文译义，必须以「译文：」开头；「译文：」后直接写中文，禁止「译文：/ …」。中文必须翻译上面那一整句英文，禁止英文短语配中文整句。
 5. 只输出英文行与下一行「译文：」+中文交替；不要行首编号、不要 markdown、不要解释。
 6. 禁止输出 JSON / Python 列表或对象（如 [{"sentence":"...","translation":"..."}] 或 [{'sentence':...}]）。必须是纯文本交替行。`;

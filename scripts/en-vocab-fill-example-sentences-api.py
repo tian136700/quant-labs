@@ -121,16 +121,64 @@ def assess_english_sentence(
     return None
 
 
+INDEFINITE_SLOT_RE = re.compile(
+    r"\b(?:somebody|someone|something|somewhere|somehow|anyone|anybody|"
+    r"anything|anywhere|everybody|everyone|everything|everywhere|nobody|"
+    r"nothing|nowhere|sb\.?|sth\.?)\b",
+    re.I,
+)
+LETTER_SLOT_RE = re.compile(r"\b[A-C]\b")
+
+
+def _lemma_token_sequence(lemma: str) -> list[str]:
+    return [
+        w.strip().lower()
+        for w in re.sub(r"^[～~]", "", lemma.strip()).split()
+        if w.strip()
+    ]
+
+
+def _lemma_has_placeholder_slots(lemma: str) -> bool:
+    return bool(
+        INDEFINITE_SLOT_RE.search(lemma)
+        or LETTER_SLOT_RE.search(lemma)
+        or re.search(r"\b(?:will\s+be|be)\s+doing\b", lemma, flags=re.I)
+    )
+
+
+def _lemma_tokens_appear_in_order(sentence: str, lemma: str) -> bool:
+    tokens = _lemma_token_sequence(lemma)
+    if len(tokens) < 2:
+        return False
+    lower = sentence.lower()
+    from_idx = 0
+    for tok in tokens:
+        m = re.search(rf"\b{re.escape(tok)}\b", lower[from_idx:], flags=re.I)
+        if not m:
+            return False
+        from_idx += m.end()
+    return True
+
+
 def word_used(sentence: str, word: str, kind: str) -> bool:
-    """允许常见时态/词形（expect→expected；get→got）；多词/语法仍看原文片段。"""
+    """允许常见时态/词形（expect→expected；get→got）；多词/语法须按序出现全部词元。"""
     target = word.strip()
     if not target:
         return False
     lower = sentence.lower()
-    if kind == "grammar" or (" " in target or "-" in target):
-        return target.lstrip("～~").lower() in lower
+    bare = target.lstrip("～~").lower()
 
-    w = target.lower().lstrip("～~")
+    if bare in lower:
+        return True
+
+    if kind == "grammar" or (" " in target or "-" in target):
+        if not _lemma_has_placeholder_slots(target):
+            seq = _lemma_token_sequence(target)
+            if len(seq) >= 2:
+                return _lemma_tokens_appear_in_order(sentence, target)
+        return bare in lower
+
+    w = bare
     forms = {w, w + "s", w + "es", w + "ed", w + "ing"}
     if w.endswith("e") and len(w) > 1:
         forms.add(w + "d")
