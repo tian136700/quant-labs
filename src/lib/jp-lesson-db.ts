@@ -51,6 +51,7 @@ let jpLessonLinkCopyCountColumnReady = false;
 let jpLessonGrammarItemCountColumnReady = false;
 let jpLessonCourseLabelColumnReady = false;
 let jpLessonCourseGroupIdColumnReady = false;
+let jpLessonMaterialGroupIdColumnReady = false;
 let jpLessonBoardDocxR2KeyColumnReady = false;
 let jpLessonBoardDocxFingerprintColumnReady = false;
 let jpLessonBoardDocxUpdatedAtColumnReady = false;
@@ -109,6 +110,13 @@ const JP_LESSON_OPTIONAL_COLUMNS: ReadonlyArray<{
     ddl: `ALTER TABLE jp_lesson ADD COLUMN course_group_id TEXT`,
     markReady: () => {
       jpLessonCourseGroupIdColumnReady = true;
+    },
+  },
+  {
+    name: "material_group_id",
+    ddl: `ALTER TABLE jp_lesson ADD COLUMN material_group_id TEXT`,
+    markReady: () => {
+      jpLessonMaterialGroupIdColumnReady = true;
     },
   },
   {
@@ -317,6 +325,10 @@ function mapRow(row: Record<string, unknown>): JpLessonRecord {
       row.course_group_id != null && String(row.course_group_id).trim()
         ? String(row.course_group_id).trim()
         : null,
+    material_group_id:
+      row.material_group_id != null && String(row.material_group_id).trim()
+        ? String(row.material_group_id).trim()
+        : null,
     title: row.title != null ? String(row.title) : null,
     ref_key: row.ref_key != null ? String(row.ref_key) : null,
     completed: Number(row.completed) === 1,
@@ -378,7 +390,7 @@ async function attachTeacherIds(
   });
 }
 
-const LESSON_SELECT = `SELECT id, kind, content, meanings, annotations, example_sentences, grammar_item_count, course_label, course_group_id, title, ref_key, completed, learning,
+const LESSON_SELECT = `SELECT id, kind, content, meanings, annotations, example_sentences, grammar_item_count, course_label, course_group_id, material_group_id, title, ref_key, completed, learning,
   status_updated_at, status_updated_by, teacher_other, next_class_at, class_duration_minutes, link_copy_count, uploaded_at, created_at, updated_at FROM jp_lesson`;
 
 async function seedIfEmpty(_db: D1Database): Promise<void> {
@@ -401,6 +413,7 @@ async function seedIfEmpty(_db: D1Database): Promise<void> {
       grammar_item_count: 0,
       course_label: null,
       course_group_id: null,
+      material_group_id: null,
       title: (item.title || "").trim() || null,
       ref_key: item.ref_key ? normalizeJpVocabRefKey(item.ref_key) || null : null,
       completed: false,
@@ -598,6 +611,7 @@ export async function createJpLesson(
       grammar_item_count: grammarItemCount,
       course_label: courseLabel,
       course_group_id: courseGroupId,
+      material_group_id: null,
       title,
       ref_key: refKey,
       completed: false,

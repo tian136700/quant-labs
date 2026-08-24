@@ -45,10 +45,14 @@ import {
 import {
   JP_LESSON_COMPLETE_PROGRESS_BUSY_LABEL,
   JP_LESSON_COMPLETE_PROGRESS_DONE_LABEL,
-  runJpLessonVocabSyncChunks,
-  type JpLessonVocabSyncProgress,
+  runJpLessonMaterialGroupVocabSyncs,
 } from "@/components/jp-lesson-page/runJpLessonVocabSyncChunks";
-import type { JpLessonVocabSyncPlan } from "@/lib/jp-lesson-vocab-sync-shared";
+import {
+  patchJpLessonsFromServers,
+  mergeJpLessonServerFields,
+  vocabSyncGroupTotal,
+  type JpLessonProgressSaveResponse,
+} from "@/components/jp-lesson-page/jpLessonProgressClient";
 import type { Locale } from "@/i18n/messages";
 
 export type UseJpLessonPageActionsOptions = {
@@ -129,43 +133,13 @@ export function useJpLessonPageActions(options: UseJpLessonPageActionsOptions) {
     loadLessons,
   } = options;
 
-  const syncLessonVocabIfNeeded = async (
-    lessonId: number,
-    vocabSync: JpLessonVocabSyncPlan | null | undefined
-  ): Promise<{ ok: true } | { ok: false; error: string }> => {
-    if (!vocabSync?.needed || !vocabSync.total) {
-      return { ok: true };
-    }
-    return runJpLessonVocabSyncChunks({
-      locale,
-      lessonId,
-      plan: vocabSync,
-      onProgress: setVocabSyncProgress,
-    });
-  };
-
-  const applyLessonServerPatch = (
-    server: JpLessonRecord,
-    fallback?: JpLessonRecord
+  const applyLessonsServerPatch = (
+    servers: JpLessonRecord[],
+    fallbackById?: Map<number, JpLessonRecord>
   ) => {
+    if (!servers.length) return;
     setLessons((prev) => {
-      const next = prev.map((l) => {
-        if (l.id !== server.id) return l;
-        const base = fallback && fallback.id === server.id ? fallback : l;
-        return {
-          ...server,
-          teacher_ids: server.teacher_ids?.length
-            ? server.teacher_ids
-            : (base.teacher_ids ?? []),
-          teacher_other: server.teacher_other ?? base.teacher_other,
-          class_schedules: server.class_schedules?.length
-            ? server.class_schedules
-            : base.class_schedules,
-          next_class_at: server.next_class_at ?? base.next_class_at,
-          class_duration_minutes:
-            server.class_duration_minutes ?? base.class_duration_minutes,
-        };
-      });
+      const next = patchJpLessonsFromServers(prev, servers, fallbackById);
       persistLessonCache(next, refs, noteCounts, teachers);
       return next;
     });
@@ -193,6 +167,42 @@ export function useJpLessonPageActions(options: UseJpLessonPageActionsOptions) {
     }
   };
 
+  const revertMaterialGroupProgress = async (
+    siblingIds: number[],
+    snapshotById: Map<number, JpLessonRecord>
+  ) => {
+    for (const id of siblingIds) {
+      const snap = snapshotById.get(id);
+      await revertLessonProgress(
+        id,
+        snap ? getJpLessonProgressStatus(snap) : "pending"
+      );
+    }
+    setLessons((prev) => {
+      const next = prev.map((l) => snapshotById.get(l.id) ?? l);
+      persistLessonCache(next, refs, noteCounts, teachers);
+      return next;
+    });
+  };
+
+  const syncMaterialGroupVocabIfNeeded = (
+    primaryLessonId: number,
+    data: Pick<JpLessonProgressSaveResponse, "vocab_sync" | "vocab_syncs">
+  ) =>
+    runJpLessonMaterialGroupVocabSyncs({
+      locale,
+      primaryLessonId,
+      items: data.vocab_syncs?.length
+        ? data.vocab_syncs
+        : [
+            {
+              lesson_id: primaryLessonId,
+              vocab_sync: data.vocab_sync ?? null,
+            },
+          ],
+      onProgress: setVocabSyncProgress,
+    });
+
   const setLessonProgress = async (
     lessonId: number,
     progressStatus: JpLessonProgressStatus
@@ -204,10 +214,8 @@ export function useJpLessonPageActions(options: UseJpLessonPageActionsOptions) {
     }
     if (savingId === lessonId) return;
 
-    const snapshot = lessons.find((l) => l.id === lessonId);
-    const previousStatus = snapshot
-      ? getJpLessonProgressStatus(snapshot)
-      : "pending";
+    const snapshotById = new Map(lessons.map((l) => [l.id, l]));
+    const snapshot = snapshotById.get(lessonId);
     const markingCompleted = progressStatus === "completed";
 
     setSavingId(lessonId);
@@ -250,57 +258,55 @@ export function useJpLessonPageActions(options: UseJpLessonPageActionsOptions) {
         credentials: "include",
         body: JSON.stringify({ lesson_id: lessonId, progress_status: progressStatus }),
       });
-      const data = (await res.json()) as {
-        ok: boolean;
-        lesson?: JpLessonRecord;
-        error?: string;
-        teacher_auto_enable?: TeacherAutoEnableInfo | null;
-        vocab_sync?: JpLessonVocabSyncPlan | null;
-      };
+      const data = (await res.json()) as JpLessonProgressSaveResponse;
       if (!data.ok || !data.lesson) {
         throw new Error(data.error || "保存失败");
       }
 
       if (markingCompleted) {
+        const siblingIds =
+          data.sibling_lesson_ids?.length
+            ? data.sibling_lesson_ids
+            : [lessonId];
+        const syncServers =
+          data.lessons?.length ? data.lessons : [data.lesson];
+        const groupTotal = vocabSyncGroupTotal(data);
         setVocabSyncProgress({
           lessonId,
           synced: 0,
-          total: data.vocab_sync?.total ?? 0,
+          total: groupTotal,
           percent: 12,
-          label: JP_LESSON_COMPLETE_PROGRESS_BUSY_LABEL,
+          label:
+            siblingIds.length > 1
+              ? `正在同步 ${siblingIds.length} 课到日语抽问…`
+              : JP_LESSON_COMPLETE_PROGRESS_BUSY_LABEL,
         });
-        const syncResult = await syncLessonVocabIfNeeded(
-          lessonId,
-          data.vocab_sync
-        );
+        const syncResult = await syncMaterialGroupVocabIfNeeded(lessonId, data);
         if (!syncResult.ok) {
-          await revertLessonProgress(lessonId, previousStatus);
-          if (snapshot) {
-            setLessons((prev) => {
-              const next = prev.map((l) => (l.id === lessonId ? snapshot : l));
-              persistLessonCache(next, refs, noteCounts, teachers);
-              return next;
-            });
-          }
+          await revertMaterialGroupProgress(siblingIds, snapshotById);
           setVocabSyncProgress(null);
           setStatus(syncResult.error);
           return;
         }
-        applyLessonServerPatch(data.lesson, snapshot);
+        applyLessonsServerPatch(syncServers, snapshotById);
         setVocabSyncProgress({
           lessonId,
-          synced: data.vocab_sync?.total ?? 0,
-          total: data.vocab_sync?.total ?? 0,
+          synced: groupTotal,
+          total: groupTotal,
           percent: 100,
           label: JP_LESSON_COMPLETE_PROGRESS_DONE_LABEL,
         });
         const autoEnableSuffix = teacherAutoEnableStatusSuffix(
           data.teacher_auto_enable
         );
+        const groupSuffix =
+          siblingIds.length > 1
+            ? `（同教材 ${siblingIds.length} 课）`
+            : "";
         setStatus(
           autoEnableSuffix
-            ? `${JP_LESSON_COMPLETE_PROGRESS_DONE_LABEL}${autoEnableSuffix}`
-            : JP_LESSON_COMPLETE_PROGRESS_DONE_LABEL
+            ? `${JP_LESSON_COMPLETE_PROGRESS_DONE_LABEL}${groupSuffix}${autoEnableSuffix}`
+            : `${JP_LESSON_COMPLETE_PROGRESS_DONE_LABEL}${groupSuffix}`
         );
         window.setTimeout(() => {
           setVocabSyncProgress(null);
@@ -309,7 +315,7 @@ export function useJpLessonPageActions(options: UseJpLessonPageActionsOptions) {
         return;
       }
 
-      applyLessonServerPatch(data.lesson, snapshot);
+      applyLessonsServerPatch([data.lesson], snapshotById);
       const autoEnableSuffix = teacherAutoEnableStatusSuffix(
         data.teacher_auto_enable
       );
@@ -700,14 +706,11 @@ export function useJpLessonPageActions(options: UseJpLessonPageActionsOptions) {
       class_at: item.class_at.trim(),
       duration_minutes: normalizeClassDurationMinutes(item.duration_minutes),
     }));
-    const snapshotById = new Map(
-      lessons
-        .filter((lesson) => batchLessonIds.includes(lesson.id))
-        .map((lesson) => [lesson.id, lesson] as const)
-    );
+    const snapshotById = new Map(lessons.map((lesson) => [lesson.id, lesson]));
     setBatchSaving(true);
     try {
       const autoEnabledUsernames: string[] = [];
+      const materialGroupServers: JpLessonRecord[] = [];
       for (const lessonId of batchLessonIds) {
         const timeRes = await fetch("/api/jp-lesson", {
           method: "POST",
@@ -771,12 +774,8 @@ export function useJpLessonPageActions(options: UseJpLessonPageActionsOptions) {
               progress_status: progressStatus,
             }),
           });
-          const progressData = (await progressRes.json()) as {
-            ok: boolean;
-            error?: string;
-            teacher_auto_enable?: TeacherAutoEnableInfo | null;
-            vocab_sync?: JpLessonVocabSyncPlan | null;
-          };
+          const progressData =
+            (await progressRes.json()) as JpLessonProgressSaveResponse;
           if (!progressData.ok) {
             throw new Error(progressData.error || `课程 #${lessonId} 状态保存失败`);
           }
@@ -785,29 +784,38 @@ export function useJpLessonPageActions(options: UseJpLessonPageActionsOptions) {
             if (name) autoEnabledUsernames.push(name);
           }
           if (progressStatus === "completed") {
+            const siblingIds =
+              progressData.sibling_lesson_ids?.length
+                ? progressData.sibling_lesson_ids
+                : [lessonId];
+            const groupTotal = vocabSyncGroupTotal(progressData);
             setVocabSyncProgress({
               lessonId,
               synced: 0,
-              total: progressData.vocab_sync?.total ?? 0,
+              total: groupTotal,
               percent: 10,
-              label: JP_LESSON_COMPLETE_PROGRESS_BUSY_LABEL,
+              label:
+                siblingIds.length > 1
+                  ? `正在同步 ${siblingIds.length} 课到日语抽问…`
+                  : JP_LESSON_COMPLETE_PROGRESS_BUSY_LABEL,
             });
-            const syncResult = await syncLessonVocabIfNeeded(
+            const syncResult = await syncMaterialGroupVocabIfNeeded(
               lessonId,
-              progressData.vocab_sync
+              progressData
             );
             if (!syncResult.ok) {
-              const snap = snapshotById.get(lessonId);
-              const previousStatus = snap
-                ? getJpLessonProgressStatus(snap)
-                : "pending";
-              await revertLessonProgress(lessonId, previousStatus);
+              await revertMaterialGroupProgress(siblingIds, snapshotById);
               throw new Error(syncResult.error);
+            }
+            if (progressData.lessons?.length) {
+              materialGroupServers.push(...progressData.lessons);
+            } else if (progressData.lesson) {
+              materialGroupServers.push(progressData.lesson);
             }
             setVocabSyncProgress({
               lessonId,
-              synced: progressData.vocab_sync?.total ?? 0,
-              total: progressData.vocab_sync?.total ?? 0,
+              synced: groupTotal,
+              total: groupTotal,
               percent: 100,
               label: JP_LESSON_COMPLETE_PROGRESS_DONE_LABEL,
             });
@@ -819,8 +827,26 @@ export function useJpLessonPageActions(options: UseJpLessonPageActionsOptions) {
       const progressFields = progressStatus
         ? jpLessonProgressToFields(progressStatus)
         : null;
+      const groupById = new Map(
+        materialGroupServers.map((lesson) => [lesson.id, lesson])
+      );
       setLessons((prev) => {
         const next = prev.map((lesson) => {
+          const fromGroup = groupById.get(lesson.id);
+          if (fromGroup) {
+            return {
+              ...mergeJpLessonServerFields(lesson, fromGroup),
+              teacher_ids: teacherIds,
+              teacher_other: teacherOther,
+              class_schedules: normalized.map((item, index) => ({
+                id: -(index + 1),
+                class_at: item.class_at,
+                duration_minutes: item.duration_minutes,
+              })),
+              next_class_at: first?.class_at ?? null,
+              class_duration_minutes: first?.duration_minutes ?? null,
+            };
+          }
           if (!batchLessonIds.includes(lesson.id)) return lesson;
           return {
             ...lesson,

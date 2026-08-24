@@ -5,9 +5,9 @@ import {
   listJpLessons,
   updateJpLessonClassSchedules,
   updateJpLessonNextClassAt,
-  updateJpLessonProgress,
   updateJpLessonTeacherAssignment,
 } from "@/lib/jp-lesson-db";
+import { updateJpLessonProgressWithMaterialGroup } from "@/lib/jp-lesson-material-group";
 import { completeJpLessonContentItems } from "@/lib/jp-lesson-complete-content-items";
 import { bulkCreateJpLessonGrammar } from "@/lib/jp-lesson-bulk-grammar";
 import { updateJpLessonContentMeanings } from "@/lib/jp-lesson-db-content";
@@ -504,7 +504,7 @@ export async function POST(request: Request) {
       return jsonResponse({ ok: false, error: "progress_status_invalid" }, 400);
     }
 
-    const result = await updateJpLessonProgress(
+    const result = await updateJpLessonProgressWithMaterialGroup(
       env.DB,
       lessonId,
       progressStatus,
@@ -523,8 +523,11 @@ export async function POST(request: Request) {
     return jsonResponse({
       ok: true,
       lesson: result.lesson,
+      lessons: result.lessons,
       teacher_auto_enable,
       vocab_sync: result.vocab_sync ?? null,
+      vocab_syncs: result.vocab_syncs,
+      sibling_lesson_ids: result.sibling_lesson_ids,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

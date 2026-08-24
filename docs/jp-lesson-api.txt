@@ -69,7 +69,7 @@ GET · 列表
 {
   "ok": true,
   "lessons": [ { "id", "kind", "content", "course_label", "course_group_id",
-                 "progress…", "ref_key", "class_schedules", … } ],
+                 "material_group_id", "progress…", "ref_key", "class_schedules", … } ],
   "refs": { "lesson-77": { "ref_key", "media_type", "updated_at", … }, … },
   "note_counts": { "77": 3, "80": 1 },
   "notes": [],
@@ -377,7 +377,61 @@ POST · 改学习状态
   "completed": true
 }
 
-成功：{ "ok": true, "lesson": { … }, "teacher_auto_enable": … }
+共用教材（material_group_id）
+----------------------------
+- 列表每课可有 `material_group_id`（同一张教案教材的组号；与 `course_group_id` 无关）
+- 写入：`POST /api/jp-lesson/ref/attach-batch` 同一次挂同一文件到多课 → 写入同一组号
+  （说明见 docs/jp-lesson-ref-attach-batch-api.txt）；单课挂图若尚无组号会新建仅含本课的组
+- **progress_status=completed** 时：同组内所有**尚未已完成**的课一并标完成；
+  响应带回多课 `vocab_syncs` / `sibling_lesson_ids` / `lessons`
+- 客户端须对 `vocab_syncs` 里每一课循环 `sync_to_vocab`（每批 8，防 1102）
+- 无 `material_group_id` 时行为与旧版单课一致（只完成本课）
+- **禁止**按课次名「第1课」猜组；未写入组号的历史课不会自动连带
+
+成功（单课 / 无组，兼容）
+------------------------
+{
+  "ok": true,
+  "lesson": { "id": 77, "material_group_id": null, … },
+  "lessons": [ { …同一课… } ],
+  "sibling_lesson_ids": [77],
+  "teacher_auto_enable": …,
+  "vocab_sync": { "needed": true, "total": 2, "offset": 0, "chunk_size": 8 },
+  "vocab_syncs": [
+    { "lesson_id": 77, "vocab_sync": { "needed": true, "total": 2, "offset": 0, "chunk_size": 8 } }
+  ]
+}
+
+成功（同组级联 completed，节选）
+--------------------------------
+{
+  "ok": true,
+  "lesson": { "id": 110, "material_group_id": "mg_…", "completed": true, … },
+  "lessons": [
+    { "id": 110, "completed": true, … },
+    { "id": 111, "completed": true, … }
+  ],
+  "sibling_lesson_ids": [110, 111],
+  "vocab_sync": { "needed": true, "total": 2, "offset": 0, "chunk_size": 8 },
+  "vocab_syncs": [
+    { "lesson_id": 110, "vocab_sync": { "needed": true, "total": 2, "offset": 0, "chunk_size": 8 } },
+    { "lesson_id": 111, "vocab_sync": { "needed": true, "total": 12, "offset": 0, "chunk_size": 8 } }
+  ],
+  "teacher_auto_enable": …
+}
+
+说明：
+- `vocab_sync` = 用户点的那一课（兼容旧客户端）
+- `vocab_syncs` = 本请求新标完成的每一课；须逐课分片 sync
+- 服务端任一同组改进度失败会回滚本请求已改状态；客户端 sync 失败亦应回滚进度（见页面实现）
+
+curl 示例（标已完成）
+---------------------
+curl -sS -X POST 'https://japanese.info-quests.com/api/jp-lesson' \
+  -H 'Cookie: 你的登录 Cookie' \
+  -H 'Content-Type: application/json' \
+  -H 'x-locale: zh' \
+  -d '{"lesson_id":110,"progress_status":"completed"}'
 
 
 ────────────────────────────────
@@ -423,11 +477,13 @@ POST · set_class_schedules（管理员）
 本说明：GET/POST /api/jp-lesson（含 ?view=schedule）
 实现：src/app/api/jp-lesson/route.ts
       src/lib/jp-lesson-db.ts
+      src/lib/jp-lesson-material-group.ts（教材组完成级联）
       src/lib/jp-lesson-schedule-list.ts（日程轻量列表）
       src/lib/jp-lesson-note-db.ts → listJpLessonNoteCountsByLesson
       src/lib/jp-lesson-db-delete.ts → deleteJpLesson
 功能索引：docs/feature-index.md → 日语新课 → 删除新课 / 手机进页轻量课表
 上传专用：docs/jp-lesson-upload-mixed-api.txt
+批量挂教案：docs/jp-lesson-ref-attach-batch-api.txt（写入 material_group_id）
 防 1102：列表用 note_counts，勿再 SELECT 笔记 body
 日程页：勿用完整列表缓存键存 schedule 响应
 
@@ -439,7 +495,8 @@ POST · 分片同步到日语抽问（sync_to_vocab）
 用途
 ----
 新课标「已完成」后，把词条分批写入 /jp-vocab，避免单次请求 Error 1102。
-改 progress_status=completed 时响应带 vocab_sync；前端会自动循环本 action。
+改 progress_status=completed 时响应带 vocab_sync（本课）与 vocab_syncs（同组多课）；
+前端应对 vocab_syncs 每一课循环本 action。
 若课已是已完成但词未进抽问：先改「学习中」再改回「已完成」即可重跑。
 
 
@@ -475,8 +532,17 @@ done=true 时本课同步结束（最后一批会顺带同步课堂笔记，无�
 {
   "ok": true,
   "lesson": { … },
-  "vocab_sync": { "needed": true, "total": 64, "offset": 0, "chunk_size": 8 }
+  "lessons": [ … ],
+  "sibling_lesson_ids": [123, 124],
+  "vocab_sync": { "needed": true, "total": 64, "offset": 0, "chunk_size": 8 },
+  "vocab_syncs": [
+    { "lesson_id": 123, "vocab_sync": { "needed": true, "total": 64, "offset": 0, "chunk_size": 8 } },
+    { "lesson_id": 124, "vocab_sync": { "needed": true, "total": 8, "offset": 0, "chunk_size": 8 } }
+  ]
 }
+
+对每个 vocab_syncs[]：若 vocab_sync.needed 且 total>0，循环 POST sync_to_vocab
+直到该课 done=true（与 complete_content_items 多课流程相同）。
 
 
 ────────────────────────────────

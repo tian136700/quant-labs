@@ -61,8 +61,21 @@ def main() -> int:
         errors.append("syncLessonNotesToVocab must early-return when no notes")
     if "runJpLessonVocabSyncChunks" not in client:
         errors.append("client helper runJpLessonVocabSyncChunks missing")
-    if "runJpLessonVocabSyncChunks" not in actions:
-        errors.append("useJpLessonPageActions must call runJpLessonVocabSyncChunks")
+    if "runJpLessonMaterialGroupVocabSyncs" not in client:
+        errors.append("client helper runJpLessonMaterialGroupVocabSyncs missing")
+    if (
+        "runJpLessonVocabSyncChunks" not in actions
+        and "runJpLessonMaterialGroupVocabSyncs" not in actions
+    ):
+        errors.append(
+            "useJpLessonPageActions must call runJpLessonVocabSyncChunks "
+            "or runJpLessonMaterialGroupVocabSyncs"
+        )
+    if "runJpLessonMaterialGroupVocabSyncs" not in actions:
+        errors.append(
+            "useJpLessonPageActions must sync material group via "
+            "runJpLessonMaterialGroupVocabSyncs"
+        )
     if "sync_to_vocab" not in client:
         errors.append("client must POST action sync_to_vocab")
     if "JP_LESSON_COMPLETE_PROGRESS_BUSY_LABEL" not in client:
@@ -73,8 +86,17 @@ def main() -> int:
         errors.append("success label 本次执行已成功 missing")
     if "JP_LESSON_COMPLETE_PROGRESS_DONE_LABEL" not in actions:
         errors.append("setLessonProgress must use DONE label after sync")
-    if "revertLessonProgress" not in actions:
-        errors.append("completed sync failure must revertLessonProgress")
+    if (
+        "revertLessonProgress" not in actions
+        and "revertMaterialGroupProgress" not in actions
+    ):
+        errors.append("completed sync failure must revert progress")
+    if "revertMaterialGroupProgress" not in actions:
+        errors.append("material group sync failure must revertMaterialGroupProgress")
+    if "updateJpLessonProgressWithMaterialGroup" not in route:
+        errors.append("route progress must use updateJpLessonProgressWithMaterialGroup")
+    if "vocab_syncs" not in route:
+        errors.append("route must return vocab_syncs for material group complete")
     # 禁止标已完成立刻乐观改成 completed（须等同步成功）
     if (
         'progressStatus === "completed"' in actions

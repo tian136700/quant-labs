@@ -9,6 +9,10 @@ import {
   updateJpLessonRefKey,
 } from "@/lib/jp-lesson-db";
 import {
+  assignJpLessonsMaterialGroup,
+  newJpLessonMaterialGroupId,
+} from "@/lib/jp-lesson-material-group";
+import {
   parseLessonContent,
   resolveJpLessonItemKinds,
 } from "@/lib/jp-lesson-shared";
@@ -123,6 +127,17 @@ export async function attachJpLessonRefFile(
     // 同 ref_key 覆盖文件时刷新 lesson 时间戳（列表 refs 靠 updated_at）
     const refreshed = await getJpLessonById(env.DB, lessonId);
     if (refreshed) updatedLesson = refreshed;
+  }
+
+  // 单课挂图：尚无教材组则自建一组（仅自己）；已有组保留（换图不拆组）
+  if (!(updatedLesson.material_group_id || "").trim()) {
+    const gid = newJpLessonMaterialGroupId();
+    const assigned = await assignJpLessonsMaterialGroup(env.DB, [lessonId], gid);
+    if (assigned.ok) {
+      const withGroup = await getJpLessonById(env.DB, lessonId);
+      if (withGroup) updatedLesson = withGroup;
+      else updatedLesson = { ...updatedLesson, material_group_id: gid };
+    }
   }
 
   return {

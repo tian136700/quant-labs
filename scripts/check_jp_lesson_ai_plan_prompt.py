@@ -75,6 +75,10 @@ def main() -> int:
         errors.append("attach-batch must requireAdmin")
     if "attachJpLessonRefFile" not in route:
         errors.append("attach-batch must call attachJpLessonRefFile")
+    if "assignJpLessonsMaterialGroup" not in route:
+        errors.append("attach-batch must assign shared material_group_id")
+    if "material_group_id" not in route:
+        errors.append("attach-batch response must include material_group_id")
 
     replace = (
         ROOT / "src/app/api/jp-lesson/ref/replace/route.ts"

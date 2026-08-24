@@ -87,3 +87,57 @@ export async function runJpLessonVocabSyncChunks(opts: {
   }
   return { ok: false, error: "同步到日语抽问超时" };
 }
+
+export type JpLessonMaterialGroupVocabSyncItem = {
+  lesson_id: number;
+  vocab_sync: JpLessonVocabSyncPlan | null;
+};
+
+/**
+ * 共用教材标完成后：对 vocab_syncs 每一课跑分片 sync。
+ * 进度条钉在 primaryLessonId（用户点的那一行）；多课时文案带「第 i/N 课」。
+ */
+export async function runJpLessonMaterialGroupVocabSyncs(opts: {
+  locale: Locale;
+  primaryLessonId: number;
+  items: JpLessonMaterialGroupVocabSyncItem[];
+  onProgress?: (p: JpLessonVocabSyncProgress) => void;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const need = opts.items.filter(
+    (item) =>
+      item.vocab_sync?.needed === true &&
+      Number(item.vocab_sync.total || 0) > 0 &&
+      Number.isInteger(item.lesson_id) &&
+      item.lesson_id > 0
+  );
+  if (!need.length) return { ok: true };
+
+  const n = need.length;
+  for (let i = 0; i < n; i++) {
+    const item = need[i]!;
+    const plan = item.vocab_sync!;
+    const groupLabel =
+      n > 1
+        ? `正在同步第 ${i + 1}/${n} 课到日语抽问…`
+        : JP_LESSON_COMPLETE_PROGRESS_BUSY_LABEL;
+    const result = await runJpLessonVocabSyncChunks({
+      locale: opts.locale,
+      lessonId: item.lesson_id,
+      plan,
+      onProgress: (p) => {
+        const bandStart = 8 + (i / n) * 84;
+        const bandSpan = 84 / n;
+        const within = Math.max(0, Math.min(1, (p.percent - 8) / 84));
+        opts.onProgress?.({
+          lessonId: opts.primaryLessonId,
+          synced: p.synced,
+          total: p.total,
+          percent: Math.min(92, Math.round(bandStart + within * bandSpan)),
+          label: groupLabel,
+        });
+      },
+    });
+    if (!result.ok) return result;
+  }
+  return { ok: true };
+}

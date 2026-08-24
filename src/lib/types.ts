@@ -415,6 +415,11 @@ export interface JpLessonRecord {
    * 同一课关联 ID（一次 upload-mixed 生成的单词条与语法条共享）。
    */
   course_group_id: string | null;
+  /**
+   * 同一张教案教材组（批量挂同一文件写入；标已完成时同组级联）。
+   * 与 course_group_id（单词+语法合传）不同；每课仍可有各自 ref_key。
+   */
+  material_group_id: string | null;
   title: string | null;
   ref_key: string | null;
   completed: boolean;

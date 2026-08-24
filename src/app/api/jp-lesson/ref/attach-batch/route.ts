@@ -2,6 +2,10 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 import { getJpLessonById } from "@/lib/jp-lesson-db";
 import {
+  assignJpLessonsMaterialGroup,
+  newJpLessonMaterialGroupId,
+} from "@/lib/jp-lesson-material-group";
+import {
   JP_LESSON_REF_ATTACH_MAX_BYTES,
   attachJpLessonRefFile,
   parseJpLessonAttachBatchIds,
@@ -95,13 +99,34 @@ export async function POST(request: Request) {
       storage = result.storage;
     }
 
+    // 同一次挂同一文件 → 同一 material_group_id（完成时整组级联）
+    const materialGroupId = newJpLessonMaterialGroupId();
+    const grouped = await assignJpLessonsMaterialGroup(
+      env.DB,
+      idsParsed.ids,
+      materialGroupId
+    );
+    if (!grouped.ok) {
+      return jsonResponse(
+        { ok: false, error: grouped.error || "material_group_failed" },
+        500
+      );
+    }
+
+    const lessonsWithGroup = [];
+    for (const lessonId of idsParsed.ids) {
+      const lesson = await getJpLessonById(env.DB, lessonId);
+      if (lesson) lessonsWithGroup.push(lesson);
+    }
+
     return jsonResponse({
       ok: true,
-      lessons,
+      lessons: lessonsWithGroup.length ? lessonsWithGroup : lessons,
       refs,
       storage,
       lesson_ids: idsParsed.ids,
-      count: lessons.length,
+      count: lessonsWithGroup.length || lessons.length,
+      material_group_id: materialGroupId,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

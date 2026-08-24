@@ -52,6 +52,10 @@ function mapScheduleRow(row: Record<string, unknown>): JpLessonRecord {
       row.course_group_id != null && String(row.course_group_id).trim()
         ? String(row.course_group_id).trim()
         : null,
+    material_group_id:
+      row.material_group_id != null && String(row.material_group_id).trim()
+        ? String(row.material_group_id).trim()
+        : null,
     title: row.title != null ? String(row.title) : null,
     ref_key: row.ref_key != null ? String(row.ref_key) : null,
     completed: Number(row.completed) === 1,
