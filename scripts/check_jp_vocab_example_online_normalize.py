@@ -416,6 +416,30 @@ if (!happaOkOnline.ok) {
   process.exit(1);
 }
 
+// こちらこそ：A/B 对话两行日语一条译文 → missing_chinese_gloss（曾失败 id=825）
+const kochiraBad = [
+  "A：「先日(せんじつ)はありがとうございました。」(N5)",
+  "B：「こちらこそ、ありがとうございました。」(N5)",
+  "译文：A：「前几天谢谢您。」B…",
+].join("\\n");
+const kochiraInput = { word: "こちらこそ", kind: "word", reading: "こちらこそ", meaning: "彼此彼此" };
+const kochiraBadOnline = normalizeJpVocabExampleSentencesForOnlineApply(kochiraBad, kochiraInput);
+if (kochiraBadOnline.ok || kochiraBadOnline.reason !== "missing_chinese_gloss") {
+  console.error("FAIL: A/B dialogue one gloss must be missing_chinese_gloss, got", kochiraBadOnline);
+  process.exit(1);
+}
+const kochiraOk = [
+  "こちらこそ、よろしくお願(ねが)いします。(N5)",
+  "译文：彼此彼此，请多关照。",
+  "先日(せんじつ)は、こちらこそありがとうございました。(N5)",
+  "译文：前几天，我才要谢谢您。",
+].join("\\n");
+const kochiraOkOnline = normalizeJpVocabExampleSentencesForOnlineApply(kochiraOk, kochiraInput);
+if (!kochiraOkOnline.ok) {
+  console.error("FAIL: こちらこそ single-line pairs should pass online, got", kochiraOkOnline.reason);
+  process.exit(1);
+}
+
 console.log("node smoke ok");
 """,
         ],
@@ -502,6 +526,21 @@ def main() -> int:
         ROOT / "scripts/jp-vocab-fill-online-batch-api.py",
         "每句整词",
         "online batch WORD_SYSTEM requires lemma in every sentence",
+    )
+    must_contain(
+        ROOT / "scripts/jp-vocab-fill-online-batch-api.py",
+        "examples_ab_dialogue_missing_per_line_gloss",
+        "online batch prechecks A/B dialogue missing gloss",
+    )
+    must_contain(
+        ROOT / "scripts/jp-vocab-fill-online-batch-api.py",
+        "こちらこそ、ありがとうございました",
+        "online batch WORD_SYSTEM bans A/B dialogue for こちらこそ",
+    )
+    must_contain(
+        ai,
+        "禁止 A：／B：",
+        "ai UPLOAD_SPEC / prompt bans A/B dialogue one gloss",
     )
     must_contain(ai, "bad_furigana_paren", "ai online reject bad paren")
     must_contain(ai, "gloss_not_chinese", "ai reject Japanese-in-gloss")

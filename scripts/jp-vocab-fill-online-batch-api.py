@@ -94,10 +94,12 @@ WORD_SYSTEM = (
     "例句：字符串（不要 JSON 数组）。每条日语一行（汉字须半角括号假名），"
     "句末标 JLPT 等级 (N5)/(N4)，下一行必须「译文：」+自然中文。"
     "【译文标签·必守】只用中文「译文：」；禁止日文「訳文：」「訳：」或「译文：訳文：」叠标签。"
-    "【一句一对·必守】每条日语必须紧跟一行「译文：」；禁止用「—／——」把问答拆成两行日语却只写一条译文"
-    "（会 missing_chinese_gloss）。感叹词（ううん 等）写成单句即可："
+    "【一句一对·必守】每条日语必须紧跟一行「译文：」；禁止用「—／——」或「A：／B：」把问答拆成两行日语却只写一条译文"
+    "（会 missing_chinese_gloss）。感叹词／寒暄（ううん、こちらこそ 等）写成独立单句，禁止剧本式对话："
     "✅ううん、いりません。(N5)\\n译文：不，不要。；"
-    "❌— 食べる？\\n— ううん、いらない。\\n译文：……。"
+    "✅こちらこそ、ありがとうございました。(N5)\\n译文：我才要谢谢您。；"
+    "❌— 食べる？\\n— ううん、いらない。\\n译文：……。；"
+    "❌A：「先日はありがとう。」(N5)\\nB：「こちらこそ。」(N5)\\n译文：A：…B：…（两行日语一条译文）。"
     "专有名词／店名也须至少 2 条完整「日语+译文」（禁止只造 1 句 → need_two_japanese_lines）。"
     "二字假名动词（なる）可用活用形（なりたい／なって／なります），算用到该词。"
     "【禁止韩文·必守】日语例句禁止 Hangul（한글）：外来语用片假名。"
@@ -136,6 +138,8 @@ WORD_SYSTEM = (
     "问几点：✅何時(なんじ)ですか；❌何時(なんどき)（时＝じ，不是どき）。"
     "朋友：✅友達(ともだち)；❌友達(ゆうだち)（ゆうだち＝夕立傍晚阵雨，不是朋友）。"
     "「〜つ」个数（训读特殊）：✅一(ひと)つ／三(みっ)つ／六(むっ)つ；❌六(ろく)つ／三(さん)つ（ろく＝六点的六，不是六个）。"
+    "数量词训读：✅一人(ひとり)／二人(ふたり)／二日(ふつか)／九(く)時／二十歳(はたち)；"
+    "❌一(いち)人／二(に)日／九(きゅう)時／二十(にじゅう)歳(さい)。"
     "【相关构词·同一次输出】related_compounds：含本词汉字的助记词；"
     "单汉字：同读简单词（口→入口）；允许连浊（くち→ぐち、こと→ごと）；禁止不同音读（事=こと 勿写 食事/大事 的じ）；"
     "多字词：必须拆开汉字，原则上每个汉字各配 1 个学生已学过的 N5～N4 基础常用词；"
@@ -223,6 +227,7 @@ GRAMMAR_SYSTEM = (
     "✅出発(しゅっぱつ)／入口(いりぐち)／何時(なんじ)／友達(ともだち)；"
     "❌出(で)発(ぱつ)、❌入口(いりくち)、❌何時(なんどき)、❌友達(ゆうだち)、❌日本(にっぽん)語(ご)。"
     "「〜つ」个数：✅六(むっ)つ／六つ(むっつ)；❌六(ろく)つ／六つ(ろくつ)。"
+    "数量词：✅九(く)時／二十歳(はたち)；❌九(きゅう)時／二十(にじゅう)歳(さい)。"
     "若词条是「变形/ます形规则/て形/ない形/变否定」等活用教学："
     "输出 example_sentences（2～3 条 N5 短句+译文）+ connection（接续表："
     "一类／二类／三类「词类／形态＋变形结果｜短说明」；标本 id=521 风格；"
@@ -880,6 +885,34 @@ def _example_japanese_lines(examples: str) -> list[str]:
     return lines
 
 
+_AB_DIALOGUE_LINE_RE = re.compile(
+    r"^(?:[ABＡＢ]\s*[:：]|[—–―－-]{1,2}\s+)"
+)
+
+
+def examples_ab_dialogue_missing_per_line_gloss(examples: str) -> bool:
+    """A/B 或「—」分行对话却译文不足：线上会 missing_chinese_gloss（id=825）。
+
+    生成阶段先拒，触发 CRITICAL 重写；勿等 apply 才失败。
+    """
+    text = str(examples or "").replace("\r\n", "\n").strip()
+    if not text:
+        return False
+    jp_lines = _example_japanese_lines(text)
+    if len(jp_lines) < 2:
+        return False
+    dialogue_n = sum(1 for ln in jp_lines if _AB_DIALOGUE_LINE_RE.match(ln))
+    if dialogue_n < 2:
+        return False
+    gloss_n = 0
+    for ln in text.splitlines():
+        s = ln.strip()
+        if re.match(r"^(译文|訳文|翻譯|翻译)\s*[:：]", s):
+            gloss_n += 1
+    # 对话两行日语却只有 ≤1 条译文 → 必炸 missing_chinese_gloss
+    return gloss_n < len(jp_lines)
+
+
 def _line_hits_grammar_lemma(core: str, line: str) -> bool:
     plain = re.sub(r"[（(][^）)]*[）)]", "", line)
     raw = line
@@ -1017,6 +1050,9 @@ def bundle_missing_keys(payload: dict[str, Any], row: dict[str, Any]) -> list[st
                 missing.append(key)
         if payload.get("connection") or payload.get("usage"):
             missing.append("forbidden_word_connection_or_usage")
+        ex_text = str(payload.get("example_sentences") or "").strip()
+        if ex_text and examples_ab_dialogue_missing_per_line_gloss(ex_text):
+            missing.append("missing_chinese_gloss")
         return missing
 
     if is_conjugation_word(word):
@@ -1120,6 +1156,12 @@ def generate_bundle(row: dict[str, Any], needs: dict[str, bool]) -> dict[str, An
                 "以及 oral_frequency、exam_frequency（各 1～10 整数）；"
                 "禁止 connection、usage。"
             )
+            if "missing_chinese_gloss" in missing:
+                retry_hint += (
+                    "例句禁止 A：／B：或「—」分行对话只配一条译文；"
+                    "感叹词／寒暄（こちらこそ、ううん）写成两条独立「日语+译文」："
+                    "✅こちらこそ、ありがとうございました。(N5)\\n译文：我才要谢谢您。"
+                )
         elif is_conjugation_word(str(row.get("word") or "")):
             retry_hint += (
                 "变形课须给出 "

@@ -33,10 +33,22 @@ def main() -> int:
     must_contain(jukugo, "友達(ゆうだち)", "友達/夕立 confusion in hint")
     must_contain(jukugo, "出(で)発(ぱつ)", "bad example in hint")
     must_contain(jukugo, "入口(いりくち)", "rendaku bad example in hint")
-    must_contain(jukugo, "六(ろく)つ", "tutsu counter bad in hint")
-    must_contain(jukugo, "六(むっ)つ", "tutsu counter good in hint")
-    must_contain(jukugo, "jpVocabExampleHasWrongTutsuCounterFurigana", "tutsu detector")
-    must_contain(jukugo, "JP_VOCAB_TUTSU_COUNTER_STEM", "tutsu stem dict")
+    must_contain(jukugo, "六(ろく)つ", "tutsu counter bad via quantity hint embed")
+    # 六(むっ)つ 等正文在 quantity 模块；jukugo prompt 用 ${JP_VOCAB_QUANTITY_FURIGANA_PROMPT_HINT}
+    must_contain(jukugo, "JP_VOCAB_QUANTITY_FURIGANA_PROMPT_HINT", "quantity hint embedded")
+    must_contain(jukugo, "jpVocabExampleHasWrongTutsuCounterFurigana", "tutsu detector re-export")
+    must_contain(jukugo, "jpVocabExampleHasWrongQuantityFurigana", "quantity detector")
+    must_contain(jukugo, "JP_VOCAB_TUTSU_COUNTER_STEM", "tutsu stem dict re-export")
+    quantity = ROOT / "src/lib/jp-vocab-quantity-furigana.ts"
+    must_contain(quantity, "六(むっ)つ", "tutsu counter good in quantity hint")
+    must_contain(quantity, "六(ろく)つ", "tutsu counter bad in quantity hint")
+    must_contain(quantity, "九(きゅう)時", "clock bad in quantity hint")
+    must_contain(quantity, "二十歳(はたち)", "age good in quantity hint")
+    must_contain(quantity, "jpVocabExampleHasWrongQuantityFurigana", "quantity module detector")
+    must_contain(quantity, "JP_VOCAB_NIN_COUNTER_FULL", "nin counter")
+    must_contain(quantity, "JP_VOCAB_KA_DAY_FULL", "ka day counter")
+    must_contain(quantity, "JP_VOCAB_JI_CLOCK_FULL", "ji clock")
+    must_contain(quantity, "JP_VOCAB_AGE_FULL", "age twenty")
     must_contain(jukugo, "お辞儀(おじぎ)", "honorific dup bad in hint")
     must_contain(jukugo, "お辞儀(じぎ)", "honorific correct in hint")
     must_contain(jukugo, "rewriteJpVocabHonorificFuriganaDup", "honorific rewrite")
@@ -137,64 +149,131 @@ def main() -> int:
     if has_wrong(text_ok_tomodachi):
         raise SystemExit("FAIL: good 友達(ともだち) flagged")
 
-    # 「〜つ」个数：六(ろく)つ ≠ むっ（纯 Python 镜像）
-    stem_re = re.compile(r"([一二三四五六七八九])[（(]([ぁ-んァ-ンヴヵヶー]+)[）)]つ")
-    full_re = re.compile(
-        r"(一つ|二つ|三つ|四つ|五つ|六つ|七つ|八つ|九つ)[（(]([ぁ-んァ-ンヴヵヶー]+)[）)]"
-    )
-    stem_ok = {
-        "一": "ひと",
-        "二": "ふた",
-        "三": "みっ",
-        "四": "よっ",
-        "五": "いつ",
-        "六": "むっ",
-        "七": "なな",
-        "八": "やっ",
-        "九": "ここの",
-    }
-    full_ok = {
-        "一つ": "ひとつ",
-        "二つ": "ふたつ",
-        "三つ": "みっつ",
-        "四つ": "よっつ",
-        "五つ": "いつつ",
-        "六つ": "むっつ",
-        "七つ": "ななつ",
-        "八つ": "やっつ",
-        "九つ": "ここのつ",
-    }
-
-    def has_wrong_tutsu(s: str) -> bool:
-        for m in stem_re.finditer(s):
-            kanji, reading = m.group(1), m.group(2)
-            exp = stem_ok.get(kanji)
-            if exp and reading != exp:
+    # 数量词训读：〜つ／人／日／歳／几点（纯 Python 镜像）
+    def has_wrong_quantity(s: str) -> bool:
+        checks = [
+            (
+                re.compile(r"([一二三四五六七八九])[（(]([ぁ-んァ-ンヴヵヶー]+)[）)]つ"),
+                {
+                    "一": "ひと",
+                    "二": "ふた",
+                    "三": "みっ",
+                    "四": "よっ",
+                    "五": "いつ",
+                    "六": "むっ",
+                    "七": "なな",
+                    "八": "やっ",
+                    "九": "ここの",
+                },
+            ),
+            (
+                re.compile(
+                    r"(一つ|二つ|三つ|四つ|五つ|六つ|七つ|八つ|九つ)[（(]([ぁ-んァ-ンヴヵヶー]+)[）)]"
+                ),
+                {
+                    "一つ": "ひとつ",
+                    "二つ": "ふたつ",
+                    "三つ": "みっつ",
+                    "四つ": "よっつ",
+                    "五つ": "いつつ",
+                    "六つ": "むっつ",
+                    "七つ": "ななつ",
+                    "八つ": "やっつ",
+                    "九つ": "ここのつ",
+                },
+            ),
+            (
+                re.compile(r"([一二])[（(]([ぁ-んァ-ンヴヵヶー]+)[）)]人"),
+                {"一": "ひと", "二": "ふた"},
+            ),
+            (
+                re.compile(r"(一人|二人)[（(]([ぁ-んァ-ンヴヵヶー]+)[）)]"),
+                {"一人": "ひとり", "二人": "ふたり"},
+            ),
+            (
+                re.compile(r"([二三四五六七八九十])[（(]([ぁ-んァ-ンヴヵヶー]+)[）)]日"),
+                {
+                    "二": "ふつ",
+                    "三": "みっ",
+                    "四": "よっ",
+                    "五": "いつ",
+                    "六": "むい",
+                    "七": "なの",
+                    "八": "よう",
+                    "九": "ここの",
+                    "十": "とお",
+                },
+            ),
+            (
+                re.compile(
+                    r"(二日|三日|四日|五日|六日|七日|八日|九日|十日|十四日|二十日|二十四日)[（(]([ぁ-んァ-ンヴヵヶー]+)[）)]"
+                ),
+                {
+                    "二日": "ふつか",
+                    "三日": "みっか",
+                    "四日": "よっか",
+                    "五日": "いつか",
+                    "六日": "むいか",
+                    "七日": "なのか",
+                    "八日": "ようか",
+                    "九日": "ここのか",
+                    "十日": "とおか",
+                    "十四日": "じゅうよっか",
+                    "二十日": "はつか",
+                    "二十四日": "にじゅうよっか",
+                },
+            ),
+        ]
+        for cre, okmap in checks:
+            for m in cre.finditer(s):
+                exp = okmap.get(m.group(1))
+                if exp and m.group(2) != exp:
+                    return True
+        ji_stem = re.compile(r"([四七九])[（(]([ぁ-んァ-ンヴヵヶー]+)[）)]時")
+        ji_ok = {"四": {"よ"}, "七": {"しち", "なな"}, "九": {"く"}}
+        for m in ji_stem.finditer(s):
+            allowed = ji_ok.get(m.group(1))
+            if allowed and m.group(2) not in allowed:
                 return True
-        for m in full_re.finditer(s):
-            surface, reading = m.group(1), m.group(2)
-            exp = full_ok.get(surface)
-            if exp and reading != exp:
+        age_comp = re.compile(
+            r"二十[（(]([ぁ-んァ-ンヴヵヶー]+)[）)][歳才][（(]([ぁ-んァ-ンヴヵヶー]+)[）)]"
+        )
+        for m in age_comp.finditer(s):
+            if m.group(1) + m.group(2) != "はたち":
+                return True
+        age_full = re.compile(r"(二十歳|二十才)[（(]([ぁ-んァ-ンヴヵヶー]+)[）)]")
+        for m in age_full.finditer(s):
+            if m.group(2) != "はたち":
                 return True
         return False
 
-    text_bad_muttsu = "餃子(ぎょうざ) を 六(ろく)つ 食(た)べました。"
-    text_ok_muttsu = "餃子(ぎょうざ) を 六(むっ)つ 食(た)べました。"
-    text_ok_muttsu_whole = "餃子(ぎょうざ) を 六つ(むっつ) 食(た)べました。"
-    text_ok_rokuji = "六(ろく)時(じ) に 帰(かえ)ります。"  # 六点 ≠ 六个，勿误伤
-    if not has_wrong_tutsu(text_bad_muttsu):
-        raise SystemExit("FAIL: bad 六(ろく)つ not detected")
-    if has_wrong_tutsu(text_ok_muttsu):
-        raise SystemExit("FAIL: good 六(むっ)つ flagged")
-    if has_wrong_tutsu(text_ok_muttsu_whole):
-        raise SystemExit("FAIL: good 六つ(むっつ) flagged")
-    if has_wrong_tutsu(text_ok_rokuji):
-        raise SystemExit("FAIL: 六(ろく)時 incorrectly flagged as tutsu")
+    cases = [
+        ("餃子(ぎょうざ) を 六(ろく)つ 食(た)べました。", True, "六(ろく)つ"),
+        ("餃子(ぎょうざ) を 六(むっ)つ 食(た)べました。", False, "六(むっ)つ"),
+        ("六(ろく)時(じ) に 帰(かえ)ります。", False, "六(ろく)時 ok"),
+        ("一(いち)人 来(き)ました。", True, "一(いち)人"),
+        ("一(ひと)人 来(き)ました。", False, "一(ひと)人"),
+        ("二(に)日 です。", True, "二(に)日"),
+        ("二(ふつ)日 です。", False, "二(ふつ)日"),
+        ("九(きゅう)時(じ) です。", True, "九(きゅう)時"),
+        ("九(く)時(じ) です。", False, "九(く)時"),
+        ("七(なな)時(じ) です。", False, "七(なな)時"),
+        ("二十(にじゅう)歳(さい) です。", True, "二十(にじゅう)歳"),
+        ("二十歳(はたち) です。", False, "二十歳(はたち)"),
+        ("楽(たの)しい一(いち)日(にち)でした。", False, "一日=いちにち ok"),
+    ]
+    for text, expect_bad, label in cases:
+        got = has_wrong_quantity(text)
+        if got != expect_bad:
+            raise SystemExit(f"FAIL quantity {label}: got={got} expect_bad={expect_bad}")
 
     must_contain(online, "六(むっ)つ", "online batch tutsu good")
     must_contain(online, "六(ろく)つ", "online batch tutsu bad")
+    must_contain(online, "二十歳(はたち)", "online batch age good")
+    must_contain(online, "九(く)時", "online batch clock good")
     must_contain(meaning, "六(むっ)つ", "meaning API tutsu good")
     must_contain(meaning, "六(ろく)つ", "meaning API tutsu bad")
+    must_contain(meaning, "二十歳(はたち)", "meaning API age")
 
     print("[check_jp_vocab_jukugo_furigana] OK")
     return 0
