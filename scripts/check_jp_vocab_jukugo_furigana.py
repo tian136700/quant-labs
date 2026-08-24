@@ -33,6 +33,10 @@ def main() -> int:
     must_contain(jukugo, "友達(ゆうだち)", "友達/夕立 confusion in hint")
     must_contain(jukugo, "出(で)発(ぱつ)", "bad example in hint")
     must_contain(jukugo, "入口(いりくち)", "rendaku bad example in hint")
+    must_contain(jukugo, "六(ろく)つ", "tutsu counter bad in hint")
+    must_contain(jukugo, "六(むっ)つ", "tutsu counter good in hint")
+    must_contain(jukugo, "jpVocabExampleHasWrongTutsuCounterFurigana", "tutsu detector")
+    must_contain(jukugo, "JP_VOCAB_TUTSU_COUNTER_STEM", "tutsu stem dict")
     must_contain(jukugo, "お辞儀(おじぎ)", "honorific dup bad in hint")
     must_contain(jukugo, "お辞儀(じぎ)", "honorific correct in hint")
     must_contain(jukugo, "rewriteJpVocabHonorificFuriganaDup", "honorific rewrite")
@@ -132,6 +136,65 @@ def main() -> int:
         raise SystemExit("FAIL: bad 友達(ゆうだち) not detected")
     if has_wrong(text_ok_tomodachi):
         raise SystemExit("FAIL: good 友達(ともだち) flagged")
+
+    # 「〜つ」个数：六(ろく)つ ≠ むっ（纯 Python 镜像）
+    stem_re = re.compile(r"([一二三四五六七八九])[（(]([ぁ-んァ-ンヴヵヶー]+)[）)]つ")
+    full_re = re.compile(
+        r"(一つ|二つ|三つ|四つ|五つ|六つ|七つ|八つ|九つ)[（(]([ぁ-んァ-ンヴヵヶー]+)[）)]"
+    )
+    stem_ok = {
+        "一": "ひと",
+        "二": "ふた",
+        "三": "みっ",
+        "四": "よっ",
+        "五": "いつ",
+        "六": "むっ",
+        "七": "なな",
+        "八": "やっ",
+        "九": "ここの",
+    }
+    full_ok = {
+        "一つ": "ひとつ",
+        "二つ": "ふたつ",
+        "三つ": "みっつ",
+        "四つ": "よっつ",
+        "五つ": "いつつ",
+        "六つ": "むっつ",
+        "七つ": "ななつ",
+        "八つ": "やっつ",
+        "九つ": "ここのつ",
+    }
+
+    def has_wrong_tutsu(s: str) -> bool:
+        for m in stem_re.finditer(s):
+            kanji, reading = m.group(1), m.group(2)
+            exp = stem_ok.get(kanji)
+            if exp and reading != exp:
+                return True
+        for m in full_re.finditer(s):
+            surface, reading = m.group(1), m.group(2)
+            exp = full_ok.get(surface)
+            if exp and reading != exp:
+                return True
+        return False
+
+    text_bad_muttsu = "餃子(ぎょうざ) を 六(ろく)つ 食(た)べました。"
+    text_ok_muttsu = "餃子(ぎょうざ) を 六(むっ)つ 食(た)べました。"
+    text_ok_muttsu_whole = "餃子(ぎょうざ) を 六つ(むっつ) 食(た)べました。"
+    text_ok_rokuji = "六(ろく)時(じ) に 帰(かえ)ります。"  # 六点 ≠ 六个，勿误伤
+    if not has_wrong_tutsu(text_bad_muttsu):
+        raise SystemExit("FAIL: bad 六(ろく)つ not detected")
+    if has_wrong_tutsu(text_ok_muttsu):
+        raise SystemExit("FAIL: good 六(むっ)つ flagged")
+    if has_wrong_tutsu(text_ok_muttsu_whole):
+        raise SystemExit("FAIL: good 六つ(むっつ) flagged")
+    if has_wrong_tutsu(text_ok_rokuji):
+        raise SystemExit("FAIL: 六(ろく)時 incorrectly flagged as tutsu")
+
+    must_contain(online, "六(むっ)つ", "online batch tutsu good")
+    must_contain(online, "六(ろく)つ", "online batch tutsu bad")
+    must_contain(meaning, "六(むっ)つ", "meaning API tutsu good")
+    must_contain(meaning, "六(ろく)つ", "meaning API tutsu bad")
 
     print("[check_jp_vocab_jukugo_furigana] OK")
     return 0

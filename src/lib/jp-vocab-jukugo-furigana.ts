@@ -100,13 +100,77 @@ function toHiragana(text: string): string {
 }
 
 /**
+ * 「〜つ」个数：训读特殊（六つ＝むっつ），禁止音读 六(ろく)つ。
+ * 与词条「一つ／二つ／三つ」存库风格一致：一(ひと)つ、三(みっ)つ、六(むっ)つ。
+ */
+export const JP_VOCAB_TUTSU_COUNTER_STEM: Record<string, string> = {
+  一: "ひと",
+  二: "ふた",
+  三: "みっ",
+  四: "よっ",
+  五: "いつ",
+  六: "むっ",
+  七: "なな",
+  八: "やっ",
+  九: "ここの",
+};
+
+export const JP_VOCAB_TUTSU_COUNTER_FULL: Record<string, string> = {
+  一つ: "ひとつ",
+  二つ: "ふたつ",
+  三つ: "みっつ",
+  四つ: "よっつ",
+  五つ: "いつつ",
+  六つ: "むっつ",
+  七つ: "ななつ",
+  八つ: "やっつ",
+  九つ: "ここのつ",
+};
+
+/** 六(ろく)つ / 三(さん)つ 等错标 */
+const TUTSU_STEM_FURI_RE =
+  /([一二三四五六七八九])[（(]([ぁ-んァ-ンヴヵヶー]+)[）)]つ/g;
+
+/** 六つ(ろくつ) 等整词错标 */
+const TUTSU_FULL_FURI_RE =
+  /(一つ|二つ|三つ|四つ|五つ|六つ|七つ|八つ|九つ)[（(]([ぁ-んァ-ンヴヵヶー]+)[）)]/g;
+
+export function jpVocabExampleHasWrongTutsuCounterFurigana(
+  text: string
+): boolean {
+  const s = String(text || "");
+  if (!s) return false;
+
+  TUTSU_STEM_FURI_RE.lastIndex = 0;
+  for (const m of s.matchAll(TUTSU_STEM_FURI_RE)) {
+    const kanji = m[1]!;
+    const reading = toHiragana(m[2]!);
+    const expected = JP_VOCAB_TUTSU_COUNTER_STEM[kanji];
+    if (expected && reading !== expected) return true;
+  }
+
+  TUTSU_FULL_FURI_RE.lastIndex = 0;
+  for (const m of s.matchAll(TUTSU_FULL_FURI_RE)) {
+    const surface = m[1]!;
+    const reading = toHiragana(m[2]!);
+    const expected = JP_VOCAB_TUTSU_COUNTER_FULL[surface];
+    if (expected && reading !== expected) return true;
+  }
+
+  return false;
+}
+
+/**
  * 检测例句日语行是否把熟语错拆成单字假名，或整词标错读（含漏连浊）。
  * 例：出(で)発(ぱつ) → でぱつ ≠ しゅっぱつ
  * 例：入口(いりくち) ≠ いりぐち
+ * 亦含「〜つ」个数错标：六(ろく)つ ≠ むっ
  */
 export function jpVocabExampleHasWrongJukugoFurigana(text: string): boolean {
   const s = String(text || "");
   if (!s) return false;
+
+  if (jpVocabExampleHasWrongTutsuCounterFurigana(s)) return true;
 
   for (const runMatch of s.matchAll(CONSEC_SINGLE_KANJI_RUN_RE)) {
     const run = runMatch[0]!;
@@ -200,4 +264,5 @@ export const JP_VOCAB_JUKUGO_FURIGANA_PROMPT_HINT = `熟语必须整词标假名
    - 连浊：✅「入口(いりぐち)」「出口(でぐち)」「手紙(てがみ)」；❌「入口(いりくち)」「出口(でくち)」「手紙(てかみ)」（该浊却标成清音，会误导学生）
    - 问几点：✅「何時(なんじ)ですか」；❌「何時(なんどき)」（时＝じ，不是どき）
    - 朋友：✅「友達(ともだち)」；❌「友達(ゆうだち)」（ゆうだち＝夕立，傍晚阵雨，不是朋友）
+   - 「〜つ」个数（训读特殊，禁止音读）：✅「一(ひと)つ」「三(みっ)つ」「六(むっ)つ」／「六つ(むっつ)」；❌「六(ろく)つ」「三(さん)つ」「六つ(ろくつ)」（ろく＝六点的六，不是六个）
    - 敬语接头辞：✅「お辞儀(じぎ)」「お金(かね)」「ご飯(はん)」；❌「お辞儀(おじぎ)」「ご飯(ごはん)」（接头辞已写在外，假名勿再带お／ご）`;
