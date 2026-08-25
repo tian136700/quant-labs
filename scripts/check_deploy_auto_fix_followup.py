@@ -108,10 +108,21 @@ def main() -> int:
         return fail(
             "deploy-auto-fix-stop must dismiss stale failure when a newer MC success exists"
         )
+    if "should_clear_failure_after_latest_success" not in fix and (
+        "should_clear_failure_after_latest_success"
+        not in (ROOT / "scripts" / "lib" / "deploy_autofix_stale_failure.py").read_text(
+            encoding="utf-8"
+        )
+    ):
+        return fail("stale-failure lib must export should_clear_failure_after_latest_success")
     if "deploy_autofix_gave_up" not in fix and "GAVE_UP_FILE" not in fix:
         return fail("deploy-auto-fix-stop must track gave_up after max autofix attempts")
-    if "deploy_autofix_stale_failure" not in session:
-        return fail("deploy-auto-fix-session must dismiss stale failure superseded by success")
+    if "should_clear_failure_after_latest_success" not in session and (
+        "deploy_autofix_stale_failure" not in session
+    ):
+        return fail("deploy-auto-fix-session must dismiss stale failure after latest success")
+    if "clear_deploy_autofix_state" not in wait:
+        return fail("wait_deploy_result success must clear failure/pending/gave_up via shared helper")
 
     lib_stale = ROOT / "scripts" / "lib" / "deploy_autofix_stale_failure.py"
     if not lib_stale.is_file():
@@ -216,17 +227,34 @@ def main() -> int:
         return fail("rule must document Collecting build traces nft.json ENOENT flake")
     if "维护中心已重启" not in rule:
         return fail("rule must document hub-restart false failure (local, not Cloudflare)")
-    if "旧失败" not in rule and "成功盖掉" not in rule:
-        return fail("rule must document dismissing stale failure superseded by newer success")
+    if "旧失败" not in rule and "最后一次" not in rule and "成功盖掉" not in rule:
+        return fail("rule must document clearing older failures after latest success")
 
     from lib.deploy_autofix_stale_failure import (  # noqa: WPS433
         newer_deploy_success_exists,
         parse_deploy_failure_log_id,
+        should_clear_failure_after_latest_success,
         should_skip_followup_for_gave_up,
     )
 
     if parse_deploy_failure_log_id("deploy_log_id=2438\nstatus=error\n") != 2438:
         return fail("parse_deploy_failure_log_id must read deploy_log_id")
+    if not should_clear_failure_after_latest_success(
+        [
+            {"id": 2438, "status": "error", "exit_code": 1},
+            {"id": 2503, "status": "success", "exit_code": 0},
+        ],
+        failure_log_id=2438,
+    ):
+        return fail("latest success must clear older failure record")
+    if should_clear_failure_after_latest_success(
+        [
+            {"id": 2502, "status": "success", "exit_code": 0},
+            {"id": 2505, "status": "error", "exit_code": 1},
+        ],
+        failure_log_id=2505,
+    ):
+        return fail("latest finished failure must NOT clear that same current failure")
     if not newer_deploy_success_exists(
         [{"id": 2503, "status": "success", "exit_code": 0}],
         failure_log_id=2438,

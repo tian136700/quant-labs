@@ -37,6 +37,7 @@ from lib.maintenance_center_restart_interrupt import (  # noqa: E402
 STATE_DIR = ROOT / ".cursor" / "hooks" / ".state"
 FAILURE_FILE = STATE_DIR / "last_deploy_failure.txt"
 PENDING_FILE = STATE_DIR / "pending_deploy_followup.json"
+GAVE_UP_FILE = STATE_DIR / "deploy_autofix_gave_up.json"
 BASE = "http://127.0.0.1:17823"
 # 部署成功后探活：客户端靠此戳强制刷新；404 = 机制未上线
 LIVE_VERSION_URL = "https://finance.info-quests.com/api/app-deploy-version"
@@ -280,10 +281,23 @@ def main() -> int:
                     exit_code = full.get("exit_code")
                     if status == "success" or exit_code == 0:
                         print(f"[wait-deploy] 部署成功 log#{rid}", flush=True)
-                        if FAILURE_FILE.is_file():
-                            FAILURE_FILE.unlink(missing_ok=True)
-                        if PENDING_FILE.is_file():
-                            PENDING_FILE.unlink(missing_ok=True)
+                        # 最后一次成功 → 以前的失败跟随态一律清掉
+                        try:
+                            from lib.deploy_autofix_stale_failure import (  # type: ignore
+                                clear_deploy_autofix_state,
+                            )
+
+                            clear_deploy_autofix_state(
+                                failure_file=FAILURE_FILE,
+                                pending_file=PENDING_FILE,
+                                gave_up_file=STATE_DIR
+                                / "deploy_autofix_gave_up.json",
+                            )
+                        except ImportError:
+                            if FAILURE_FILE.is_file():
+                                FAILURE_FILE.unlink(missing_ok=True)
+                            if PENDING_FILE.is_file():
+                                PENDING_FILE.unlink(missing_ok=True)
                         verify_app_deploy_version()
                         return 0
                     # 维护中心重启误标：git-auto-push 可能仍在跑，随后会 finish success
