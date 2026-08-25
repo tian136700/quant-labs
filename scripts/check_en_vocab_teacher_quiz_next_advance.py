@@ -122,9 +122,47 @@ def main() -> int:
             "runAdvanceAfterShare: missing currentUsagesComplete "
             "(same-tick draft may lag sessionUsageLevels)"
         )
+    # saveBusy / share busy 须 pending；真失败须清 pending（勿自动死循环）
+    if "ok === \"busy\"" not in modal and "ok === 'busy'" not in modal:
+        errors.append(
+            "modal: must distinguish share result busy vs failure (ok === \"busy\")"
+        )
     if "pendingNextAfterIdleRef.current = true" not in modal:
-        errors.append("share failure / saveBusy must re-set pendingNext")
+        errors.append("saveBusy / share busy must re-set pendingNext")
+    if (
+        "pendingNextAfterIdleRef.current = false" not in modal
+        or "勿自动死循环" not in modal
+    ):
+        # comment + clear pending on real failure
+        fail_clear = (
+            "pendingNextAfterIdleRef.current = false" in modal
+            and "ok === \"busy\"" in modal
+        )
+        if not fail_clear:
+            errors.append(
+                "modal: share real failure must clear pendingNext (no auto-retry loop)"
+            )
 
+    # share fetch 硬超时
+    if "AbortSignal.timeout(EN_VOCAB_SHARE_FETCH_TIMEOUT_MS)" not in actions:
+        errors.append(
+            "useEnVocabReviewActions.shareWord: must AbortSignal.timeout(EN_VOCAB_SHARE_FETCH_TIMEOUT_MS)"
+        )
+    if 'return "busy"' not in actions:
+        errors.append(
+            "useEnVocabReviewActions.shareWord: concurrent save/share must return \"busy\""
+        )
+    if "syncWaitFailed" not in modal:
+        errors.append(
+            "modal: must surface syncWaitFailed overlay when share times out/fails"
+        )
+    alerts = ROOT / "src/components/en-vocab-teacher-quiz-flashcard/EnVocabFlashcardAlerts.tsx"
+    if alerts.is_file():
+        alerts_src = alerts.read_text(encoding="utf-8")
+        if "syncWaitFailed" not in alerts_src:
+            errors.append("EnVocabFlashcardAlerts: must accept syncWaitFailed prop")
+        if "同步失败或超时" not in alerts_src:
+            errors.append("EnVocabFlashcardAlerts: must show retry copy on syncWaitFailed")
     # --- draftComplete in pending effect ---
     if "draftComplete" not in modal:
         errors.append(

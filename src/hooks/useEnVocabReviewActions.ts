@@ -17,12 +17,18 @@ import {
   aggregateEnVocabUsageLevels,
   areEnVocabUsageLevelsComplete,
   effectiveEnVocabDisplayLevel,
+  hasEnVocabReviewToday,
   isEnVocabWordReviewLocked,
   parseEnVocabLastUsageLevels,
   serializeEnVocabLastUsageLevels,
 } from "@/lib/en-vocab-review";
 import { effectiveTodayCheckCount } from "@/lib/en-vocab-daily-check";
 import { listEnVocabUsagePointsForDisplay } from "@/lib/en-vocab-usage-examples-display";
+import {
+  EN_VOCAB_SHARE_FETCH_TIMEOUT_MS,
+  EN_VOCAB_SYNC_ON_NEXT_RETRY_HINT,
+} from "@/lib/en-vocab-share-ui";
+import type { EnVocabShareWordResult } from "@/lib/en-vocab-share-ui";
 import { bumpEnVocabWordReview, EN_VOCAB_SAVE_ERR } from "@/lib/en-vocab-page-helpers";
 import {
   animateJpVocabShareProgressTo100,
@@ -565,7 +571,7 @@ export function useEnVocabReviewActions(options: {
   const shareWord = async (
     wordId: number,
     opts?: { fromNext?: boolean }
-  ): Promise<boolean> => {
+  ): Promise<EnVocabShareWordResult> => {
     const fromNext = Boolean(opts?.fromNext);
     if (!fromNext && !teacherShareUiEnabled) {
       setStatus("当前页面不可共享单词。");
@@ -580,7 +586,7 @@ export function useEnVocabReviewActions(options: {
       if (fromNext) {
         setStatus("正在提交，请勿重复提交");
       }
-      return false;
+      return "busy";
     }
     if (sharedTodayWordIdsRef.current.has(wordId)) {
       return true;
@@ -595,10 +601,15 @@ export function useEnVocabReviewActions(options: {
     if (usageSlotCount > 0) {
       const draft = sessionUsageLevels[wordId];
       const stored = parseEnVocabLastUsageLevels(snapshot.last_usage_levels);
+      // 跨日勿用昨日 last_usage_levels 冒充「已勾齐」放行共享
+      const allowStored = hasEnVocabReviewToday(
+        snapshot,
+        sessionReviewAt[wordId]
+      );
       const candidate =
         draft && draft.length === usageSlotCount
           ? draft
-          : stored && stored.length === usageSlotCount
+          : allowStored && stored && stored.length === usageSlotCount
             ? stored
             : null;
       const complete =
@@ -662,6 +673,7 @@ export function useEnVocabReviewActions(options: {
           [LOCALE_HEADER]: locale,
         },
         credentials: "include",
+        signal: AbortSignal.timeout(EN_VOCAB_SHARE_FETCH_TIMEOUT_MS),
         body: JSON.stringify({ word_id: wordId }),
       });
       const data = (await res.json()) as {
@@ -727,7 +739,18 @@ export function useEnVocabReviewActions(options: {
           return next;
         });
       }
-      setStatus(err instanceof Error ? err.message : String(err));
+      const timedOut =
+        (err instanceof DOMException &&
+          (err.name === "TimeoutError" || err.name === "AbortError")) ||
+        (err instanceof Error &&
+          (err.name === "TimeoutError" || err.name === "AbortError"));
+      setStatus(
+        timedOut
+          ? EN_VOCAB_SYNC_ON_NEXT_RETRY_HINT
+          : err instanceof Error
+            ? err.message
+            : String(err)
+      );
       return false;
     } finally {
       clearShareTimer(wordId);
@@ -738,7 +761,9 @@ export function useEnVocabReviewActions(options: {
   };
 
   /** 点「下一个」前：今日未共享则同步一次；已共享 / 未登录则放行 */
-  const ensureWordSharedBeforeNext = async (wordId: number): Promise<boolean> => {
+  const ensureWordSharedBeforeNext = async (
+    wordId: number
+  ): Promise<EnVocabShareWordResult> => {
     if (sharedTodayWordIdsRef.current.has(wordId)) return true;
     if (!canOperate) return true;
     return shareWord(wordId, { fromNext: true });

@@ -4,6 +4,8 @@ type Props = {
   nextBlockedHint: boolean;
   /** 同步给学生未完成时点「下一个」 */
   syncWaitHint?: boolean;
+  /** true=超时/失败文案；false=进行中请稍等 */
+  syncWaitFailed?: boolean;
   previewMode: boolean;
   isStudy: boolean;
   selected: import("@/lib/types").EnVocabLevel | undefined;
@@ -18,6 +20,7 @@ type Props = {
 export function EnVocabFlashcardAlerts({
   nextBlockedHint,
   syncWaitHint = false,
+  syncWaitFailed = false,
   previewMode,
   isStudy,
   selected,
@@ -48,13 +51,17 @@ export function EnVocabFlashcardAlerts({
               id="en-vocab-teacher-quiz-sync-title"
               className="jp-vocab-teacher-quiz-alert__title"
             >
-              此单词正在同步给学生复习
+              {syncWaitFailed
+                ? "同步失败或超时"
+                : "此单词正在同步给学生复习"}
             </h3>
             <p
               id="en-vocab-teacher-quiz-sync-desc"
               className="jp-vocab-teacher-quiz-alert__desc"
             >
-              此单词正在同步给学生复习，请稍等。
+              {syncWaitFailed
+                ? "同步失败或超时，请再点「下一个」重试。"
+                : "此单词正在同步给学生复习，请稍等。"}
             </p>
             <button
               type="button"

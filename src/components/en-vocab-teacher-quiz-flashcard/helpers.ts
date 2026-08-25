@@ -31,6 +31,12 @@ export const EN_VOCAB_SYNC_ON_NEXT_PROGRESS_LABEL =
 export const EN_VOCAB_SYNC_ON_NEXT_WAIT_HINT =
   "此单词正在同步给学生复习，请稍等。";
 
+export {
+  EN_VOCAB_SHARE_FETCH_TIMEOUT_MS,
+  EN_VOCAB_SYNC_ON_NEXT_RETRY_HINT,
+  type EnVocabShareWordResult,
+} from "@/lib/en-vocab-share-ui";
+
 /** 多条历史备注合并为展示用正文（不含时间戳行） */
 export function formatEnVocabClassNotesForDisplay(
   raw: string | null | undefined

@@ -131,21 +131,25 @@ export function areEnVocabUsageLevelsComplete(
 }
 
 /**
- * 抽查卡用法旁勾选回显：本会话草稿优先，其次库里 last_usage_levels（条数须对齐）。
- * 不依赖整词 selected——点「上一个」回看已勾词时也要能回显每条档。
+ * 抽查卡用法旁勾选回显：本会话草稿优先；仅当「今日已抽」才回显库里 last_usage_levels。
+ * 跨日勿用历史档填勾选框——新一天须空勾，直到老师今天再勾（与 effectiveEnVocabDisplayLevel 一致）。
+ * 同日点「上一个」回看：session 草稿或今日已计次下的存库均可回显。
  */
 export function resolveEnVocabUsageDraftLevels(
   usageSlotCount: number,
   sessionDraft: ReadonlyArray<EnVocabLevel | null | undefined> | undefined,
-  storedRaw: string | null | undefined
+  storedRaw: string | null | undefined,
+  opts?: { allowStoredLevels?: boolean }
 ): Array<EnVocabLevel | null | undefined> {
   if (usageSlotCount <= 0) return [];
   if (sessionDraft && sessionDraft.length === usageSlotCount) {
     return [...sessionDraft];
   }
-  const stored = parseEnVocabLastUsageLevels(storedRaw);
-  if (stored && stored.length === usageSlotCount) {
-    return [...stored];
+  if (opts?.allowStoredLevels) {
+    const stored = parseEnVocabLastUsageLevels(storedRaw);
+    if (stored && stored.length === usageSlotCount) {
+      return [...stored];
+    }
   }
   return Array.from({ length: usageSlotCount }, () => null);
 }

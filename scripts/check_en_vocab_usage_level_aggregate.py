@@ -86,15 +86,31 @@ def main() -> int:
             if n not in review.read_text(encoding="utf-8"):
                 errors.append(f"en-vocab-review.ts: missing {n!r}")
 
-    # resolveEnVocabUsageDraftLevels：草稿优先，其次存库；不依赖 selected
+    # resolveEnVocabUsageDraftLevels：草稿优先；仅 allowStoredLevels 时才回显存库（跨日空勾）
     review_src = review.read_text(encoding="utf-8")
     if "sessionDraft && sessionDraft.length === usageSlotCount" not in review_src:
         errors.append(
             "en-vocab-review.ts: resolveEnVocabUsageDraftLevels must prefer session draft"
         )
+    if "opts?.allowStoredLevels" not in review_src:
+        errors.append(
+            "en-vocab-review.ts: resolveEnVocabUsageDraftLevels must gate stored last_usage_levels behind allowStoredLevels"
+        )
     if "parseEnVocabLastUsageLevels(storedRaw)" not in review_src:
         errors.append(
-            "en-vocab-review.ts: resolveEnVocabUsageDraftLevels must fall back to last_usage_levels"
+            "en-vocab-review.ts: resolveEnVocabUsageDraftLevels must still parse last_usage_levels when allowed"
+        )
+    flash = ROOT / "src/components/EnVocabTeacherQuizFlashcardModal.tsx"
+    flash_gate = flash.read_text(encoding="utf-8") if flash.is_file() else ""
+    if "allowStoredLevels: previewMode || hasEnVocabReviewToday(w)" not in flash_gate:
+        errors.append(
+            "EnVocabTeacherQuizFlashcardModal: usage draft must only echo last_usage_levels when today-reviewed (or preview)"
+        )
+    actions = ROOT / "src/hooks/useEnVocabReviewActions.ts"
+    actions_src = actions.read_text(encoding="utf-8") if actions.is_file() else ""
+    if "allowStored = hasEnVocabReviewToday" not in actions_src:
+        errors.append(
+            "useEnVocabReviewActions.shareWord: must not use cross-day last_usage_levels as complete"
         )
     db_text = read_en_vocab_db()
     for n in [
