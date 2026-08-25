@@ -94,7 +94,9 @@ type EnVocabPageModalsProps = {
   onEditRemarks: (word: EnVocabWord | null) => void;
   onEditWord: (word: EnVocabWord | null) => void;
   onShare: (wordId: number) => void | Promise<boolean | void>;
-  onEnsureSharedBeforeNext?: (wordId: number) => Promise<boolean>;
+  onEnsureSharedBeforeNext?: (
+    wordId: number
+  ) => Promise<boolean | "busy">;
   onUnshare?: (wordId: number) => void;
   onWordSaved: (word: EnVocabWord) => void;
   onWordSaveFailed: (wordId: number, snapshot: EnVocabWord, message: string) => void;
