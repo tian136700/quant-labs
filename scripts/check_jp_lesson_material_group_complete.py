@@ -85,6 +85,26 @@ def main() -> int:
     if "listJpLessonsByMaterialGroup" in group and 'course_group_id = ?' in group:
         errors.append("listByGroup must not filter by course_group_id")
 
+    # 部署曾炸：Actions 用类型却未 import；EnLessonRecord 继承 Jp 字段却漏 map
+    if "type JpLessonVocabSyncProgress" not in actions:
+        errors.append(
+            "useJpLessonPageActions must import type JpLessonVocabSyncProgress "
+            "from runJpLessonVocabSyncChunks"
+        )
+    en_db = (ROOT / "src/lib/en-lesson-db.ts").read_text(encoding="utf-8")
+    en_sched = (ROOT / "src/lib/en-lesson-schedule-list.ts").read_text(
+        encoding="utf-8"
+    )
+    if en_db.count("material_group_id") < 3:
+        errors.append(
+            "en-lesson-db mapRow/seed/create must set material_group_id "
+            "(EnLessonRecord extends JpLessonRecord)"
+        )
+    if "material_group_id" not in en_sched:
+        errors.append(
+            "en-lesson-schedule-list mapScheduleRow must set material_group_id"
+        )
+
     if errors:
         print("check_jp_lesson_material_group_complete FAILED:")
         for e in errors:

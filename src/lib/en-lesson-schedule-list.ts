@@ -40,6 +40,7 @@ function mapScheduleRow(row: Record<string, unknown>): EnLessonRecord {
     grammar_item_count: 0,
     course_label: null,
     course_group_id: null,
+    material_group_id: null,
     category: normalizeEnVocabCategory(
       row.category != null ? String(row.category) : null
     ),

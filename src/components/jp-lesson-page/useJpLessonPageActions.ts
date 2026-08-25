@@ -46,6 +46,7 @@ import {
   JP_LESSON_COMPLETE_PROGRESS_BUSY_LABEL,
   JP_LESSON_COMPLETE_PROGRESS_DONE_LABEL,
   runJpLessonMaterialGroupVocabSyncs,
+  type JpLessonVocabSyncProgress,
 } from "@/components/jp-lesson-page/runJpLessonVocabSyncChunks";
 import {
   patchJpLessonsFromServers,
