@@ -104,6 +104,18 @@ def main() -> int:
         return fail("deploy-auto-fix-stop must auto-republish transient failures before code fix")
     if "FOLLOWUP_HUB_RESTART" not in fix or "_try_dismiss_hub_restart_false_failure" not in fix:
         return fail("deploy-auto-fix-stop must dismiss maintenance-center restart false failures")
+    if "_try_dismiss_stale_failure_superseded_by_success" not in fix:
+        return fail(
+            "deploy-auto-fix-stop must dismiss stale failure when a newer MC success exists"
+        )
+    if "deploy_autofix_gave_up" not in fix and "GAVE_UP_FILE" not in fix:
+        return fail("deploy-auto-fix-stop must track gave_up after max autofix attempts")
+    if "deploy_autofix_stale_failure" not in session:
+        return fail("deploy-auto-fix-session must dismiss stale failure superseded by success")
+
+    lib_stale = ROOT / "scripts" / "lib" / "deploy_autofix_stale_failure.py"
+    if not lib_stale.is_file():
+        return fail("missing scripts/lib/deploy_autofix_stale_failure.py")
 
     lib_doc = ROOT / "scripts" / "lib" / "next_document_deploy_retry.py"
     if not lib_doc.is_file():
@@ -204,6 +216,47 @@ def main() -> int:
         return fail("rule must document Collecting build traces nft.json ENOENT flake")
     if "维护中心已重启" not in rule:
         return fail("rule must document hub-restart false failure (local, not Cloudflare)")
+    if "旧失败" not in rule and "成功盖掉" not in rule:
+        return fail("rule must document dismissing stale failure superseded by newer success")
+
+    from lib.deploy_autofix_stale_failure import (  # noqa: WPS433
+        newer_deploy_success_exists,
+        parse_deploy_failure_log_id,
+        should_skip_followup_for_gave_up,
+    )
+
+    if parse_deploy_failure_log_id("deploy_log_id=2438\nstatus=error\n") != 2438:
+        return fail("parse_deploy_failure_log_id must read deploy_log_id")
+    if not newer_deploy_success_exists(
+        [{"id": 2503, "status": "success", "exit_code": 0}],
+        failure_log_id=2438,
+    ):
+        return fail("newer success id must supersede older failure")
+    if newer_deploy_success_exists(
+        [{"id": 2437, "status": "success", "exit_code": 0}],
+        failure_log_id=2438,
+    ):
+        return fail("older success must NOT supersede newer failure id")
+    if newer_deploy_success_exists(
+        [{"id": 2504, "status": "running"}],
+        failure_log_id=2438,
+    ):
+        return fail("running deploy must NOT count as success supersede")
+
+    import tempfile
+    from pathlib import Path as _P
+
+    with tempfile.TemporaryDirectory() as td:
+        gave = _P(td) / "gave_up.json"
+        gave.write_text('{"deploy_log_id": 2438}\n', encoding="utf-8")
+        if not should_skip_followup_for_gave_up(
+            gave_up_file=gave, failure_log_id=2438
+        ):
+            return fail("gave_up same log_id must skip followup")
+        if should_skip_followup_for_gave_up(
+            gave_up_file=gave, failure_log_id=2500
+        ):
+            return fail("gave_up must not skip a different newer failure log_id")
 
     bark = (ROOT / "scripts" / "maintenance_center" / "bark_notify.py").read_text(
         encoding="utf-8"
