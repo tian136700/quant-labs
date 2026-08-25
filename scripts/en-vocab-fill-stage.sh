@@ -68,6 +68,8 @@ export PATH="/usr/local/bin:/opt/homebrew/bin:${PATH:-/usr/bin:/bin}"
 # shellcheck source=scripts/lib/vocab_fill_circuit_breaker.sh
 source "$ROOT/scripts/lib/vocab_fill_circuit_breaker.sh"
 vocab_fill_circuit_assert_not_killed "$OWNER"
+# 抽查门禁之前：姐妹任务被裸卸掉时自动挂回（本任务若已卸则靠日语 unified 发现）
+"$PYTHON_BIN" "$ROOT/scripts/lib/vocab_fill_launchd_watchdog.py" --quiet || true
 vocab_fill_assert_quiz_gate_ok "$OWNER"
 
 # 解析 0/1 后端（与 scripts/lib/en_vocab_llm_backend.py 一致）

@@ -41,6 +41,8 @@ export PYTHONUNBUFFERED=1
 # shellcheck source=scripts/lib/vocab_fill_circuit_breaker.sh
 source "$ROOT/scripts/lib/vocab_fill_circuit_breaker.sh"
 vocab_fill_circuit_assert_not_killed "$OWNER"
+# 抽查门禁之前：若英语/日语补全被裸卸掉，自动 bootstrap（PAUSE/熔断不碰）
+"$PYTHON_BIN" "$ROOT/scripts/lib/vocab_fill_launchd_watchdog.py" --quiet || true
 vocab_fill_assert_quiz_gate_ok "$OWNER"
 
 # 维护中心「暂停」：有开关则 exit 0（FORCE=1 手动调试可绕过）
