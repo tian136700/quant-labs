@@ -197,6 +197,16 @@ export function useEnVocabReviewActions(options: {
     }
   }, [wordSyncState, shareProgressMap, patchShareProgress]);
 
+  // 学生 peek / 并发 share 已写入今日共享：立刻解锁「正在同步」UI，勿等挂起的 fetch
+  useEffect(() => {
+    if (sharingId == null) return;
+    if (!sharedTodayWordIds.has(sharingId)) return;
+    clearShareTimer(sharingId);
+    patchShareProgress(sharingId, null);
+    setWordSyncPhase(sharingId, null);
+    setSharingId(null);
+  }, [sharedTodayWordIds, sharingId, patchShareProgress, clearShareTimer]);
+
   const reviewLockedByWordId = useMemo(() => {
     const now = new Date(reviewLockNow);
     const map: Record<number, boolean> = {};

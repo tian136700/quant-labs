@@ -291,17 +291,31 @@ export function EnVocabTeacherQuizFlashcardModal({
     }
   }, [selectedLevel]);
 
-  const currentWordSaveBusy =
-    word != null &&
-    (savingWordId === word.id ||
+  const currentWordSaveBusy = (() => {
+    if (word == null) return false;
+    const effectivelyShared =
+      (sharedTodayWordIds?.has(word.id) ?? false) || studentPeeked;
+    const levelBusy = savingWordId === word.id;
+    const shareBusy =
       Boolean(shareProgressMap && word.id in shareProgressMap) ||
       wordSyncState[word.id] === "queued" ||
-      wordSyncState[word.id] === "syncing");
+      wordSyncState[word.id] === "syncing";
+    // 学生已查看 / 已共享：勿再被 in-flight share 钉死「正在同步」
+    return levelBusy || (shareBusy && !effectivelyShared);
+  })();
 
   useEffect(() => {
     // 进行中提示随 busy 结束而关；失败提示须留到用户点「知道了」
     if (!currentWordSaveBusy && !syncWaitFailed) setSyncWaitHint(false);
   }, [currentWordSaveBusy, syncWaitFailed]);
+
+  // 学生已查看 / 今日已共享：立刻关掉「正在同步」卡死提示
+  useEffect(() => {
+    if (!word) return;
+    if (!studentPeeked && !(sharedTodayWordIds?.has(word.id) ?? false)) return;
+    setSyncWaitFailed(false);
+    setSyncWaitHint(false);
+  }, [studentPeeked, sharedTodayWordIds, word?.id]);
 
   const wordHasLevel = (wordId: number) => {
     if (
@@ -553,8 +567,14 @@ export function EnVocabTeacherQuizFlashcardModal({
     : `${sessionChecked} / ${sessionTotal}`;
   const isSharing = w.id in shareProgressMap;
   const sharingPercent = shareProgressMap[w.id] ?? 0;
-  const isShared = sharedTodayWordIds?.has(w.id) ?? false;
+  const isShared =
+    (sharedTodayWordIds?.has(w.id) ?? false) || Boolean(studentPeeked);
   const saveBusy = isSharing || isQueued || isSyncing || isSaving;
+  // 已共享/学生已查看时，in-flight share 不再挡住「下一个」
+  const saveBusyForNext =
+    isShared
+      ? Boolean(isSaving || (isQueued && !isSharing && !isSyncing))
+      : saveBusy;
   // 禁止用 map 有无推断成同步给学生——勾选保存也走同一 map
   const saveProgressKind: JpVocabSaveProgressKind =
     progressKindByWordId[w.id] ?? "save_level";
@@ -650,7 +670,7 @@ export function EnVocabTeacherQuizFlashcardModal({
     if (!selected && usagesComplete && onSelectUsageLevels) {
       onSelectUsageLevels(w.id, usageDraftLevels);
     }
-    if (saveBusy || nextAdvanceBusyRef.current) {
+    if (saveBusyForNext || nextAdvanceBusyRef.current) {
       pendingNextAfterIdleRef.current = true;
       setSyncWaitFailed(false);
       setSyncWaitHint(true);
@@ -697,7 +717,7 @@ export function EnVocabTeacherQuizFlashcardModal({
           uncheckedCount={uncheckedCount}
           sessionPct={sessionPct}
           studentPeeked={studentPeeked}
-          wordSynced={isShared && !saveBusy}
+          wordSynced={isShared && !saveBusyForNext}
         />
 
         {/* 中间可滚：左侧含备注 + 用法 + 熟悉程度/统计；「上一个·下一个」钉在底 */}
@@ -769,7 +789,7 @@ export function EnVocabTeacherQuizFlashcardModal({
         </div>
 
         <div className="jp-vocab-teacher-quiz__nav en-vocab-flashcard-page__nav">
-          {saveBusy && !isStudy && !previewMode ? (
+          {saveBusyForNext && !isStudy && !previewMode ? (
             <JpVocabSaveProgressBar
               label={saveProgressLabel}
               percent={saveProgressPercent}
@@ -790,7 +810,7 @@ export function EnVocabTeacherQuizFlashcardModal({
           <button
             type="button"
             className={`btn-rsi-filter btn-rsi-filter--primary jp-vocab-teacher-quiz__nav-btn jp-vocab-teacher-quiz__nav-btn--next${
-              !previewMode && !isStudy && (!selected || saveBusy)
+              !previewMode && !isStudy && (!selected || saveBusyForNext)
                 ? " jp-vocab-teacher-quiz__nav-btn--blocked"
                 : ""
             }${isStudy ? " jp-vocab-teacher-quiz__nav-btn--study-close" : ""}`}
@@ -803,7 +823,7 @@ export function EnVocabTeacherQuizFlashcardModal({
                   ? isLast
                     ? "关闭预览"
                     : "下一个"
-                  : saveBusy
+                  : saveBusyForNext
                     ? "同步中…"
                     : sessionComplete
                       ? "完成抽查"
@@ -813,7 +833,7 @@ export function EnVocabTeacherQuizFlashcardModal({
             </span>
             {!isLast && !isStudy && !sessionComplete && !previewMode ? (
               <span className="jp-vocab-teacher-quiz__nav-btn-sub">
-                {saveBusy ? "同步完成后再点" : "勾选后可点"}
+                {saveBusyForNext ? "同步完成后再点" : "勾选后可点"}
               </span>
             ) : null}
           </button>

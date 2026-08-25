@@ -156,6 +156,14 @@ def main() -> int:
         errors.append(
             "modal: must surface syncWaitFailed overlay when share times out/fails"
         )
+    if "saveBusyForNext" not in modal:
+        errors.append(
+            "modal: must use saveBusyForNext so student peek/shared does not stick sync UI"
+        )
+    if "学生已查看" not in actions and "学生 peek" not in actions:
+        errors.append(
+            "useEnVocabReviewActions: must unlock sharingId when word already shared (student peek)"
+        )
     alerts = ROOT / "src/components/en-vocab-teacher-quiz-flashcard/EnVocabFlashcardAlerts.tsx"
     if alerts.is_file():
         alerts_src = alerts.read_text(encoding="utf-8")

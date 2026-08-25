@@ -16,7 +16,8 @@ export function useVocabShareBackfillOnComplete(opts: {
   poolWordIds: readonly number[];
   hasLevel: (wordId: number) => boolean;
   isSharedToday: (wordId: number) => boolean;
-  shareWord: (wordId: number) => Promise<boolean>;
+  /** EN shareWord 可能返回 "busy"；JP 仍为 boolean */
+  shareWord: (wordId: number) => Promise<boolean | "busy">;
   /** 抽查卡打开时当前词 id；进行中勿提前共享该词 */
   excludeWordId?: number | null;
 }) {
@@ -55,7 +56,12 @@ export function useVocabShareBackfillOnComplete(opts: {
     void (async () => {
       for (const id of ids) {
         if (cancelled) return;
-        await shareWord(id);
+        const result = await shareWord(id);
+        if (result === "busy") {
+          // 忙则允许本 effect 之后再补一轮
+          attemptedKeyRef.current = "";
+          return;
+        }
       }
     })();
     return () => {

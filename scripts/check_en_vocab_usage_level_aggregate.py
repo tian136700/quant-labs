@@ -205,7 +205,7 @@ def main() -> int:
         "勾选已满 1 小时，无法再修改熟悉程度",
         "JpVocabSaveProgressBar",
         "en-vocab-flashcard-page__nav-progress",
-        "wordSynced={isShared && !saveBusy}",
+        "wordSynced={isShared && !saveBusyForNext}",
         "pendingNextAfterIdleRef",
     ]:
         if n not in flash_text:
