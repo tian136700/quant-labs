@@ -10,6 +10,7 @@ import {
   type EnVocabDailyDisplayOrder,
 } from "@/lib/en-vocab-daily-order";
 import { parseBeijingDateTime } from "@/lib/jp-lesson-shared";
+import { computeJpVocabSrsAfterReview } from "@/lib/jp-vocab-srs";
 
 /**
  * 短窗修正（遗留；英语正式规则见「同日修正」）。
@@ -358,7 +359,7 @@ export function resolveEnVocabPreviousLevel(
   return null;
 }
 
-/** 应用一次熟悉程度勾选（新抽查 or 同日改选修正总体档） */
+/** 应用一次熟悉程度勾选（新抽查 or 同日改选修正总体档；写 SRS 对齐日语） */
 export function applyEnVocabReview(
   word: EnVocabWord,
   level: EnVocabLevel,
@@ -383,10 +384,16 @@ export function applyEnVocabReview(
       };
     }
     const afterPrev = { ...word, ...adjustLevelCount(word, prev, -1) };
+    const srs = computeJpVocabSrsAfterReview(word, level, {
+      isCorrection: true,
+      previousLevel: prev,
+      now,
+    });
     return {
       word: {
         ...afterPrev,
         ...adjustLevelCount(afterPrev, level, 1),
+        ...srs,
         last_review_level: level,
         last_review_at: ts,
         updated_at: ts,
@@ -395,6 +402,7 @@ export function applyEnVocabReview(
     };
   }
 
+  const srs = computeJpVocabSrsAfterReview(word, level, { now });
   const daily = nextTodayCheckCount(
     word.today_check_count ?? 0,
     word.today_check_date,
@@ -404,6 +412,7 @@ export function applyEnVocabReview(
     word: {
       ...word,
       ...adjustLevelCount(word, level, 1),
+      ...srs,
       today_check_count: daily.count,
       today_check_date: daily.date,
       last_review_level: level,

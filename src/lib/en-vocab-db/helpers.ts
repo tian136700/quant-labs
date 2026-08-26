@@ -226,6 +226,15 @@ export function mapRow(row: Record<string, unknown>): EnVocabWord {
         : null,
     last_review_at:
       row.last_review_at != null ? String(row.last_review_at) : null,
+    srs_interval_days: Math.max(
+      0,
+      Math.floor(Number(row.srs_interval_days) || 0)
+    ),
+    srs_due_date:
+      row.srs_due_date != null &&
+      /^\d{4}-\d{2}-\d{2}$/.test(String(row.srs_due_date).trim())
+        ? String(row.srs_due_date).trim()
+        : null,
     last_usage_levels:
       row.last_usage_levels != null && String(row.last_usage_levels).trim()
         ? String(row.last_usage_levels)
@@ -299,6 +308,13 @@ export async function ensureVocabWordSchema(db: D1Database): Promise<void> {
   await addEnVocabWordColumnIfMissing(db, cols, "connection", "TEXT");
   await addEnVocabWordColumnIfMissing(db, cols, "connection_source", "TEXT");
   await addEnVocabWordColumnIfMissing(db, cols, "last_usage_levels", "TEXT");
+  await addEnVocabWordColumnIfMissing(
+    db,
+    cols,
+    "srs_interval_days",
+    "INTEGER NOT NULL DEFAULT 0"
+  );
+  await addEnVocabWordColumnIfMissing(db, cols, "srs_due_date", "TEXT");
   // 全表 TRIM UPDATE 只在「本 isolate 刚加列」时跑一次；列已存在则跳过，
   // 避免冷 isolate 每次进抽查页扫全表 → Worker 1102。读路径 normalize* 仍把空值当默认。
   const hadCategory = cols.has("category");
@@ -460,7 +476,7 @@ export async function listEnVocabRefsByKeys(
 export const WORD_SELECT = `SELECT id, word, reading, reading_source, meaning, meaning_source, pos, kind, category, upload_source, ref_key,
   cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, mnemonic,
   usage, usage_source, connection, connection_source, example_sentences, example_sentences_source,
-  last_review_level, last_review_at, last_usage_levels, created_at, updated_at FROM en_vocab_word`;
+  last_review_level, last_review_at, srs_interval_days, srs_due_date, last_usage_levels, created_at, updated_at FROM en_vocab_word`;
 
 /**
  * 全库列表 / 增量 sync：省略 class_notes / usage / 例句 / 接序正文（全库扫易 Worker 1102）。
@@ -472,7 +488,7 @@ export const WORD_SELECT_LIST = `SELECT id, word, reading, reading_source, meani
   (CASE WHEN usage IS NOT NULL THEN 1 ELSE 0 END) AS has_usage,
   (CASE WHEN example_sentences IS NOT NULL THEN 1 ELSE 0 END) AS has_example_sentences,
   (CASE WHEN connection IS NOT NULL THEN 1 ELSE 0 END) AS has_connection,
-  last_review_level, last_review_at, last_usage_levels, created_at, updated_at FROM en_vocab_word`;
+  last_review_level, last_review_at, srs_interval_days, srs_due_date, last_usage_levels, created_at, updated_at FROM en_vocab_word`;
 
 /**
  * 可见池 / 日序 rematerialize / set-target：禁止扫 mnemonic 与 usage/例句/接序/备注正文。
@@ -480,7 +496,7 @@ export const WORD_SELECT_LIST = `SELECT id, word, reading, reading_source, meani
  */
 export const WORD_SELECT_POOL = `SELECT id, word, reading, meaning, pos, kind, category, upload_source, ref_key,
   cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date,
-  last_review_level, last_review_at, last_usage_levels, created_at, updated_at
+  last_review_level, last_review_at, srs_interval_days, srs_due_date, last_usage_levels, created_at, updated_at
   FROM en_vocab_word`;
 
 export function refsRecord(refs: EnVocabRef[]): Record<string, EnVocabRef> {

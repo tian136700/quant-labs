@@ -292,9 +292,11 @@ export async function persistEnVocabReviewUpdate(
            today_check_date = ?5,
            last_review_level = ?6,
            last_review_at = ?7,
-           last_usage_levels = COALESCE(?8, last_usage_levels),
-           updated_at = ?9
-       WHERE id = ?10`
+           srs_interval_days = ?8,
+           srs_due_date = ?9,
+           last_usage_levels = COALESCE(?10, last_usage_levels),
+           updated_at = ?11
+       WHERE id = ?12`
       )
       .bind(
         updated.cnt_very,
@@ -304,6 +306,8 @@ export async function persistEnVocabReviewUpdate(
         updated.today_check_date,
         updated.last_review_level,
         updated.last_review_at,
+        updated.srs_interval_days ?? 0,
+        updated.srs_due_date ?? null,
         usageLevels != null
           ? serializeEnVocabLastUsageLevels(usageLevels)
           : null,
@@ -512,6 +516,8 @@ export async function resetAllEnVocabReviews(
         today_check_date: null,
         last_review_level: null,
         last_review_at: null,
+        srs_interval_days: 0,
+        srs_due_date: null,
         last_usage_levels: null,
         updated_at: ts,
       };
@@ -533,6 +539,7 @@ export async function resetAllEnVocabReviews(
        SET cnt_very = 0, cnt_normal = 0, cnt_weak = 0,
            today_check_count = 0, today_check_date = NULL,
            last_review_level = NULL, last_review_at = NULL,
+           srs_interval_days = 0, srs_due_date = NULL,
            last_usage_levels = NULL,
            updated_at = ?1`
     )

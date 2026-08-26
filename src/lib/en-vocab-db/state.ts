@@ -72,8 +72,8 @@ export const enVocabDbState = {
   enVocabReviewDoneSchemaReady: false,
 };
 
-/** v5: en_vocab_word.connection / connection_source（语法接续表，对齐日语 id=521） */
-export const EN_VOCAB_WORD_SCHEMA_VERSION = 5;
+/** v6: en_vocab_word.srs_*（间隔重复，对齐日语默默式到期） */
+export const EN_VOCAB_WORD_SCHEMA_VERSION = 6;
 export const EN_VOCAB_SHARED_LIST_CACHE_MS = 5_000;
 export const EN_VOCAB_SETTING_READ_CACHE_MS = 5_000;
 export const EN_VOCAB_TEACHER_QUIZ_LIVE_KEY = "teacher_quiz_live";

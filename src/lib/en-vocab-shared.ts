@@ -12,6 +12,10 @@ import {
   jpVocabFinalQuizScoreOrNull,
   normalizeJpVocabQuizTimeWeight,
 } from "@/lib/jp-vocab-quiz-score";
+import {
+  isJpVocabWordSrsDue,
+  jpVocabSrsDueSortKey,
+} from "@/lib/jp-vocab-srs";
 import { listEnVocabUsagePointsForDisplay } from "@/lib/en-vocab-usage-examples-display";
 import type { EnVocabWord } from "@/lib/types";
 
@@ -223,9 +227,9 @@ export function sortEnVocabWordsByStat(
 }
 
 /**
- * 每日固定序号（与日语 / 韩语同一套算法）：
- * 1. 可置顶的从未抽查（入库日早于今日）在前 —— 不算 final_score
- * 2. 已抽查：final_score = priority + days × 0.1 降序
+ * 每日固定序号（与日语同一套：从未抽查置顶 + SRS 到期 + final_score）：
+ * 1. 可置顶的从未抽查（入库日早于今日）在前 —— 不算 final_score / SRS
+ * 2. 已抽查：已到期在前（到期日越早越前），未到期在后；同档再用 final_score
  * 3. 今日刚入库且从未抽查沉底（今天不进前 N 池，次日再置顶）
  */
 export function sortEnVocabWordsForDailyOrder(
@@ -247,6 +251,16 @@ export function sortEnVocabWordsForDailyOrder(
     if (aFront || bFront || aDefer || bDefer) {
       return a.word.localeCompare(b.word, "en");
     }
+
+    // 已抽查：到期优先（对齐日语默默/间隔重复）
+    const aDue = isJpVocabWordSrsDue(a, now);
+    const bDue = isJpVocabWordSrsDue(b, now);
+    if (aDue !== bDue) return aDue ? -1 : 1;
+
+    const dueKeyCmp = jpVocabSrsDueSortKey(a, now).localeCompare(
+      jpVocabSrsDueSortKey(b, now)
+    );
+    if (dueKeyCmp !== 0) return dueKeyCmp;
 
     const diff =
       jpVocabFinalQuizScore(b, weight, now) -

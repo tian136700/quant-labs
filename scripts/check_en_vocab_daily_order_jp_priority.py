@@ -33,8 +33,10 @@ def main() -> int:
         errors.append("risk column sort must treat never-quizzed as +∞")
     if "EN_VOCAB_DAILY_ORDER_ALGO" not in daily:
         errors.append("daily-order must declare EN_VOCAB_DAILY_ORDER_ALGO")
-    if "jp_priority_v1" not in daily:
-        errors.append("order_algo must be jp_priority_v1")
+    if "jp_srs_v1" not in daily:
+        errors.append("order_algo must be jp_srs_v1")
+    if "isJpVocabWordSrsDue" not in shared:
+        errors.append("daily sort must use isJpVocabWordSrsDue (SRS due)")
     if "enVocabDailyOrderAlgoCurrent" not in settings:
         errors.append("ensure must recompute when order_algo upgrades")
     if "materializeEnVocabTeacherVisible" not in settings:

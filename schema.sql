@@ -662,6 +662,10 @@ CREATE TABLE IF NOT EXISTS en_vocab_word (
   example_sentences_source TEXT,
   last_review_level TEXT,
   last_review_at TEXT,
+  /** 间隔重复：当前间隔（天）；勾选熟悉程度后写入，对齐日语 SRS */
+  srs_interval_days INTEGER NOT NULL DEFAULT 0,
+  /** 间隔重复：下次应抽北京日 YYYY-MM-DD；空=旧数据日序当已到期 */
+  srs_due_date TEXT,
   /** 老师抽查卡按用法勾选的熟悉程度 JSON，如 ["very","normal"] */
   last_usage_levels TEXT,
   created_at TEXT    NOT NULL DEFAULT (datetime('now')),

@@ -7,10 +7,10 @@ import {
 import type { EnVocabWord } from "@/lib/types";
 
 /**
- * 日序算法版本：与日语「从未抽查置顶 + final_score」对齐。
+ * 日序算法版本：与日语「从未抽查置顶 + SRS 到期 + final_score」对齐。
  * 升级后 ensure 会强制重算当日顺序与老师可见池（勿只 merge 旧序）。
  */
-export const EN_VOCAB_DAILY_ORDER_ALGO = "jp_priority_v1";
+export const EN_VOCAB_DAILY_ORDER_ALGO = "jp_srs_v1";
 
 export type EnVocabDailyDisplayOrder = {
   /** 北京时间 YYYY-MM-DD，当日有效 */
