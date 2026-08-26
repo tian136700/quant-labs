@@ -2,12 +2,15 @@
 
 import { EnVocabSpeakButton } from "@/components/EnVocabSpeakButton";
 import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
+import { displayEnVocabCategory } from "@/lib/en-vocab-category";
 import type { EnVocabKind, EnVocabRef } from "@/lib/types";
 
 type Props = {
   readingTrim: string;
   wordTrim: string;
   kind?: EnVocabKind;
+  /** 雅思托福 / 托业 / IT面试 等 */
+  category?: string | null;
   readingSource?: string | null;
   refKey?: string | null;
   ref?: EnVocabRef;
@@ -21,6 +24,7 @@ export function EnVocabFlashcardWordHero({
   readingTrim,
   wordTrim,
   kind,
+  category,
   readingSource,
   refKey,
   ref,
@@ -30,6 +34,7 @@ export function EnVocabFlashcardWordHero({
 }: Props) {
   const showReading = Boolean(readingTrim) && !hideReading;
   const kindLabel = kind === "grammar" ? "语法：" : kind === "word" ? "单词：" : null;
+  const categoryLabel = displayEnVocabCategory(category);
 
   return (
     <div className="jp-vocab-teacher-quiz__hero" id={titleId}>
@@ -58,6 +63,12 @@ export function EnVocabFlashcardWordHero({
               {wordTrim || "—"}
             </span>
           )}
+          <span
+            className="en-vocab-flashcard-category"
+            title={`分类：${categoryLabel}`}
+          >
+            {categoryLabel}
+          </span>
         </div>
         {showReading ? (
           <span

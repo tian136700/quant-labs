@@ -453,6 +453,28 @@ export function JpVocabTeacherQuizFlashcardStyles() {
         .en-vocab-flashcard-lemma {
           margin-inline-start: 0;
         }
+        /* 分类标签：托业 / 雅思托福 / IT面试（老师卡 + 学生卡 + 复习卡） */
+        .en-vocab-flashcard-category {
+          display: inline-flex;
+          align-items: center;
+          align-self: center;
+          margin-inline-start: 0.35rem;
+          padding: 0.12rem 0.45rem;
+          border-radius: 0.35rem;
+          border: 1px solid color-mix(in srgb, var(--accent, #5b8def) 55%, transparent);
+          background: color-mix(in srgb, var(--accent, #5b8def) 16%, transparent);
+          color: var(--accent, #8ec5ff);
+          font-size: 0.78rem;
+          font-weight: 700;
+          line-height: 1.2;
+          letter-spacing: 0.02em;
+          white-space: nowrap;
+          vertical-align: middle;
+        }
+        .en-vocab-flashcard-category-text {
+          font-weight: 600;
+          color: var(--text);
+        }
         .en-vocab-flashcard-ipa {
           margin-left: auto;
           align-self: flex-end;

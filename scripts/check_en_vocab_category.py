@@ -91,6 +91,35 @@ def main() -> None:
         ROOT / "src/lib/en-vocab-category.ts",
         "IT面试类高频词汇",
     )
+    # 抽查卡 / study 卡 / 复习卡须展示分类（托业、雅思托福…）
+    must_contain(
+        ROOT / "src/components/en-vocab-teacher-quiz-flashcard/EnVocabFlashcardPageBody.tsx",
+        "displayEnVocabCategory",
+    )
+    must_contain(
+        ROOT / "src/components/en-vocab-teacher-quiz-flashcard/EnVocabFlashcardPageBody.tsx",
+        "en-vocab-flashcard-category",
+    )
+    must_contain(
+        ROOT / "src/components/en-vocab-teacher-quiz-flashcard/EnVocabFlashcardPageBody.tsx",
+        "<dt>分类：</dt>",
+    )
+    must_contain(
+        ROOT / "src/components/EnVocabFlashcardWordHero.tsx",
+        "displayEnVocabCategory",
+    )
+    must_contain(
+        ROOT / "src/components/EnVocabFlashcardWordHero.tsx",
+        "en-vocab-flashcard-category",
+    )
+    must_contain(
+        ROOT / "src/components/EnVocabAdminReviewFlashcardModal.tsx",
+        "category={w.category}",
+    )
+    must_contain(
+        ROOT / "src/components/JpVocabTeacherQuizFlashcardStyles.tsx",
+        ".en-vocab-flashcard-category",
+    )
     must_contain(
         ROOT / "scripts/en-vocab-fill-online-batch-api.py",
         "IT / 软件工程技术面试",

@@ -6,6 +6,7 @@ import { EnVocabUsageExamplesPairedContent } from "@/components/EnVocabUsageExam
 import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import { EnVocabSendPronounceButton } from "@/components/en-vocab-page/EnVocabSendPronounceButton";
 import { EnVocabFlashcardNotesSection } from "@/components/en-vocab-teacher-quiz-flashcard/EnVocabFlashcardNotesSection";
+import { displayEnVocabCategory } from "@/lib/en-vocab-category";
 import type { EnVocabLevel, EnVocabRef, EnVocabWord } from "@/lib/types";
 
 export type EnVocabFlashcardPageBodyProps = {
@@ -66,6 +67,7 @@ export function EnVocabFlashcardPageBody(props: EnVocabFlashcardPageBodyProps) {
   } = props;
   const showSendPronounce =
     !isStudy && !previewMode && canOperate && Boolean(wordTrim);
+  const categoryLabel = displayEnVocabCategory(w.category);
   return (
         <div className="jp-vocab-teacher-quiz__scroll-body en-vocab-flashcard-page__body">
           <div
@@ -103,6 +105,12 @@ export function EnVocabFlashcardPageBody(props: EnVocabFlashcardPageBodyProps) {
                         {wordTrim || "—"}
                       </span>
                     )}
+                    <span
+                      className="en-vocab-flashcard-category"
+                      title={`分类：${categoryLabel}`}
+                    >
+                      {categoryLabel}
+                    </span>
                   </div>
                   {readingTrim ? (
                     <span
@@ -145,6 +153,12 @@ export function EnVocabFlashcardPageBody(props: EnVocabFlashcardPageBodyProps) {
                 aria-label="词条信息"
               >
                 <dl className="jp-vocab-teacher-quiz__meta">
+                  <dt>分类：</dt>
+                  <dd>
+                    <span className="en-vocab-flashcard-category-text">
+                      {categoryLabel}
+                    </span>
+                  </dd>
                   <dt>释义：</dt>
                   <dd
                     className={
