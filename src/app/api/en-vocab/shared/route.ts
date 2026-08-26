@@ -1,5 +1,6 @@
 import { localeFromRequest } from "@/lib/cloudflare-env";
 import {
+  backfillEnVocabCheckedUnsharedShares,
   getEnVocabStudyQuizProgressTarget,
   getEnVocabTeacherQuizLive,
   listEnVocabSharedToday,
@@ -30,16 +31,21 @@ export async function GET(request: Request) {
       );
     }
 
-    const listPromise = listEnVocabSharedToday(env.DB);
-    const quizPromise = lite ? null : getEnVocabStudyQuizProgressTarget(env.DB);
+    // 非 lite：先补「已抽未共享」再列表，避免学生端 28/30、老师已抽完对不上
     // lite 用 isolate 短缓存减轻每 5s 强制 D1；全量/非 lite 仍 bypass
-    const livePromise = getEnVocabTeacherQuizLive(env.DB, new Date(), {
+    const live = await getEnVocabTeacherQuizLive(env.DB, new Date(), {
       bypassCache: !lite,
     });
-    const [{ items, refs }, quiz_progress, live] = await Promise.all([
-      listPromise,
-      quizPromise ?? Promise.resolve(null),
-      livePromise,
+    if (!lite) {
+      await backfillEnVocabCheckedUnsharedShares(env.DB, {
+        excludeWordId: live.word_id,
+      });
+    }
+    const [{ items, refs }, quiz_progress] = await Promise.all([
+      listEnVocabSharedToday(env.DB),
+      lite
+        ? Promise.resolve(null)
+        : getEnVocabStudyQuizProgressTarget(env.DB),
     ]);
     return jsonResponseObserving1102(
       request,

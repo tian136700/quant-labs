@@ -75,6 +75,21 @@ def check_study_page() -> None:
 
 def check_shared_api() -> None:
     route = SHARED_ROUTE.read_text(encoding="utf-8")
+    if "backfillEnVocabCheckedUnsharedShares" not in route:
+        fail(
+            "shared route must call backfillEnVocabCheckedUnsharedShares "
+            "(align JP; prevent study 28/30 when teacher finished 30)"
+        )
+    if "if (!lite)" not in route and "if (!lite) {" not in route:
+        # tolerate formatting; require backfill gated off lite
+        if "lite" not in route or "backfillEnVocabCheckedUnsharedShares" not in route:
+            fail("backfill must run on non-lite shared GET only")
+    share_db = ROOT / "src/lib/en-vocab-db/share.ts"
+    if not share_db.is_file():
+        fail("missing en-vocab-db/share.ts")
+    share_src = share_db.read_text(encoding="utf-8")
+    if "export async function backfillEnVocabCheckedUnsharedShares" not in share_src:
+        fail("missing backfillEnVocabCheckedUnsharedShares in share.ts")
     if "getEnVocabDailyQuizProgress" in route:
         fail(
             "shared route must not call getEnVocabDailyQuizProgress "
