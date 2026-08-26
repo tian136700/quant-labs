@@ -32,7 +32,13 @@ const CATEGORY_ALIASES: Record<string, string> = {
   /** 托业单独一类，勿并进雅思托福 */
   托业: "托业",
   托业词汇: "托业",
+  /** STT / 本地 API 常传「托业错题分类」→ 归入托业 */
+  托业错题分类: "托业",
+  托业错题: "托业",
   toeic: "托业",
+  /** 雅思错题 → 雅思托福（与「雅思」别名一致） */
+  雅思错题分类: EN_VOCAB_DEFAULT_CATEGORY,
+  雅思错题: EN_VOCAB_DEFAULT_CATEGORY,
   /** IT 面试技术英语；STT 本地「IT面试类高频词汇」等别名 */
   IT面试: EN_VOCAB_IT_INTERVIEW_CATEGORY,
   "IT 面试": EN_VOCAB_IT_INTERVIEW_CATEGORY,
@@ -45,16 +51,33 @@ const CATEGORY_ALIASES: Record<string, string> = {
 
 /**
  * 规范化分类：去空白；空 → 默认「雅思托福」；
- * 常见别名映射到标准名；其它自由文本原样保留（trim 后）。
+ * 常见别名 +「类似分类」长名一律归入标准桶；其它自由文本原样保留。
+ *
+ * 对方 API 上传约定（防再出现独立「…错题分类」）：
+ * - 名称含「托业」/ toeic →「托业」
+ * - 名称含「雅思」/「托福」/ ielts / toefl →「雅思托福」
+ * - 名称含「IT面试」→「IT面试」
  */
 export function normalizeEnVocabCategory(raw?: string | null): string {
   const t = (raw || "").trim();
   if (!t) return EN_VOCAB_DEFAULT_CATEGORY;
   const mapped = CATEGORY_ALIASES[t.toLowerCase()] ?? CATEGORY_ALIASES[t];
   if (mapped) return mapped;
-  // 含「IT面试」的长名（本地词库）也归到标准分类
-  if (t.includes("IT面试") || t.toLowerCase().includes("it面试")) {
+  const lower = t.toLowerCase();
+  // IT 优先，避免「IT面试托业」等混写误归托业
+  if (t.includes("IT面试") || lower.includes("it面试") || lower.includes("it interview")) {
     return EN_VOCAB_IT_INTERVIEW_CATEGORY;
+  }
+  // 含托业（含「托业错题分类」「托业词汇」等类似名）→ 托业
+  if (t.includes("托业") || lower.includes("toeic")) return "托业";
+  // 含雅思 / 托福（含「雅思错题分类」等类似名）→ 雅思托福
+  if (
+    t.includes("雅思") ||
+    t.includes("托福") ||
+    lower.includes("ielts") ||
+    lower.includes("toefl")
+  ) {
+    return EN_VOCAB_DEFAULT_CATEGORY;
   }
   return t;
 }

@@ -91,6 +91,27 @@ def main() -> None:
         ROOT / "src/lib/en-vocab-category.ts",
         "IT面试类高频词汇",
     )
+    # API「…错题分类」及类似名须归入标准托业 / 雅思托福（含关键字即归入）
+    must_contain(
+        ROOT / "src/lib/en-vocab-category.ts",
+        "托业错题分类",
+    )
+    must_contain(
+        ROOT / "src/lib/en-vocab-category.ts",
+        "雅思错题分类",
+    )
+    must_contain(
+        ROOT / "src/lib/en-vocab-category.ts",
+        'if (t.includes("托业") || lower.includes("toeic")) return "托业"',
+    )
+    must_contain(
+        ROOT / "src/lib/en-vocab-category.ts",
+        't.includes("雅思")',
+    )
+    must_contain(
+        ROOT / "src/lib/en-vocab-category.ts",
+        't.includes("托福")',
+    )
     # 抽查卡 / study 卡 / 复习卡须展示分类（托业、雅思托福…）
     must_contain(
         ROOT / "src/components/en-vocab-teacher-quiz-flashcard/EnVocabFlashcardPageBody.tsx",
