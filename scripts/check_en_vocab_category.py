@@ -112,35 +112,29 @@ def main() -> None:
         ROOT / "src/lib/en-vocab-category.ts",
         't.includes("托福")',
     )
-    # 抽查卡 / study 卡 / 复习卡须展示分类（托业、雅思托福…）
-    must_contain(
-        ROOT / "src/components/en-vocab-teacher-quiz-flashcard/EnVocabFlashcardPageBody.tsx",
-        "displayEnVocabCategory",
+    # 抽查卡 / study 卡 / 复习卡：禁止展示分类（词表/编辑弹窗仍保留）
+    body = (
+        ROOT
+        / "src/components/en-vocab-teacher-quiz-flashcard/EnVocabFlashcardPageBody.tsx"
+    ).read_text(encoding="utf-8")
+    if "displayEnVocabCategory" in body or "en-vocab-flashcard-category" in body:
+        fail("EnVocabFlashcardPageBody must NOT show category on flashcards")
+    if "<dt>分类：</dt>" in body:
+        fail("EnVocabFlashcardPageBody must NOT render meta 分类：")
+    hero = (ROOT / "src/components/EnVocabFlashcardWordHero.tsx").read_text(
+        encoding="utf-8"
     )
-    must_contain(
-        ROOT / "src/components/en-vocab-teacher-quiz-flashcard/EnVocabFlashcardPageBody.tsx",
-        "en-vocab-flashcard-category",
+    if "displayEnVocabCategory" in hero or "en-vocab-flashcard-category" in hero:
+        fail("EnVocabFlashcardWordHero must NOT show category")
+    if "category?:" in hero or "category," in hero:
+        fail("EnVocabFlashcardWordHero must NOT accept category prop")
+    review = (ROOT / "src/components/EnVocabAdminReviewFlashcardModal.tsx").read_text(
+        encoding="utf-8"
     )
-    must_contain(
-        ROOT / "src/components/en-vocab-teacher-quiz-flashcard/EnVocabFlashcardPageBody.tsx",
-        "<dt>分类：</dt>",
-    )
-    must_contain(
-        ROOT / "src/components/EnVocabFlashcardWordHero.tsx",
-        "displayEnVocabCategory",
-    )
-    must_contain(
-        ROOT / "src/components/EnVocabFlashcardWordHero.tsx",
-        "en-vocab-flashcard-category",
-    )
-    must_contain(
-        ROOT / "src/components/EnVocabAdminReviewFlashcardModal.tsx",
-        "category={w.category}",
-    )
-    must_contain(
-        ROOT / "src/components/JpVocabTeacherQuizFlashcardStyles.tsx",
-        ".en-vocab-flashcard-category",
-    )
+    if "displayEnVocabCategory" in review or "<dt>分类：</dt>" in review:
+        fail("EnVocabAdminReviewFlashcardModal must NOT show category on review card")
+    if "category={w.category}" in review:
+        fail("EnVocabAdminReviewFlashcardModal must NOT pass category to WordHero")
     must_contain(
         ROOT / "scripts/en-vocab-fill-online-batch-api.py",
         "IT / 软件工程技术面试",

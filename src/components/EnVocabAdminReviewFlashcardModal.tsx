@@ -9,7 +9,6 @@ import { EnVocabFlashcardWordHero } from "@/components/EnVocabFlashcardWordHero"
 import { EnVocabSpeakButton } from "@/components/EnVocabSpeakButton";
 import { EnVocabUsageExamplesPairedContent } from "@/components/EnVocabUsageExamplesPairedContent";
 import { buildEnVocabUsageExamplePairs } from "@/lib/en-vocab-usage-examples-display";
-import { displayEnVocabCategory } from "@/lib/en-vocab-category";
 import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import { JpVocabTeacherQuizFlashcardStyles } from "@/components/JpVocabTeacherQuizFlashcardStyles";
 import { formatEnVocabClassNotesForDisplay } from "@/components/en-vocab-teacher-quiz-flashcard/helpers";
@@ -341,7 +340,6 @@ export function EnVocabAdminReviewFlashcardModal({
           readingTrim={readingTrim}
           wordTrim={wordTrim}
           kind={w.kind}
-          category={w.category}
           readingSource={w.reading_source}
           refKey={w.ref_key}
           ref={ref}
@@ -368,12 +366,6 @@ export function EnVocabAdminReviewFlashcardModal({
         <section className="en-vocab-teacher-quiz__info" aria-label="词条信息">
           {contentExpanded ? (
             <dl className="en-vocab-teacher-quiz__meta">
-              <dt>分类：</dt>
-              <dd>
-                <span className="en-vocab-flashcard-category-text">
-                  {displayEnVocabCategory(w.category)}
-                </span>
-              </dd>
               <dt>释义：</dt>
               <dd className={meaningTrim ? "" : "en-vocab-teacher-quiz__meta-empty"}>
                 {meaningTrim ? (
