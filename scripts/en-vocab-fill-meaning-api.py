@@ -58,18 +58,35 @@ POS_ALIASES = {
 }
 
 
+_LATIN_EXPANSION_RE = re.compile(r"^[A-Za-z][A-Za-z0-9 .'\-&/]*$")
+MEANING_MAX_LEN = 120
+
+
 def normalize_meaning(raw: str) -> str:
-    parts: list[str] = []
+    chinese_parts: list[str] = []
     seen: set[str] = set()
-    for chunk in re.split(r"[;；、,，/／|｜]+", str(raw or "")):
+    expansion: str | None = None
+    for chunk in re.split(r"[;；、，|｜]+", str(raw or "")):
         item = LEADING_INDEX_RE.sub("", chunk.strip()).rstrip("。.．")
         item = re.sub(r"^(释义|意思|中文)\s*[:：]\s*", "", item).strip()
         if not item or item in seen:
             continue
         seen.add(item)
-        parts.append(item)
-        if len(parts) >= 3:
+        has_han = bool(HAN_RE.search(item))
+        if (
+            expansion is None
+            and not chinese_parts
+            and not has_han
+            and _LATIN_EXPANSION_RE.match(item)
+        ):
+            expansion = item
+            continue
+        if not has_han:
+            continue
+        chinese_parts.append(item)
+        if len(chinese_parts) >= 3:
             break
+    parts = ([expansion] if expansion else []) + chinese_parts
     return "；".join(parts)
 
 
@@ -77,7 +94,7 @@ def validate_meaning(raw: str) -> tuple[str | None, str | None]:
     text = normalize_meaning(raw)
     if not text:
         return None, "empty"
-    if len(text) > 80:
+    if len(text) > MEANING_MAX_LEN:
         return None, "too_long"
     if MARKDOWN_RE.search(text):
         return None, "has_markdown"
@@ -174,7 +191,11 @@ def generate_for_row(
         reading = str(row.get("reading") or "").strip()
         jobs = []
         if need_meaning:
-            jobs.append("释义行：最常用 1～3 个中文义项，用中文分号「；」连接")
+            jobs.append(
+                "释义行：最常用 1～3 个中文义项，用中文分号「；」连接；"
+                "若词条是缩写/简写（DMV、CEO 或 A=account），须先写完整英文全称/展开，"
+                "再接中文，如 Department of Motor Vehicles；车辆管理局 或 account；账户"
+            )
         if need_pos:
             jobs.append("词性行：英文缩写（n/v/adj/adv/prep/phrase…）；多词性用 /，例如 adj/n。含空格的固定搭配用 phrase，不要标 adj/adv")
         prompt = (

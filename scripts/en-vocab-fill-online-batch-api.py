@@ -85,6 +85,11 @@ SYSTEM = (
     "otherwise \"word\". Ordinary phrasal verbs without slots (look forward to) stay \"word\". "
     "Multi-word collocations (unbearably tough, in time) use pos \"phrase\", not adj/adv of the head word; "
     "phrasal verbs stay v; complex prepositions (in spite of) stay prep. "
+    "If the lemma is an abbreviation/acronym (DMV, CEO, ASAP) or a letter shorthand "
+    "(A for account), meaning MUST begin with the full English expansion, then Chinese "
+    "senses joined by ； — e.g. \"Department of Motor Vehicles；车辆管理局；驾照考试机构\" "
+    "or \"account；账户\". Ordinary non-abbreviation words: Chinese senses only "
+    "(do not invent an English expansion). "
     "Usage: Chinese numbered 1. 2. …; EACH line MUST include dual frequency "
     "[口语n|考试m] (each 1-10) right after the number "
     "(e.g. '1. [口语7|考试8] 动词：…'); "
@@ -577,7 +582,7 @@ def build_prompt(row: dict[str, Any], needs: dict[str, bool]) -> str:
 输出 JSON（需要的字段必须给出非空值）：
 - kind: "word" 或 "grammar"（句型模板 / A-B 占位 / somebody 槽 / 时态名 → grammar；普通单词与无占位短语动词 → word）
 - reading: 美式 IPA，形如 /həˈloʊ/（仅 word；grammar 可省略）
-- meaning: 中文释义，分号分隔，最多 3 义
+- meaning: 中文释义，分号「；」分隔，最多 3 个中文义；若词条是缩写/首字母缩略（DMV、CEO、ASAP）或字母简写（A=account），须先写完整英文全称/展开拼写，再接中文，如「Department of Motor Vehicles；车辆管理局；驾照考试机构」或「account；账户」；普通单词只写中文，不要硬塞英文全称
 - pos: 英文词性缩写，多词性用 /，如 v 或 adj/n；含空格的固定搭配（unbearably tough、in time）必须用 phrase，禁止按中心词标 adj/adv；短语动词仍标 v；复合介词仍标 prep（仅 word；grammar 可省略）
 - usage: 编号中文用法；每条必须带口语/考试双分 [口语n|考试m]（各 1～10；口语=日常会话；考试=该分类考试语境；可打不同分），形如「1. [口语7|考试8] 介词：…」；组数=真实不同核心义项数（1 种就 1 条，禁止硬凑 2 条）；硬规则：同词性且意思差不多必须合并为 1 条；禁止按对象/场景硬拆同一义（如 attractive「对客户有吸引力」与「外表好看」须合并；fail「计划/设备失败」与「考试不及格」、freeze「冻结薪资」与「冻结账户」须合并为 1 条动词义，名词义另开）；禁止近义微调硬拆（如 carefully「仔细地完成工作」与「谨慎地避免出错」须合并为 1 条）；若两条候选用法造出的例句几乎可互换，必须合并成 1 条；只有词性/词典义/固定结构真不同才拆条；每条只标一种词性，禁止「动词/名词」等含糊写法（例句是名词就标名词；名词与动词义都常用则拆成两条）；名词作定语（quality service / business trip）须标「名词：作定语…」，禁止标成「形容词」；选题按上方分类语境高频，正文禁止考试品牌名。也可返回数组 [{{"text":"…","oral_frequency":7,"exam_frequency":8}},…]（双分必填 1～10）
 - example_sentences: 字符串（不要 JSON 数组）。与 usage 一一对应；每条英文完整短句 + 下一行「译文：中文」交替；用法是被动则例句必须被动；时态/词形可变；其余词要极简单；不要难词、不要长难从句；不要行首编号；禁止输出 [{{"sentence":...}}] 这类结构
