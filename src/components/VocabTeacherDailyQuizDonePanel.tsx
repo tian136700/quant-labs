@@ -6,6 +6,11 @@ type CoachAction = {
   onClick: () => void;
 };
 
+type ExportAction = {
+  busy: boolean;
+  onClick: () => void;
+};
+
 type Props = {
   /** 日语：今日抽单词已抽查完成；英语：本轮单词已抽查完成 */
   title: string;
@@ -13,6 +18,8 @@ type Props = {
   onViewLastWord: () => void;
   viewLastDisabled?: boolean;
   coachAction?: CoachAction;
+  /** 英语老师端：导出今日抽查预览 Excel */
+  exportAction?: ExportAction;
 };
 
 /**
@@ -24,6 +31,7 @@ export function VocabTeacherDailyQuizDonePanel({
   onViewLastWord,
   viewLastDisabled = false,
   coachAction,
+  exportAction,
 }: Props) {
   return (
     <div
@@ -47,6 +55,16 @@ export function VocabTeacherDailyQuizDonePanel({
         >
           查看上一个单词
         </button>
+        {exportAction ? (
+          <button
+            type="button"
+            className="btn-rsi-filter vocab-teacher-quiz-done-panel__btn"
+            disabled={exportAction.busy}
+            onClick={exportAction.onClick}
+          >
+            {exportAction.busy ? "导出中…" : "导出 Excel"}
+          </button>
+        ) : null}
         {coachAction ? (
           <button
             type="button"

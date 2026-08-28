@@ -98,6 +98,13 @@ def main() -> None:
         fail("EnVocabPage must pass onExportTeacherQuizPreview to WordList")
 
     toolbar = TOOLBAR.read_text(encoding="utf-8")
+    if "onExportTeacherQuizPreview" not in toolbar:
+        fail("EnVocabPageToolbar must support teacher preview export")
+    if "exportAction" not in (
+        ROOT / "src/components/VocabTeacherDailyQuizDonePanel.tsx"
+    ).read_text(encoding="utf-8"):
+        fail("done panel must support exportAction for teacher preview")
+
     if "hideStartQuizButton" not in toolbar:
         fail("EnVocabPageToolbar must support hideStartQuizButton")
 

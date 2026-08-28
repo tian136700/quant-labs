@@ -906,6 +906,10 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
           }}
           onPickNext={() => pickNext()}
           onExportExcel={() => void exportExcel(displayedWords, sessionLevel)}
+          onExportTeacherQuizPreview={
+            !isAdminMode ? () => void exportTeacherQuizPreview() : undefined
+          }
+          teacherPreviewExporting={teacherPreviewExporting}
           onShowRiskChart={() => setShowRiskChart(true)}
           onManualAdd={() => {
             if (!canOperate) {

@@ -29,6 +29,9 @@ type EnVocabPageToolbarProps = {
   onResumeOrStartQuiz: () => void;
   onPickNext: () => void;
   onExportExcel: () => void;
+  /** 老师端：导出今日抽查池（单词 + 释义）预览 */
+  onExportTeacherQuizPreview?: () => void;
+  teacherPreviewExporting?: boolean;
   onShowRiskChart: () => void;
   onManualAdd: () => void;
   onBatchDelete: () => void;
@@ -57,6 +60,8 @@ export function EnVocabPageToolbar({
   onResumeOrStartQuiz,
   onPickNext,
   onExportExcel,
+  onExportTeacherQuizPreview,
+  teacherPreviewExporting = false,
   onShowRiskChart,
   onManualAdd,
   onBatchDelete,
@@ -191,6 +196,18 @@ export function EnVocabPageToolbar({
               title="导出当前单词表为 Excel 文件"
             >
               {exporting ? "导出中…" : "导出 Excel"}
+            </button>
+          ) : canOperate &&
+            quizTargetWordsLength > 0 &&
+            onExportTeacherQuizPreview ? (
+            <button
+              type="button"
+              className="btn-rsi-filter"
+              onClick={onExportTeacherQuizPreview}
+              disabled={loading || teacherPreviewExporting}
+              title="导出今日抽查单词与释义，便于课前预览"
+            >
+              {teacherPreviewExporting ? "导出中…" : "导出 Excel"}
             </button>
           ) : null}
           {SHOW_RISK_CHART ? (

@@ -214,6 +214,14 @@ export function EnVocabPageWordList(props: EnVocabPageWordListProps) {
               subtitle="点「查看上一个单词」可回看；您也可以选择关闭当前页面。"
               onViewLastWord={props.onViewLastCheckedWord}
               viewLastDisabled={filteredDisplayedWords.length === 0}
+              exportAction={
+                onExportTeacherQuizPreview
+                  ? {
+                      busy: teacherQuizPreviewExporting,
+                      onClick: onExportTeacherQuizPreview,
+                    }
+                  : undefined
+              }
             />
           ) : null}
           <EnVocabPageSearch
