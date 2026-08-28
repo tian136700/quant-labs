@@ -2,7 +2,7 @@
 """Regression: student peek into shared must record familiarity when unchecked.
 
 Otherwise admin shows 「从未抽查」 while the word is already on today's study list.
-Aligns peek with share*Word auto-mark weak.
+EN share must NOT auto-mark weak (only teacher checkbox); peek still aligns with JP.
 """
 
 from __future__ import annotations
@@ -29,19 +29,23 @@ def must_contain(path: Path, needle: str, hint: str) -> None:
         fail(f"{path.relative_to(ROOT)}: missing {hint} ({needle!r})")
 
 
+def must_not_contain(path: Path, needle: str, hint: str) -> None:
+    if needle in path.read_text(encoding="utf-8"):
+        fail(f"{path.relative_to(ROOT)}: must not have {hint} ({needle!r})")
+
+
 def main() -> None:
     for path in (EN_LIVE, JP_LIVE, EN_SHARE, JP_SHARE, RULE):
         if not path.is_file():
             fail(f"missing {path}")
 
-    must_contain(EN_SHARE, "isEnVocabWordCheckedToday", "EN share gates auto-mark")
-    must_contain(EN_SHARE, 'recordEnVocabReview(db, wordId, "weak")', "EN share auto-marks weak")
+    must_not_contain(EN_SHARE, "recordEnVocabReview", "EN share must not auto-mark review")
     must_contain(JP_SHARE, "isJpVocabWordCheckedToday", "JP share gates auto-mark")
     must_contain(JP_SHARE, "recordJpVocabReview", "JP share records review when unchecked")
 
     must_contain(EN_LIVE, "peekEnVocabTeacherQuizLiveWord", "EN peek entry")
     must_contain(EN_LIVE, "isEnVocabWordCheckedToday", "EN peek gates like share")
-    must_contain(EN_LIVE, 'recordEnVocabReview(db, wordId, "weak")', "EN peek auto-marks weak")
+    must_contain(EN_LIVE, 'recordEnVocabReview(db, wordId, "weak"', "EN peek auto-marks weak")
     must_contain(
         EN_LIVE,
         'await import("./words")',

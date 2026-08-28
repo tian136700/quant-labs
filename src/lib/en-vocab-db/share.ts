@@ -95,11 +95,7 @@ import {
   seedIfEmpty,
 } from "./helpers";
 import {
-  recordEnVocabReview,
-} from "./words";
-import {
   ensureEnVocabSharedSchema,
-  isEnVocabWordCheckedToday,
   mapSharedRow,
 } from "./daily_settings";
 
@@ -176,15 +172,7 @@ export async function shareEnVocabWord(
     if (await isEnVocabWordSharedToday(db, wordId)) {
       return { ok: false, error: "already_shared_today" };
     }
-    let updatedWord = stripEnVocabWordNotesForList(word);
-    if (!isEnVocabWordCheckedToday(word)) {
-      const review = await recordEnVocabReview(db, wordId, "weak", {
-        sharedBy: sharedByTrim,
-        reviewSource: "share_weak",
-      });
-      if (!review.ok) return { ok: false, error: review.error };
-      updatedWord = review.word;
-    }
+    const updatedWord = stripEnVocabWordNotesForList(word);
     const sharedRow = {
       id: enVocabDbState.devSharedNextId++,
       word_id: wordId,
@@ -221,16 +209,7 @@ export async function shareEnVocabWord(
     return { ok: false, error: "already_shared_today" };
   }
 
-  const current = mapReviewWordRow(wordRow);
-  let updatedWord = current;
-  if (!isEnVocabWordCheckedToday(current)) {
-    const review = await recordEnVocabReview(db, wordId, "weak", {
-      sharedBy: sharedByTrim,
-      reviewSource: "share_weak",
-    });
-    if (!review.ok) return { ok: false, error: review.error };
-    updatedWord = review.word;
-  }
+  const updatedWord = mapReviewWordRow(wordRow);
 
   const insert = await db
     .prepare(

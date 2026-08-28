@@ -636,30 +636,8 @@ export function useEnVocabReviewActions(options: {
       }
     }
 
-    const prevLevel = sessionLevel[wordId];
-    const prevReviewAt = sessionReviewAt[wordId];
-    const displayOrderSnapshot = displayOrderRef.current;
-    const nowMs = Date.now();
-    const weakLevel: EnVocabLevel = "weak";
-    const alreadyMarked =
-      prevLevel != null ||
-      effectiveTodayCheckCount(
-        snapshot.today_check_count ?? 0,
-        snapshot.today_check_date
-      ) > 0;
-
     setHighlightId(wordId);
     setStatus(fromNext ? "此单词正在同步给学生复习…" : "");
-    if (!alreadyMarked) {
-      setSessionLevel((prev) => ({ ...prev, [wordId]: weakLevel }));
-      setSessionReviewAt((prev) => ({ ...prev, [wordId]: nowMs }));
-      setDisplayOrder((prev) => markEnVocabRoundChecked(prev, wordId));
-      setWords((prev) =>
-        prev.map((w) =>
-          w.id === wordId ? bumpEnVocabWordReview(w, weakLevel, prevLevel) : w
-        )
-      );
-    }
     setSharingId(wordId);
     setWordSyncPhase(wordId, "syncing");
     const startedAt = Date.now();
@@ -723,32 +701,10 @@ export function useEnVocabReviewActions(options: {
         persistCache(next, refs, displayOrderRef.current, nextSharedIds);
         return next;
       });
-      setStatus(
-        alreadyMarked
-          ? "已同步到学生「今日背英语单词」。"
-          : "已同步到学生「今日背英语单词」，并标记为不熟悉。"
-      );
+      setStatus("已同步到学生「今日背英语单词」。");
       notifyEnVocabSharedUpdated({ wordId, openRemarks: true });
       return true;
     } catch (err) {
-      if (snapshot && !alreadyMarked) {
-        setWords((prev) => prev.map((w) => (w.id === wordId ? snapshot : w)));
-      }
-      if (!alreadyMarked) {
-        setDisplayOrder(displayOrderSnapshot);
-        setSessionLevel((prev) => {
-          const next = { ...prev };
-          if (prevLevel) next[wordId] = prevLevel;
-          else delete next[wordId];
-          return next;
-        });
-        setSessionReviewAt((prev) => {
-          const next = { ...prev };
-          if (prevReviewAt != null) next[wordId] = prevReviewAt;
-          else delete next[wordId];
-          return next;
-        });
-      }
       const timedOut =
         (err instanceof DOMException &&
           (err.name === "TimeoutError" || err.name === "AbortError")) ||

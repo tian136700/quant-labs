@@ -60,7 +60,9 @@ def main() -> int:
         ),
         (
             "src/lib/en-vocab-db/share.ts",
-            ['reviewSource: "share_weak"'],
+            [
+                "shareEnVocabWord",
+            ],
         ),
         (
             "src/lib/en-vocab-db/live.ts",
