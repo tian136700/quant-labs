@@ -106,6 +106,7 @@ export type EnVocabWordTableProps = {
   onViewRemarks: (word: EnVocabWord) => void;
   onEditRemarks: (word: EnVocabWord) => void;
   onEditWord: (word: EnVocabWord) => void;
+  onViewReviewLog: (word: EnVocabWord) => void;
   onPreviewQuizCard: (wordId: number) => void;
   onDeleteWord: (word: EnVocabWord) => void;
   onShareWord: (wordId: number) => void;
@@ -150,6 +151,7 @@ export function EnVocabWordTable({
   onViewRemarks,
   onEditRemarks,
   onEditWord,
+  onViewReviewLog,
   onPreviewQuizCard,
   onDeleteWord,
   onShareWord,
@@ -844,6 +846,14 @@ export function EnVocabWordTable({
                               onClick={() => onEditWord(w)}
                             >
                               编辑
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-rsi-filter btn-rsi-filter--compact"
+                              title="查看每次勾选熟悉程度的历史记录"
+                              onClick={() => onViewReviewLog(w)}
+                            >
+                              勾选记录
                             </button>
                             {isAdmin ? (
                               <button

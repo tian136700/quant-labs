@@ -187,6 +187,9 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
   const [viewingRemarksWord, setViewingRemarksWord] = useState<EnVocabWord | null>(null);
   const [viewingMnemonicWord, setViewingMnemonicWord] = useState<EnVocabWord | null>(null);
   const [viewingUsageWord, setViewingUsageWord] = useState<EnVocabWord | null>(null);
+  const [viewingReviewLogWord, setViewingReviewLogWord] = useState<EnVocabWord | null>(
+    null
+  );
   const [previewRef, setPreviewRef] = useState<{
     ref: EnVocabRef;
     cacheVersion?: string | null;
@@ -1010,6 +1013,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
           onViewUsage={setViewingUsageWord}
           onViewMnemonic={setViewingMnemonicWord}
           onViewRemarks={setViewingRemarksWord}
+          onViewReviewLog={setViewingReviewLogWord}
           onEditRemarks={setEditingRemarksWord}
           onEditWord={setEditingWord}
           onPreviewQuizCard={(wordId) => {
@@ -1060,6 +1064,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
         viewingRemarksWord={viewingRemarksWord}
         viewingMnemonicWord={viewingMnemonicWord}
         viewingUsageWord={viewingUsageWord}
+        viewingReviewLogWord={viewingReviewLogWord}
         previewRef={previewRef}
         editingRemarksWord={editingRemarksWord}
         editingWord={editingWord}
@@ -1119,6 +1124,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
         onCloseViewingRemarks={() => setViewingRemarksWord(null)}
         onCloseViewingMnemonic={() => setViewingMnemonicWord(null)}
         onCloseViewingUsage={() => setViewingUsageWord(null)}
+        onCloseViewingReviewLog={() => setViewingReviewLogWord(null)}
         onClosePreviewRef={() => setPreviewRef(null)}
         onCloseEditingRemarks={() => setEditingRemarksWord(null)}
         onCloseEditingWord={() => setEditingWord(null)}

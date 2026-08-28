@@ -178,7 +178,10 @@ export async function shareEnVocabWord(
     }
     let updatedWord = stripEnVocabWordNotesForList(word);
     if (!isEnVocabWordCheckedToday(word)) {
-      const review = await recordEnVocabReview(db, wordId, "weak");
+      const review = await recordEnVocabReview(db, wordId, "weak", {
+        sharedBy: sharedByTrim,
+        reviewSource: "share_weak",
+      });
       if (!review.ok) return { ok: false, error: review.error };
       updatedWord = review.word;
     }
@@ -221,7 +224,10 @@ export async function shareEnVocabWord(
   const current = mapReviewWordRow(wordRow);
   let updatedWord = current;
   if (!isEnVocabWordCheckedToday(current)) {
-    const review = await recordEnVocabReview(db, wordId, "weak");
+    const review = await recordEnVocabReview(db, wordId, "weak", {
+      sharedBy: sharedByTrim,
+      reviewSource: "share_weak",
+    });
     if (!review.ok) return { ok: false, error: review.error };
     updatedWord = review.word;
   }

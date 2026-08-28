@@ -65,6 +65,8 @@ import {
   isEnVocabWordReviewLocked,
   serializeEnVocabLastUsageLevels,
 } from "@/lib/en-vocab-review";
+import type { EnVocabReviewLogSource } from "@/lib/en-vocab-review-log";
+import { appendEnVocabReviewLog } from "./review-log";
 import { listEnVocabUsagePointsForDisplay } from "@/lib/en-vocab-usage-examples-display";
 import { parseLessonContent } from "@/lib/en-lesson-shared";
 import { listEnLessons } from "@/lib/en-lesson-db";
@@ -190,6 +192,8 @@ export type RecordEnVocabReviewOptions = {
   /** 勾选后同步到学生「今日背英语单词」（对齐日语 shareToStudy） */
   shareToStudy?: boolean;
   sharedBy?: string;
+  /** 写入勾选历史日志的来源标记 */
+  reviewSource?: EnVocabReviewLogSource;
 };
 
 export type RecordEnVocabReviewResult =
@@ -222,6 +226,21 @@ export async function persistEnVocabReviewUpdate(
 
   const sharedByTrim = (options?.sharedBy || "").trim();
   const shouldShare = Boolean(options?.shareToStudy && sharedByTrim);
+
+  const writeReviewLog = async () => {
+    const source: EnVocabReviewLogSource =
+      options?.reviewSource ??
+      (usageLevels != null ? "flashcard_usage" : "table_level");
+    await appendEnVocabReviewLog(db, {
+      wordId,
+      reviewedAt: updated.updated_at || nowIso(),
+      reviewedBy: sharedByTrim || "unknown",
+      overallLevel: level,
+      usageLevels,
+      sharedToStudy: shouldShare,
+      source,
+    });
+  };
 
   if (enVocabDbState.devStoreEnabled) {
     const idx = enVocabDbState.devWords.findIndex((w) => w.id === wordId);
@@ -257,6 +276,7 @@ export async function persistEnVocabReviewUpdate(
     if (shared_new) {
       invalidateEnVocabSharedTodayCache();
     }
+    await writeReviewLog();
     return {
       ok: true,
       word: stripEnVocabWordNotesForList(updated),
@@ -345,6 +365,8 @@ export async function persistEnVocabReviewUpdate(
   if (shared_new) {
     invalidateEnVocabSharedTodayCache();
   }
+
+  await writeReviewLog();
 
   return {
     ok: true,

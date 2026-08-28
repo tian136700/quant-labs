@@ -1,0 +1,83 @@
+英语抽背 · 勾选记录 API 说明
+==============================
+
+用途
+----
+查询某词条每次老师勾选熟悉程度的历史（含分用法勾选、整词勾选、发给学生/学生查看自动记不熟悉）。
+仅记录功能上线之后的勾选，历史数据无法回填。
+
+线上地址
+--------
+GET https://english.info-quests.com/api/en-vocab/review-log
+
+本机开发
+--------
+GET http://127.0.0.1:3002/api/en-vocab/review-log
+
+
+鉴权
+----
+须已登录且具备英语抽背读权限（与老师端 / 管理员端相同，`requireEnVocabRead`）。
+Cookie 会话即可；`credentials: include`。
+
+
+查询参数
+--------
+word_id   必填。词条 id（整数 > 0）
+limit     可选。默认 50，最大 100
+
+
+成功响应（200）
+--------------
+{
+  "ok": true,
+  "items": [
+    {
+      "id": 1,
+      "word_id": 227,
+      "reviewed_at": "2026-08-28 13:23:45",
+      "reviewed_by": "Admin",
+      "overall_level": "weak",
+      "usage_levels": ["weak", "weak"],
+      "usage_labels": ["结账；退房", "…"],
+      "usage_count": 2,
+      "shared_to_study": true,
+      "source": "flashcard_usage"
+    }
+  ]
+}
+
+字段说明
+--------
+overall_level   very | normal | weak（总体熟悉程度）
+usage_levels    分用法勾选时各用法等级；整词勾选或无用法时为 null
+usage_labels    与 usage_levels 对齐的用法摘要（展示用）
+shared_to_study 本次是否同步到「今日英语单词」
+source          flashcard_usage | table_level | peek_weak | share_weak
+
+
+失败响应
+--------
+400  word_id_invalid
+401  请登录后查看勾选记录。
+500  服务器错误（message 字段）
+
+
+curl 示例
+---------
+curl -sS 'https://english.info-quests.com/api/en-vocab/review-log?word_id=227&limit=20' \
+  -H 'Cookie: session=…'
+
+
+Python 示例
+-----------
+import requests
+
+r = requests.get(
+    "http://127.0.0.1:3002/api/en-vocab/review-log",
+    params={"word_id": 227, "limit": 20},
+    cookies=session_cookies,
+    timeout=30,
+)
+data = r.json()
+assert data.get("ok") and "items" in data

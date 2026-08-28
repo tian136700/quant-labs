@@ -84,6 +84,7 @@ export type EnVocabPageWordListProps = {
   onViewUsage: (word: EnVocabWord | null) => void;
   onViewMnemonic: (word: EnVocabWord | null) => void;
   onViewRemarks: (word: EnVocabWord | null) => void;
+  onViewReviewLog: (word: EnVocabWord | null) => void;
   onEditRemarks: (word: EnVocabWord | null) => void;
   onEditWord: (word: EnVocabWord | null) => void;
   onPreviewQuizCard: (wordId: number) => void;
@@ -159,6 +160,7 @@ export function EnVocabPageWordList(props: EnVocabPageWordListProps) {
     onViewUsage,
     onViewMnemonic,
     onViewRemarks,
+    onViewReviewLog,
     onEditRemarks,
     onEditWord,
     onPreviewQuizCard,
@@ -281,6 +283,7 @@ export function EnVocabPageWordList(props: EnVocabPageWordListProps) {
                 onViewUsage={onViewUsage}
                 onViewMnemonic={onViewMnemonic}
                 onViewRemarks={onViewRemarks}
+                onViewReviewLog={onViewReviewLog}
                 onEditRemarks={onEditRemarks}
                 onEditWord={onEditWord}
                 onPreviewQuizCard={onPreviewQuizCard}

@@ -7,6 +7,7 @@ import { EnVocabManualAddModal } from "@/components/EnVocabManualAddModal";
 import { EnVocabMnemonicViewModal } from "@/components/EnVocabMnemonicViewModal";
 import { EnVocabRefPreviewModal } from "@/components/EnVocabRefPreviewModal";
 import { EnVocabRemarksViewModal } from "@/components/EnVocabRemarksViewModal";
+import { EnVocabReviewLogModal } from "@/components/EnVocabReviewLogModal";
 import { EnVocabResetChoiceModal } from "@/components/EnVocabResetChoiceModal";
 import { EnVocabTeacherQuizFlashcardModal } from "@/components/EnVocabTeacherQuizFlashcardModal";
 import { EnVocabUsageViewModal } from "@/components/EnVocabUsageViewModal";
@@ -68,6 +69,7 @@ type EnVocabPageModalsProps = {
   viewingRemarksWord: EnVocabWord | null;
   viewingMnemonicWord: EnVocabWord | null;
   viewingUsageWord: EnVocabWord | null;
+  viewingReviewLogWord: EnVocabWord | null;
   previewRef: { ref: EnVocabRef; cacheVersion?: string | null } | null;
   editingRemarksWord: EnVocabWord | null;
   editingWord: EnVocabWord | null;
@@ -106,6 +108,7 @@ type EnVocabPageModalsProps = {
   onCloseViewingRemarks: () => void;
   onCloseViewingMnemonic: () => void;
   onCloseViewingUsage: () => void;
+  onCloseViewingReviewLog: () => void;
   onClosePreviewRef: () => void;
   onCloseEditingRemarks: () => void;
   onCloseEditingWord: () => void;
@@ -119,7 +122,8 @@ export function EnVocabPageModals(props: EnVocabPageModalsProps) {
     props.editingRemarksWord != null ||
     props.editingWord != null ||
     props.viewingMnemonicWord != null ||
-    props.viewingUsageWord != null;
+    props.viewingUsageWord != null ||
+    props.viewingReviewLogWord != null;
 
   return (
     <>
@@ -264,6 +268,12 @@ export function EnVocabPageModals(props: EnVocabPageModalsProps) {
         locale={props.locale === "en" ? "en" : "zh"}
         onClose={props.onCloseViewingUsage}
         onWordUpdated={props.onWordSaved}
+      />
+
+      <EnVocabReviewLogModal
+        open={props.viewingReviewLogWord != null}
+        word={props.viewingReviewLogWord}
+        onClose={props.onCloseViewingReviewLog}
       />
 
       <EnVocabRefPreviewModal
