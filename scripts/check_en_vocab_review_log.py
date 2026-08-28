@@ -66,7 +66,7 @@ def main() -> int:
         ),
         (
             "src/lib/en-vocab-db/live.ts",
-            ['reviewSource: "peek_weak"'],
+            ["peekEnVocabTeacherQuizLiveWord"],
         ),
     ]:
         text = read(path)

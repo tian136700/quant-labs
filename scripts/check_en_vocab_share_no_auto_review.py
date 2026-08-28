@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression: EN share must NOT auto-mark familiarity (only teacher checkbox)."""
+"""Regression: EN share/peek must NOT auto-mark familiarity (only teacher checkbox)."""
 
 from __future__ import annotations
 
@@ -8,25 +8,22 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SHARE = ROOT / "src/lib/en-vocab-db/share.ts"
+LIVE = ROOT / "src/lib/en-vocab-db/live.ts"
 HOOK = ROOT / "src/hooks/useEnVocabReviewActions.ts"
 
 
 def main() -> int:
     errors: list[str] = []
-    share = SHARE.read_text(encoding="utf-8") if SHARE.is_file() else ""
+    for path, label in [(SHARE, "share"), (LIVE, "live peek")]:
+        text = path.read_text(encoding="utf-8") if path.is_file() else ""
+        if not text:
+            errors.append(f"missing {path}")
+            continue
+        for bad in ["recordEnVocabReview", "peek_weak", "share_weak"]:
+            if bad in text:
+                errors.append(f"{label} ({path.name}) must not contain {bad!r}")
+
     hook = HOOK.read_text(encoding="utf-8") if HOOK.is_file() else ""
-
-    if not share:
-        errors.append("missing share.ts")
-    else:
-        for bad in [
-            "recordEnVocabReview",
-            "share_weak",
-            "isEnVocabWordCheckedToday",
-        ]:
-            if bad in share:
-                errors.append(f"share.ts must not contain {bad!r}")
-
     if not hook:
         errors.append("missing useEnVocabReviewActions.ts")
     elif "并标记为不熟悉" in hook:
@@ -37,7 +34,7 @@ def main() -> int:
             print(f"FAIL: {e}", file=sys.stderr)
         return 1
 
-    print("OK: en-vocab share does not auto-mark review")
+    print("OK: en-vocab share/peek do not auto-mark review")
     return 0
 
 
