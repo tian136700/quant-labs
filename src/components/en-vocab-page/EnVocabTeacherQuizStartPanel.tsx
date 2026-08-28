@@ -30,7 +30,10 @@ type EnVocabTeacherQuizStartPanelProps = {
   pendingWords?: EnVocabTeacherQuizPendingWord[];
   loading?: boolean;
   disabled?: boolean;
+  exporting?: boolean;
   onStart: () => void;
+  /** 导出今日抽查池（单词/语法 + 释义）供开抽前预览 */
+  onExportExcel?: () => void;
 };
 
 /**
@@ -43,11 +46,15 @@ export function EnVocabTeacherQuizStartPanel({
   pendingWords = [],
   loading = false,
   disabled = false,
+  exporting = false,
   onStart,
+  onExportExcel,
 }: EnVocabTeacherQuizStartPanelProps) {
   const encouragement = pickEncouragement(beijingDateString());
   const count = Math.max(0, remainingCount);
   const canStart = !loading && !disabled && count > 0;
+  const canExport =
+    !loading && !exporting && count > 0 && typeof onExportExcel === "function";
 
   return (
     <div
@@ -104,14 +111,27 @@ export function EnVocabTeacherQuizStartPanel({
         <p className="en-vocab-teacher-quiz-start-panel__hint">
           请点下方按钮开始抽查。开始后才会同步当前单词，学生才能「查看老师正在抽查的单词」。
         </p>
-        <button
-          type="button"
-          className="btn-rsi-filter btn-rsi-filter--primary en-vocab-teacher-quiz-start-panel__btn"
-          disabled={!canStart}
-          onClick={onStart}
-        >
-          {loading ? "加载中…" : "开始抽查"}
-        </button>
+        <div className="en-vocab-teacher-quiz-start-panel__actions">
+          {onExportExcel ? (
+            <button
+              type="button"
+              className="btn-rsi-filter en-vocab-teacher-quiz-start-panel__btn en-vocab-teacher-quiz-start-panel__btn--secondary"
+              disabled={!canExport}
+              title="导出今日抽查单词与释义，便于开抽前预览"
+              onClick={onExportExcel}
+            >
+              {exporting ? "导出中…" : "导出 Excel"}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="btn-rsi-filter btn-rsi-filter--primary en-vocab-teacher-quiz-start-panel__btn"
+            disabled={!canStart}
+            onClick={onStart}
+          >
+            {loading ? "加载中…" : "开始抽查"}
+          </button>
+        </div>
         {!count && !loading ? (
           <p className="en-vocab-teacher-quiz-start-panel__empty">
             当前没有待抽查的单词，请等管理员设置今日抽查数量后再试。
@@ -233,10 +253,21 @@ export function EnVocabTeacherQuizStartPanel({
           line-height: 1.55;
           color: var(--muted);
         }
-        .en-vocab-teacher-quiz-start-panel__btn {
+        .en-vocab-teacher-quiz-start-panel__actions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.55rem;
+          justify-content: center;
           width: min(22rem, 100%);
+        }
+        .en-vocab-teacher-quiz-start-panel__btn {
+          flex: 1 1 9rem;
+          min-width: min(100%, 9rem);
           min-height: 2.75rem;
           font-size: 1rem;
+        }
+        .en-vocab-teacher-quiz-start-panel__btn--secondary {
+          flex: 1 1 8.5rem;
         }
         .en-vocab-teacher-quiz-start-panel__empty {
           margin: 0.85rem 0 0;
@@ -261,8 +292,13 @@ export function EnVocabTeacherQuizStartPanel({
           .en-vocab-teacher-quiz-start-panel__encourage {
             font-size: 1rem;
           }
+          .en-vocab-teacher-quiz-start-panel__actions {
+            width: 100%;
+            flex-direction: column;
+          }
           .en-vocab-teacher-quiz-start-panel__btn {
             width: 100%;
+            flex: none;
             min-height: 3rem;
             font-size: clamp(0.875rem, 3.6vw, 1rem);
             line-height: 1.35;

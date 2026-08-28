@@ -1,6 +1,31 @@
-import { effectiveTodayCheckCount } from "@/lib/en-vocab-daily-check";
+import { beijingDateString, effectiveTodayCheckCount } from "@/lib/en-vocab-daily-check";
 import { enVocabTotalReviews } from "@/lib/en-vocab-shared";
 import type { EnVocabLevel, EnVocabRef, EnVocabWord } from "@/lib/types";
+
+export type EnVocabTeacherQuizPreviewExportWord = Pick<
+  EnVocabWord,
+  "word" | "meaning" | "kind"
+>;
+
+/** 老师端开场：导出今日抽查池（单词/语法 + 释义），便于开抽前预览 */
+export async function exportEnVocabTeacherQuizPreviewToExcel(
+  words: readonly EnVocabTeacherQuizPreviewExportWord[]
+): Promise<void> {
+  const XLSX = await import("xlsx");
+  const rows = words.map((w, index) => ({
+    序号: index + 1,
+    类型: w.kind === "grammar" ? "语法" : "单词",
+    "单词 / 语法": w.word,
+    释义: (w.meaning ?? "").trim(),
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "今日抽查");
+
+  const date = beijingDateString();
+  XLSX.writeFile(wb, `英语今日抽查预览-${date}.xlsx`);
+}
 
 const LEVEL_LABELS: Record<EnVocabLevel, string> = {
   very: "非常熟悉",

@@ -211,6 +211,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
   const [showDailyIntro, setShowDailyIntro] = useState(false);
   const [showDailyComplete, setShowDailyComplete] = useState(false);
   const [showVocabHelp, setShowVocabHelp] = useState(false);
+  const [teacherPreviewExporting, setTeacherPreviewExporting] = useState(false);
   const editingRemarksIdRef = useRef<number | null>(null);
   const editingWordIdRef = useRef<number | null>(null);
   const sharedTodayWordIdsRef = useRef<Set<number>>(new Set());
@@ -596,6 +597,23 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     [quizTargetWords, sessionLevel, displayOrder]
   );
 
+  const exportTeacherQuizPreview = useCallback(async () => {
+    if (teacherPreviewExporting || !quizTargetWords.length || isAdminMode) return;
+    setTeacherPreviewExporting(true);
+    setStatus("");
+    try {
+      const { exportEnVocabTeacherQuizPreviewToExcel } = await import(
+        "@/lib/en-vocab-export"
+      );
+      await exportEnVocabTeacherQuizPreviewToExcel(quizTargetWords);
+      setStatus(`已导出今日 ${quizTargetWords.length} 条到 Excel。`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setTeacherPreviewExporting(false);
+    }
+  }, [teacherPreviewExporting, quizTargetWords, isAdminMode]);
+
   const neverQuizzedCount = useMemo(
     () =>
       isAdminMode ? words.filter((w) => enVocabTotalReviews(w) === 0).length : 0,
@@ -960,6 +978,10 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
             startTeacherQuizWithRandomMode();
             setStatus("开始今日抽查…");
           }}
+          onExportTeacherQuizPreview={
+            !isAdminMode ? () => void exportTeacherQuizPreview() : undefined
+          }
+          teacherQuizPreviewExporting={teacherPreviewExporting}
           dailyQuizComplete={
             dailyQuizProgress.complete || displayQuizProgress.complete
           }

@@ -52,6 +52,15 @@ def main() -> None:
     if "max-width: 767px" not in start:
         fail("start panel must have a phone breakpoint (max-width: 767px)")
 
+    if "导出 Excel" not in start:
+        fail("start panel must have 导出 Excel button for teacher preview")
+    if "onExportExcel" not in start:
+        fail("start panel must accept onExportExcel callback")
+    if "exportEnVocabTeacherQuizPreviewToExcel" not in (
+        ROOT / "src/lib/en-vocab-export.ts"
+    ).read_text(encoding="utf-8"):
+        fail("en-vocab-export must define exportEnVocabTeacherQuizPreviewToExcel")
+
     word_list = WORD_LIST.read_text(encoding="utf-8")
     if "EnVocabTeacherQuizStartPanel" not in word_list:
         fail("EnVocabPageWordList must render EnVocabTeacherQuizStartPanel")
@@ -82,6 +91,11 @@ def main() -> None:
         fail("EnVocabPage must hide toolbar Start while landing is shown")
     if "pendingQuizWords={pendingQuizWords}" not in page:
         fail("EnVocabPage must pass pendingQuizWords to WordList")
+
+    if "exportTeacherQuizPreview" not in page:
+        fail("EnVocabPage must export teacher quiz preview via dynamic import")
+    if "onExportTeacherQuizPreview" not in page:
+        fail("EnVocabPage must pass onExportTeacherQuizPreview to WordList")
 
     toolbar = TOOLBAR.read_text(encoding="utf-8")
     if "hideStartQuizButton" not in toolbar:

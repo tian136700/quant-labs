@@ -69,6 +69,8 @@ export type EnVocabPageWordListProps = {
   onToggleVocabHelp: () => void;
   onResumeTeacherQuiz: () => void;
   onStartTeacherQuiz?: () => void;
+  onExportTeacherQuizPreview?: () => void;
+  teacherQuizPreviewExporting?: boolean;
   onViewLastCheckedWord?: () => void;
   onSearchChange: (value: string) => void;
   onKindFilterChange: (value: EnVocabKindFilter) => void;
@@ -143,6 +145,8 @@ export function EnVocabPageWordList(props: EnVocabPageWordListProps) {
     onToggleVocabHelp,
     onResumeTeacherQuiz,
     onStartTeacherQuiz,
+    onExportTeacherQuizPreview,
+    teacherQuizPreviewExporting = false,
     onSearchChange,
     onKindFilterChange,
     onClearSearch,
@@ -189,6 +193,8 @@ export function EnVocabPageWordList(props: EnVocabPageWordListProps) {
             remainingCount={remainingQuizCount}
             pendingWords={pendingQuizWords}
             loading={loading}
+            exporting={teacherQuizPreviewExporting}
+            onExportExcel={onExportTeacherQuizPreview}
             onStart={() => onStartTeacherQuiz?.()}
           />
         ) : (
