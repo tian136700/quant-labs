@@ -1,2 +1,2 @@
 /** 由 scripts/write_app_deploy_version.py 自动生成；勿手改。 */
-export const APP_DEPLOY_VERSION = "4f6b15661a96-1788131168";
+export const APP_DEPLOY_VERSION = "d89e607f2471-1788132011";
