@@ -4,6 +4,7 @@ import {
   formatJpVocabExampleGlossLine,
   isJpVocabExampleGlossLine,
   isJpVocabExampleJapaneseLine,
+  JP_VOCAB_PAREN_FURIGANA_RE,
   jpVocabExampleHasInvalidFuriganaParen,
   jpVocabExampleHasUnannotatedKanji,
   jpVocabExampleLooksLikeChineseTeachingProse,
@@ -115,7 +116,7 @@ export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
     "「相談する」：人に＝向/找某人商量；人と＝和某人一起商量；译文勿与助词对调",
     "释义栏的「关于……」等只是义项提示，不要每句译文都机械套同一套壳",
     "句中每一个汉字都必须立刻半角括号假名（不能只标词条本身）：如 今日(きょう)は気分(きぶん)がいいです；词尾假名如 静か(しずか)、落(お)ち着(つ)き；括号内只能是假名、不要空格、不要整句读音尾注；禁止句末语法说明括号；页面展示会转成汉字下方小字",
-    "N5～N4、口语、短句；必须自然用到该词条 / 语法点（词条汉字或其读音假名活用皆可：戴＋reading かぶる／つける → 例「かぶって／つける」算用到；～する 动词可用ます形「…します／…しました」，如 スケッチする→スケッチします；勿只写无关句）",
+    "N5～N4、口语、短句；必须自然用到该词条 / 语法点（词条汉字或其读音假名活用皆可：戴＋reading かぶる／つける → 例「かぶって／つける」算用到；词条全假名（バーゲンかいじょう）→ 例句 バーゲン会場(かいじょう) 算用到；接头辞 お～／ご～ → 例句 お名前／お水 算用到；～する 动词可用ます形「…します／…しました」，如 スケッチする→スケッチします；勿只写无关句）",
     "单词：每一句日语都必须出现该词条整词或读音（禁止只靠第一句带过）。禁止只写词条里一个字或近义词：葉子/はっぱ ≠ 葉(は)；事故 ≠ 第二句只写「注意」却把「意外」塞进译文",
     "语法例句：多用法时第 N 句对应第 N 条用法；仅 1 种用法时造 3 句，分别覆盖接续里不同词类/形态（如一类形容词／二类形容词／名词），不要三句同一接续；只用简单词、不要叠更难的语法（避免多焦点）；有课数时勿超纲（标日初级勿写中级/N2 词）",
     "例句须场景自洽、有头有尾：条件/前提与后半结果或建议要能自然连上，读起来像一整句日常对话，禁止无厘头硬凑（如「来るなら、どうぞ入ってください」／「来的话请进」缺语境）",
@@ -679,6 +680,42 @@ export function jpVocabGrammarLemmaAppearsInExamples(
   return false;
 }
 
+/** 例句按假名括注展成全假名串（会場(かいじょう)→かいじょう），供假名词条与汉字例句互认。 */
+function jpVocabExampleLineKanaPlain(line: string): string {
+  let s = String(line || "");
+  s = s.replace(
+    new RegExp(
+      JP_VOCAB_PAREN_FURIGANA_RE.source,
+      JP_VOCAB_PAREN_FURIGANA_RE.flags
+    ),
+    "$2"
+  );
+  s = stripAllJpVocabParenBlocks(s);
+  s = s.replace(/[\u4E00-\u9FFF々]/g, "");
+  return s.replace(/\s+/g, "").replace(/\(N[1-5]\)/gi, "");
+}
+
+/** 敬语接头辞词条（お～／ご～）：例句里 お名前・ご飯 等算用到。 */
+function jpVocabLemmaHonorificPrefix(word: string): "お" | "ご" | null {
+  const core = String(word || "")
+    .replace(/[～~〜]/g, "")
+    .trim();
+  if (!core) return null;
+  if (core === "お" || word.startsWith("お")) return "お";
+  if (core === "ご" || word.startsWith("ご")) return "ご";
+  return null;
+}
+
+function jpVocabExampleLineUsesHonorificPrefix(
+  line: string,
+  prefix: "お" | "ご"
+): boolean {
+  const plain = stripAllJpVocabParenBlocks(String(line || ""));
+  return new RegExp(
+    `${prefix}[\\u4E00-\\u9FFF\\u3040-\\u309F\\u30A0-\\u30FF]`
+  ).test(plain);
+}
+
 /**
  * 单条例句是否用到词条。单词须每句单独命中（禁止第一句写「事故」、第二句只写「注意／意外」靠拼文过关）。
  * 多字词须整词或读音活用，禁止只靠首字（事故≠仕事里的「事」）。
@@ -724,6 +761,20 @@ export function jpVocabExampleLineUsesLemma(
   const surfaces = lemmaSurfacesForExampleHit(target, input.reading);
   if (surfaces.some((s) => combinedPlain.includes(s) || combined.includes(s))) {
     return true;
+  }
+  const honorific = jpVocabLemmaHonorificPrefix(target);
+  if (honorific && jpVocabExampleLineUsesHonorificPrefix(combined, honorific)) {
+    return true;
+  }
+  const kanaPlain = jpVocabExampleLineKanaPlain(combined);
+  if (kanaPlain) {
+    for (const part of [
+      ...splitJpVocabLemmaSlashParts(target),
+      ...splitJpVocabLemmaSlashParts(input.reading || ""),
+    ]) {
+      const norm = part.replace(/\s+/g, "");
+      if (norm.length >= 2 && kanaPlain.includes(norm)) return true;
+    }
   }
   const { stem } = jpVocabNaAdjParts(target);
   const kans = (stem.match(/[\u4E00-\u9FFF]/g) || []).join("");

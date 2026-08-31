@@ -440,6 +440,56 @@ if (!kochiraOkOnline.ok) {
   process.exit(1);
 }
 
+// バーゲンかいじょう：词条全假名、例句写汉字+括注须过（曾熔断 id=853 word_not_used）
+const bargainExamples = [
+  "バーゲン会場(かいじょう)は三階(さんかい)にあります。(N5)",
+  "译文：特卖会场在三楼。",
+  "バーゲン会場(かいじょう)はどこですか。(N5)",
+  "译文：特卖会场在哪里？",
+].join("\\n");
+const bargainInput = {
+  word: "バーゲンかいじょう",
+  kind: "word",
+  reading: "バーゲンかいじょう",
+  meaning: "特卖会场；大减价会场",
+};
+const bargainOnline = normalizeJpVocabExampleSentencesForOnlineApply(
+  bargainExamples,
+  bargainInput
+);
+if (!bargainOnline.ok) {
+  console.error(
+    "FAIL: バーゲン会場(かいじょう) should pass for kana lemma, got",
+    bargainOnline.reason
+  );
+  process.exit(1);
+}
+
+// お～：接头词词条；例句 お名前／お水 须过（曾失败 id=855 word_not_used）
+const oPrefixExamples = [
+  "お名前(なまえ)は何(なん)とおっしゃいますか。(N5)",
+  "译文：请问您叫什么名字？",
+  "お水(みず)をください。(N5)",
+  "译文：请给我一杯水。",
+].join("\\n");
+const oPrefixInput = {
+  word: "お～",
+  kind: "word",
+  reading: "お～",
+  meaning: "（接和语词）表示尊敬或礼貌；表示美化语气",
+};
+const oPrefixOnline = normalizeJpVocabExampleSentencesForOnlineApply(
+  oPrefixExamples,
+  oPrefixInput
+);
+if (!oPrefixOnline.ok) {
+  console.error(
+    "FAIL: お～ honorific prefix examples should pass online, got",
+    oPrefixOnline.reason
+  );
+  process.exit(1);
+}
+
 console.log("node smoke ok");
 """,
         ],
@@ -517,6 +567,8 @@ def main() -> int:
     )
     must_contain(ai, "スケッチする", "ai prompt/regression mentions スケッチする ます形")
     must_contain(ai, "かぶって／つける", "ai prompt allows reading-form examples for 戴")
+    must_contain(ai, "jpVocabExampleLineKanaPlain", "ai kana-plain lemma hit for kana lemmas")
+    must_contain(ai, "jpVocabLemmaHonorificPrefix", "ai honorific prefix lemma hit")
     must_contain(
         ROOT / "scripts/jp-vocab-fill-online-batch-api.py",
         "かぶる／つける",
