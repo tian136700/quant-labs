@@ -11,6 +11,12 @@
       "note": ""
     },
     {
+      "path": "src/lib/jp-vocab-example-sentences-ai.ts",
+      "lines": 1049,
+      "status": 0,
+      "note": ""
+    },
+    {
       "path": "src/lib/en-vocab-db/words.ts",
       "lines": 1026,
       "status": 0,
