@@ -70,19 +70,6 @@ export const enVocabDbState = {
   } | null,
   devReviewDoneWordIds: [] as number[],
   enVocabReviewDoneSchemaReady: false,
-  devReviewLogs: [] as Array<{
-    id: number;
-    word_id: number;
-    reviewed_at: string;
-    reviewed_by: string;
-    overall_level: EnVocabLevel;
-    usage_levels: EnVocabLevel[] | null;
-    usage_labels: string[] | null;
-    usage_count: number;
-    shared_to_study: boolean;
-    source: string;
-  }>,
-  enVocabReviewLogSchemaReady: false,
 };
 
 /** v6: en_vocab_word.srs_*（间隔重复，对齐日语默默式到期） */
