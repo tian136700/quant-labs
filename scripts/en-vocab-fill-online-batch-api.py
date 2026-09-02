@@ -36,6 +36,7 @@ from llm_json_parse import parse_llm_json_object  # noqa: E402
 from en_vocab_pos import rewrite_pos_for_lemma  # noqa: E402
 from worker_api_guard import skip_if_worker_unavailable  # noqa: E402
 from vocab_fill_quiz_gate import skip_if_quiz_gate_quiet  # noqa: E402
+from vocab_fill_empty_backoff import record_empty, record_nonempty  # noqa: E402
 from vocab_fill_circuit_breaker import (  # noqa: E402
     after_attempt,
     assert_not_killed,
@@ -1418,7 +1419,10 @@ def main() -> int:
     )
     if not candidates:
         print("  无待补全词条（或均在毒丸冷却中 / 已全是线上）", flush=True)
+        record_empty("en-vocab-fill-online")
         return 0
+
+    record_nonempty("en-vocab-fill-online")
 
     ok_n = 0
     total = len(candidates)

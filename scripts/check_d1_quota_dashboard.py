@@ -55,6 +55,13 @@ def main() -> int:
     if '"adminD1Quota"' not in nav_text:
         errors.append("nav-href missing adminD1Quota target")
 
+    estimate = SRC / "lib/d1-quota-estimate.ts"
+    if not estimate.is_file():
+        errors.append("missing d1-quota-estimate.ts")
+    db_text = (SRC / "lib/d1-quota-db.ts").read_text(encoding="utf-8")
+    if "read_burden" not in db_text:
+        errors.append("d1-quota-db missing read_burden")
+
     if errors:
         print("check_d1_quota_dashboard.py FAILED:", file=sys.stderr)
         for e in errors:

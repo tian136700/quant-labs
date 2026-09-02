@@ -191,6 +191,52 @@ export function AdminD1QuotaPanel() {
           </div>
 
           <div className="admin-traffic-block">
+            <h3>{labels.readBurdenHeading}</h3>
+            <p className="hint">{summary.read_burden.disclaimer}</p>
+            <p className="admin-traffic-rate">
+              {labels.readBurdenTotal
+                .replace(
+                  "{rows}",
+                  formatNumber(summary.read_burden.estimated_total_rows)
+                )
+                .replace(
+                  "{pct}",
+                  String(summary.read_burden.estimated_pct_of_limit)
+                )}
+            </p>
+            {summary.read_burden.rows.length === 0 ? (
+              <p className="hint">{labels.signalsEmpty}</p>
+            ) : (
+              <div className="admin-table-wrap">
+                <table className="compare-table etr-table admin-table">
+                  <thead>
+                    <tr>
+                      <th>{labels.route}</th>
+                      <th>{labels.category}</th>
+                      <th>{labels.hits}</th>
+                      <th>{labels.estRowsPerHit}</th>
+                      <th>{labels.estTotalRows}</th>
+                      <th>{labels.estPctLimit}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {summary.read_burden.rows.map((row) => (
+                      <tr key={row.route_key}>
+                        <td className="admin-cell-wrap">{row.route_key}</td>
+                        <td>{row.category}</td>
+                        <td>{formatNumber(row.hit_count)}</td>
+                        <td>{formatNumber(row.est_rows_per_hit)}</td>
+                        <td>{formatNumber(row.est_total_rows)}</td>
+                        <td>{row.est_pct_of_limit}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <div className="admin-traffic-block">
             <h3>{labels.signalsHeading}</h3>
             {summary.signals.length === 0 ? (
               <p className="hint">{labels.signalsEmpty}</p>

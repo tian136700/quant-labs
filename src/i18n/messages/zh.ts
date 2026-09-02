@@ -276,6 +276,14 @@ export const zhMessages: Messages = {
         hits: "次数",
         lastMessage: "最近错误",
         updatedAt: "更新时间",
+        readBurdenHeading: "读行负担估算（对照 CF 邮件）",
+        readBurdenDisclaimer:
+          "启发式：HTTP 次数 × 路由乘数；非官方 rows_read。fill-* 高、shared/板书次之。",
+        readBurdenTotal: "估算合计约 {rows} 行（{pct}% / 500 万日上限）",
+        estRowsPerHit: "估算每次读行",
+        estTotalRows: "估算总读行",
+        estPctLimit: "占日上限%",
+        category: "类别",
       },
     },
     adminWorker1102: {

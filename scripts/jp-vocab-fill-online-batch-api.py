@@ -63,6 +63,7 @@ from vocab_fill_circuit_breaker import (  # noqa: E402
 )
 from worker_api_guard import skip_if_worker_unavailable  # noqa: E402
 from vocab_fill_quiz_gate import skip_if_quiz_gate_quiet  # noqa: E402
+from vocab_fill_empty_backoff import record_empty, record_nonempty  # noqa: E402
 
 BASE = "https://finance.info-quests.com"
 READING_URL = f"{BASE}/api/jp-vocab/fill-reading"
@@ -71,6 +72,7 @@ USAGE_URL = f"{BASE}/api/jp-vocab/fill-usage"
 EXAMPLES_URL = f"{BASE}/api/jp-vocab/fill-example-sentences"
 
 HARD_ONLINE_LIMIT = 1
+JP_FILL_BACKOFF_OWNER = "jp-vocab-fill-unified"
 
 FENCE_RE = re.compile(r"^```(?:json)?\s*|\s*```$", re.MULTILINE | re.IGNORECASE)
 EXAMPLE_JLPT_TAIL_RE = re.compile(
@@ -1439,13 +1441,17 @@ def main() -> int:
                 f"[jp-vocab-fill-online] word_id={args.word_id} 不在缺项队列",
                 flush=True,
             )
+            record_empty(JP_FILL_BACKOFF_OWNER)
             return 0
     else:
         rows = fetch_candidates(token, limit=limit)
 
     if not rows:
         print("[jp-vocab-fill-online] 无待补词条", flush=True)
+        record_empty(JP_FILL_BACKOFF_OWNER)
         return 0
+
+    record_nonempty(JP_FILL_BACKOFF_OWNER)
 
     ok = process_one(
         token,

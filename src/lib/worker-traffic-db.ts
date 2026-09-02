@@ -147,7 +147,7 @@ export function enableWorkerTrafficDevStore() {
   devStoreEnabled = true;
 }
 
-async function ensureWorkerDailyHitsSchema(db: D1Database): Promise<void> {
+export async function ensureWorkerDailyHitsSchema(db: D1Database): Promise<void> {
   if (devStoreEnabled || schemaReady) return;
   await db
     .prepare(

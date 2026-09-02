@@ -279,6 +279,14 @@ export const enMessages: Messages = {
         hits: "Hits",
         lastMessage: "Last error",
         updatedAt: "Updated",
+        readBurdenHeading: "Estimated read burden (vs CF email)",
+        readBurdenDisclaimer:
+          "Heuristic: HTTP hits × route multiplier; not official rows_read.",
+        readBurdenTotal: "Est. total ~{rows} rows ({pct}% of 5M/day limit)",
+        estRowsPerHit: "Est. rows/hit",
+        estTotalRows: "Est. total rows",
+        estPctLimit: "% of limit",
+        category: "Category",
       },
     },
     adminWorker1102: {

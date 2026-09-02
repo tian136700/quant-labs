@@ -38,16 +38,26 @@ fi
 export PATH="/opt/homebrew/bin:/usr/local/bin:${PATH:-/usr/bin:/bin}"
 export PYTHONUNBUFFERED=1
 
+FORCE_RUN_EARLY="${JP_VOCAB_FILL_FORCE:-${FORCE:-0}}"
+
 # shellcheck source=scripts/lib/vocab_fill_circuit_breaker.sh
 source "$ROOT/scripts/lib/vocab_fill_circuit_breaker.sh"
 vocab_fill_circuit_assert_not_killed "$OWNER"
 # 抽查门禁之前：若英语/日语补全被裸卸掉，自动 bootstrap（PAUSE/熔断不碰）
 "$PYTHON_BIN" "$ROOT/scripts/lib/vocab_fill_launchd_watchdog.py" --quiet || true
+
+# 空队列降频：连续无待补 → 10 分钟内不打 Worker（含 quiz gate）
+if [[ "$FORCE_RUN_EARLY" != "1" ]]; then
+  if "$PYTHON_BIN" "$ROOT/scripts/lib/vocab_fill_empty_backoff.py" check --owner "$OWNER"; then
+    echo "$(date '+%F %T') ${OWNER}: empty queue backoff → skip (no Worker)"
+    exit 0
+  fi
+fi
+
 vocab_fill_assert_quiz_gate_ok "$OWNER"
 
 # 维护中心「暂停」：有开关则 exit 0（FORCE=1 手动调试可绕过）
 PAUSE_SWITCH="${CONFIG_DIR}/jp-vocab-fill-unified-PAUSE.switch"
-FORCE_RUN_EARLY="${JP_VOCAB_FILL_FORCE:-${FORCE:-0}}"
 if [[ -f "$PAUSE_SWITCH" && "$FORCE_RUN_EARLY" != "1" ]]; then
   echo "$(date '+%F %T') ${OWNER}: manually paused → skip"
   exit 0

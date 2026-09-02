@@ -65,14 +65,7 @@ QUIET_END_HOUR="${EN_VOCAB_FILL_QUIET_END_HOUR:-24}"
 
 export PATH="/usr/local/bin:/opt/homebrew/bin:${PATH:-/usr/bin:/bin}"
 
-# shellcheck source=scripts/lib/vocab_fill_circuit_breaker.sh
-source "$ROOT/scripts/lib/vocab_fill_circuit_breaker.sh"
-vocab_fill_circuit_assert_not_killed "$OWNER"
-# 抽查门禁之前：姐妹任务被裸卸掉时自动挂回（本任务若已卸则靠日语 unified 发现）
-"$PYTHON_BIN" "$ROOT/scripts/lib/vocab_fill_launchd_watchdog.py" --quiet || true
-vocab_fill_assert_quiz_gate_ok "$OWNER"
-
-# 解析 0/1 后端（与 scripts/lib/en_vocab_llm_backend.py 一致）
+# 解析 0/1 后端（backoff / quiz gate 前需要）
 BACKEND="$("$PYTHON_BIN" -c "
 import sys
 from pathlib import Path
@@ -80,6 +73,22 @@ sys.path.insert(0, str(Path(r'$ROOT') / 'scripts' / 'lib'))
 from en_vocab_llm_backend import resolve_en_vocab_llm_backend
 print(resolve_en_vocab_llm_backend())
 ")" || BACKEND=0
+
+# shellcheck source=scripts/lib/vocab_fill_circuit_breaker.sh
+source "$ROOT/scripts/lib/vocab_fill_circuit_breaker.sh"
+vocab_fill_circuit_assert_not_killed "$OWNER"
+# 抽查门禁之前：姐妹任务被裸卸掉时自动挂回（本任务若已卸则靠日语 unified 发现）
+"$PYTHON_BIN" "$ROOT/scripts/lib/vocab_fill_launchd_watchdog.py" --quiet || true
+
+# 空队列降频（线上 reading batch）：无待补 → 10 分钟内不打 Worker
+if [[ "$BACKEND" == "1" && "$STAGE" == "reading" && "$FORCE_RUN" != "1" && "$FORCE_RUN" != "true" ]]; then
+  if "$PYTHON_BIN" "$ROOT/scripts/lib/vocab_fill_empty_backoff.py" check --owner "en-vocab-fill-online"; then
+    echo "$(date '+%F %T') en-vocab-fill-online: empty queue backoff → skip (no Worker)"
+    exit 0
+  fi
+fi
+
+vocab_fill_assert_quiz_gate_ok "$OWNER"
 
 HOUR_NOW="$(TZ=Asia/Shanghai date +%H)"
 HOUR_NOW=$((10#$HOUR_NOW))

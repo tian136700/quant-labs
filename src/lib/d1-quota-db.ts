@@ -13,6 +13,11 @@ import {
   type D1QuotaProbeStatus,
   type D1QuotaSignalKind,
 } from "@/lib/d1-quota";
+import {
+  buildD1ReadBurdenEstimate,
+  type D1QuotaReadBurdenSummary,
+} from "@/lib/d1-quota-estimate";
+import { ensureWorkerDailyHitsSchema } from "@/lib/worker-traffic-db";
 import { workerQuotaDateString } from "@/lib/worker-traffic-rate";
 
 let schemaReady = false;
@@ -48,6 +53,7 @@ export type D1QuotaDiagnosticSummary = {
   total_read_limit_hits: number;
   total_write_limit_hits: number;
   signals: D1QuotaSignalRow[];
+  read_burden: D1QuotaReadBurdenSummary;
   guardrails: Array<{ id: string; ok: boolean; detail: string }>;
 };
 
@@ -215,6 +221,7 @@ function buildRiskNotes(input: {
   readHits: number;
   writeHits: number;
   signals: D1QuotaSignalRow[];
+  estimatedReadPct?: number;
 }): { level: D1QuotaRiskLevel; notes: string[] } {
   const notes: string[] = [];
   let level: D1QuotaRiskLevel = "ok";
@@ -271,6 +278,13 @@ function buildRiskNotes(input: {
     );
   }
 
+  if (typeof input.estimatedReadPct === "number" && input.estimatedReadPct >= 70) {
+    bump(
+      input.estimatedReadPct >= 90 ? "critical" : "warn",
+      `流量启发式估算本配额日 D1 读行约 ${input.estimatedReadPct}%（见下方读行负担表）；与 CF 邮件对照。`
+    );
+  }
+
   if (notes.length <= 1) {
     notes.push(
       "本配额日暂无配额错误记录；若用户仍报错，对照 Worker 流量看板是否 Error 1027（日请求）或 1102 看板（单次 CPU）。"
@@ -310,10 +324,29 @@ export async function getD1QuotaDiagnosticSummary(
   opts?: { quotaStatDate?: string }
 ): Promise<D1QuotaDiagnosticSummary> {
   const quotaStatDate = opts?.quotaStatDate ?? workerQuotaDateString();
-  const [probe, signals] = await Promise.all([
+  await ensureWorkerDailyHitsSchema(db);
+  const [probe, signals, routeHitsResult] = await Promise.all([
     probeD1(db),
     listD1QuotaSignals(db, quotaStatDate),
+    db
+      .prepare(
+        `SELECT route_key, SUM(hit_count) AS hit_count
+         FROM worker_daily_hits
+         WHERE stat_date = ?1
+         GROUP BY route_key
+         ORDER BY hit_count DESC
+         LIMIT 80`
+      )
+      .bind(quotaStatDate)
+      .all<{ route_key: string; hit_count: number }>(),
   ]);
+
+  const read_burden = buildD1ReadBurdenEstimate(
+    (routeHitsResult.results ?? []).map((row) => ({
+      route_key: String(row.route_key),
+      hit_count: Math.max(0, Number(row.hit_count) || 0),
+    }))
+  );
 
   const total_read_limit_hits = signals
     .filter((r) => r.signal === "row_read_limit")
@@ -328,6 +361,7 @@ export async function getD1QuotaDiagnosticSummary(
     readHits: total_read_limit_hits,
     writeHits: total_write_limit_hits,
     signals,
+    estimatedReadPct: read_burden.estimated_pct_of_limit,
   });
 
   return {
@@ -344,6 +378,7 @@ export async function getD1QuotaDiagnosticSummary(
     total_read_limit_hits,
     total_write_limit_hits,
     signals,
+    read_burden,
     guardrails: guardrails(),
   };
 }

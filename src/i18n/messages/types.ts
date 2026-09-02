@@ -250,6 +250,13 @@ export type Messages = {
       hits: string;
       lastMessage: string;
       updatedAt: string;
+      readBurdenHeading: string;
+      readBurdenDisclaimer: string;
+      readBurdenTotal: string;
+      estRowsPerHit: string;
+      estTotalRows: string;
+      estPctLimit: string;
+      category: string;
     };
   };
   adminWorker1102: {
