@@ -1,3 +1,4 @@
+import { vocabFillRouteErrorResponse } from "@/lib/vocab-fill-route-error";
 import { getCloudflareEnv, jsonResponse } from "@/lib/cloudflare-env";
 import {
   evaluateJpVocabFillScheduleGate,
@@ -43,7 +44,6 @@ export async function POST(request: Request) {
     const gate = await evaluateJpVocabFillScheduleGate(env.DB, new Date(), cooldownMs);
     return jsonResponse({ ok: true, ...gate });
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return jsonResponse({ ok: false, error: message }, 500);
+    return vocabFillRouteErrorResponse(request, err);
   }
 }

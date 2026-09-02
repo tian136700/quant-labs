@@ -18,6 +18,7 @@ import {
   adminToolCodesPath,
   adminJpLessonTeachersPath,
   adminWorkerTrafficPath,
+  adminD1QuotaPath,
   adminWorker1102Path,
 } from "@/lib/locale-path";
 import type { UserFeedbackRecord, VisitLogRecord } from "@/lib/types";
@@ -120,6 +121,7 @@ export function AdminDashboardPage() {
   const adm = t("adminDashboard");
   const admTrends = t("adminTrends");
   const admTraffic = t("adminWorkerTraffic");
+  const admD1Quota = t("adminD1Quota");
   const adm1102 = t("adminWorker1102");
   const { isAdmin, hasPermission, checking } = useEtrAuth();
   const canAccess = isAdmin || hasPermission("admin:dashboard");
@@ -276,6 +278,8 @@ export function AdminDashboardPage() {
         <p className="sub">{adm.page.subtitle}</p>
         <p className="hint">
           <a href={adminWorkerTrafficPath(locale)}>{admTraffic.page.title} →</a>
+          {" · "}
+          <a href={adminD1QuotaPath(locale)}>{admD1Quota.page.title} →</a>
           {" · "}
           <a href={adminWorker1102Path(locale)}>{adm1102.page.title} →</a>
           {" · "}

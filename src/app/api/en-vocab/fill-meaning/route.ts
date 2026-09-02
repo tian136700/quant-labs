@@ -1,3 +1,4 @@
+import { vocabFillRouteErrorResponse } from "@/lib/vocab-fill-route-error";
 import { getCloudflareEnv, jsonResponse } from "@/lib/cloudflare-env";
 import {
   applyEnVocabMeaningUpdates,

@@ -1,3 +1,4 @@
+import { vocabFillRouteErrorResponse } from "@/lib/vocab-fill-route-error";
 import { getCloudflareEnv, jsonResponse } from "@/lib/cloudflare-env";
 import {
   applyJpVocabExampleSentenceUpdates,
@@ -185,7 +186,6 @@ export async function POST(request: Request) {
       ...result,
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return jsonResponse({ ok: false, error: message }, 500);
+    return vocabFillRouteErrorResponse(request, err);
   }
 }

@@ -145,6 +145,11 @@ export function adminWorkerTrafficPath(locale: Locale): string {
   return locale === "zh" ? "/zh/admin/worker-traffic" : "/admin/worker-traffic";
 }
 
+/** D1 日读/写行数配额诊断（≠ Worker 1027） */
+export function adminD1QuotaPath(locale: Locale): string {
+  return locale === "zh" ? "/zh/admin/d1-quota" : "/admin/d1-quota";
+}
+
 /** Worker 1102 诊断看板（单次请求资源顶满）；与流量检测分开 */
 export function adminWorker1102Path(locale: Locale): string {
   return locale === "zh" ? "/zh/admin/worker-1102" : "/admin/worker-1102";

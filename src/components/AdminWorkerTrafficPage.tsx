@@ -6,12 +6,13 @@ import { useI18n } from "@/i18n/I18nProvider";
 import { AdminAuthGate } from "@/components/AdminAuthGate";
 import { AdminAuthUserStatus } from "@/components/AdminAuthUserStatus";
 import { AdminWorkerTrafficPanel } from "@/components/admin-dashboard/AdminWorkerTrafficPanel";
-import { adminPath } from "@/lib/locale-path";
+import { adminPath, adminD1QuotaPath } from "@/lib/locale-path";
 
 /** Worker 日请求 / Error 1027 流量检测看板（与访问日志页分开） */
 export function AdminWorkerTrafficPage() {
   const { locale, t } = useI18n();
   const page = t("adminWorkerTraffic");
+  const admD1 = t("adminD1Quota");
   const { isAdmin, hasPermission, checking } = useEtrAuth();
   const canAccess = isAdmin || hasPermission("admin:dashboard");
 
@@ -34,6 +35,8 @@ export function AdminWorkerTrafficPage() {
         <p className="sub">{page.page.subtitle}</p>
         <p className="hint">
           <Link href={adminPath(locale)}>{page.page.backToAdmin}</Link>
+          {" · "}
+          <Link href={adminD1QuotaPath(locale)}>{admD1.page.title} →</Link>
         </p>
       </div>
 

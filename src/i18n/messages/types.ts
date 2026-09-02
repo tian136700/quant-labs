@@ -38,6 +38,7 @@ export type Messages = {
     about: string;
     adminDashboard: string;
     adminWorkerTraffic: string;
+    adminD1Quota: string;
     adminWorker1102: string;
     adminTrends: string;
     adminRbac: string;
@@ -197,6 +198,58 @@ export type Messages = {
     auth: {
       required: string;
       login: string;
+    };
+  };
+  adminD1Quota: {
+    meta: { title: string; description: string };
+    page: {
+      title: string;
+      subtitle: string;
+      backToAdmin: string;
+    };
+    auth: {
+      required: string;
+      login: string;
+    };
+    panel: {
+      heading: string;
+      refresh: string;
+      refreshing: string;
+      dateLabel: string;
+      diagnoseHint: string;
+      workerTrafficLink: string;
+      worker1102Link: string;
+      copyReport: string;
+      copySuccess: string;
+      copyFailed: string;
+      reportTitle: string;
+      loadFailed: string;
+      riskLevel: string;
+      riskOk: string;
+      riskWarn: string;
+      riskCritical: string;
+      riskNotesHeading: string;
+      quotaDate: string;
+      probeStatus: string;
+      probeOk: string;
+      probeReadLimited: string;
+      probeWriteLimited: string;
+      probeError: string;
+      readLimit: string;
+      writeLimit: string;
+      hitsUnit: string;
+      perDay: string;
+      signalsHeading: string;
+      signalsEmpty: string;
+      guardrailsHeading: string;
+      guardrailId: string;
+      guardrailOk: string;
+      guardrailDetail: string;
+      route: string;
+      signal: string;
+      hits: string;
+      lastMessage: string;
+      updatedAt: string;
     };
   };
   adminWorker1102: {
