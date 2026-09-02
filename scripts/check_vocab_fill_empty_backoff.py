@@ -38,11 +38,15 @@ def main() -> int:
         text = jp_batch.read_text(encoding="utf-8")
         if "record_empty" not in text or "record_nonempty" not in text:
             errors.append("jp online batch missing record_empty/nonempty")
+        if "fill-next-candidate" not in text:
+            errors.append("jp online batch missing fill-next-candidate")
 
     if en_batch.is_file():
         text = en_batch.read_text(encoding="utf-8")
         if "record_empty" not in text:
             errors.append("en online batch missing record_empty")
+        if "fill-next-candidate" not in text:
+            errors.append("en online batch missing fill-next-candidate")
 
     estimate = ROOT / "src/lib/d1-quota-estimate.ts"
     if not estimate.is_file():

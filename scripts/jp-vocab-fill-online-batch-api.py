@@ -66,6 +66,7 @@ from vocab_fill_quiz_gate import skip_if_quiz_gate_quiet  # noqa: E402
 from vocab_fill_empty_backoff import record_empty, record_nonempty  # noqa: E402
 
 BASE = "https://finance.info-quests.com"
+FILL_NEXT_URL = f"{BASE}/api/jp-vocab/fill-next-candidate"
 READING_URL = f"{BASE}/api/jp-vocab/fill-reading"
 MEANING_URL = f"{BASE}/api/jp-vocab/fill-meaning"
 USAGE_URL = f"{BASE}/api/jp-vocab/fill-usage"
@@ -434,91 +435,54 @@ JSON 必须包含且非空：{", ".join(req_keys)}（变形课 usage 填 ""；�
 
 
 def fetch_candidates(token: str, *, limit: int) -> list[dict[str, Any]]:
-    by_id: dict[int, dict[str, Any]] = {}
-    scan_limit = max(limit * 8, 24)
-
-    def merge(rows: list, *, connection_only: bool = False) -> None:
-        for row in rows:
-            wid = int(row.get("id") or 0)
-            if wid <= 0:
-                continue
-            word = str(row.get("word") or "")
-            kind = str(row.get("kind") or "word")
-            cur = by_id.get(wid)
-            if not cur:
-                cur = {
-                    "id": wid,
-                    "word": word,
-                    "kind": kind,
-                    "reading": row.get("reading"),
-                    "meaning": row.get("meaning"),
-                    "pos": row.get("pos"),
-                    "usage": row.get("usage"),
-                    "connection": row.get("connection"),
-                    "example_sentences": row.get("example_sentences"),
-                    "course_label": row.get("course_label"),
-                    "needs": merge_needs_from_missing_flags(
-                        full_refresh_needs(kind, word), row
-                    ),
-                    "triggered": True,
-                }
-                by_id[wid] = cur
-            else:
-                for field in (
-                    "reading",
-                    "meaning",
-                    "pos",
-                    "usage",
-                    "connection",
-                    "example_sentences",
-                    "course_label",
-                    "kind",
-                    "word",
-                ):
-                    if row.get(field) and not cur.get(field):
-                        cur[field] = row.get(field)
-                kind = str(cur.get("kind") or kind)
-                base_needs = full_refresh_needs(
-                    kind, str(cur.get("word") or word)
-                )
-                # 保留已收窄的 needs，再合并本行 need_*（避免已有例句仍全量重造）
-                merged = dict(cur.get("needs") or base_needs)
-                for key, val in base_needs.items():
-                    merged.setdefault(key, val)
-                cur["needs"] = merge_needs_from_missing_flags(merged, row)
-            if connection_only and kind == "grammar" and not is_conjugation_word(word):
-                cur["needs"]["connection"] = True
-
-    for url in (READING_URL, MEANING_URL, USAGE_URL, EXAMPLES_URL):
-        body: dict[str, Any] = {"mode": "list_missing", "limit": scan_limit}
-        data = call_api(
-            url,
-            token,
-            body,
-            user_agent="jp-vocab-fill-online-batch/1.0",
-        )
-        merge(list(data.get("missing") or []))
-
-    conn_data = call_api(
-        USAGE_URL,
+    """单次探活：WHERE 任一缺项 → 取 1 词全字段（无 COUNT、无多路 list_missing）。"""
+    data = call_api(
+        FILL_NEXT_URL,
         token,
-        {"mode": "list_missing_connection", "limit": scan_limit},
+        {"mode": "next_candidate"},
         user_agent="jp-vocab-fill-online-batch/1.0",
     )
-    if conn_data.get("mode") == "list_missing_connection":
-        merge(list(conn_data.get("missing") or []), connection_only=True)
+    candidate = data.get("candidate")
+    if not isinstance(candidate, dict):
+        return []
+    wid = int(candidate.get("id") or 0)
+    if wid <= 0:
+        return []
+
+    word = str(candidate.get("word") or "")
+    kind = str(candidate.get("kind") or "word")
+    row: dict[str, Any] = {
+        "id": wid,
+        "word": word,
+        "kind": kind,
+        "reading": candidate.get("reading"),
+        "meaning": candidate.get("meaning"),
+        "pos": candidate.get("pos"),
+        "usage": candidate.get("usage"),
+        "connection": candidate.get("connection"),
+        "example_sentences": candidate.get("example_sentences"),
+        "course_label": candidate.get("course_label"),
+        "needs": merge_needs_from_missing_flags(
+            full_refresh_needs(kind, word), candidate
+        ),
+        "triggered": True,
+    }
+    for flag in (
+        "need_usage",
+        "need_examples",
+        "need_connection",
+        "need_oral_frequency",
+        "need_exam_frequency",
+    ):
+        if flag in candidate:
+            row[flag] = candidate.get(flag)
 
     poison = load_poison()
     now = time.time()
-    rows: list[dict[str, Any]] = []
-    for row in by_id.values():
-        wid = int(row["id"])
-        p = poison.get(str(wid))
-        if p and float(p.get("until") or 0) > now:
-            continue
-        rows.append(row)
-    rows.sort(key=lambda r: int(r.get("id") or 0))
-    return rows[: max(1, limit)]
+    p = poison.get(str(wid))
+    if p and float(p.get("until") or 0) > now:
+        return []
+    return [row][: max(1, limit)]
 
 
 def apply_bundle(
@@ -1408,7 +1372,7 @@ def main() -> int:
     if not token:
         raise SystemExit("缺少 JP_REVIEW_UPLOAD_TOKEN")
 
-    skip_if_worker_unavailable(BASE, label="jp-vocab-fill-online")
+    skip_if_worker_unavailable(FILL_NEXT_URL, label="jp-vocab-fill-online")
 
     parser = argparse.ArgumentParser(
         description="日语词条：线上付费一词一次补齐"

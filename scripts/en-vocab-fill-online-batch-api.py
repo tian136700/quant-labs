@@ -44,6 +44,7 @@ from vocab_fill_circuit_breaker import (  # noqa: E402
 from en_vocab_kind_detect import en_vocab_lemma_looks_like_grammar  # noqa: E402
 
 BASE = "https://finance.info-quests.com"
+FILL_NEXT_URL = f"{BASE}/api/en-vocab/fill-next-candidate"
 READING_URL = f"{BASE}/api/en-vocab/fill-reading"
 MEANING_URL = f"{BASE}/api/en-vocab/fill-meaning"
 USAGE_URL = f"{BASE}/api/en-vocab/fill-usage"
@@ -724,98 +725,47 @@ def fetch_words_from_d1(
 
 
 def fetch_candidates(token: str, *, limit: int) -> list[dict[str, Any]]:
-    """合并各阶段 list_missing；进队后一律整词 needs（一次付费打满，禁止按字段拆烧）。
+    """单次探活：WHERE 任一缺项 → 取 1 词全字段（无 COUNT、无 5 路 list_missing）。"""
+    data = call_api(
+        FILL_NEXT_URL,
+        token,
+        {"mode": "next_candidate"},
+        user_agent="en-vocab-fill-online-batch/1.0",
+    )
+    candidate = data.get("candidate")
+    if not isinstance(candidate, dict):
+        return []
+    wid = int(candidate.get("id") or 0)
+    if wid <= 0:
+        return []
 
-    排序：优先当日序号（daily_seq）靠前——这些更可能进今日抽查池。
-    """
-    by_id: dict[int, dict[str, Any]] = {}
-
-    def merge(rows: list) -> None:
-        for row in rows:
-            wid = int(row.get("id") or 0)
-            if wid <= 0:
-                continue
-            cur = by_id.get(wid)
-            if not cur:
-                kind = str(row.get("kind") or "word")
-                cur = {
-                    "id": wid,
-                    "word": row.get("word"),
-                    "kind": kind,
-                    "reading": row.get("reading"),
-                    "meaning": row.get("meaning"),
-                    "pos": row.get("pos"),
-                    "category": row.get("category"),
-                    "usage": row.get("usage"),
-                    "example_sentences": row.get("example_sentences"),
-                    "daily_seq": row.get("daily_seq"),
-                    "needs": full_refresh_needs(kind),
-                    "triggered": True,
-                }
-                by_id[wid] = cur
-            for field in (
-                "reading",
-                "meaning",
-                "pos",
-                "category",
-                "usage",
-                "example_sentences",
-                "kind",
-                "word",
-            ):
-                if row.get(field) and not cur.get(field):
-                    cur[field] = row.get(field)
-            seq = row.get("daily_seq")
-            try:
-                seq_n = int(seq) if seq is not None else None
-            except (TypeError, ValueError):
-                seq_n = None
-            if seq_n is not None and seq_n > 0:
-                prev = cur.get("daily_seq")
-                try:
-                    prev_n = int(prev) if prev is not None else None
-                except (TypeError, ValueError):
-                    prev_n = None
-                if prev_n is None or seq_n < prev_n:
-                    cur["daily_seq"] = seq_n
-            # 队列里见到就整词刷新（含只缺双频）
-            cur["needs"] = full_refresh_needs(str(cur.get("kind") or "word"))
-
-    scan_limit = max(limit * 8, 24)
-    for url in (READING_URL, MEANING_URL, USAGE_URL, EXAMPLES_URL, KIND_URL):
-        try:
-            data = call_api(
-                url,
-                token,
-                {"mode": "list_missing", "limit": scan_limit},
-                user_agent="en-vocab-fill-online-batch/1.0",
-            )
-            merge(list(data.get("missing") or []))
-        except Exception as err:
-            print(f"    list_missing skip {url}: {err}", flush=True)
-
-    rows = list(by_id.values())
-    for cur in rows:
-        word = str(cur.get("word") or "")
-        kind = str(cur.get("kind") or "word")
-        if kind != "grammar" and en_vocab_lemma_looks_like_grammar(word):
-            cur["reclassify_to_grammar"] = True
-            cur["kind"] = "grammar"
-            cur["needs"] = full_refresh_needs("grammar")
-        else:
-            cur["needs"] = full_refresh_needs(str(cur.get("kind") or "word"))
-
-    def _daily_sort_key(r: dict[str, Any]) -> tuple[int, int]:
-        try:
-            seq = int(r.get("daily_seq")) if r.get("daily_seq") is not None else 10**9
-        except (TypeError, ValueError):
-            seq = 10**9
-        if seq <= 0:
-            seq = 10**9
-        return (seq, int(r.get("id") or 0))
-
-    rows.sort(key=_daily_sort_key)
-    return rows[: max(1, limit)]
+    kind = str(candidate.get("kind") or "word")
+    word = str(candidate.get("word") or "")
+    row: dict[str, Any] = {
+        "id": wid,
+        "word": word,
+        "kind": kind,
+        "reading": candidate.get("reading"),
+        "meaning": candidate.get("meaning"),
+        "pos": candidate.get("pos"),
+        "category": candidate.get("category"),
+        "usage": candidate.get("usage"),
+        "example_sentences": candidate.get("example_sentences"),
+        "daily_seq": candidate.get("daily_seq"),
+        "needs": full_refresh_needs(kind),
+        "triggered": True,
+    }
+    if candidate.get("reclassify_to_grammar"):
+        row["reclassify_to_grammar"] = True
+        row["kind"] = "grammar"
+        row["needs"] = full_refresh_needs("grammar")
+    elif kind != "grammar" and en_vocab_lemma_looks_like_grammar(word):
+        row["reclassify_to_grammar"] = True
+        row["kind"] = "grammar"
+        row["needs"] = full_refresh_needs("grammar")
+    else:
+        row["needs"] = full_refresh_needs(str(row.get("kind") or "word"))
+    return [row][: max(1, limit)]
 
 
 def apply_kind_grammar(
@@ -1344,7 +1294,7 @@ def main() -> int:
         )
         return 0
 
-    if skip_if_worker_unavailable(READING_URL, label="en-vocab-fill-online"):
+    if skip_if_worker_unavailable(FILL_NEXT_URL, label="en-vocab-fill-online"):
         return 0
 
     token = resolve_token()
@@ -1400,7 +1350,7 @@ def main() -> int:
     else:
         if not acquire_paid_rate_gate(allow_burst=allow_burst):
             return 0
-        candidates = fetch_candidates(token, limit=max(limit * 12, 12))
+        candidates = fetch_candidates(token, limit=limit)
         if args.word_id:
             candidates = [
                 r for r in candidates if int(r.get("id") or 0) == args.word_id

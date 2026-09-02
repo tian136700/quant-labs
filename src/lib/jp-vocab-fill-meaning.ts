@@ -15,7 +15,7 @@ import { validateJpVocabPosAiOutput } from "@/lib/jp-vocab-pos-ai";
 import { clampJpVocabFrequency } from "@/lib/jp-vocab-frequency";
 
 /** 缺释义：NULL/空，或误写入的区块标题壳（【释义】） */
-const JP_VOCAB_MEANING_MISSING_SQL = `(meaning IS NULL OR meaning = ''
+export const JP_VOCAB_MEANING_MISSING_SQL = `(meaning IS NULL OR meaning = ''
          OR meaning = '【释义】' OR meaning = '【意思】' OR meaning = '释义')`;
 
 export type JpVocabMissingMeaningRow = {

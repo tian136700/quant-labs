@@ -81,7 +81,7 @@ export type ListEnVocabMissingUsageOptions = {
 };
 
 /** 空用法，或有用法但正文看不到完整双频次标记 */
-function enVocabUsageMissingWhereSql(kindBindIndex: number | null): string {
+export function enVocabUsageMissingWhereSql(kindBindIndex: number | null): string {
   const kindClause =
     kindBindIndex != null ? ` AND kind = ?${kindBindIndex}` : "";
   return `(
