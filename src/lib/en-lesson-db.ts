@@ -4,16 +4,12 @@ import type { EnLessonKind, EnLessonRecord, EnLessonUploadInput } from "@/lib/ty
 import { parseLessonContent, normalizeLessonContentForStorage, compareEnLessonsByProgress, type EnLessonProgressStatus, enLessonProgressToFields, normalizeClassDurationMinutes } from "@/lib/en-lesson-shared";
 import { normalizeLessonMeaningsForStorage } from "@/lib/jp-lesson-shared";
 import { normalizeEnVocabCategory } from "@/lib/en-vocab-category";
+import { normalizeEnVocabRefKey } from "@/lib/en-vocab-ref-shared";
 import {
-  normalizeEnVocabRefKey,
-  resolveEnVocabRefMediaType,
-} from "@/lib/en-vocab-ref-shared";
-import {
-  getEnVocabRef,
   removeEnVocabLessonWords,
   syncLessonNotesToVocab,
-  upsertEnVocabFromLesson,
 } from "@/lib/en-vocab-db";
+import { syncEnLessonToVocab } from "@/lib/en-lesson-vocab-sync";
 import { getLessonTeacherIdsByLessonIds, replaceLessonTeachers } from "@/lib/en-lesson-teacher-db";
 import {
   getClassSchedulesByLessonIds,
@@ -501,44 +497,6 @@ export async function updateEnLessonRefKey(
   return getEnLessonById(db, lessonId);
 }
 
-async function syncLessonToVocab(
-  db: D1Database,
-  lesson: EnLessonRecord
-): Promise<void> {
-  const items = parseLessonContent(lesson.content);
-  if (!items.length) return;
-
-  const refKey = lesson.ref_key;
-  let mediaType: "image" | "pdf" = "image";
-  if (refKey) {
-    const existingRef = await getEnVocabRef(db, refKey);
-    if (existingRef) {
-      mediaType = resolveEnVocabRefMediaType(existingRef);
-    }
-  }
-  const refs = refKey
-    ? [
-        {
-          ref_key: refKey,
-          title: lesson.title,
-          media_type: mediaType,
-        },
-      ]
-    : [];
-
-  await upsertEnVocabFromLesson(
-    db,
-    items.map((word) => ({
-      word,
-      kind: lesson.kind,
-      ref_key: refKey,
-      category: lesson.category,
-    })),
-    refs
-  );
-  await syncLessonNotesToVocab(db, lesson);
-}
-
 async function unsyncLessonFromVocab(
   db: D1Database,
   lesson: EnLessonRecord
@@ -699,8 +657,9 @@ export async function updateEnLessonProgress(
       updated_at: ts,
     };
     const lesson = devLessons[idx];
-    if (completed && !before.completed) {
-      await syncLessonToVocab(db, lesson);
+    // 上课完：一律同步进抽查（含托业等全部分类；已 completed 再点也会幂等补漏）
+    if (completed) {
+      await syncEnLessonToVocab(db, lesson);
     } else if (!completed && before.completed) {
       await unsyncLessonFromVocab(db, before);
     }
@@ -721,8 +680,8 @@ export async function updateEnLessonProgress(
   const lesson = await getEnLessonById(db, lessonId);
   if (!lesson) return { ok: false, error: "not_found" };
 
-  if (completed && !before.completed) {
-    await syncLessonToVocab(db, lesson);
+  if (completed) {
+    await syncEnLessonToVocab(db, lesson);
   } else if (!completed && before.completed) {
     await unsyncLessonFromVocab(db, before);
   }

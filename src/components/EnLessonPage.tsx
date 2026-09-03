@@ -29,16 +29,21 @@ import {
   type EnLessonApiPayload,
 } from "@/lib/en-api-cache";
 import {
-  buildEnLessonDisplayGroups,
   buildLearningClassDayToneMap,
   formatLessonContentLines,
   getEnLessonProgressStatus,
   enLessonProgressToFields,
   normalizeClassDurationMinutes,
   type EnLessonDisplayGroup,
-  type EnLessonClassTimeSortOrder,
   type EnLessonProgressStatus,
 } from "@/lib/en-lesson-shared";
+import {
+  buildEnLessonDisplayGroupsForTableSort,
+  DEFAULT_EN_LESSON_TABLE_SORT,
+  nextEnLessonTableSort,
+  type EnLessonTableSort,
+  type EnLessonTableSortKey,
+} from "@/lib/en-lesson-table-sort";
 import { fetchWithClientCache, readClientCache, writeClientCache } from "@/lib/client-swr-cache";
 import {
   adminJpLessonTeachersPath,
@@ -60,7 +65,6 @@ import {
   readLessonCache,
   persistLessonCache,
   LESSON_STATUS_SECTIONS,
-  groupLessonsForDisplay,
   mergeEnLessonTeachers,
 } from "@/components/en-lesson-page/en-lesson-page-helpers";
 
@@ -121,8 +125,9 @@ export function EnLessonPage() {
   } | null>(null);
   const [expandedContentIds, setExpandedContentIds] = useState<Record<number, boolean>>({});
   const [expandedMeaningsIds, setExpandedMeaningsIds] = useState<Record<number, boolean>>({});
-  const [classTimeSortOrder, setClassTimeSortOrder] =
-    useState<EnLessonClassTimeSortOrder>("asc");
+  const [tableSort, setTableSort] = useState<EnLessonTableSort>(
+    () => DEFAULT_EN_LESSON_TABLE_SORT
+  );
 
   const toggleContentExpanded = useCallback((lessonId: number) => {
     setExpandedContentIds((prev) => ({
@@ -137,8 +142,8 @@ export function EnLessonPage() {
       [lessonId]: !prev[lessonId],
     }));
   }, []);
-  const toggleClassTimeSortOrder = useCallback(() => {
-    setClassTimeSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+  const toggleTableSort = useCallback((key: EnLessonTableSortKey) => {
+    setTableSort((prev) => nextEnLessonTableSort(prev, key));
   }, []);
 
   const applyLessonPayload = useCallback((payload: EnLessonApiPayload) => {
@@ -194,20 +199,6 @@ export function EnLessonPage() {
     return buckets;
   }, [lessons]);
 
-  const displayGroupsByStatus = useMemo(() => {
-    const groups: Record<EnLessonProgressStatus, EnLessonDisplayGroup<EnLessonRecord>[]> = {
-      learning: groupLessonsForDisplay(lessonsByStatus.learning, classTimeSortOrder),
-      pending: groupLessonsForDisplay(lessonsByStatus.pending, classTimeSortOrder),
-      completed: groupLessonsForDisplay(lessonsByStatus.completed, classTimeSortOrder),
-    };
-    return groups;
-  }, [lessonsByStatus, classTimeSortOrder]);
-
-  const learningDayToneByDate = useMemo(
-    () => buildLearningClassDayToneMap(displayGroupsByStatus.learning),
-    [displayGroupsByStatus.learning]
-  );
-
   const noteCountByLesson = useMemo(() => {
     const map = new Map<number, number>();
     for (const note of notes) {
@@ -223,6 +214,37 @@ export function EnLessonPage() {
     }
     return map;
   }, [teachers]);
+
+  const tableSortCtx = useMemo(
+    () => ({ teacherNameById, noteCountByLesson }),
+    [teacherNameById, noteCountByLesson]
+  );
+
+  const displayGroupsByStatus = useMemo(() => {
+    const groups: Record<EnLessonProgressStatus, EnLessonDisplayGroup<EnLessonRecord>[]> = {
+      learning: buildEnLessonDisplayGroupsForTableSort(
+        lessonsByStatus.learning,
+        tableSort,
+        tableSortCtx
+      ),
+      pending: buildEnLessonDisplayGroupsForTableSort(
+        lessonsByStatus.pending,
+        tableSort,
+        tableSortCtx
+      ),
+      completed: buildEnLessonDisplayGroupsForTableSort(
+        lessonsByStatus.completed,
+        tableSort,
+        tableSortCtx
+      ),
+    };
+    return groups;
+  }, [lessonsByStatus, tableSort, tableSortCtx]);
+
+  const learningDayToneByDate = useMemo(
+    () => buildLearningClassDayToneMap(displayGroupsByStatus.learning),
+    [displayGroupsByStatus.learning]
+  );
 
   const handleLessonCopied = useCallback((lessonId: number) => {
     setCopiedId(lessonId);
@@ -828,7 +850,7 @@ export function EnLessonPage() {
                     dayToneByDate={
                       status === "learning" ? learningDayToneByDate : undefined
                     }
-                    classTimeSortOrder={classTimeSortOrder}
+                    tableSort={tableSort}
                     isAdmin={isAdmin}
                     canOperate={canOperate}
                     refs={refs}
@@ -842,7 +864,7 @@ export function EnLessonPage() {
                     savingId={savingId}
                     savingNextClassId={savingNextClassId}
                     copiedId={copiedId}
-                    onToggleClassTimeSort={toggleClassTimeSortOrder}
+                    onTableSort={toggleTableSort}
                     onToggleContentExpanded={toggleContentExpanded}
                     onToggleMeaningsExpanded={toggleMeaningsExpanded}
                     onSetLessonProgress={setLessonProgress}

@@ -9,6 +9,7 @@ import {
   updateEnLessonProgress,
   updateEnLessonTeacherAssignment,
 } from "@/lib/en-lesson-db";
+import { backfillCompletedEnLessonsToVocab } from "@/lib/en-lesson-vocab-sync";
 import { updateEnLessonContentFields } from "@/lib/en-lesson-db-content";
 import type { EnLessonProgressStatus } from "@/lib/en-lesson-shared";
 import { listEnLessonNotes } from "@/lib/en-lesson-note-db";
@@ -178,6 +179,22 @@ export async function POST(request: Request) {
       }
 
       return jsonResponse({ ok: true });
+    }
+
+    // 管理员：回填已上课完但未进抽查的词（含托业等全部分类；分片防 1102）
+    if (body.action === "backfill_vocab_sync") {
+      const admin = await requireAdmin(request);
+      if (!admin.allowed) {
+        return jsonResponse({ ok: false, error: "admin_required" }, 403);
+      }
+      const limit = Number((body as { limit?: unknown }).limit);
+      const offset = Number((body as { offset?: unknown }).offset);
+      const lessons = await listEnLessons(env.DB);
+      const result = await backfillCompletedEnLessonsToVocab(env.DB, lessons, {
+        limit: Number.isFinite(limit) ? limit : 8,
+        offset: Number.isFinite(offset) ? offset : 0,
+      });
+      return jsonResponse({ ok: true, ...result });
     }
 
     if (body.action === "update") {

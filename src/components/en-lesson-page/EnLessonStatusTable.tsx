@@ -22,10 +22,13 @@ import {
   getLessonClassDate,
   getLessonClassSchedules,
   parseLessonContent,
-  type EnLessonClassTimeSortOrder,
   type EnLessonDisplayGroup,
   type EnLessonProgressStatus,
 } from "@/lib/en-lesson-shared";
+import type {
+  EnLessonTableSort,
+  EnLessonTableSortKey,
+} from "@/lib/en-lesson-table-sort";
 import { SITE_URL } from "@/lib/site";
 import { displayEnVocabCategory, shortEnVocabCategoryLabel } from "@/lib/en-vocab-category";
 import { enVocabRefApiPath } from "@/lib/en-vocab-ref-shared";
@@ -39,7 +42,7 @@ import { copyTextToClipboard } from "@/lib/copy-text";
 export type EnLessonStatusTableProps = {
   displayGroups: EnLessonDisplayGroup<EnLessonRecord>[];
   dayToneByDate?: Map<string, number>;
-  classTimeSortOrder: EnLessonClassTimeSortOrder;
+  tableSort: EnLessonTableSort;
   isAdmin: boolean;
   canOperate: boolean;
   refs: Record<string, EnVocabRef>;
@@ -53,7 +56,7 @@ export type EnLessonStatusTableProps = {
   savingId: number | null;
   savingNextClassId: number | null;
   copiedId: number | null;
-  onToggleClassTimeSort: () => void;
+  onTableSort: (key: EnLessonTableSortKey) => void;
   onToggleContentExpanded: (lessonId: number) => void;
   onToggleMeaningsExpanded: (lessonId: number) => void;
   onSetLessonProgress: (lessonId: number, status: EnLessonProgressStatus) => void | Promise<void>;
@@ -75,10 +78,67 @@ export type EnLessonStatusTableProps = {
   onCopyFeedback: (message: string) => void;
 };
 
+function EnLessonThSortButton({
+  label,
+  sortKey,
+  tableSort,
+  onTableSort,
+  title,
+  className,
+}: {
+  label: string;
+  sortKey: EnLessonTableSortKey;
+  tableSort: EnLessonTableSort;
+  onTableSort: (key: EnLessonTableSortKey) => void;
+  title?: string;
+  className?: string;
+}) {
+  const active = tableSort.key === sortKey;
+  return (
+    <th
+      className={`${className ?? ""} jp-lesson-next-class-col--sortable${
+        active
+          ? tableSort.dir === "asc"
+            ? " jp-lesson-next-class-col--sorted-asc"
+            : " jp-lesson-next-class-col--sorted-desc"
+          : ""
+      }`.trim()}
+      title={title}
+    >
+      <button
+        type="button"
+        className="jp-lesson-sort-btn"
+        title={
+          active
+            ? tableSort.dir === "asc"
+              ? `${label}升序，点击切换为降序`
+              : `${label}降序，点击切换为升序`
+            : `按${label}排序`
+        }
+        aria-label={
+          active
+            ? tableSort.dir === "asc"
+              ? `${label}升序，点击切换为降序`
+              : `${label}降序，点击切换为升序`
+            : `按${label}排序`
+        }
+        onClick={() => onTableSort(sortKey)}
+      >
+        {label}
+        {active ? (
+          <span className="jp-lesson-sort-indicator" aria-hidden="true">
+            {tableSort.dir === "asc" ? "↑" : "↓"}
+          </span>
+        ) : null}
+      </button>
+    </th>
+  );
+}
+
 export function EnLessonStatusTable({
   displayGroups,
   dayToneByDate,
-  classTimeSortOrder,
+  tableSort,
   isAdmin,
   canOperate,
   refs,
@@ -92,7 +152,7 @@ export function EnLessonStatusTable({
   savingId,
   savingNextClassId,
   copiedId,
-  onToggleClassTimeSort,
+  onTableSort,
   onToggleContentExpanded,
   onToggleMeaningsExpanded,
   onSetLessonProgress,
@@ -496,54 +556,105 @@ export function EnLessonStatusTable({
       <table className="compare-table etr-table jp-lesson-table">
         <thead>
           <tr>
-            <th className="jp-lesson-id-col">ID</th>
-            <th className="jp-lesson-kind-col" title="学习类型：词 / 法">
-              类
-            </th>
-            <th className="en-lesson-category-col" title="分类标签（如雅思 / 托福 / 托业）">
-              分类
-            </th>
-            <th className="jp-lesson-content-col">学习内容</th>
-            <th className="jp-lesson-meanings-col">释义</th>
-            <th className="jp-lesson-content-count-col" title="按英文/中文逗号分隔统计的词/短语数">
-              数
-            </th>
-            <th className="jp-lesson-uploaded-col">上传日期</th>
-            <th className="jp-lesson-status-at-col">最近操作</th>
-            <th className="jp-lesson-operator-col">操作人</th>
-            {isAdmin ? <th className="jp-lesson-teacher-col">上课老师</th> : null}
+            <EnLessonThSortButton
+              label="ID"
+              sortKey="id"
+              tableSort={tableSort}
+              onTableSort={onTableSort}
+              className="jp-lesson-id-col"
+            />
+            <EnLessonThSortButton
+              label="类"
+              sortKey="kind"
+              tableSort={tableSort}
+              onTableSort={onTableSort}
+              className="jp-lesson-kind-col"
+              title="学习类型：词 / 法"
+            />
+            <EnLessonThSortButton
+              label="分类"
+              sortKey="category"
+              tableSort={tableSort}
+              onTableSort={onTableSort}
+              className="en-lesson-category-col"
+              title="分类标签（如雅思 / 托福 / 托业）"
+            />
+            <EnLessonThSortButton
+              label="学习内容"
+              sortKey="content"
+              tableSort={tableSort}
+              onTableSort={onTableSort}
+              className="jp-lesson-content-col"
+            />
+            <EnLessonThSortButton
+              label="释义"
+              sortKey="meanings"
+              tableSort={tableSort}
+              onTableSort={onTableSort}
+              className="jp-lesson-meanings-col"
+            />
+            <EnLessonThSortButton
+              label="数"
+              sortKey="count"
+              tableSort={tableSort}
+              onTableSort={onTableSort}
+              className="jp-lesson-content-count-col"
+              title="按英文/中文逗号分隔统计的词/短语数"
+            />
+            <EnLessonThSortButton
+              label="上传日期"
+              sortKey="uploaded"
+              tableSort={tableSort}
+              onTableSort={onTableSort}
+              className="jp-lesson-uploaded-col"
+            />
+            <EnLessonThSortButton
+              label="最近操作"
+              sortKey="recent"
+              tableSort={tableSort}
+              onTableSort={onTableSort}
+              className="jp-lesson-status-at-col"
+            />
+            <EnLessonThSortButton
+              label="操作人"
+              sortKey="operator"
+              tableSort={tableSort}
+              onTableSort={onTableSort}
+              className="jp-lesson-operator-col"
+            />
             {isAdmin ? (
-              <th
-                className={`jp-lesson-next-class-col jp-lesson-next-class-col--sortable${
-                  classTimeSortOrder === "asc"
-                    ? " jp-lesson-next-class-col--sorted-asc"
-                    : " jp-lesson-next-class-col--sorted-desc"
-                }`}
-              >
-                <button
-                  type="button"
-                  className="jp-lesson-sort-btn"
-                  title={
-                    classTimeSortOrder === "asc"
-                      ? "按上课时间从早到晚排序；点击切换为从晚到早。同一老师同一时段的多条教材会合并为一行"
-                      : "按上课时间从晚到早排序；点击切换为从早到晚。同一老师同一时段的多条教材会合并为一行"
-                  }
-                  aria-label={
-                    classTimeSortOrder === "asc"
-                      ? "上课时间升序，点击切换为降序"
-                      : "上课时间降序，点击切换为升序"
-                  }
-                  onClick={onToggleClassTimeSort}
-                >
-                  上课时间
-                  <span className="jp-lesson-sort-indicator" aria-hidden="true">
-                    {classTimeSortOrder === "asc" ? "↑" : "↓"}
-                  </span>
-                </button>
-              </th>
+              <EnLessonThSortButton
+                label="上课老师"
+                sortKey="teacher"
+                tableSort={tableSort}
+                onTableSort={onTableSort}
+                className="jp-lesson-teacher-col"
+              />
             ) : null}
-            <th className="jp-lesson-complete-col">上课状态</th>
-            <th className="jp-lesson-notes-col">课堂笔记</th>
+            {isAdmin ? (
+              <EnLessonThSortButton
+                label="上课时间"
+                sortKey="classTime"
+                tableSort={tableSort}
+                onTableSort={onTableSort}
+                className="jp-lesson-next-class-col"
+                title="按上课时间排序；同一老师同一时段的多条教材会合并为一行"
+              />
+            ) : null}
+            <EnLessonThSortButton
+              label="上课状态"
+              sortKey="status"
+              tableSort={tableSort}
+              onTableSort={onTableSort}
+              className="jp-lesson-complete-col"
+            />
+            <EnLessonThSortButton
+              label="课堂笔记"
+              sortKey="notes"
+              tableSort={tableSort}
+              onTableSort={onTableSort}
+              className="jp-lesson-notes-col"
+            />
             <th className="jp-lesson-actions-col">教案操作</th>
           </tr>
         </thead>
