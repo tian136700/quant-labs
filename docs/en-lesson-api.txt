@@ -43,7 +43,7 @@ POST http://127.0.0.1:3002/api/en-lesson
 | GET 列表 | 访客可读；非管理员会清空老师/上课时间字段 |
 | POST record_link_copy | 访客也可记（与列表浏览一致） |
 | POST delete / update / 改上课状态（progress） | 英语新课 · 编辑/操作 |
-| POST set_teacher / set_class_schedules / set_next_class_at | **管理员** |
+| POST set_teacher / set_class_schedules / set_next_class_at / backfill_vocab_sync | **管理员** |
 
 Header（可选，影响错误文案语言）：
   x-locale: zh | en
@@ -228,11 +228,12 @@ action 一览
 -----------
 | action | 谁可调 | 作用 |
 |--------|--------|------|
-| （省略或只传 progress） | 有编辑权 | 改上课状态 pending/learning/completed |
+| （省略或只传 progress） | 有编辑权 | 改上课状态 pending/learning/completed；**标 completed 时一律 sync 进英语抽查**（雅思托福 / 托业 / IT面试等全部分类；已 completed 再点也会幂等补漏） |
 | update | 有编辑权 | 改课次本体：kind / content / meanings / category / remarks / title |
 | delete | 有编辑权 | 删除该课次（不可恢复） |
 | record_link_copy | 访客也可 | 教案链接复制次数 +1 |
 | set_teacher | 管理员 | 设置上课老师 |
+| backfill_vocab_sync | **管理员** | 分片回填：已上课完课次补进 `/en-vocab`（历史漏同步）；见下文 |
 | set_class_schedules | 管理员 | 设置多段上课时间；**非空预约会默认设为上课中** |
 | set_next_class_at | 管理员 | 兼容：设单段下次上课时间 |
 
@@ -438,6 +439,31 @@ POST · record_link_copy
 
 
 ────────────────────────────────
+POST · backfill_vocab_sync（管理员）
+────────────────────────────────
+
+用途：历史「上课完」课次若词条未进 `/en-vocab`（含托业等），分片幂等补同步。
+限流：默认 limit=8，最多 20；可循环 offset 直到 remaining=0。
+
+{
+  "action": "backfill_vocab_sync",
+  "limit": 8,
+  "offset": 0
+}
+
+成功示例：
+{
+  "ok": true,
+  "scanned": 8,
+  "synced": 8,
+  "lessonIds": [2, 4, 5, …],
+  "remaining": 12
+}
+
+说明：upsert 跳过库里已有的单词；只补尚不存在的词。勿在抽查高峰一次打满。
+
+
+────────────────────────────────
 POST · delete
 ────────────────────────────────
 
@@ -455,10 +481,13 @@ POST · delete
 本说明：GET/POST /api/en-lesson（含 ?view=schedule）
 实现：src/app/api/en-lesson/route.ts
       src/lib/en-lesson-db.ts
+      src/lib/en-lesson-vocab-sync.ts（上课完 → 抽查；backfill_vocab_sync）
       src/lib/en-lesson-schedule-list.ts（日程轻量列表）
 功能索引：docs/feature-index.md → 英语新课 / 日程管理 · 手机进页轻量课表
 规则：.cursor/rules/en-lesson-schedule-sets-learning.mdc
       （填上课时间非空 → 默认 learning / 上课中）
+      .cursor/rules/en-lesson-completed-sync-all-categories.mdc
+      （上课完全部分类含托业一律进抽查）
       .cursor/rules/jp-lesson-schedule-lite-api.mdc
 上传：POST /api/en-lesson/upload（令牌；页面「API 上传说明」）
 网页新增：POST /api/en-lesson/create（会话；docs/en-lesson-create-api.txt）

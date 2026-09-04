@@ -297,6 +297,42 @@ if (!sketchStrict.ok) {
   process.exit(1);
 }
 
+// 一緒にお願いする：sanitize 在「一緒」与「に」间插空格后，ます形仍须算用到（曾 word_not_used id=118）
+const onegaiExamples = [
+  "一緒(いっしょ)にお願(ねが)いします。(N5)",
+  "译文：麻烦您一起帮我。",
+  "これも一緒(いっしょ)にお願(ねが)いしてもいいですか。(N5)",
+  "译文：这个也可以一起拜托您吗？",
+].join("\\n");
+const onegaiInput = {
+  word: "一緒にお願いする",
+  kind: "word",
+  reading: "いっしょにおねがいする",
+  meaning: "一起拜托；一并请求",
+};
+const onegaiOnline = normalizeJpVocabExampleSentencesForOnlineApply(
+  onegaiExamples,
+  onegaiInput
+);
+if (!onegaiOnline.ok) {
+  console.error(
+    "FAIL: 一緒にお願いします (with particle spaces) should pass online, got",
+    onegaiOnline.reason
+  );
+  process.exit(1);
+}
+const onegaiStrict = validateJpVocabExampleSentencesAiOutput(
+  onegaiExamples,
+  onegaiInput
+);
+if (!onegaiStrict.ok) {
+  console.error(
+    "FAIL: 一緒にお願いします should pass strict, got",
+    onegaiStrict.reason
+  );
+  process.exit(1);
+}
+
 // ～ようにする：ます形不得 grammar_not_used（id=679）
 const youni = [
   "早(はや)く起(お)きるようにしています。(N4)",
@@ -566,6 +602,8 @@ def main() -> int:
         "ai must not accept first-kanji-only hit (事故≠仕事の事)",
     )
     must_contain(ai, "スケッチする", "ai prompt/regression mentions スケッチする ます形")
+    must_contain(ai, "一緒にお願いする", "ai prompt/regression mentions particle-spaced ～する lemma")
+    must_contain(ai, "compactPlain", "ai lemma hit ignores learner particle spaces")
     must_contain(ai, "かぶって／つける", "ai prompt allows reading-form examples for 戴")
     must_contain(ai, "jpVocabExampleLineKanaPlain", "ai kana-plain lemma hit for kana lemmas")
     must_contain(ai, "jpVocabLemmaHonorificPrefix", "ai honorific prefix lemma hit")
