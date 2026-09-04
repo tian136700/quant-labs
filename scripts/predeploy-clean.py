@@ -109,6 +109,15 @@ def run_hook_destructure_guard() -> int:
     return subprocess.call([sys.executable, str(script)], cwd=str(ROOT))
 
 
+def run_require_admin_shape_guard() -> int:
+    """Fail fast：requireAdmin 无 .allowed，误用会让 Next typecheck 挂掉。"""
+    script = ROOT / "scripts" / "check_require_admin_shape.py"
+    if not script.is_file():
+        return 0
+    print("predeploy: 检查 requireAdmin 用 isAdmin（非 .allowed）…", flush=True)
+    return subprocess.call([sys.executable, str(script)], cwd=str(ROOT))
+
+
 def write_app_deploy_version() -> int:
     """Bake a unique deploy stamp into the Worker + client bundle."""
     script = ROOT / "scripts" / "write_app_deploy_version.py"
@@ -150,6 +159,16 @@ def main() -> int:
             flush=True,
         )
         return destructure_rc
+
+    admin_shape_rc = run_require_admin_shape_guard()
+    if admin_shape_rc != 0:
+        print(
+            "predeploy 中止：requireAdmin 误用 .allowed 会让 Next 类型检查失败"
+            "（见 scripts/check_require_admin_shape.py）",
+            file=sys.stderr,
+            flush=True,
+        )
+        return admin_shape_rc
 
     if local_dev:
         stop_dev_server()
