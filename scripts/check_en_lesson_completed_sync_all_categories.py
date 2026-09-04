@@ -41,6 +41,9 @@ def main() -> int:
 
     must_contain(route, 'backfill_vocab_sync', "api route", errors)
     must_contain(route, "backfillCompletedEnLessonsToVocab", "api route", errors)
+    # requireAdmin 返回 isAdmin，不是 allowed（曾导致 deploy TypeError）
+    must_contain(route, "const { isAdmin } = await requireAdmin(request)", "api route", errors)
+    must_not_contain(route, "admin.allowed", "api route", errors)
 
     if not rule.is_file():
         errors.append("missing en-lesson-completed-sync-all-categories.mdc")

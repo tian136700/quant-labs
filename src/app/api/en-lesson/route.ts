@@ -183,8 +183,8 @@ export async function POST(request: Request) {
 
     // 管理员：回填已上课完但未进抽查的词（含托业等全部分类；分片防 1102）
     if (body.action === "backfill_vocab_sync") {
-      const admin = await requireAdmin(request);
-      if (!admin.allowed) {
+      const { isAdmin } = await requireAdmin(request);
+      if (!isAdmin) {
         return jsonResponse({ ok: false, error: "admin_required" }, 403);
       }
       const limit = Number((body as { limit?: unknown }).limit);
