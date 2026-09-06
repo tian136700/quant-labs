@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Regression: EN teacher quiz must show complete modal, stay on last word.
 
-Also: shared-today words count as checked (else progress stuck e.g. 16/25
-with take care still open after the round was already sent to students).
+sharedToday / peek alone must NOT count as familiarity checked
+(else admin still shows 从未抽查 while teacher skipped usage levels).
 """
 
 from __future__ import annotations
@@ -89,16 +89,34 @@ def main() -> None:
     review = (ROOT / "src/lib/en-vocab-review.ts").read_text(encoding="utf-8")
     if "export function enVocabTeacherQuizCountsAsChecked" not in review:
         fail("missing enVocabTeacherQuizCountsAsChecked")
-    if "sharedToday" not in review:
-        fail("enVocabTeacherQuizCountsAsChecked must treat sharedToday as checked")
+    # sharedToday 参数可保留兼容，但函数体禁止 if (sharedToday) return true
+    fn = re.search(
+        r"export function enVocabTeacherQuizCountsAsChecked\([\s\S]*?\n\}",
+        review,
+    )
+    if not fn:
+        fail("cannot find enVocabTeacherQuizCountsAsChecked body")
+    body = fn.group(0)
+    if re.search(r"if\s*\(\s*options\.sharedToday\s*\)\s*return\s+true", body):
+        fail(
+            "enVocabTeacherQuizCountsAsChecked must NOT treat sharedToday alone "
+            "as checked (peek/share-without-review → admin 从未抽查)"
+        )
+    if "effectiveEnVocabDisplayLevel" not in body and "sessionLevel" not in body:
+        fail("countsAsChecked must use sessionLevel / effectiveEnVocabDisplayLevel")
 
     flash = (ROOT / "src/components/EnVocabTeacherQuizFlashcardModal.tsx").read_text(
         encoding="utf-8"
     )
     if "enVocabTeacherQuizCountsAsChecked" not in flash:
         fail("flashcard wordHasLevel must use enVocabTeacherQuizCountsAsChecked")
-    if "isShared || wordHasLevel(w.id)" not in flash:
-        fail("tryGoNext must skip usage gate when already shared / hasLevel")
+    if "isShared || wordHasLevel(w.id)" in flash:
+        fail(
+            "tryGoNext must not skip usage gate with isShared alone "
+            "(only wordHasLevel after real check)"
+        )
+    if "if (wordHasLevel(w.id))" not in flash:
+        fail("tryGoNext must allow advance when wordHasLevel after real check")
 
     effects = EFFECTS.read_text(encoding="utf-8")
     if "setShowDailyComplete(true)" not in effects:

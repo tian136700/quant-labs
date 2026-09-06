@@ -197,17 +197,23 @@ export function effectiveEnVocabDisplayLevel(
 }
 
 /**
- * 老师端进度 / 「下一个」是否算已抽。
- * 今日已同步给学生（share / peek）在服务端会记次，但老师列表可能还没带回
- * last_review_* —— 若不算已抽，进度会卡在 16/25，抽完仍停在 take care 卡上。
+ * 老师端进度 / 「下一个」是否算已勾选熟悉程度。
+ *
+ * **禁止**仅凭今日已共享 / 学生 peek 算已抽：否则 peek 后可跳过勾选，
+ * 管理员端仍显示「从未抽查」（cnt_* 未写）。
+ * 认：本会话 sessionLevel、今日 last_review_* / today_check、round_checked。
+ * 勾选成功后同会话必有 sessionLevel，不必靠 sharedToday 垫进度。
  */
 export function enVocabTeacherQuizCountsAsChecked(options: {
   word?: EnVocabWord;
   sessionLevel?: EnVocabLevel;
   displayOrder?: EnVocabDailyDisplayOrder;
+  /** @deprecated 保留参数兼容调用方；已忽略，勿再当已勾选 */
   sharedToday?: boolean;
 }): boolean {
-  if (options.sharedToday) return true;
+  void options.sharedToday;
+  if (!options.word && !options.sessionLevel) return false;
+  if (options.sessionLevel) return true;
   if (!options.word) return false;
   return (
     effectiveEnVocabDisplayLevel(options.word, options.sessionLevel, {

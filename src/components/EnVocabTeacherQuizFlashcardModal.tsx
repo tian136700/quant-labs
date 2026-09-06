@@ -653,8 +653,9 @@ export function EnVocabTeacherQuizFlashcardModal({
       usePerUsageLevels &&
       areEnVocabUsageLevelsComplete(usageDraftLevels, usageSlotCount);
     if (!selected && !usagesComplete) {
-      // 已同步给学生 / 今日已计次：算抽过，勿再拦在用法勾选上（进度会假「还剩 N」）
-      if (isShared || wordHasLevel(w.id)) {
+      // 仅「已真正勾选熟悉程度」可跳过用法门禁。
+      // 禁止仅因 isShared（学生 peek / 只同步）放行——否则 cnt_* 不写、管理员仍「从未抽查」
+      if (wordHasLevel(w.id)) {
         void runShareThenAdvance();
         return;
       }
