@@ -18,6 +18,7 @@ import {
   areEnVocabUsageLevelsComplete,
   effectiveEnVocabDisplayLevel,
   hasEnVocabReviewToday,
+  hasEnVocabTodayCheckCounted,
   isEnVocabWordReviewLocked,
   parseEnVocabLastUsageLevels,
   serializeEnVocabLastUsageLevels,
@@ -378,11 +379,11 @@ export function useEnVocabReviewActions(options: {
     ]
   );
 
-  const recordLevel = async (wordId: number, level: EnVocabLevel) => {
+  const recordLevel = async (wordId: number, level: EnVocabLevel): Promise<boolean> => {
     if (!canOperate) {
       setStatus("请登录后再勾选熟悉程度。");
       openEnAuth();
-      return;
+      return false;
     }
     const lockSnapshot = words.find((w) => w.id === wordId);
     if (
@@ -393,12 +394,12 @@ export function useEnVocabReviewActions(options: {
       })
     ) {
       setStatus("勾选已满 1 小时，无法再修改熟悉程度。");
-      return;
+      return false;
     }
-    if (savingId === wordId || wordSyncState[wordId]) return;
+    if (savingId === wordId || wordSyncState[wordId]) return false;
 
     const snapshot = lockSnapshot;
-    if (!snapshot) return;
+    if (!snapshot) return false;
     const prevLevel = sessionLevel[wordId];
     const prevReviewAt = sessionReviewAt[wordId];
     const displayOrderSnapshot = displayOrderRef.current;
@@ -423,6 +424,7 @@ export function useEnVocabReviewActions(options: {
         { word_id: wordId, level },
         { wasAlreadyShared, fromFlashcard: true }
       );
+      return true;
     } catch (err) {
       clearShareTimer(wordId);
       patchShareProgress(wordId, null);
@@ -448,6 +450,7 @@ export function useEnVocabReviewActions(options: {
         persistCache(words, refs, displayOrderSnapshot, sharedIdsSnapshot);
       }
       setStatus(err instanceof Error ? err.message : String(err));
+      return false;
     } finally {
       setSavingId(null);
     }
@@ -456,7 +459,7 @@ export function useEnVocabReviewActions(options: {
   const recordUsageLevels = async (
     wordId: number,
     levels: Array<EnVocabLevel | null | undefined>
-  ) => {
+  ): Promise<boolean> => {
     const lockSnapshot = words.find((w) => w.id === wordId);
     if (
       lockSnapshot &&
@@ -466,7 +469,7 @@ export function useEnVocabReviewActions(options: {
       })
     ) {
       setStatus("勾选已满 1 小时，无法再修改熟悉程度。");
-      return;
+      return false;
     }
 
     setSessionUsageLevels((prev) => ({ ...prev, [wordId]: levels }));
@@ -474,11 +477,11 @@ export function useEnVocabReviewActions(options: {
     if (!canOperate) {
       setStatus("请登录后再勾选熟悉程度。");
       openEnAuth();
-      return;
+      return false;
     }
 
     if (!levels.length || levels.some((lv) => lv == null)) {
-      return;
+      return false;
     }
     const complete = levels as EnVocabLevel[];
 
@@ -487,16 +490,16 @@ export function useEnVocabReviewActions(options: {
       usageLevelSavingRef.current === wordId ||
       wordSyncState[wordId]
     ) {
-      return;
+      return false;
     }
 
     const snapshot = words.find((w) => w.id === wordId);
-    if (!snapshot) return;
+    if (!snapshot) return false;
 
     const expected = listEnVocabUsagePointsForDisplay(snapshot.usage).points.length;
     if (expected > 0 && complete.length !== expected) {
       setStatus("用法条数与勾选不一致，请刷新页面后重试。");
-      return;
+      return false;
     }
 
     let overall: EnVocabLevel;
@@ -504,7 +507,7 @@ export function useEnVocabReviewActions(options: {
       overall = aggregateEnVocabUsageLevels(complete);
     } catch {
       setStatus("用法熟悉程度无效，请重新勾选。");
-      return;
+      return false;
     }
 
     const prevLevel = sessionLevel[wordId];
@@ -543,6 +546,7 @@ export function useEnVocabReviewActions(options: {
           },
         }
       );
+      return true;
     } catch (err) {
       clearShareTimer(wordId);
       patchShareProgress(wordId, null);
@@ -570,6 +574,7 @@ export function useEnVocabReviewActions(options: {
         persistCache(words, refs, displayOrderSnapshot, sharedIdsSnapshot);
       }
       setStatus(err instanceof Error ? err.message : String(err));
+      return false;
     } finally {
       if (usageLevelSavingRef.current === wordId) {
         usageLevelSavingRef.current = null;
@@ -605,6 +610,14 @@ export function useEnVocabReviewActions(options: {
     const snapshot = words.find((w) => w.id === wordId);
     if (!snapshot) return false;
     // 1h 锁只拦改熟悉程度；点「下一个」同步给学生不受锁影响
+    // 必须已写入今日抽查（禁止仅凭用法草稿 / 乐观 session 放行 → 共享 25、进度 19）
+    if (
+      !hasEnVocabTodayCheckCounted(snapshot) &&
+      !hasEnVocabReviewToday(snapshot, sessionReviewAt[wordId])
+    ) {
+      setStatus("请先勾选熟悉程度并等保存成功，再同步给学生。");
+      return false;
+    }
 
     const usageSlotCount = listEnVocabUsagePointsForDisplay(snapshot.usage).points
       .length;

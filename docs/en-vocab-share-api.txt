@@ -1,0 +1,195 @@
+英语抽背 · 同步给学生（今日共享）API
+====================================
+
+用途
+----
+把指定词条写入今日 `en_vocab_shared`，学生端 `/en-vocab/study`「今日背英语单词」
+即可看到（列表按 `shared_at` 倒序）。
+
+产品约定（与网页老师抽查卡一致）：
+1. 先 POST `/api/en-vocab` 勾选熟悉程度（整词 `level` 或按用法 `usage_levels`）
+2. 写库成功后，老师点「下一个」/「完成抽查」再调本接口
+3. **每词今日只成功共享一次**；已共享勿重复发
+4. **禁止**未勾选熟悉程度就 share（否则会出现：学生列表已有 N 条，
+   管理员「今日抽查进度」仍少几条）
+
+
+线上地址
+--------
+POST https://english.info-quests.com/api/en-vocab/share
+
+说明：也可用 finance.info-quests.com 同路径（同一 Worker / 同一 D1）。
+
+
+本机开发（可选）
+---------------
+POST http://127.0.0.1:3002/api/en-vocab/share
+
+
+鉴权
+----
+须登录 Cookie 会话（credentials: include）。
+
+允许：管理员，或持有英语 operate 权限的老师账号。
+
+Header：
+  Cookie: <登录会话>
+  Content-Type: application/json
+  x-locale: zh | en   （可选；影响部分错误文案语言）
+
+
+请求体
+------
+{
+  "word_id": 45
+}
+
+字段：
+  word_id  必填。正整数词条 id。
+
+
+前置条件（重要）
+----------------
+该词今日必须已写入抽查（`today_check_date` = 北京今日且
+`today_check_count` > 0）。通常来自：
+
+  POST /api/en-vocab
+  { "word_id": 45, "level": "normal" }
+  或
+  { "word_id": 45, "usage_levels": ["very", "normal"] }
+
+未满足时本接口返回 409 + 中文提示（见下），**不会**写入共享表。
+
+
+成功响应（节选）
+----------------
+{
+  "ok": true,
+  "word": {
+    "id": 45,
+    "word": "condition",
+    "today_check_count": 1,
+    "today_check_date": "2026-09-07",
+    "…"
+  },
+  "item": {
+    "id": 1,
+    "word_id": 45,
+    "shared_by": "teacher1",
+    "shared_at": "2026-09-07T13:04:11.037Z",
+    "share_date": "2026-09-07",
+    "…"
+  }
+}
+
+说明：
+- `word` 为列表瘦身字段（不含备注等大正文）；学生列表再走 GET /api/en-vocab/shared。
+- Cache：写入后会失效今日共享列表短缓存。
+
+
+失败响应
+--------
+401
+  { "ok": false, "error": "请登录后再共享。" }
+  （x-locale=en → "Please log in to share words."）
+
+403
+  { "ok": false, "error": "仅管理员或英语老师可共享单词。" }
+
+400
+  { "ok": false, "error": "word_id_invalid" }
+  → 缺少 / 非法 word_id
+
+404
+  { "ok": false, "error": "not_found" }
+  → 词条不存在
+
+409
+  { "ok": false, "error": "already_shared_today" }
+  → 今日已共享；网页点「下一个」应视为成功跳过，勿反复 POST
+
+409
+  { "ok": false, "error": "请先勾选熟悉程度，再同步给学生。" }
+  （内部码 review_required；x-locale=en → "Mark familiarity before sharing."）
+  → 今日尚未勾选熟悉程度（无 today_check）；须先 POST /api/en-vocab 再 share
+
+500
+  { "ok": false, "error": "…" }
+
+
+推荐调用顺序
+------------
+1. POST /api/en-vocab  （level 或 usage_levels；shareToStudy 固定 false）
+2. 确认响应 word.today_check_count ≥ 1 且 today_check_date 为北京今日
+3. POST /api/en-vocab/share  { "word_id": N }
+4. 若 409 already_shared_today → 当作已同步，继续下一词
+5. 若 409「请先勾选熟悉程度…」→ 回到步骤 1，勿强行 share
+
+
+curl 示例
+---------
+# 1) 先勾选
+curl -sS -X POST 'https://english.info-quests.com/api/en-vocab' \
+  -H 'Cookie: 你的登录 Cookie' \
+  -H 'Content-Type: application/json' \
+  -H 'x-locale: zh' \
+  -d '{"word_id":45,"level":"normal"}'
+
+# 2) 再同步给学生
+curl -sS -X POST 'https://english.info-quests.com/api/en-vocab/share' \
+  -H 'Cookie: 你的登录 Cookie' \
+  -H 'Content-Type: application/json' \
+  -H 'x-locale: zh' \
+  -d '{"word_id":45}'
+
+
+Python 最小例
+-------------
+import requests
+
+BASE = "https://english.info-quests.com"
+COOKIE = "你的登录 Cookie"
+HEADERS = {
+    "Cookie": COOKIE,
+    "Content-Type": "application/json",
+    "x-locale": "zh",
+}
+WORD_ID = 45
+
+# 先写熟悉程度
+r1 = requests.post(
+    f"{BASE}/api/en-vocab",
+    headers=HEADERS,
+    json={"word_id": WORD_ID, "level": "normal"},
+    timeout=60,
+)
+r1.raise_for_status()
+assert r1.json().get("ok"), r1.text
+
+# 再共享（已共享则接受 409）
+r2 = requests.post(
+    f"{BASE}/api/en-vocab/share",
+    headers=HEADERS,
+    json={"word_id": WORD_ID},
+    timeout=60,
+)
+data = r2.json()
+if r2.status_code == 409 and data.get("error") == "already_shared_today":
+    print("already shared today, ok to skip")
+elif r2.status_code == 409 and "熟悉程度" in str(data.get("error") or ""):
+    raise SystemExit("review_required: mark familiarity first")
+else:
+    r2.raise_for_status()
+    assert data.get("ok"), data
+    print("shared ok", data.get("item", {}).get("word_id"))
+
+
+相关
+----
+- 词表 / 勾选总览：docs/en-vocab-api.txt
+- 学生今日列表：docs/en-vocab-shared-api.txt
+- 按需备注：docs/en-vocab-class-notes-api.txt
+- 产品规则：.cursor/rules/jp-vocab-share-on-next.mdc、
+  .cursor/rules/vocab-peek-marks-review.mdc
+- 实现：src/app/api/en-vocab/share/route.ts、
+  src/lib/en-vocab-db/share.ts → shareEnVocabWord

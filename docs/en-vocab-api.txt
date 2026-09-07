@@ -325,6 +325,8 @@ curl -sS -X POST 'https://english.info-quests.com/api/en-vocab' \
 POST · 同步给学生（今日共享）
 ────────────────────────────────
 
+完整可复制说明见：**docs/en-vocab-share-api.txt**（含 review_required 门禁）。
+
 请求体
 ------
 {
@@ -348,6 +350,9 @@ POST · 同步给学生（今日共享）
 404  { "ok": false, "error": "not_found" }
 409  { "ok": false, "error": "already_shared_today" }
      → 今日已共享；产品上视为「不必再发」（网页点下一个会跳过）
+409  { "ok": false, "error": "请先勾选熟悉程度，再同步给学生。" }
+     → 内部码 review_required：今日尚未勾选熟悉程度（无 today_check）；
+       须先 POST /api/en-vocab 再 share（禁止未勾选就发给学生）
 
 
 curl 示例
@@ -386,10 +391,12 @@ print(r.status_code, r.json())
 3. 用法/熟悉程度勾完 → POST /api/en-vocab 写库（不共享）
 4. 老师点「下一个」→ 若今日未共享 → POST /api/en-vocab/share
 5. 已共享（或 409 already_shared_today）→ 直接进下一词，勿重复 POST share
+6. 若 409「请先勾选熟悉程度…」→ 回到步骤 3，禁止强行 share
 
 
 相关
 ----
+- 共享专用说明：docs/en-vocab-share-api.txt
 - 本地上传词条：docs/en-vocab-local-upload-api.txt
 - 按需备注：docs/en-vocab-class-notes-api.txt
 - 学生共享列表：docs/en-vocab-shared-api.txt

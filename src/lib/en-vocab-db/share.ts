@@ -54,6 +54,7 @@ import {
 import {
   aggregateEnVocabUsageLevels,
   applyEnVocabReview,
+  hasEnVocabTodayCheckCounted,
   isEnVocabLevel,
   isEnVocabWordReviewLocked,
   serializeEnVocabLastUsageLevels,
@@ -169,6 +170,9 @@ export async function shareEnVocabWord(
   if (enVocabDbState.devStoreEnabled) {
     const word = enVocabDbState.devWords.find((w) => w.id === wordId);
     if (!word) return { ok: false, error: "not_found" };
+    if (!hasEnVocabTodayCheckCounted(word)) {
+      return { ok: false, error: "review_required" };
+    }
     if (await isEnVocabWordSharedToday(db, wordId)) {
       return { ok: false, error: "already_shared_today" };
     }
@@ -210,6 +214,11 @@ export async function shareEnVocabWord(
   }
 
   const updatedWord = mapReviewWordRow(wordRow);
+  // 禁止未勾选熟悉程度就发给学生：否则今日共享条数 > today_check，
+  // 管理员进度条仍显示「还剩 N」，老师却以为已抽完（见 en-vocab-share-requires-review）。
+  if (!hasEnVocabTodayCheckCounted(updatedWord)) {
+    return { ok: false, error: "review_required" };
+  }
 
   const insert = await db
     .prepare(

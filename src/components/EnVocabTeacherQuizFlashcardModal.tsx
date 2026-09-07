@@ -80,13 +80,16 @@ type Props = {
   onClose: () => void;
   /** 最后一词勾选后点「完成」 */
   onComplete: () => void;
-  /** 无编号用法时的整词勾选兜底 */
-  onSelectLevel: (wordId: number, level: EnVocabLevel) => void;
-  /** 有编号用法：每条用法旁勾选（可未齐）；齐了由父组件汇总写库 */
+  /** 无编号用法时的整词勾选兜底；返回是否写库成功（点「下一个」须等成功再 share） */
+  onSelectLevel: (
+    wordId: number,
+    level: EnVocabLevel
+  ) => void | Promise<boolean>;
+  /** 有编号用法：每条用法旁勾选；齐了汇总写库。返回是否写库成功 */
   onSelectUsageLevels?: (
     wordId: number,
     levels: Array<EnVocabLevel | null | undefined>
-  ) => void;
+  ) => void | Promise<boolean>;
   onNavigate: (index: number) => void;
   onOpenRef: (refKey: string, ref?: EnVocabRef) => void;
   onViewRemarks: (word: EnVocabWord) => void;
@@ -359,10 +362,26 @@ export function EnVocabTeacherQuizFlashcardModal({
     setSyncWaitFailed(false);
     const wordId = word.id;
     const alreadyShared = sharedTodayWordIds?.has(wordId) ?? false;
+    const draftLevels = sessionUsageLevels[word.id];
     void (async () => {
       if (nextAdvanceBusyRef.current) return;
       nextAdvanceBusyRef.current = true;
       try {
+        // 用法草稿齐但 selected 仍空：先等写库成功，再 share（禁止无 today_check 就发学生）
+        if (
+          selectedLevel == null &&
+          draftComplete &&
+          onSelectUsageLevels &&
+          draftLevels
+        ) {
+          const saved = await onSelectUsageLevels(wordId, draftLevels);
+          if (saved === false) {
+            pendingNextAfterIdleRef.current = false;
+            setSyncWaitFailed(true);
+            setSyncWaitHint(true);
+            return;
+          }
+        }
         if (!alreadyShared && onEnsureSharedBeforeNext) {
           const ok = await onEnsureSharedBeforeNext(wordId);
           if (ok === "busy") {
@@ -431,6 +450,7 @@ export function EnVocabTeacherQuizFlashcardModal({
     isStudyMode,
     sharedTodayWordIds,
     onEnsureSharedBeforeNext,
+    onSelectUsageLevels,
   ]);
 
   const showUncheckedUsagesBlocked = (
@@ -667,9 +687,36 @@ export function EnVocabTeacherQuizFlashcardModal({
       setNextBlockedHint(true);
       return;
     }
-    // 用法已齐但 selected 未回写：仍触发写库；跳词不再死等 selected
+    // 用法已齐但 selected 未回写：必须等写库成功再 share（禁止 fire-and-forget → 共享了却无 today_check）
     if (!selected && usagesComplete && onSelectUsageLevels) {
-      onSelectUsageLevels(w.id, usageDraftLevels);
+      if (nextAdvanceBusyRef.current) {
+        pendingNextAfterIdleRef.current = true;
+        setSyncWaitFailed(false);
+        setSyncWaitHint(true);
+        return;
+      }
+      void (async () => {
+        if (nextAdvanceBusyRef.current) return;
+        nextAdvanceBusyRef.current = true;
+        setSyncWaitFailed(false);
+        setSyncWaitHint(true);
+        try {
+          const saved = await onSelectUsageLevels(w.id, usageDraftLevels);
+          if (saved === false) {
+            pendingNextAfterIdleRef.current = false;
+            setSyncWaitFailed(true);
+            setSyncWaitHint(true);
+            return;
+          }
+          // savingId 清掉后由 idle effect / 下方直接续；此处立刻 share
+          nextAdvanceBusyRef.current = false;
+          setSyncWaitHint(false);
+          await runShareThenAdvance();
+        } finally {
+          nextAdvanceBusyRef.current = false;
+        }
+      })();
+      return;
     }
     if (saveBusyForNext || nextAdvanceBusyRef.current) {
       pendingNextAfterIdleRef.current = true;

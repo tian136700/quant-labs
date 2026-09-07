@@ -1094,8 +1094,10 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
         onTeacherQuizIntroClose={handleTeacherQuizIntroClose}
         onQuizFlashcardClose={closeTeacherQuizFlashcard}
         onQuizComplete={finishTeacherQuiz}
-        onRecordLevel={(wordId, level) => void recordLevel(wordId, level)}
-        onRecordUsageLevels={(wordId, levels) => void recordUsageLevels(wordId, levels)}
+        onRecordLevel={(wordId, level) => recordLevel(wordId, level)}
+        onRecordUsageLevels={(wordId, levels) =>
+          recordUsageLevels(wordId, levels)
+        }
         onQuizNavigate={(index) =>
           setQuizSession((prev) => (prev ? { ...prev, currentIndex: index } : prev))
         }

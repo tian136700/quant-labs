@@ -86,8 +86,14 @@ type EnVocabPageModalsProps = {
   onTeacherQuizIntroClose: () => void;
   onQuizFlashcardClose: () => void;
   onQuizComplete: () => void;
-  onRecordLevel: (wordId: number, level: EnVocabLevel) => void;
-  onRecordUsageLevels: (wordId: number, levels: Array<EnVocabLevel | null | undefined>) => void;
+  onRecordLevel: (
+    wordId: number,
+    level: EnVocabLevel
+  ) => void | Promise<boolean>;
+  onRecordUsageLevels: (
+    wordId: number,
+    levels: Array<EnVocabLevel | null | undefined>
+  ) => void | Promise<boolean>;
   onQuizNavigate: (index: number) => void;
   onOpenRef: (refKey: string, ref?: EnVocabRef) => void;
   onOpenRemarks: (word: EnVocabWord) => void;

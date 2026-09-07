@@ -87,10 +87,20 @@ def main() -> int:
             errors.append(
                 "tryGoNext: usages complete + no selected must retry onSelectUsageLevels"
             )
-        if "void runShareThenAdvance()" not in body:
+        # 须 await 写库成功后再 share（禁止 fire-and-forget → 共享了却无 today_check）
+        if "await onSelectUsageLevels(w.id, usageDraftLevels)" not in body:
+            errors.append(
+                "tryGoNext: must await onSelectUsageLevels before share "
+                "(not fire-and-forget)"
+            )
+        if "await runShareThenAdvance()" not in body and "void runShareThenAdvance()" not in body:
             errors.append(
                 "tryGoNext: usages complete must call runShareThenAdvance "
                 "(not only pendingNext + wait for selected)"
+            )
+        if "saved === false" not in body:
+            errors.append(
+                "tryGoNext: must abort share/advance when usage level save returns false"
             )
         # Ban the old soft-lock pattern: if (!selected) { pending...; return } without usagesComplete escape
         if re.search(

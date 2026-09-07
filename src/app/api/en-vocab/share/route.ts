@@ -37,8 +37,16 @@ export async function POST(request: Request) {
           ? 404
           : result.error === "already_shared_today"
             ? 409
-            : 400;
-      return jsonResponse({ ok: false, error: result.error }, status);
+            : result.error === "review_required"
+              ? 409
+              : 400;
+      const error =
+        result.error === "review_required"
+          ? locale === "zh"
+            ? "请先勾选熟悉程度，再同步给学生。"
+            : "Mark familiarity before sharing."
+          : result.error;
+      return jsonResponse({ ok: false, error }, status);
     }
 
     return jsonResponse({
