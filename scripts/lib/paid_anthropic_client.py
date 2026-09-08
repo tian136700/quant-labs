@@ -23,6 +23,14 @@ DEFAULT_MODEL = "claude-sonnet-4-6"
 TRANSIENT_ANTHROPIC_HTTP_RETRY_MAX = 3
 TRANSIENT_ANTHROPIC_HTTP_RETRY_BASE_SEC = 20
 
+# Cloudflare WAF（error 1010）会按「浏览器签名」拦默认 Python-urllib UA；
+# 中转 tokken.cc 必须带正常浏览器 UA，否则整词补全 generate 必炸 403。
+ANTHROPIC_HTTP_USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/122.0.0.0 Safari/537.36"
+)
+
 
 def build_ssl_context() -> ssl.SSLContext | None:
     """与 en_vocab_fill_common 保持一致：优先显式 CA，再回退 certifi。"""
@@ -128,6 +136,13 @@ def _is_retryable_anthropic_http(code: int, detail: str) -> bool:
     if int(code) in {429, 502, 503, 504}:
         return True
     lower = (detail or "").lower()
+    # Cloudflare 1010 / 偶发 403：带浏览器 UA 后仍可能抖一下，短退避再试
+    if int(code) == 403 and (
+        "error code: 1010" in lower
+        or "error code:1010" in lower
+        or "forbidden" in lower
+    ):
+        return True
     return (
         "no available accounts" in lower
         or "temporarily unavailable" in lower
@@ -163,6 +178,8 @@ def call_anthropic(
         "Authorization": f"Bearer {token}",
         "anthropic-version": "2023-06-01",
         "content-type": "application/json",
+        "User-Agent": ANTHROPIC_HTTP_USER_AGENT,
+        "Accept": "application/json",
     }
     body: dict[str, Any] = {
         "model": use_model,

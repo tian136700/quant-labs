@@ -69,6 +69,8 @@ def main() -> None:
         raise SystemExit("FAIL: 503 no available accounts must be retryable")
     if not _is_retryable_anthropic_http(429, "rate limit"):
         raise SystemExit("FAIL: 429 must be retryable")
+    if not _is_retryable_anthropic_http(403, "error code: 1010"):
+        raise SystemExit("FAIL: 403/1010 must be retryable")
     if _is_retryable_anthropic_http(400, "bad request"):
         raise SystemExit("FAIL: 400 must NOT be retryable")
 
@@ -77,6 +79,26 @@ def main() -> None:
         raise SystemExit(
             "FAIL: call_anthropic must retry retryable HTTP with sleep"
         )
+    client_src = (
+        ROOT / "scripts" / "lib" / "paid_anthropic_client.py"
+    ).read_text(encoding="utf-8")
+    if "ANTHROPIC_HTTP_USER_AGENT" not in client_src:
+        raise SystemExit(
+            "FAIL: paid_anthropic_client must define ANTHROPIC_HTTP_USER_AGENT "
+            "(Cloudflare blocks Python-urllib → 403/1010)"
+        )
+    if 'User-Agent": ANTHROPIC_HTTP_USER_AGENT' not in client_src and (
+        "User-Agent\": ANTHROPIC_HTTP_USER_AGENT" not in client_src
+    ):
+        # accept either quote style
+        if "ANTHROPIC_HTTP_USER_AGENT" not in src:
+            raise SystemExit(
+                "FAIL: call_anthropic must send ANTHROPIC_HTTP_USER_AGENT"
+            )
+    if "Mozilla/5.0" not in client_src:
+        raise SystemExit("FAIL: User-Agent must look like a browser (Mozilla/5.0)")
+    if "error code: 1010" not in client_src:
+        raise SystemExit("FAIL: client must mention Cloudflare error code 1010")
 
     jp_batch = (ROOT / "scripts/jp-vocab-fill-online-batch-api.py").read_text(
         encoding="utf-8"
