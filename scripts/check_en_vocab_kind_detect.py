@@ -79,6 +79,10 @@ CASES = [
     ("as ------- as possible", True),
     ("as _____ as possible", True),
     ("as ... as possible", True),
+    # 无槽固定短语：保持单词，勿因模型误报 grammar 走 fill-kind
+    ("within a period of time", False),
+    ("in time", False),
+    ("as soon as possible", False),
 ]
 
 
@@ -119,6 +123,13 @@ def main() -> int:
         errors.append(
             "online-batch 未接线 fill-kind / en_vocab_kind_detect（chunk2 须接）"
         )
+    for needle in (
+        "ignore model kind=grammar",
+        "not_grammar_like",
+        "demote payload kind=grammar",
+    ):
+        if needle not in online:
+            errors.append(f"online-batch missing demote guard: {needle!r}")
 
     for word, expect in CASES:
         got = looks_like_grammar(word)

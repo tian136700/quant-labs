@@ -85,6 +85,8 @@ SYSTEM = (
     "If the lemma is a grammar pattern / sentence frame (both A and B, cater to somebody, "
     "Present Perfect, slots like somebody/something/A/B), set kind to \"grammar\"; "
     "otherwise \"word\". Ordinary phrasal verbs without slots (look forward to) stay \"word\". "
+    "Fixed multi-word phrases WITHOUT slots (within a period of time, in time, as soon as possible) "
+    "are kind \"word\" with pos \"phrase\"—NOT grammar; do not omit reading/pos for them. "
     "Multi-word collocations (unbearably tough, in time) use pos \"phrase\", not adj/adv of the head word; "
     "phrasal verbs stay v; complex prepositions (in spite of) stay prep. "
     "If the lemma is an abbreviation/acronym (DMV, CEO, ASAP) or a letter shorthand "
@@ -951,13 +953,27 @@ def generate_bundle(row: dict[str, Any], needs: dict[str, bool]) -> dict[str, An
             raise
     out: dict[str, Any] = {}
 
-    kind_raw = str(data.get("kind") or row.get("kind") or "word").strip().lower()
-    if kind_raw == "grammar" or en_vocab_lemma_looks_like_grammar(
-        str(row.get("word") or "")
-    ):
+    lemma = str(row.get("word") or "")
+    heuristic_grammar = en_vocab_lemma_looks_like_grammar(lemma)
+    row_wants_grammar = (
+        str(row.get("kind") or "word") == "grammar"
+        or bool(row.get("reclassify_to_grammar"))
+        or heuristic_grammar
+    )
+    kind_raw = str(data.get("kind") or "").strip().lower()
+    # 仅本地启发式 / 已标 grammar / 待 reclassify 可升为语法。
+    # 禁止只信模型：无槽短语（within a period of time）常被误标 grammar，
+    # 再被 fill-kind 拒成 not_grammar_like → kind_reclassify_failed 三次熔断。
+    if row_wants_grammar:
         out["kind"] = "grammar"
     else:
         out["kind"] = "word"
+        if kind_raw == "grammar":
+            print(
+                "    ignore model kind=grammar "
+                f"(heuristic not_grammar_like lemma={lemma!r})",
+                flush=True,
+            )
 
     if needs.get("reading"):
         ipa = normalize_ipa(str(data.get("reading") or ""))
@@ -1156,6 +1172,21 @@ def process_one(
         )
         return False
 
+    # 双保险：模型误标 grammar 且无启发式 → 按单词走（勿调 fill-kind、勿缺 reading）
+    if (
+        str(payload.get("kind") or "") == "grammar"
+        and not reclassify
+        and not en_vocab_lemma_looks_like_grammar(word)
+    ):
+        print(
+            "    demote payload kind=grammar → word "
+            f"(not_grammar_like id={wid})",
+            flush=True,
+        )
+        payload["kind"] = "word"
+        needs = full_refresh_needs("word")
+        row["needs"] = needs
+
     # 生成结果已是 grammar：勿再按 word 强制要 reading（防 incomplete_bundle:reading）
     if str(payload.get("kind") or "") == "grammar":
         needs = full_refresh_needs("grammar")
@@ -1183,7 +1214,11 @@ def process_one(
     )
     print(f"    applied={done} source={source}", flush=True)
     preview_text = json.dumps(preview, ensure_ascii=False)
-    want_grammar = reclassify or str(payload.get("kind") or "") == "grammar"
+    # kind 成功要求：仅本地 reclassify / 启发式语法；勿因模型单方 kind=grammar 记 kind_reclassify_failed
+    want_grammar = bool(reclassify) or (
+        str(payload.get("kind") or "") == "grammar"
+        and en_vocab_lemma_looks_like_grammar(word)
+    )
     report_kind = "grammar" if want_grammar else "word"
     # 整包缺一不可：音标/释义/用法/例句任一没写入 → 不算成功（禁止下次再拆着烧）
     required = expected_applied_keys(needs)
