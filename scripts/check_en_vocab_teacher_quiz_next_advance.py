@@ -191,6 +191,44 @@ def main() -> int:
             "pendingNext effect: must continue when draftComplete even if selectedLevel null"
         )
 
+    # --- peek 须视为已共享（idle / 超时后），禁止再 POST /share 钉死 ---
+    if "studentPeekedRef" not in modal or "sharedTodayWordIdsRef" not in modal:
+        errors.append(
+            "modal: must keep studentPeekedRef + sharedTodayWordIdsRef "
+            "(share timeout must re-check peek, not stale closure)"
+        )
+    if "Boolean(studentPeeked)" not in modal and "studentPeeked)" not in modal:
+        errors.append("modal: alreadyShared / isShared must honor studentPeeked")
+    # idle alreadyShared 须含 peek（禁止只认 sharedTodayWordIds）
+    idle_shared = re.search(
+        r"const alreadyShared\s*=\s*([\s\S]{0,220}?);",
+        modal,
+    )
+    if not idle_shared or "studentPeeked" not in idle_shared.group(1):
+        errors.append(
+            "pendingNext idle: alreadyShared must include studentPeeked "
+            "(peek already wrote en_vocab_shared; extra /share can 1102/timeout)"
+        )
+    if "sharedAfterFail" not in modal:
+        errors.append(
+            "modal: share failure must re-check peek/shared (sharedAfterFail) "
+            "before showing 同步失败"
+        )
+    if "syncFailIsShareRef" not in modal:
+        errors.append(
+            "modal: must distinguish share vs save failure (syncFailIsShareRef); "
+            "peek may only clear share timeouts"
+        )
+    # peek 已亮时若仍亮失败弹窗须能清掉（含 syncWaitFailed 依赖）
+    if not re.search(
+        r"syncWaitHint,\s*syncWaitFailed\]",
+        modal,
+    ) and "syncWaitFailed]" not in modal:
+        errors.append(
+            "modal: clear-on-peek effect deps must include syncWaitFailed "
+            "(peek often precedes the failure overlay)"
+        )
+
     # --- save failure must keep complete draft ---
     if "setSessionUsageLevels((prev) => ({ ...prev, [wordId]: complete }))" not in actions:
         errors.append(

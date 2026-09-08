@@ -1,9 +1,12 @@
 import { jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
+import { requireEnVocabAccess, requireEnVocabRead, requireEnVocabStudyAccess } from "@/lib/en-vocab-auth";
 import {
   ensureEnVocabDailyDisplayOrder,
   ensureEnVocabTeacherVisibleLimit,
   getEnVocabDailyQuizStyle,
+  getEnVocabTeacherQuizLive,
   getEnVocabWordByIdLite,
+  isEnVocabWordSharedToday,
   listEnVocabSharedTodayWordIds,
   listEnVocabWordsWithRefs,
   recordEnVocabReview,
@@ -13,7 +16,6 @@ import {
   setEnVocabDailyQuizStyle,
   setEnVocabDailyQuizTarget,
 } from "@/lib/en-vocab-db";
-import { requireEnVocabAccess, requireEnVocabRead } from "@/lib/en-vocab-auth";
 import { requireAdmin } from "@/lib/admin-auth";
 import { redactJpVocabWordsMnemonicForClient } from "@/lib/jp-vocab-mnemonic";
 import {
@@ -47,25 +49,46 @@ export async function GET(request: Request) {
   const locale = localeFromRequest(request);
 
   try {
-    const { env, allowed } = await requireEnVocabRead(request);
-    if (!allowed) {
-      return jsonResponse({ ok: false, error: READ_AUTH_MSG[locale] }, 401);
-    }
-    const { isAdmin } = await requireAdmin(request);
-
     const wordIdRaw = new URL(request.url).searchParams.get("word_id");
+    // 单条详情：老师/管理员可读；学生仅今日已共享或当前 live 词（卡片补用法/例句）
     if (wordIdRaw != null && wordIdRaw.trim() !== "") {
       const wordId = Number(wordIdRaw);
       if (!Number.isInteger(wordId) || wordId <= 0) {
         return jsonResponse({ ok: false, error: "word_id_invalid" }, 400);
       }
+
+      const read = await requireEnVocabRead(request);
+      let env = read.env;
+      let allowed = read.allowed;
+      if (!allowed) {
+        const study = await requireEnVocabStudyAccess(request);
+        env = study.env;
+        if (study.allowed) {
+          const [sharedToday, live] = await Promise.all([
+            isEnVocabWordSharedToday(env.DB, wordId),
+            getEnVocabTeacherQuizLive(env.DB, new Date(), { bypassCache: true }),
+          ]);
+          allowed = sharedToday || live.word_id === wordId;
+        }
+      }
+      if (!allowed) {
+        return jsonResponse({ ok: false, error: READ_AUTH_MSG[locale] }, 401);
+      }
+
       const word = await getEnVocabWordByIdLite(env.DB, wordId);
       if (!word) {
         return jsonResponse({ ok: false, error: "not_found" }, 404);
       }
+      const { isAdmin } = await requireAdmin(request);
       const [redacted] = redactJpVocabWordsMnemonicForClient([word], isAdmin);
       return jsonResponse({ ok: true, word: redacted });
     }
+
+    const { env, allowed } = await requireEnVocabRead(request);
+    if (!allowed) {
+      return jsonResponse({ ok: false, error: READ_AUTH_MSG[locale] }, 401);
+    }
+    const { isAdmin } = await requireAdmin(request);
 
     const [{ words, refs }, daily_quiz_style, shared_today_word_ids] =
       await Promise.all([

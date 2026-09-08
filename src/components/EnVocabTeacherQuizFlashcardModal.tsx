@@ -153,6 +153,8 @@ export function EnVocabTeacherQuizFlashcardModal({
   const [syncWaitHint, setSyncWaitHint] = useState(false);
   /** true=超时/失败文案（须盖在抽查卡上）；false=进行中请稍等 */
   const [syncWaitFailed, setSyncWaitFailed] = useState(false);
+  /** share 超时才可被 peek 清掉；熟悉程度写库失败须保留提示 */
+  const syncFailIsShareRef = useRef(false);
   /** 点「完成抽查」时会话内仍有未勾选词 */
   const [remainingUncheckedHint, setRemainingUncheckedHint] = useState(false);
   /** 本词答题正计时（秒）；换词归零，勾选熟悉程度后停住 */
@@ -163,6 +165,11 @@ export function EnVocabTeacherQuizFlashcardModal({
   const nextAdvanceBusyRef = useRef(false);
   /** 保存中点了「下一个」：闲下来后自动继续同步并跳词 */
   const pendingNextAfterIdleRef = useRef(false);
+  /** share 超时 await 后须读最新 peek/shared（勿用过期闭包） */
+  const studentPeekedRef = useRef(studentPeeked);
+  const sharedTodayWordIdsRef = useRef(sharedTodayWordIds);
+  studentPeekedRef.current = studentPeeked;
+  sharedTodayWordIdsRef.current = sharedTodayWordIds;
 
   const currentWordId =
     session && session.wordIds[session.currentIndex] != null
@@ -312,13 +319,17 @@ export function EnVocabTeacherQuizFlashcardModal({
     if (!currentWordSaveBusy && !syncWaitFailed) setSyncWaitHint(false);
   }, [currentWordSaveBusy, syncWaitFailed]);
 
-  // 学生已查看 / 今日已共享：立刻关掉「正在同步」卡死提示
+  // 学生已查看 / 今日已共享：清掉「多余 share」失败提示（peek 已入共享表）
+  // 熟悉程度写库失败不要清——peek 不能代替勾选保存
   useEffect(() => {
     if (!word) return;
     if (!studentPeeked && !(sharedTodayWordIds?.has(word.id) ?? false)) return;
+    if (!syncWaitHint && !syncWaitFailed) return;
+    if (syncWaitFailed && !syncFailIsShareRef.current) return;
+    syncFailIsShareRef.current = false;
     setSyncWaitFailed(false);
     setSyncWaitHint(false);
-  }, [studentPeeked, sharedTodayWordIds, word?.id]);
+  }, [studentPeeked, sharedTodayWordIds, word?.id, syncWaitHint, syncWaitFailed]);
 
   const wordHasLevel = (wordId: number) => {
     if (
@@ -361,7 +372,9 @@ export function EnVocabTeacherQuizFlashcardModal({
     setSyncWaitHint(false);
     setSyncWaitFailed(false);
     const wordId = word.id;
-    const alreadyShared = sharedTodayWordIds?.has(wordId) ?? false;
+    // peek 已写入 en_vocab_shared：与 sharedToday 同等视为已同步（勿再 POST /share 卡死）
+    const alreadyShared =
+      (sharedTodayWordIds?.has(wordId) ?? false) || Boolean(studentPeeked);
     const draftLevels = sessionUsageLevels[word.id];
     void (async () => {
       if (nextAdvanceBusyRef.current) return;
@@ -377,6 +390,7 @@ export function EnVocabTeacherQuizFlashcardModal({
           const saved = await onSelectUsageLevels(wordId, draftLevels);
           if (saved === false) {
             pendingNextAfterIdleRef.current = false;
+            syncFailIsShareRef.current = false;
             setSyncWaitFailed(true);
             setSyncWaitHint(true);
             return;
@@ -392,11 +406,20 @@ export function EnVocabTeacherQuizFlashcardModal({
             return;
           }
           if (!ok) {
-            // 真失败/超时：清 pending，勿自动死循环；弹层提示再点「下一个」
-            pendingNextAfterIdleRef.current = false;
-            setSyncWaitFailed(true);
-            setSyncWaitHint(true);
-            return;
+            // 超时瞬间学生可能已 peek：再认一次，避免假失败钉死「下一个」
+            const sharedAfterFail =
+              (sharedTodayWordIdsRef.current?.has(wordId) ?? false) ||
+              Boolean(studentPeekedRef.current);
+            if (sharedAfterFail) {
+              // fall through to advance
+            } else {
+              // 真失败/超时：清 pending，勿自动死循环；弹层提示再点「下一个」
+              pendingNextAfterIdleRef.current = false;
+              syncFailIsShareRef.current = true;
+              setSyncWaitFailed(true);
+              setSyncWaitHint(true);
+              return;
+            }
           }
         }
         const sessionChecked = session.wordIds.filter((id) =>
@@ -449,6 +472,7 @@ export function EnVocabTeacherQuizFlashcardModal({
     previewMode,
     isStudyMode,
     sharedTodayWordIds,
+    studentPeeked,
     onEnsureSharedBeforeNext,
     onSelectUsageLevels,
   ]);
@@ -638,6 +662,7 @@ export function EnVocabTeacherQuizFlashcardModal({
     if (nextAdvanceBusyRef.current) return;
     nextAdvanceBusyRef.current = true;
     try {
+      // isShared 含学生 peek；peek 已入今日共享，禁止再打 /share（易 1102/超时钉死）
       if (!isShared && onEnsureSharedBeforeNext) {
         const ok = await onEnsureSharedBeforeNext(w.id);
         if (ok === "busy") {
@@ -647,11 +672,17 @@ export function EnVocabTeacherQuizFlashcardModal({
           return;
         }
         if (!ok) {
-          // 真失败/超时：清 pending，勿自动死循环；弹层提示再点「下一个」
-          pendingNextAfterIdleRef.current = false;
-          setSyncWaitFailed(true);
-          setSyncWaitHint(true);
-          return;
+          const sharedAfterFail =
+            (sharedTodayWordIdsRef.current?.has(w.id) ?? false) ||
+            Boolean(studentPeekedRef.current);
+          if (!sharedAfterFail) {
+            // 真失败/超时：清 pending，勿自动死循环；弹层提示再点「下一个」
+            pendingNextAfterIdleRef.current = false;
+            syncFailIsShareRef.current = true;
+            setSyncWaitFailed(true);
+            setSyncWaitHint(true);
+            return;
+          }
         }
       }
       runAdvanceAfterShare();
@@ -704,6 +735,7 @@ export function EnVocabTeacherQuizFlashcardModal({
           const saved = await onSelectUsageLevels(w.id, usageDraftLevels);
           if (saved === false) {
             pendingNextAfterIdleRef.current = false;
+            syncFailIsShareRef.current = false;
             setSyncWaitFailed(true);
             setSyncWaitHint(true);
             return;

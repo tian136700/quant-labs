@@ -417,6 +417,24 @@ export function mapEnVocabListWordRow(row: Record<string, unknown>): EnVocabWord
   };
 }
 
+/**
+ * 今日共享列表（学生端）：条数少，保留 usage/例句/接序正文。
+ * 仍省略 class_notes 正文（只 has_class_notes），防备注贴图撑爆 shared。
+ */
+export function mapEnVocabSharedStudyWordRow(
+  row: Record<string, unknown>
+): EnVocabWord {
+  const word = mapRow({ ...row, class_notes: null });
+  return {
+    ...word,
+    class_notes: null,
+    class_notes_present: Boolean(Number(row.has_class_notes)),
+    usage_present: Boolean((word.usage || "").trim()),
+    example_sentences_present: Boolean((word.example_sentences || "").trim()),
+    connection_present: Boolean((word.connection || "").trim()),
+  };
+}
+
 /** 勾选熟悉程度 / share 读单条：用 LIST 形（无大字段正文），防塞回列表 → 1102 */
 export function mapReviewWordRow(row: Record<string, unknown>): EnVocabWord {
   return mapEnVocabListWordRow(row);

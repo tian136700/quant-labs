@@ -92,7 +92,7 @@ import {
   refsRecord,
   listEnVocabRefs,
   listEnVocabRefsByKeys,
-  mapSharedListWordRow,
+  mapEnVocabSharedStudyWordRow,
   seedIfEmpty,
 } from "./helpers";
 import {
@@ -335,7 +335,10 @@ export async function queryEnVocabSharedToday(
     .all<Record<string, unknown>>();
 
   const items = (result.results ?? []).map((row) => {
-    const word = mapSharedListWordRow({
+    // 今日共享条数少：保留 usage/例句/接序正文给学生卡直接展示。
+    // 禁止再走 mapSharedListWordRow（会剥正文只留 present）——学生无 en_vocab:read，
+    // 按需 GET /api/en-vocab?word_id= 会 401 → 卡片「暂无用法与例句」，老师端却正常。
+    const word = mapEnVocabSharedStudyWordRow({
       id: row.w_id,
       word: row.word,
       reading: row.reading,

@@ -1,9 +1,15 @@
 import { getCloudflareEnv, jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 import {
   getEnVocabClassNotes,
+  getEnVocabTeacherQuizLive,
+  isEnVocabWordSharedToday,
   updateEnVocabClassNotes,
 } from "@/lib/en-vocab-db";
-import { requireEnVocabAccess, requireEnVocabRead } from "@/lib/en-vocab-auth";
+import {
+  requireEnVocabAccess,
+  requireEnVocabRead,
+  requireEnVocabStudyAccess,
+} from "@/lib/en-vocab-auth";
 import { jsonResponseObserving1102 } from "@/lib/worker-1102-observe";
 
 const AUTH_MSG = {
@@ -31,7 +37,20 @@ export async function GET(request: Request) {
       );
     }
 
-    const { env, allowed } = await requireEnVocabRead(request);
+    const read = await requireEnVocabRead(request);
+    let env = read.env;
+    let allowed = read.allowed;
+    if (!allowed) {
+      const study = await requireEnVocabStudyAccess(request);
+      env = study.env;
+      if (study.allowed) {
+        const [sharedToday, live] = await Promise.all([
+          isEnVocabWordSharedToday(env.DB, wordId),
+          getEnVocabTeacherQuizLive(env.DB, new Date(), { bypassCache: true }),
+        ]);
+        allowed = sharedToday || live.word_id === wordId;
+      }
+    }
     if (!allowed) {
       return jsonResponseObserving1102(
         request,
