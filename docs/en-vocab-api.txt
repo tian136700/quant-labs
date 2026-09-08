@@ -42,7 +42,17 @@ POST     http://127.0.0.1:3002/api/en-vocab/share
 鉴权
 ----
 须登录 Cookie 会话：
-- GET：英语词表读权限（老师 / 管理员）
+
+- GET 全库列表（无 word_id）：英语词表**读**权限
+  （en_vocab:read / operate，或 en_lesson:operate 等，同 requireEnVocabRead）
+  → **学生 en_vocab:study 不可拉全库**
+
+- GET ?word_id=N（单条详情）：
+  1) 有读权限 → 任意词条
+  2) 仅 en_vocab:study（学生，且非老师）→ **仅当**该词今日已写入
+     en_vocab_shared，**或**是老师当前 teacher-quiz-live 词
+     （用于今日单词卡补用法/例句；禁止借此扫全库）
+
 - POST 勾选 / share：英语 operate（或管理员）
 - POST set_daily_quiz_target / daily_quiz_style / reset*：管理员
 
@@ -137,6 +147,15 @@ Query
 word_id   必填。正整数词条 id。
 
 
+鉴权补充（学生）
+----------------
+今日背英语单词学生账号只有 en_vocab:study、没有读全库权限。
+对这类会话：仅当 word_id 属于「今日已共享」或「老师当前 live 词」才放行；
+其它 id → 401（与未登录同文案）。
+
+老师 / 管理员（有 read/operate）不受此限制。
+
+
 成功响应（节选）
 ----------------
 {
@@ -160,21 +179,30 @@ word_id   必填。正整数词条 id。
 
 说明：
 - 单条会带回 usage / example_sentences / connection 正文（若库中有）。
-- 备注正文仍可能省略；备注请用 docs/en-vocab-class-notes-api.txt。
+- 备注正文仍省略；备注请用 docs/en-vocab-class-notes-api.txt。
 - 非管理员 mnemonic 可能被 redact。
+- 学生端主路径：GET /api/en-vocab/shared 已直接带用法/例句正文
+  （见 docs/en-vocab-shared-api.txt）；本接口作按需补拉兜底。
 
 
 失败响应
 --------
 401  { "ok": false, "error": "…" }
+     // 未登录；或学生拉了非今日共享/非 live 的 word_id
 400  { "ok": false, "error": "word_id_invalid" }
 404  { "ok": false, "error": "not_found" }
 
 
 curl 示例
 ---------
+# 老师 / 管理员
 curl -sS 'https://english.info-quests.com/api/en-vocab?word_id=45' \
   -H 'Cookie: 你的登录 Cookie' \
+  -H 'x-locale: zh'
+
+# 学生：仅今日已共享或当前 live 词会成功
+curl -sS 'https://english.info-quests.com/api/en-vocab?word_id=45' \
+  -H 'Cookie: 学生 en_vocab:study 会话 Cookie' \
   -H 'x-locale: zh'
 
 
@@ -183,7 +211,7 @@ Python 最小例
 import requests
 
 BASE = "https://english.info-quests.com"
-COOKIE = "你的登录 Cookie"
+COOKIE = "你的登录 Cookie"  # 老师读任意；学生须该词今日已共享或 live
 
 r = requests.get(
     f"{BASE}/api/en-vocab",
@@ -393,6 +421,12 @@ print(r.status_code, r.json())
 5. 已共享（或 409 already_shared_today）→ 直接进下一词，勿重复 POST share
 6. 若 409「请先勾选熟悉程度…」→ 回到步骤 3，禁止强行 share
 
+学生「今日背英语单词」
+----------------------
+1. GET /api/en-vocab/shared（或 ?lite=1）→ 列表已含 usage/例句正文；备注仅 present
+2. 打开卡片：一般无需再拉 word_id；若本地正文缺失再 GET ?word_id=N（须已共享或 live）
+3. 备注：GET /api/en-vocab/class-notes?word_id=N（鉴权同单条详情学生门禁）
+
 
 相关
 ----
@@ -401,5 +435,7 @@ print(r.status_code, r.json())
 - 按需备注：docs/en-vocab-class-notes-api.txt
 - 学生共享列表：docs/en-vocab-shared-api.txt
 - 今日抽查数量读：docs/en-vocab-teacher-visible-api.txt
-- 产品规则：.cursor/rules/jp-vocab-share-on-next.mdc、en-vocab-usage-level-aggregate.mdc、shared-list-no-notes-blob.mdc
+- 产品规则：.cursor/rules/jp-vocab-share-on-next.mdc、en-vocab-usage-level-aggregate.mdc、
+  shared-list-no-notes-blob.mdc、en-vocab-study-flashcard-parity.mdc
 - 实现：src/app/api/en-vocab/route.ts、src/app/api/en-vocab/share/route.ts
+- 回归：python3 scripts/check_en_vocab_study_usage_visible.py

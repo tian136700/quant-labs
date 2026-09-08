@@ -34,10 +34,14 @@ POST http://127.0.0.1:3002/api/en-vocab/class-notes
 ----
 须登录 Cookie 会话（credentials: include）。
 
-GET：须英语词库**读**权限（en_vocab:read / operate，或 en_lesson:operate 等，
-     同 requireEnVocabRead）。
+GET：
+  1) 英语词库**读**权限（en_vocab:read / operate，或 en_lesson:operate 等，
+     同 requireEnVocabRead）→ 任意 word_id
+  2) 仅 en_vocab:study（学生，且非老师）→ **仅当**该词今日已写入
+     en_vocab_shared，**或**是老师当前 teacher-quiz-live 词
+     （今日单词卡按需拉备注；禁止借此扫全库备注）
 
-POST：须英语词库写权限（同 requireEnVocabAccess）。
+POST：须英语词库写权限（同 requireEnVocabAccess）。学生不可写。
 
 Header（可选）：
   x-locale: zh | en
@@ -51,6 +55,12 @@ GET · 按需拉备注正文
 请求参数（Query）
 -----------------
 word_id   必填。正整数词条 id。
+
+
+鉴权补充（学生）
+----------------
+与 GET /api/en-vocab?word_id= 相同门禁：今日已共享或当前 live 才放行；
+其它 id → 401。
 
 
 成功响应（节选）
@@ -71,20 +81,29 @@ word_id   必填。正整数词条 id。
   class_notes_present / updated_at。
 - 客户端须 `mergeEnVocabWordAfterClassNotesFetch(base, fetched)`，
   禁止 `...fetched` 整词覆盖（会冲掉例句 / 用法）。
+- Cache-Control: no-store。
 
 
 失败响应
 --------
 400  { "ok": false, "error": "word_id_invalid" }
 401  { "ok": false, "error": "请登录后查看课堂笔记。" }
+     // 未登录；或学生拉了非今日共享/非 live 的 word_id
 404  { "ok": false, "error": "not_found" }
 500  { "ok": false, "error": "…" }
 
 
 curl 示例
 ---------
+# 老师 / 管理员
 curl -sS \
   -H 'Cookie: 你的登录 Cookie' \
+  -H 'x-locale: zh' \
+  'https://english.info-quests.com/api/en-vocab/class-notes?word_id=123'
+
+# 学生：仅今日已共享或当前 live 词会成功
+curl -sS \
+  -H 'Cookie: 学生 en_vocab:study 会话 Cookie' \
   -H 'x-locale: zh' \
   'https://english.info-quests.com/api/en-vocab/class-notes?word_id=123'
 
@@ -94,7 +113,7 @@ Python 最小例
 import requests
 
 BASE = "https://english.info-quests.com"
-COOKIE = "你的登录 Cookie"
+COOKIE = "你的登录 Cookie"  # 老师读任意；学生须该词今日已共享或 live
 
 r = requests.get(
     f"{BASE}/api/en-vocab/class-notes",
@@ -163,6 +182,10 @@ print(r.status_code, r.json())
 
 相关
 ----
-- 今日列表：docs/en-vocab-shared-api.txt（无正文，只有 present 标记）
+- 今日列表：docs/en-vocab-shared-api.txt（用法/例句有正文；备注只有 present）
+- 单条用法补拉：docs/en-vocab-api.txt（GET ?word_id=，学生门禁同本接口）
 - 贴图上传：POST /api/en-vocab/class-notes/upload（网页内用；本 TXT 不展开）
 - 1102：GET 成功/失败路径会记重信号（jsonResponseObserving1102）
+- 产品：.cursor/rules/en-vocab-study-flashcard-parity.mdc、shared-list-no-notes-blob.mdc
+- 实现：src/app/api/en-vocab/class-notes/route.ts
+- 回归：python3 scripts/check_en_vocab_study_usage_visible.py

@@ -6,9 +6,12 @@
 学生「今日英语单词」轮询主接口：拉今日已同步给学生的词条列表，以及老师当前
 live 抽查词 id、抽查目标分母。
 
-**不返回备注正文**（`class_notes` 省略 / null）；用
-`word.class_notes_present` 判断有无备注，正文按需再调
-GET /api/en-vocab/class-notes。
+字段约定（防 1102 + 学生卡可见用法）：
+- **保留** `usage` / `example_sentences` / `connection` 正文（今日条数少；
+  学生无全库读权限，剥正文会导致卡片「暂无用法与例句」）
+- **不返回**备注正文（`class_notes` 为 null）；用
+  `word.class_notes_present` 判断有无备注，正文按需再调
+  GET /api/en-vocab/class-notes（学生仅今日已共享或 live 词）
 
 
 线上地址
@@ -81,6 +84,7 @@ lite   选填。传 `1` 时不查 quiz_progress（更轻）。
   `complete=true` 表示老师侧已抽满。学生页进度**分子**用 `items.length`，
   不要用 API 的 `checked`。
 - 热路径**禁止**再跑 ensureVocabWordSchema 全表 TRIM（易冷 isolate 1102）。
+- 映射用 `mapEnVocabSharedStudyWordRow`（保留用法/例句；剥 class_notes）。
 - Cache-Control: no-store；服务端对今日列表有短缓存。
 
 
@@ -128,6 +132,8 @@ print("live=", data.get("teacher_live_word_id"))
 ----
 - 老师 live / 学生 peek：docs/en-vocab-teacher-quiz-live-api.txt
   （PUT 写当前词、POST peek；学生页**勿**对本接口定时轮询）
-- 备注正文：docs/en-vocab-class-notes-api.txt
-- 老师熟悉程度 / share：docs/en-vocab-api.txt
+- 备注正文：docs/en-vocab-class-notes-api.txt（学生门禁：今日共享或 live）
+- 老师熟悉程度 / share / 单条 word_id：docs/en-vocab-api.txt
 - 1102：响应走 jsonResponseObserving1102（诊断看板 /admin/worker-1102）
+- 回归：python3 scripts/check_en_vocab_study_usage_visible.py
+  、python3 scripts/check_en_vocab_study_shared_1102.py
