@@ -215,6 +215,12 @@ def main() -> int:
         errors.append("Bark 标题须含「补全熔断」")
     if 'level": "active"' not in br and "level=active" not in br:
         errors.append("熔断 Bark 须 level=active（勿 silent/critical）")
+    if "is_transient_anthropic_error" not in br or "skip strike" not in br:
+        errors.append(
+            "after_attempt 须对瞬时网关错误 skip strike（防 403/1010 误熔断全站）"
+        )
+    if "error code: 1010" not in rule and "403/1010" not in rule:
+        errors.append("熔断规则须写明 403/1010 不计 strike")
 
     if errors:
         print("check_vocab_fill_circuit_breaker: FAIL", file=sys.stderr)

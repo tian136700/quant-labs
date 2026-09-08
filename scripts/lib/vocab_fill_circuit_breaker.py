@@ -640,15 +640,33 @@ def after_attempt(
     每次对某词打完接口后调用。
     fixed=True → 清零计数；fixed=False → 记第 N 次失败原因；≥3 → 熔断全停。
     返回当前累计次数。
+
+    中转/鉴权抖动（HTTP 401/403/1010/429/5xx、timeout 等）不算「词条搞不定」：
+    只短 poison 跳过本词，禁止计入 3 次熔断（否则网关 WAF 会误停全站补全）。
     """
     if fixed:
         clear_attempts(scope, word_id)
         return 0
+    reason = detail or "not_fixed"
+    # lazy import：避免与 paid_anthropic_client 循环依赖
+    try:
+        from paid_anthropic_client import is_transient_anthropic_error
+    except Exception:  # noqa: BLE001
+        is_transient_anthropic_error = None  # type: ignore[assignment]
+    if is_transient_anthropic_error is not None and is_transient_anthropic_error(
+        reason
+    ):
+        cur = get_attempt_count(scope, word_id)
+        _log(
+            f"skip strike (transient gateway): {scope}:{word_id} "
+            f"word={word!r} count_stays={cur} reason={reason[:160]}"
+        )
+        return cur
     count = record_attempt(
         scope,
         word_id,
         word,
-        reason=detail or "not_fixed",
+        reason=reason,
     )
     if count >= max_attempts():
         trip_kill_switch(
@@ -656,7 +674,7 @@ def after_attempt(
             word_id=word_id,
             word=word,
             attempts=count,
-            detail=detail or "not_fixed_after_max_attempts",
+            detail=reason or "not_fixed_after_max_attempts",
         )
     return count
 

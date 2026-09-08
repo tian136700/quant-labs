@@ -28,6 +28,7 @@ def main() -> None:
     cases_yes = [
         'generate:Anthropic 中转 HTTP 401: {"error":{"message":"Invalid token"}}',
         "Anthropic 中转 HTTP 403: forbidden",
+        "generate:Anthropic 中转 HTTP 403: error code: 1010\n",
         "HTTP 429 rate limit",
         "HTTP 502 Bad Gateway",
         "HTTP 503",
@@ -98,6 +99,43 @@ def main() -> None:
             "FAIL: en online-batch must use poison_seconds_for_generate_error "
             "+ mark_poison"
         )
+
+    # 瞬时网关错误不得计入 3 次熔断（403/1010 曾误停全站）
+    sys.path.insert(0, str(ROOT / "scripts" / "lib"))
+    from vocab_fill_circuit_breaker import (  # noqa: E402
+        after_attempt,
+        clear_attempts,
+        get_attempt_count,
+    )
+
+    scope = "test-transient-skip"
+    wid = 900_507
+    clear_attempts(scope, wid)
+    for _ in range(3):
+        n = after_attempt(
+            scope=scope,
+            word_id=wid,
+            word="bike lane",
+            fixed=False,
+            detail="generate:Anthropic 中转 HTTP 403: error code: 1010\n",
+        )
+        if n != 0:
+            raise SystemExit(
+                f"FAIL: transient 403/1010 must not strike (got count={n})"
+            )
+    if get_attempt_count(scope, wid) != 0:
+        raise SystemExit("FAIL: transient strikes must leave attempt count at 0")
+    # 内容错误仍须累计
+    n1 = after_attempt(
+        scope=scope,
+        word_id=wid,
+        word="bike lane",
+        fixed=False,
+        detail="incomplete_bundle:reading",
+    )
+    if n1 != 1:
+        raise SystemExit(f"FAIL: content error should strike once (got {n1})")
+    clear_attempts(scope, wid)
 
     print("[check_paid_anthropic_transient_poison] OK")
 

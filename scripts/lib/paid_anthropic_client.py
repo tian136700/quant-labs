@@ -263,6 +263,9 @@ def is_transient_anthropic_error(err: BaseException | str) -> bool:
     markers = (
         "http 401",
         "http 403",
+        # Cloudflare WAF / 中转拦截（常见正文「error code: 1010」）
+        "error code: 1010",
+        "error code:1010",
         "invalid token",
         "unauthorized",
         "http 429",
