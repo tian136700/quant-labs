@@ -14,6 +14,7 @@ import {
   enVocabPosLooksNounOnly,
   normalizeEnVocabUsageSource,
   parseEnVocabUsagePoints,
+  rewriteEnVocabPhraseBareAdjAdvUsagePoints,
   serializeEnVocabUsagePoints,
   shieldEnVocabUsageUploadText,
   stripEnVocabUsageExamLabels,
@@ -385,9 +386,16 @@ export async function applyEnVocabUsageUpdates(
         });
         continue;
       }
+      // 多词搭配误写「副词：/形容词：」先改成「短语：…」（straight ahead 曾三次拒收熔断）
+      const normalizedPoints = rewriteEnVocabPhraseBareAdjAdvUsagePoints(
+        String(row.word),
+        points
+      );
       if (
         enVocabPosLooksNounOnly(row.pos) &&
-        points.some((p) => EN_VOCAB_USAGE_ADJ_LABEL_RE.test(p.text.trim()))
+        normalizedPoints.some((p) =>
+          EN_VOCAB_USAGE_ADJ_LABEL_RE.test(p.text.trim())
+        )
       ) {
         skipped.push({
           id: wordId,
@@ -398,7 +406,7 @@ export async function applyEnVocabUsageUpdates(
       }
       if (
         enVocabLemmaHasMultipleWords(row.word) &&
-        points.some((p) =>
+        normalizedPoints.some((p) =>
           EN_VOCAB_USAGE_BARE_ADJ_ADV_LABEL_RE.test(p.text.trim())
         )
       ) {
@@ -409,7 +417,7 @@ export async function applyEnVocabUsageUpdates(
         });
         continue;
       }
-      usage = serializeEnVocabUsagePoints(points);
+      usage = serializeEnVocabUsagePoints(normalizedPoints);
     }
 
     const changed = await updateUsageIfEmpty(

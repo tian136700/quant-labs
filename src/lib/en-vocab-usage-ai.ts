@@ -75,6 +75,36 @@ export function enVocabLemmaHasMultipleWords(raw?: string | null): boolean {
 }
 
 /**
+ * 多词固定搭配误写「形容词：/副词：」→「短语：作定语/状语用，…」。
+ * 模型常写「副词：直行…」（straight ahead）导致 force 拒收 → incomplete_bundle:usage 熔断；
+ * apply / validate 先改写再验，仍裸标才拒 phrase_labeled_as_adj_adv。
+ */
+export function rewriteEnVocabPhraseBareAdjAdvUsageText(
+  word: string | null | undefined,
+  body: string
+): string {
+  if (!enVocabLemmaHasMultipleWords(word)) return body;
+  const trimmed = String(body || "").trim();
+  const m = /^(形容词|副词)\s*[：:]\s*(.*)$/u.exec(trimmed);
+  if (!m) return body;
+  const role = m[1] === "形容词" ? "作定语用" : "作状语用";
+  const rest = String(m[2] || "").trim();
+  if (/^短语\s*[：:]/u.test(rest)) return rest;
+  return rest ? `短语：${role}，${rest}` : `短语：${role}`;
+}
+
+export function rewriteEnVocabPhraseBareAdjAdvUsagePoints(
+  word: string | null | undefined,
+  points: EnVocabUsagePoint[]
+): EnVocabUsagePoint[] {
+  if (!enVocabLemmaHasMultipleWords(word) || !points.length) return points;
+  return points.map((p) => ({
+    ...p,
+    text: rewriteEnVocabPhraseBareAdjAdvUsageText(word, p.text),
+  }));
+}
+
+/**
  * 词性栏仅名词（n / noun / 名词），不含 adj。
  * 用于挡住「名词作定语」被误标成形容词（quality service 等）。
  */
@@ -182,7 +212,7 @@ ${buildEnVocabUsageCategoryFocusLine(category)}
 - 每条用法开头必须只标一种词性（如「动词：」「名词：」）。❌ 禁止「动词/名词」「形容词/名词」「名词/动词」等含糊写法。例句实际是哪种词性就标哪种（如 file a claim → 名词；claimed that → 动词）。若名词义与动词义都常用且意思不同，拆成两条，各写清词性并稍后各配例句。
 - ❌ 禁止把「名词作定语」误标成「形容词」。例如 quality service、business trip、stone wall：前置的 quality / business / stone 仍是名词，须写「名词：作定语，表示……」，不要写「形容词：……」——学生会误以为该词可以当形容词用。
 - ✅ 只有真正的形容词才标「形容词：」（可单独作表语，如 The service is good / This plan is attractive）。词性栏若只有 n，用法里禁止出现「形容词：」。
-- 词条含空格的固定搭配（unbearably tough、in time）且词性栏是 phrase 时，用法开头写「短语：」，可注明「作定语/状语/形容词用」；不要只写「形容词：」「副词：」让人以为词条本身是单个形容词或副词。
+- 词条含空格的固定搭配（unbearably tough、in time、straight ahead）且词性栏是 phrase 时，用法开头必须写「短语：」，可注明「作定语/状语/形容词用」；❌ 禁止只写「形容词：」「副词：」（会让人以为词条本身是单个形容词或副词）。例：straight ahead →「1. [口语9|考试10] 短语：作状语用，表示一直向前；直行」。
 
 口语频率 / 考试频率（必须，对齐日语）：
 - 每条用法都必须打两个 1～10 分：口语频率=日常会话/口语里该义常用度；考试频率=该分类考试语境（托业职场 / 雅思托福读写听 / IT技术面试等）常用度。
@@ -670,23 +700,29 @@ export function validateEnVocabUsageAiOutput(
     }
   }
 
+  // 多词搭配：先把误写的「形容词：/副词：」改成「短语：作定语/状语用」
+  const normalizedPoints = rewriteEnVocabPhraseBareAdjAdvUsagePoints(
+    _input?.word,
+    points
+  );
+
   // 词性栏仅名词时，禁止用法标「形容词：」（名词作定语 ≠ 形容词）
   if (enVocabPosLooksNounOnly(_input?.pos)) {
-    for (const p of points) {
+    for (const p of normalizedPoints) {
       if (EN_VOCAB_USAGE_ADJ_LABEL_RE.test(p.text.trim())) {
         return { ok: false, reason: "noun_attrib_as_adj" };
       }
     }
   }
 
-  // 含空格的固定搭配：用法不要写成「形容词：/副词：」（词性栏是短语，可写「短语：作定语/状语用」）
+  // 含空格的固定搭配：改写后仍裸标「形容词：/副词：」才拒收
   if (enVocabLemmaHasMultipleWords(_input?.word)) {
-    for (const p of points) {
+    for (const p of normalizedPoints) {
       if (EN_VOCAB_USAGE_BARE_ADJ_ADV_LABEL_RE.test(p.text.trim())) {
         return { ok: false, reason: "phrase_labeled_as_adj_adv" };
       }
     }
   }
 
-  return { ok: true, text: serializeEnVocabUsagePoints(points) };
+  return { ok: true, text: serializeEnVocabUsagePoints(normalizedPoints) };
 }
