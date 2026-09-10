@@ -328,11 +328,16 @@ export function useEnVocabReviewActions(options: {
           }
           if (!data.ok || !data.word) {
             const errKey = data.error || "";
+            const mismatch = errKey.match(
+              /^usage_levels_count_mismatch(?::expected=(\d+):got=(\d+))?$/
+            );
             const msg =
               errKey === "review_locked" || errKey === "shared_level_locked"
                 ? "勾选已满 1 小时，无法再修改熟悉程度。"
-                : errKey === "usage_levels_count_mismatch"
-                  ? "用法条数与勾选不一致，请刷新页面后重试。"
+                : mismatch
+                  ? mismatch[1] != null && mismatch[2] != null
+                    ? `用法条数与勾选不一致（expected=${mismatch[1]}, got=${mismatch[2]}），请刷新页面后重试。`
+                    : "用法条数与勾选不一致，请刷新页面后重试。"
                   : errKey === "usage_levels_invalid"
                     ? "用法熟悉程度无效，请重新勾选。"
                     : errKey === "not_found"

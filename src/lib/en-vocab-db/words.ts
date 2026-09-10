@@ -59,13 +59,11 @@ import {
   type EnVocabDailyQuizStyle,
 } from "@/lib/en-vocab-daily-quiz-style";
 import {
-  aggregateEnVocabUsageLevels,
   applyEnVocabReview,
   isEnVocabLevel,
   isEnVocabWordReviewLocked,
   serializeEnVocabLastUsageLevels,
 } from "@/lib/en-vocab-review";
-import { listEnVocabUsagePointsForDisplay } from "@/lib/en-vocab-usage-examples-display";
 import { parseLessonContent } from "@/lib/en-lesson-shared";
 import { listEnLessons } from "@/lib/en-lesson-db";
 import { listEnLessonNotesByLessonId, replaceLessonNotesForItem } from "@/lib/en-lesson-note-db";
@@ -393,70 +391,6 @@ export async function recordEnVocabReview(
   }
 
   return persistEnVocabReviewUpdate(db, wordId, current, level, null, options);
-}
-
-/** 老师抽查卡：按用法勾选 → 汇总总体后写入 cnt_* / last_review_* / last_usage_levels；可顺带共享到学生端 */
-export async function recordEnVocabReviewWithUsageLevels(
-  db: D1Database,
-  wordId: number,
-  usageLevels: EnVocabLevel[],
-  options?: RecordEnVocabReviewOptions
-): Promise<RecordEnVocabReviewResult> {
-  if (!Number.isInteger(wordId) || wordId <= 0) {
-    return { ok: false, error: "word_id_invalid" };
-  }
-  if (!Array.isArray(usageLevels) || !usageLevels.length) {
-    return { ok: false, error: "usage_levels_invalid" };
-  }
-  if (!usageLevels.every(isEnVocabLevel)) {
-    return { ok: false, error: "usage_levels_invalid" };
-  }
-
-  await seedIfEmpty(db);
-  await ensureVocabWordSchema(db);
-
-  let current: EnVocabWord;
-  if (enVocabDbState.devStoreEnabled) {
-    const idx = enVocabDbState.devWords.findIndex((w) => w.id === wordId);
-    if (idx < 0) return { ok: false, error: "not_found" };
-    current = stripEnVocabWordNotesForList(enVocabDbState.devWords[idx]);
-  } else {
-    const row = await db
-      .prepare(`${WORD_SELECT_LIST} WHERE id = ?1`)
-      .bind(wordId)
-      .first<Record<string, unknown>>();
-    if (!row) return { ok: false, error: "not_found" };
-    current = mapReviewWordRow(row);
-  }
-
-  if (isEnVocabWordReviewLocked(current)) {
-    return { ok: false, error: "review_locked" };
-  }
-
-  const expectedCount = listEnVocabUsagePointsForDisplay(current.usage).points
-    .length;
-  if (expectedCount > 0 && usageLevels.length !== expectedCount) {
-    return { ok: false, error: "usage_levels_count_mismatch" };
-  }
-  if (expectedCount === 0 && usageLevels.length !== 1) {
-    return { ok: false, error: "usage_levels_count_mismatch" };
-  }
-
-  let overall: EnVocabLevel;
-  try {
-    overall = aggregateEnVocabUsageLevels(usageLevels);
-  } catch {
-    return { ok: false, error: "usage_levels_invalid" };
-  }
-
-  return persistEnVocabReviewUpdate(
-    db,
-    wordId,
-    current,
-    overall,
-    usageLevels,
-    options
-  );
 }
 
 export type ResetEnVocabReviewsResult =

@@ -103,6 +103,11 @@ def main() -> int:
                 "tryGoNext: must abort share/advance via enVocabOpFailDetail(saved) "
                 "when usage level save fails (show raw error, not only boolean false)"
             )
+        if "wordHasLevel(w.id)" not in body or "usagesComplete" not in body:
+            errors.append(
+                "tryGoNext: when usagesComplete but !selected, must skip re-save "
+                "if wordHasLevel (avoid usage_levels_count_mismatch after refresh)"
+            )
         # Ban the old soft-lock pattern: if (!selected) { pending...; return } without usagesComplete escape
         if re.search(
             r"if\s*\(\s*!selected\s*\)\s*\{[^}]*pendingNextAfterIdleRef\.current\s*=\s*true[^}]*return",

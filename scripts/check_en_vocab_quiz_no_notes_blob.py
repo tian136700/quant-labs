@@ -15,6 +15,9 @@ def main() -> int:
 
     helpers = (ROOT / "src/lib/en-vocab-db/helpers.ts").read_text(encoding="utf-8")
     words = (ROOT / "src/lib/en-vocab-db/words.ts").read_text(encoding="utf-8")
+    usage_levels = (
+        ROOT / "src/lib/en-vocab-db/review_usage_levels.ts"
+    ).read_text(encoding="utf-8")
     share = (ROOT / "src/lib/en-vocab-db/share.ts").read_text(encoding="utf-8")
     notes = (ROOT / "src/lib/en-vocab-db/notes_fields.ts").read_text(encoding="utf-8")
     merge = (ROOT / "src/lib/en-vocab-teacher-quiz.ts").read_text(encoding="utf-8")
@@ -40,19 +43,41 @@ def main() -> int:
             "recordEnVocabReview* must read with WORD_SELECT_LIST + mapReviewWordRow"
         )
     # 只拦勾选路径里的整词 SELECT；addEnVocabWord 等仍可用 WORD_SELECT
-    review_fns = []
-    for name in (
-        "export async function recordEnVocabReview(",
-        "export async function recordEnVocabReviewWithUsageLevels(",
+    for name, src, label in (
+        (
+            "export async function recordEnVocabReview(",
+            words,
+            "words.ts recordEnVocabReview",
+        ),
+        (
+            "export async function recordEnVocabReviewWithUsageLevels(",
+            usage_levels,
+            "review_usage_levels.ts",
+        ),
     ):
-        parts = words.split(name, 1)
+        parts = src.split(name, 1)
         if len(parts) < 2:
-            errors.append(f"missing {name}")
+            errors.append(f"missing {label}: {name}")
             continue
         body = parts[1].split("export async function ", 1)[0]
-        review_fns.append(body)
         if re.search(r"\$\{WORD_SELECT\} WHERE id", body):
-            errors.append(f"{name} must not use full WORD_SELECT for single-word read")
+            errors.append(f"{label} must not use full WORD_SELECT for single-word read")
+
+    # usage_levels 条数校验必须另读 usage 列（LIST/mapReviewWordRow 的 usage 恒 null）
+    if "SELECT usage FROM en_vocab_word WHERE id" not in usage_levels:
+        errors.append(
+            "recordEnVocabReviewWithUsageLevels must SELECT usage separately "
+            "for expectedCount (LIST maps usage to null)"
+        )
+    if "listEnVocabUsagePointsForDisplay(current.usage)" in usage_levels:
+        errors.append(
+            "recordEnVocabReviewWithUsageLevels must not use current.usage "
+            "for expectedCount (always null after mapReviewWordRow)"
+        )
+    if 'export * from "./review_usage_levels"' not in (
+        ROOT / "src/lib/en-vocab-db/index.ts"
+    ).read_text(encoding="utf-8"):
+        errors.append("en-vocab-db/index.ts must re-export review_usage_levels")
 
     if "WORD_SELECT_LIST" not in share or "mapReviewWordRow" not in share:
         errors.append("shareEnVocabWord must read with WORD_SELECT_LIST + mapReviewWordRow")

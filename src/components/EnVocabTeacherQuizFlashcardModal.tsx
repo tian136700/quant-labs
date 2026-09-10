@@ -395,11 +395,14 @@ export function EnVocabTeacherQuizFlashcardModal({
       nextAdvanceBusyRef.current = true;
       try {
         // 用法草稿齐但 selected 仍空：先等写库成功，再 share（禁止无 today_check 就发学生）
+        // 若本词今日已勾过（wordHasLevel），勿再 POST usage_levels——刷新后 sessionLevel 空、
+        // 草稿却从 last_usage_levels 回填齐时，再写库曾因 LIST 无 usage 正文误拒。
         if (
           selectedLevel == null &&
           draftComplete &&
           onSelectUsageLevels &&
-          draftLevels
+          draftLevels &&
+          !wordHasLevel(wordId)
         ) {
           const saved = await onSelectUsageLevels(wordId, draftLevels);
           const saveFail = enVocabOpFailDetail(saved);
@@ -738,8 +741,13 @@ export function EnVocabTeacherQuizFlashcardModal({
       setNextBlockedHint(true);
       return;
     }
-    // 用法已齐但 selected 未回写：必须等写库成功再 share（禁止 fire-and-forget → 共享了却无 today_check）
+    // 用法已齐但 selected 未回写：须写库成功再 share。
+    // 今日已勾过（wordHasLevel）则跳过再 POST——刷新后 session 空、草稿却齐时会误撞条数校验。
     if (!selected && usagesComplete && onSelectUsageLevels) {
+      if (wordHasLevel(w.id)) {
+        void runShareThenAdvance();
+        return;
+      }
       if (nextAdvanceBusyRef.current) {
         pendingNextAfterIdleRef.current = true;
         setSyncWaitFailed(false);
