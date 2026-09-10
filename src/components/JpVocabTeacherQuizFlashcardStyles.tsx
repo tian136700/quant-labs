@@ -1467,6 +1467,41 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           width: 100%;
           min-height: 2.35rem;
         }
+        .jp-vocab-teacher-quiz-alert--error-log {
+          width: min(36rem, 94vw);
+          max-height: min(80vh, 40rem);
+          display: flex;
+          flex-direction: column;
+        }
+        .jp-vocab-teacher-quiz-alert__error-log {
+          margin: 0 0 0.85rem;
+          padding: 0.65rem 0.7rem;
+          max-height: min(50vh, 22rem);
+          overflow: auto;
+          border-radius: 8px;
+          border: 1px solid color-mix(in srgb, var(--rise) 35%, var(--border));
+          background: color-mix(in srgb, var(--bg) 88%, #000);
+          color: var(--text);
+          font-size: 0.78rem;
+          line-height: 1.45;
+          white-space: pre-wrap;
+          word-break: break-word;
+          text-align: left;
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+            "Liberation Mono", "Courier New", monospace;
+        }
+        .jp-vocab-teacher-quiz-alert__actions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.5rem;
+        }
+        .jp-vocab-teacher-quiz-alert__actions .jp-vocab-teacher-quiz-alert__copy,
+        .jp-vocab-teacher-quiz-alert__actions .jp-vocab-teacher-quiz-alert__close {
+          flex: 1 1 8rem;
+          width: auto;
+          min-height: 2.75rem;
+        }
+
         .jp-vocab-teacher-quiz__level-sync-status {
           margin: 0.45rem 0 0;
           font-size: 0.8125rem;

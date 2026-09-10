@@ -16,8 +16,10 @@ export function useVocabShareBackfillOnComplete(opts: {
   poolWordIds: readonly number[];
   hasLevel: (wordId: number) => boolean;
   isSharedToday: (wordId: number) => boolean;
-  /** EN shareWord 可能返回 "busy"；JP 仍为 boolean */
-  shareWord: (wordId: number) => Promise<boolean | "busy">;
+  /** EN shareWord 可能返回 "busy" 或 { ok:false, detail }；JP 仍为 boolean */
+  shareWord: (
+    wordId: number
+  ) => Promise<boolean | "busy" | { ok: false; detail: string }>;
   /** 抽查卡打开时当前词 id；进行中勿提前共享该词 */
   excludeWordId?: number | null;
 }) {

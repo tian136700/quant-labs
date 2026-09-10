@@ -98,9 +98,10 @@ def main() -> int:
                 "tryGoNext: usages complete must call runShareThenAdvance "
                 "(not only pendingNext + wait for selected)"
             )
-        if "saved === false" not in body:
+        if "enVocabOpFailDetail(saved)" not in body:
             errors.append(
-                "tryGoNext: must abort share/advance when usage level save returns false"
+                "tryGoNext: must abort share/advance via enVocabOpFailDetail(saved) "
+                "when usage level save fails (show raw error, not only boolean false)"
             )
         # Ban the old soft-lock pattern: if (!selected) { pending...; return } without usagesComplete escape
         if re.search(
@@ -179,8 +180,43 @@ def main() -> int:
         alerts_src = alerts.read_text(encoding="utf-8")
         if "syncWaitFailed" not in alerts_src:
             errors.append("EnVocabFlashcardAlerts: must accept syncWaitFailed prop")
-        if "同步失败或超时" not in alerts_src:
-            errors.append("EnVocabFlashcardAlerts: must show retry copy on syncWaitFailed")
+        if "syncWaitErrorDetail" not in alerts_src:
+            errors.append(
+                "EnVocabFlashcardAlerts: must accept syncWaitErrorDetail (raw error log)"
+            )
+        if "复制报错" not in alerts_src:
+            errors.append("EnVocabFlashcardAlerts: must offer one-click copy of error log")
+        if "copyTextToClipboard" not in alerts_src:
+            errors.append("EnVocabFlashcardAlerts: must copy via copyTextToClipboard")
+        if 'syncWaitFailed\n                ? "同步失败或超时"' in alerts_src or (
+            '同步失败或超时"' in alerts_src
+            and "报错（原样）" not in alerts_src
+        ):
+            errors.append(
+                "EnVocabFlashcardAlerts: must NOT use only generic「同步失败或超时」; "
+                "show raw syncWaitErrorDetail instead"
+            )
+        if "报错（原样）" not in alerts_src:
+            errors.append(
+                "EnVocabFlashcardAlerts: failed state title must be「报错（原样）」"
+            )
+    if "syncWaitErrorDetail" not in modal:
+        errors.append("modal: must keep syncWaitErrorDetail for failed share/save")
+    if "enVocabShareWordFailed" not in modal:
+        errors.append(
+            "modal: must use enVocabShareWordFailed (object fail), not !ok boolean"
+        )
+    share_ui = ROOT / "src/lib/en-vocab-share-ui.ts"
+    if share_ui.is_file():
+        share_src = share_ui.read_text(encoding="utf-8")
+        if "EnVocabOpFail" not in share_src or "enVocabOpFailDetail" not in share_src:
+            errors.append(
+                "en-vocab-share-ui: must export EnVocabOpFail + enVocabOpFailDetail"
+            )
+    if "failShare" not in actions and "ok: false, detail" not in actions:
+        errors.append(
+            "useEnVocabReviewActions.shareWord: failures must return { ok: false, detail }"
+        )
     # --- draftComplete in pending effect ---
     if "draftComplete" not in modal:
         errors.append(

@@ -1,5 +1,5 @@
 # 业务代码拆分队列（>1000 行；不含样式/文案）
-# 更新: 2026-09-09  阈值: 1000
+# 更新: 2026-09-10  阈值: 1000
 # status: 0=未达标  1=已拆到≤1000（刷新脚本按行数自动写）
 # 机器可读权威源: docs/file-split-queue.json
 # 刷新/对账: python3 scripts/refresh_file_split_queue.py
@@ -12,5 +12,5 @@
 05. [status=0]  1004  src/lib/en-vocab-db/words.ts
 
 # --- 不计入队列（样式/文案/备份，仅供参考）---
-     (skip)  2267  src/components/JpVocabTeacherQuizFlashcardStyles.tsx  # style_or_data
+     (skip)  2302  src/components/JpVocabTeacherQuizFlashcardStyles.tsx  # style_or_data
      (skip)  1052  src/components/jp-lesson-page/JpLessonPageStyles.tsx  # style_or_data

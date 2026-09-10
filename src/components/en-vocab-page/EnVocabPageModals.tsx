@@ -93,7 +93,7 @@ type EnVocabPageModalsProps = {
   onRecordUsageLevels: (
     wordId: number,
     levels: Array<EnVocabLevel | null | undefined>
-  ) => void | Promise<boolean>;
+  ) => void | Promise<import("@/lib/en-vocab-share-ui").EnVocabReviewSaveResult>;
   onQuizNavigate: (index: number) => void;
   onOpenRef: (refKey: string, ref?: EnVocabRef) => void;
   onOpenRemarks: (word: EnVocabWord) => void;
@@ -102,7 +102,7 @@ type EnVocabPageModalsProps = {
   onShare: (wordId: number) => void | Promise<boolean | void>;
   onEnsureSharedBeforeNext?: (
     wordId: number
-  ) => Promise<boolean | "busy">;
+  ) => Promise<import("@/lib/en-vocab-share-ui").EnVocabShareWordResult>;
   onUnshare?: (wordId: number) => void;
   onWordSaved: (word: EnVocabWord) => void;
   onWordSaveFailed: (wordId: number, snapshot: EnVocabWord, message: string) => void;

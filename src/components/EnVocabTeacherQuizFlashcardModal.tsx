@@ -26,6 +26,12 @@ import {
 } from "@/lib/en-vocab-shared";
 import { type EnVocabTeacherQuizSession } from "@/lib/en-vocab-teacher-quiz";
 import {
+  enVocabOpFailDetail,
+  enVocabShareWordFailed,
+  type EnVocabReviewSaveResult,
+  type EnVocabShareWordResult,
+} from "@/lib/en-vocab-share-ui";
+import {
   buildEnVocabUsageExamplePairs,
   listEnVocabUsagePointsForDisplay,
 } from "@/lib/en-vocab-usage-examples-display";
@@ -89,17 +95,17 @@ type Props = {
   onSelectUsageLevels?: (
     wordId: number,
     levels: Array<EnVocabLevel | null | undefined>
-  ) => void | Promise<boolean>;
+  ) => void | Promise<EnVocabReviewSaveResult>;
   onNavigate: (index: number) => void;
   onOpenRef: (refKey: string, ref?: EnVocabRef) => void;
   onViewRemarks: (word: EnVocabWord) => void;
   onEditRemarks?: (word: EnVocabWord) => void;
   onEditWord?: (word: EnVocabWord) => void;
   onShare?: (wordId: number) => void | Promise<boolean | void>;
-  /** 点「下一个」前：未共享则同步一次；已共享返回 true；busy=写库/同步中 */
+  /** 点「下一个」前：未共享则同步一次；已共享返回 true；busy=写库/同步中；失败带 detail */
   onEnsureSharedBeforeNext?: (
     wordId: number
-  ) => Promise<boolean | "busy">;
+  ) => Promise<EnVocabShareWordResult>;
   onUnshare?: (wordId: number) => void;
   onWordUpdated?: (word: EnVocabWord) => void;
   nestedModalOpen?: boolean;
@@ -153,6 +159,10 @@ export function EnVocabTeacherQuizFlashcardModal({
   const [syncWaitHint, setSyncWaitHint] = useState(false);
   /** true=超时/失败文案（须盖在抽查卡上）；false=进行中请稍等 */
   const [syncWaitFailed, setSyncWaitFailed] = useState(false);
+  /** 失败时的原始报错，原样展示（勿只写「同步失败」） */
+  const [syncWaitErrorDetail, setSyncWaitErrorDetail] = useState<string | null>(
+    null
+  );
   /** share 超时才可被 peek 清掉；熟悉程度写库失败须保留提示 */
   const syncFailIsShareRef = useRef(false);
   /** 点「完成抽查」时会话内仍有未勾选词 */
@@ -208,6 +218,7 @@ export function EnVocabTeacherQuizFlashcardModal({
     setNextBlockedUsageMessage(null);
     setSyncWaitHint(false);
     setSyncWaitFailed(false);
+    setSyncWaitErrorDetail(null);
     nextAdvanceBusyRef.current = false;
     pendingNextAfterIdleRef.current = false;
     // 不在换词时清 remainingUncheckedHint：点「完成抽查」跳到未勾选词后需保留提示
@@ -220,6 +231,7 @@ export function EnVocabTeacherQuizFlashcardModal({
       if (syncWaitHint) {
         setSyncWaitHint(false);
         setSyncWaitFailed(false);
+        setSyncWaitErrorDetail(null);
         return;
       }
       if (nextBlockedHint) {
@@ -328,6 +340,7 @@ export function EnVocabTeacherQuizFlashcardModal({
     if (syncWaitFailed && !syncFailIsShareRef.current) return;
     syncFailIsShareRef.current = false;
     setSyncWaitFailed(false);
+    setSyncWaitErrorDetail(null);
     setSyncWaitHint(false);
   }, [studentPeeked, sharedTodayWordIds, word?.id, syncWaitHint, syncWaitFailed]);
 
@@ -371,6 +384,7 @@ export function EnVocabTeacherQuizFlashcardModal({
     pendingNextAfterIdleRef.current = false;
     setSyncWaitHint(false);
     setSyncWaitFailed(false);
+    setSyncWaitErrorDetail(null);
     const wordId = word.id;
     // peek 已写入 en_vocab_shared：与 sharedToday 同等视为已同步（勿再 POST /share 卡死）
     const alreadyShared =
@@ -388,9 +402,11 @@ export function EnVocabTeacherQuizFlashcardModal({
           draftLevels
         ) {
           const saved = await onSelectUsageLevels(wordId, draftLevels);
-          if (saved === false) {
+          const saveFail = enVocabOpFailDetail(saved);
+          if (saveFail != null) {
             pendingNextAfterIdleRef.current = false;
             syncFailIsShareRef.current = false;
+            setSyncWaitErrorDetail(saveFail);
             setSyncWaitFailed(true);
             setSyncWaitHint(true);
             return;
@@ -402,10 +418,11 @@ export function EnVocabTeacherQuizFlashcardModal({
             // 写库/同步进行中：保留 pending，闲后自动续
             pendingNextAfterIdleRef.current = true;
             setSyncWaitFailed(false);
+            setSyncWaitErrorDetail(null);
             setSyncWaitHint(true);
             return;
           }
-          if (!ok) {
+          if (enVocabShareWordFailed(ok)) {
             // 超时瞬间学生可能已 peek：再认一次，避免假失败钉死「下一个」
             const sharedAfterFail =
               (sharedTodayWordIdsRef.current?.has(wordId) ?? false) ||
@@ -413,9 +430,10 @@ export function EnVocabTeacherQuizFlashcardModal({
             if (sharedAfterFail) {
               // fall through to advance
             } else {
-              // 真失败/超时：清 pending，勿自动死循环；弹层提示再点「下一个」
+              // 真失败/超时：清 pending，勿自动死循环；弹层展示原始报错
               pendingNextAfterIdleRef.current = false;
               syncFailIsShareRef.current = true;
+              setSyncWaitErrorDetail(ok.detail);
               setSyncWaitFailed(true);
               setSyncWaitHint(true);
               return;
@@ -668,17 +686,19 @@ export function EnVocabTeacherQuizFlashcardModal({
         if (ok === "busy") {
           pendingNextAfterIdleRef.current = true;
           setSyncWaitFailed(false);
+          setSyncWaitErrorDetail(null);
           setSyncWaitHint(true);
           return;
         }
-        if (!ok) {
+        if (enVocabShareWordFailed(ok)) {
           const sharedAfterFail =
             (sharedTodayWordIdsRef.current?.has(w.id) ?? false) ||
             Boolean(studentPeekedRef.current);
           if (!sharedAfterFail) {
-            // 真失败/超时：清 pending，勿自动死循环；弹层提示再点「下一个」
+            // 真失败/超时：清 pending，勿自动死循环；弹层展示原始报错
             pendingNextAfterIdleRef.current = false;
             syncFailIsShareRef.current = true;
+            setSyncWaitErrorDetail(ok.detail);
             setSyncWaitFailed(true);
             setSyncWaitHint(true);
             return;
@@ -723,6 +743,7 @@ export function EnVocabTeacherQuizFlashcardModal({
       if (nextAdvanceBusyRef.current) {
         pendingNextAfterIdleRef.current = true;
         setSyncWaitFailed(false);
+        setSyncWaitErrorDetail(null);
         setSyncWaitHint(true);
         return;
       }
@@ -730,12 +751,15 @@ export function EnVocabTeacherQuizFlashcardModal({
         if (nextAdvanceBusyRef.current) return;
         nextAdvanceBusyRef.current = true;
         setSyncWaitFailed(false);
+        setSyncWaitErrorDetail(null);
         setSyncWaitHint(true);
         try {
           const saved = await onSelectUsageLevels(w.id, usageDraftLevels);
-          if (saved === false) {
+          const saveFail = enVocabOpFailDetail(saved);
+          if (saveFail != null) {
             pendingNextAfterIdleRef.current = false;
             syncFailIsShareRef.current = false;
+            setSyncWaitErrorDetail(saveFail);
             setSyncWaitFailed(true);
             setSyncWaitHint(true);
             return;
@@ -753,10 +777,12 @@ export function EnVocabTeacherQuizFlashcardModal({
     if (saveBusyForNext || nextAdvanceBusyRef.current) {
       pendingNextAfterIdleRef.current = true;
       setSyncWaitFailed(false);
+      setSyncWaitErrorDetail(null);
       setSyncWaitHint(true);
       return;
     }
     setSyncWaitFailed(false);
+    setSyncWaitErrorDetail(null);
     setSyncWaitHint(false);
     void runShareThenAdvance();
   };
@@ -924,6 +950,7 @@ export function EnVocabTeacherQuizFlashcardModal({
         nextBlockedHint={nextBlockedHint}
         syncWaitHint={syncWaitHint}
         syncWaitFailed={syncWaitFailed}
+        syncWaitErrorDetail={syncWaitErrorDetail}
         previewMode={previewMode}
         isStudy={isStudy}
         selected={selected}
@@ -936,6 +963,7 @@ export function EnVocabTeacherQuizFlashcardModal({
         onDismissSyncWait={() => {
           setSyncWaitHint(false);
           setSyncWaitFailed(false);
+          setSyncWaitErrorDetail(null);
         }}
         onDismissRemaining={() => setRemainingUncheckedHint(false)}
         stop={stop}

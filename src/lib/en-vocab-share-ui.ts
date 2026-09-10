@@ -12,5 +12,33 @@ export const EN_VOCAB_SHARE_FETCH_TIMEOUT_MS = 20_000;
 export const EN_VOCAB_SYNC_ON_NEXT_RETRY_HINT =
   "同步失败或超时，请再点「下一个」重试。";
 
-/** shareWord / ensureWordSharedBeforeNext：true 成功；false 失败；busy 写库/同步进行中 */
-export type EnVocabShareWordResult = true | false | "busy";
+/** 写库 / share 失败时带回原文，供抽查卡弹窗展示（勿只写「同步失败」） */
+export type EnVocabOpFail = { ok: false; detail: string };
+
+/** shareWord / ensureWordSharedBeforeNext：true 成功；busy 写库/同步进行中；失败带 detail */
+export type EnVocabShareWordResult = true | "busy" | EnVocabOpFail;
+
+/** 熟悉程度写库：true 成功；失败带 detail（兼容旧 boolean false） */
+export type EnVocabReviewSaveResult = true | false | EnVocabOpFail;
+
+export function isEnVocabOpFail(result: unknown): result is EnVocabOpFail {
+  return (
+    typeof result === "object" &&
+    result !== null &&
+    (result as EnVocabOpFail).ok === false &&
+    typeof (result as EnVocabOpFail).detail === "string"
+  );
+}
+
+/** 从 share / 写库返回值取出可展示的报错原文；成功 / busy / void → null */
+export function enVocabOpFailDetail(result: unknown): string | null {
+  if (result === false) return "操作失败（无详细报错）";
+  if (isEnVocabOpFail(result)) return result.detail;
+  return null;
+}
+
+export function enVocabShareWordFailed(
+  result: EnVocabShareWordResult
+): result is EnVocabOpFail {
+  return isEnVocabOpFail(result);
+}

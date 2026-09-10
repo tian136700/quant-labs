@@ -28,8 +28,10 @@ import { listEnVocabUsagePointsForDisplay } from "@/lib/en-vocab-usage-examples-
 import {
   EN_VOCAB_SHARE_FETCH_TIMEOUT_MS,
   EN_VOCAB_SYNC_ON_NEXT_RETRY_HINT,
+  type EnVocabOpFail,
+  type EnVocabReviewSaveResult,
+  type EnVocabShareWordResult,
 } from "@/lib/en-vocab-share-ui";
-import type { EnVocabShareWordResult } from "@/lib/en-vocab-share-ui";
 import { bumpEnVocabWordReview, EN_VOCAB_SAVE_ERR } from "@/lib/en-vocab-page-helpers";
 import {
   animateJpVocabShareProgressTo100,
@@ -456,10 +458,15 @@ export function useEnVocabReviewActions(options: {
     }
   };
 
+  const fail = (detail: string): EnVocabOpFail => {
+    setStatus(detail);
+    return { ok: false, detail };
+  };
+
   const recordUsageLevels = async (
     wordId: number,
     levels: Array<EnVocabLevel | null | undefined>
-  ): Promise<boolean> => {
+  ): Promise<EnVocabReviewSaveResult> => {
     const lockSnapshot = words.find((w) => w.id === wordId);
     if (
       lockSnapshot &&
@@ -468,20 +475,18 @@ export function useEnVocabReviewActions(options: {
         now: new Date(reviewLockNow),
       })
     ) {
-      setStatus("勾选已满 1 小时，无法再修改熟悉程度。");
-      return false;
+      return fail("勾选已满 1 小时，无法再修改熟悉程度。");
     }
 
     setSessionUsageLevels((prev) => ({ ...prev, [wordId]: levels }));
 
     if (!canOperate) {
-      setStatus("请登录后再勾选熟悉程度。");
       openEnAuth();
-      return false;
+      return fail("请登录后再勾选熟悉程度。");
     }
 
     if (!levels.length || levels.some((lv) => lv == null)) {
-      return false;
+      return fail("用法熟悉程度未勾齐，无法写库。");
     }
     const complete = levels as EnVocabLevel[];
 
@@ -490,24 +495,30 @@ export function useEnVocabReviewActions(options: {
       usageLevelSavingRef.current === wordId ||
       wordSyncState[wordId]
     ) {
-      return false;
+      return fail("熟悉程度正在保存中，请勿重复提交。");
     }
 
     const snapshot = words.find((w) => w.id === wordId);
-    if (!snapshot) return false;
+    if (!snapshot) {
+      return fail(`词条不在本地列表（word_id=${wordId}）`);
+    }
 
     const expected = listEnVocabUsagePointsForDisplay(snapshot.usage).points.length;
     if (expected > 0 && complete.length !== expected) {
-      setStatus("用法条数与勾选不一致，请刷新页面后重试。");
-      return false;
+      return fail(
+        `用法条数与勾选不一致（expected=${expected}, got=${complete.length}），请刷新页面后重试。`
+      );
     }
 
     let overall: EnVocabLevel;
     try {
       overall = aggregateEnVocabUsageLevels(complete);
-    } catch {
-      setStatus("用法熟悉程度无效，请重新勾选。");
-      return false;
+    } catch (err) {
+      return fail(
+        err instanceof Error
+          ? `用法熟悉程度无效：${err.message}`
+          : "用法熟悉程度无效，请重新勾选。"
+      );
     }
 
     const prevLevel = sessionLevel[wordId];
@@ -574,7 +585,12 @@ export function useEnVocabReviewActions(options: {
         persistCache(words, refs, displayOrderSnapshot, sharedIdsSnapshot);
       }
       setStatus(err instanceof Error ? err.message : String(err));
-      return false;
+      const detail = [
+        "POST /api/en-vocab（usage_levels 写库失败）",
+        `word_id=${wordId}`,
+        err instanceof Error ? `${err.name}: ${err.message}` : String(err),
+      ].join("\n");
+      return { ok: false, detail };
     } finally {
       if (usageLevelSavingRef.current === wordId) {
         usageLevelSavingRef.current = null;
@@ -588,14 +604,16 @@ export function useEnVocabReviewActions(options: {
     opts?: { fromNext?: boolean }
   ): Promise<EnVocabShareWordResult> => {
     const fromNext = Boolean(opts?.fromNext);
+    const failShare = (detail: string): EnVocabOpFail => {
+      setStatus(detail.split("\n")[0] || detail);
+      return { ok: false, detail };
+    };
     if (!fromNext && !teacherShareUiEnabled) {
-      setStatus("当前页面不可共享单词。");
-      return false;
+      return failShare("当前页面不可共享单词。");
     }
     if (!canOperate) {
-      setStatus("请登录后再共享。");
       openEnAuth();
-      return false;
+      return failShare("请登录后再共享。");
     }
     if (sharingId === wordId || savingId === wordId || wordSyncState[wordId]) {
       if (fromNext) {
@@ -608,15 +626,23 @@ export function useEnVocabReviewActions(options: {
     }
 
     const snapshot = words.find((w) => w.id === wordId);
-    if (!snapshot) return false;
+    if (!snapshot) {
+      return failShare(`词条不在本地列表（word_id=${wordId}）`);
+    }
     // 1h 锁只拦改熟悉程度；点「下一个」同步给学生不受锁影响
     // 必须已写入今日抽查（禁止仅凭用法草稿 / 乐观 session 放行 → 共享 25、进度 19）
     if (
       !hasEnVocabTodayCheckCounted(snapshot) &&
       !hasEnVocabReviewToday(snapshot, sessionReviewAt[wordId])
     ) {
-      setStatus("请先勾选熟悉程度并等保存成功，再同步给学生。");
-      return false;
+      return failShare(
+        [
+          "请先勾选熟悉程度并等保存成功，再同步给学生。",
+          `word_id=${wordId}`,
+          `today_check=${snapshot.today_check_date ?? "(null)"}`,
+          `last_review_level=${snapshot.last_review_level ?? "(null)"}`,
+        ].join("\n")
+      );
     }
 
     const usageSlotCount = listEnVocabUsagePointsForDisplay(snapshot.usage).points
@@ -644,8 +670,15 @@ export function useEnVocabReviewActions(options: {
           displayOrder,
         }) != null;
       if (!complete && !hasOverall) {
-        setStatus("请先在抽查卡为每条用法勾选熟悉程度，全部勾完后再共享给学生。");
-        return false;
+        return failShare(
+          [
+            "请先在抽查卡为每条用法勾选熟悉程度，全部勾完后再共享给学生。",
+            `word_id=${wordId}`,
+            `usage_slots=${usageSlotCount}`,
+            `draft_complete=${complete}`,
+            `has_overall=${hasOverall}`,
+          ].join("\n")
+        );
       }
     }
 
@@ -677,14 +710,35 @@ export function useEnVocabReviewActions(options: {
         signal: AbortSignal.timeout(EN_VOCAB_SHARE_FETCH_TIMEOUT_MS),
         body: JSON.stringify({ word_id: wordId }),
       });
-      const data = (await res.json()) as {
-        ok: boolean;
+      const rawBody = await res.text();
+      let data: {
+        ok?: boolean;
         word?: EnVocabWord;
         error?: string;
-      };
+      } = {};
+      try {
+        data = rawBody ? (JSON.parse(rawBody) as typeof data) : {};
+      } catch {
+        return failShare(
+          [
+            `HTTP ${res.status}`,
+            "POST /api/en-vocab/share",
+            `word_id=${wordId}`,
+            "response_not_json",
+            rawBody.slice(0, 2000) || "(empty body)",
+          ].join("\n")
+        );
+      }
       if (res.status === 401) {
         await refresh();
-        throw new Error(EN_VOCAB_SAVE_ERR[locale]);
+        return failShare(
+          [
+            `HTTP 401`,
+            "POST /api/en-vocab/share",
+            `word_id=${wordId}`,
+            data.error || EN_VOCAB_SAVE_ERR[locale],
+          ].join("\n")
+        );
       }
       if (res.status === 409 || data.error === "already_shared_today") {
         setSharedTodayWordIds((prev) => new Set([...prev, wordId]));
@@ -696,7 +750,17 @@ export function useEnVocabReviewActions(options: {
         return true;
       }
       if (!data.ok || !data.word) {
-        throw new Error(data.error || (locale === "zh" ? "共享失败" : "Share failed"));
+        return failShare(
+          [
+            `HTTP ${res.status}`,
+            "POST /api/en-vocab/share",
+            `word_id=${wordId}`,
+            `ok=${String(data.ok)}`,
+            `error=${data.error ?? "(none)"}`,
+            `word=${data.word ? "present" : "missing"}`,
+            rawBody.slice(0, 1500) || "(empty body)",
+          ].join("\n")
+        );
       }
       clearShareTimer(wordId);
       await animateJpVocabShareProgressTo100(wordId, startedAt, (id, percent) =>
@@ -723,14 +787,22 @@ export function useEnVocabReviewActions(options: {
           (err.name === "TimeoutError" || err.name === "AbortError")) ||
         (err instanceof Error &&
           (err.name === "TimeoutError" || err.name === "AbortError"));
-      setStatus(
-        timedOut
-          ? EN_VOCAB_SYNC_ON_NEXT_RETRY_HINT
-          : err instanceof Error
-            ? err.message
-            : String(err)
-      );
-      return false;
+      const detail = timedOut
+        ? [
+            "TimeoutError",
+            "POST /api/en-vocab/share",
+            `word_id=${wordId}`,
+            `timeout_ms=${EN_VOCAB_SHARE_FETCH_TIMEOUT_MS}`,
+            err instanceof Error ? `${err.name}: ${err.message}` : String(err),
+            EN_VOCAB_SYNC_ON_NEXT_RETRY_HINT,
+          ].join("\n")
+        : [
+            "POST /api/en-vocab/share",
+            `word_id=${wordId}`,
+            err instanceof Error ? `${err.name}: ${err.message}` : String(err),
+          ].join("\n");
+      setStatus(timedOut ? EN_VOCAB_SYNC_ON_NEXT_RETRY_HINT : detail.split("\n")[0]!);
+      return { ok: false, detail };
     } finally {
       clearShareTimer(wordId);
       patchShareProgress(wordId, null);

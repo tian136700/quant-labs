@@ -61,8 +61,10 @@ def main() -> int:
 
     if "await onSelectUsageLevels(w.id, usageDraftLevels)" not in modal:
         errors.append("tryGoNext: must await usage level save before share")
-    if "saved === false" not in modal:
-        errors.append("tryGoNext: must stop when save returns false")
+    if "enVocabOpFailDetail(saved)" not in modal:
+        errors.append(
+            "tryGoNext: must stop when save fails (enVocabOpFailDetail), not only saved === false"
+        )
 
     if "review_required" not in rule or "today_check" not in rule:
         errors.append("rule must document review_required / today_check gate")

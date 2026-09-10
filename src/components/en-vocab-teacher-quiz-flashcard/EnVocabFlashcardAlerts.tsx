@@ -1,11 +1,17 @@
 "use client";
 
+import { useState } from "react";
+import { CopyToast } from "@/components/CopyToast";
+import { copyTextToClipboard } from "@/lib/copy-text";
+
 type Props = {
   nextBlockedHint: boolean;
   /** 同步给学生未完成时点「下一个」 */
   syncWaitHint?: boolean;
   /** true=超时/失败文案；false=进行中请稍等 */
   syncWaitFailed?: boolean;
+  /** 失败时展示的原始报错（禁止只写「同步失败」） */
+  syncWaitErrorDetail?: string | null;
   previewMode: boolean;
   isStudy: boolean;
   selected: import("@/lib/types").EnVocabLevel | undefined;
@@ -21,6 +27,7 @@ export function EnVocabFlashcardAlerts({
   nextBlockedHint,
   syncWaitHint = false,
   syncWaitFailed = false,
+  syncWaitErrorDetail = null,
   previewMode,
   isStudy,
   selected,
@@ -31,6 +38,17 @@ export function EnVocabFlashcardAlerts({
   onDismissRemaining,
   stop,
 }: Props) {
+  const [copyToast, setCopyToast] = useState<string | null>(null);
+  const errorLog =
+    (syncWaitErrorDetail || "").trim() ||
+    "（无详细报错；请再点「下一个」重试并保留此弹窗）";
+
+  const handleCopyError = () => {
+    void copyTextToClipboard(errorLog).then((ok) =>
+      setCopyToast(ok ? "复制成功" : "复制失败")
+    );
+  };
+
   return (
     <>
       {syncWaitHint && !previewMode && !isStudy ? (
@@ -40,7 +58,11 @@ export function EnVocabFlashcardAlerts({
           onClick={() => onDismissSyncWait?.()}
         >
           <div
-            className="jp-vocab-teacher-quiz-alert"
+            className={
+              syncWaitFailed
+                ? "jp-vocab-teacher-quiz-alert jp-vocab-teacher-quiz-alert--error-log"
+                : "jp-vocab-teacher-quiz-alert"
+            }
             role="alertdialog"
             aria-modal="true"
             aria-labelledby="en-vocab-teacher-quiz-sync-title"
@@ -51,25 +73,49 @@ export function EnVocabFlashcardAlerts({
               id="en-vocab-teacher-quiz-sync-title"
               className="jp-vocab-teacher-quiz-alert__title"
             >
-              {syncWaitFailed
-                ? "同步失败或超时"
-                : "此单词正在同步给学生复习"}
+              {syncWaitFailed ? "报错（原样）" : "此单词正在同步给学生复习"}
             </h3>
-            <p
-              id="en-vocab-teacher-quiz-sync-desc"
-              className="jp-vocab-teacher-quiz-alert__desc"
-            >
-              {syncWaitFailed
-                ? "同步失败或超时，请再点「下一个」重试。"
-                : "此单词正在同步给学生复习，请稍等。"}
-            </p>
-            <button
-              type="button"
-              className="btn-rsi-filter btn-rsi-filter--primary jp-vocab-teacher-quiz-alert__close"
-              onClick={() => onDismissSyncWait?.()}
-            >
-              知道了
-            </button>
+            {syncWaitFailed ? (
+              <pre
+                id="en-vocab-teacher-quiz-sync-desc"
+                className="jp-vocab-teacher-quiz-alert__error-log"
+              >
+                {errorLog}
+              </pre>
+            ) : (
+              <p
+                id="en-vocab-teacher-quiz-sync-desc"
+                className="jp-vocab-teacher-quiz-alert__desc"
+              >
+                此单词正在同步给学生复习，请稍等。
+              </p>
+            )}
+            {syncWaitFailed ? (
+              <div className="jp-vocab-teacher-quiz-alert__actions">
+                <button
+                  type="button"
+                  className="btn-rsi-filter jp-vocab-teacher-quiz-alert__copy"
+                  onClick={handleCopyError}
+                >
+                  复制报错
+                </button>
+                <button
+                  type="button"
+                  className="btn-rsi-filter btn-rsi-filter--primary jp-vocab-teacher-quiz-alert__close"
+                  onClick={() => onDismissSyncWait?.()}
+                >
+                  知道了
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="btn-rsi-filter btn-rsi-filter--primary jp-vocab-teacher-quiz-alert__close"
+                onClick={() => onDismissSyncWait?.()}
+              >
+                知道了
+              </button>
+            )}
           </div>
         </div>
       ) : null}
@@ -152,6 +198,12 @@ export function EnVocabFlashcardAlerts({
           </div>
         </div>
       ) : null}
+
+      <CopyToast
+        message={copyToast}
+        onDismiss={() => setCopyToast(null)}
+        className="copy-toast--above-modal"
+      />
     </>
   );
 }
