@@ -159,8 +159,16 @@ export async function evaluateJpVocabFillScheduleGate(
 
   const jpCompleted = parseIsoMs(jpDay.completed_at) != null;
   const enCompleted = parseIsoMs(enDay.completed_at) != null;
+  /**
+   * 「抽查中」须同时满足：live 开着、当日未 completed、且最近活动仍在冷却窗内。
+   * 关卡未关 / 未抽满但 live 挂着陈旧 word_id 时，若已超过冷却，不再永久挡补全
+   * （否则会像「抽完半小时了还不跑」）。
+   */
+  const liveActivityRecent =
+    lastMs == null || nowMs - lastMs < cooldownMs;
   const midQuiz =
-    (jpLiveOpen && !jpCompleted) || (enLiveOpen && !enCompleted);
+    ((jpLiveOpen && !jpCompleted) || (enLiveOpen && !enCompleted)) &&
+    liveActivityRecent;
 
   let result: JpVocabFillScheduleGateResult;
 

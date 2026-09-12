@@ -32,9 +32,15 @@ def main() -> int:
         "live_open",
         "GATE_QUIET_CACHE_MS",
         "gateIsolateCache",
+        "liveActivityRecent",
     ):
         if needle not in gate_ts:
             errors.append(f"gate ts missing {needle}")
+    if "nowMs - lastMs < cooldownMs" not in gate_ts:
+        errors.append(
+            "gate must release midQuiz when last activity older than cooldown "
+            "(stale live must not block forever)"
+        )
     if "bypassCache: true" in gate_ts:
         errors.append(
             "fill-schedule-gate must not bypassCache live every call (use isolate cache)"
