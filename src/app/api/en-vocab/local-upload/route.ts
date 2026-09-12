@@ -1,12 +1,14 @@
 import { getCloudflareEnv, jsonResponse } from "@/lib/cloudflare-env";
 import { verifyUploadAuth } from "@/lib/jp-review";
 import { clearEnVocabApiUploadMeanings, scrubEnVocabApiUploadSttMeaningsForWords, uploadEnVocabWords } from "@/lib/en-vocab-db";
+import { listDistinctEnVocabCategories } from "@/lib/en-vocab-db/helpers";
 import {
   sanitizeEnVocabLocalUploadInput,
   sanitizeEnVocabLocalUploadInputs,
 } from "@/lib/en-vocab-local-upload";
 import { EN_VOCAB_UPLOAD_SOURCE_API } from "@/lib/en-vocab-upload-source";
 import type { EnVocabUploadInput } from "@/lib/types";
+import { normalizeEnVocabCategory } from "@/lib/en-vocab-category";
 
 const DUPLICATE_WORD_MESSAGE = "单词重复了，库中已存在，已跳过";
 
@@ -102,6 +104,14 @@ export async function POST(request: Request) {
     const duplicateWords = result.duplicate_words;
     const hasDuplicates = duplicateWords.length > 0;
     const message = buildUploadSummaryMessage(result.added, duplicateWords);
+    const categoriesUsed = [
+      ...new Set(
+        words
+          .map((w) => normalizeEnVocabCategory(w.category))
+          .filter(Boolean)
+      ),
+    ];
+    const categories = await listDistinctEnVocabCategories(env.DB);
 
     return jsonResponse({
       ok: true,
@@ -118,6 +128,10 @@ export async function POST(request: Request) {
       has_duplicates: hasDuplicates,
       message,
       meanings_scrubbed: scrubbed.cleared,
+      /** 本次请求用到的分类（已规范化，已写入词条） */
+      categories_used: categoriesUsed,
+      /** 词库全部已出现分类（含本次上传的新分类） */
+      categories,
       upload_source: EN_VOCAB_UPLOAD_SOURCE_API,
       upload_source_label: "通过API接口上传",
     });

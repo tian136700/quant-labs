@@ -17,14 +17,14 @@ import {
   type EnLessonContentEditRow,
 } from "@/lib/en-lesson-content-edit";
 import {
-  EN_VOCAB_CATEGORY_PRESETS,
   EN_VOCAB_DEFAULT_CATEGORY,
+  mergeEnVocabCategoryOptions,
 } from "@/lib/en-vocab-category";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import { jpVocabSaveProgressLabel } from "@/lib/jp-vocab-save-progress";
 import type { EnLessonKind, EnLessonRecord } from "@/lib/types";
 
-const CATEGORY_OPTIONS = [...EN_VOCAB_CATEGORY_PRESETS] as const;
+const CATEGORY_OPTIONS = mergeEnVocabCategoryOptions();
 
 export type EnLessonEditApi = {
   open: (lesson: EnLessonRecord) => void;
@@ -245,17 +245,19 @@ export function EnLessonEditBridge({
 
           <fieldset className="en-lesson-edit-fieldset" disabled={saving}>
             <legend>分类</legend>
-            <select
-              className="en-lesson-edit-select"
+            <input
+              type="text"
+              className="en-lesson-edit-input"
+              list="en-lesson-edit-category-presets"
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-            >
+              placeholder={EN_VOCAB_DEFAULT_CATEGORY}
+            />
+            <datalist id="en-lesson-edit-category-presets">
               {CATEGORY_OPTIONS.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
+                <option key={opt} value={opt} />
               ))}
-            </select>
+            </datalist>
           </fieldset>
 
           <fieldset className="en-lesson-edit-fieldset" disabled={saving}>

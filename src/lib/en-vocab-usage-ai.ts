@@ -165,9 +165,15 @@ function buildEnVocabUsageCategoryFocusLine(categoryRaw?: string | null): string
     return "选材（仅供你选题，禁止写进正文）：优先该词在托业这类职场/商务英语考试中的高频用法与搭配，如邮件、会议、办公室、客户沟通、日常工作场景。";
   }
   if (
+    category.includes("F1学生签证") ||
+    category.includes("签证面试") ||
+    category.includes("学生签证")
+  ) {
+    return "选材（仅供你选题，禁止写进正文）：优先该词在美国 F-1 学生签证面签中的高频用法与搭配，如学习目的、学校与专业、资金来源、CPT、毕业后回国计划、移民倾向相关问答；释义与例句偏面签口语。";
+  }
+  if (
     category.includes("IT面试") ||
-    category.includes("面试") ||
-    category.toLowerCase().includes("interview")
+    category.toLowerCase().includes("it interview")
   ) {
     return "选材（仅供你选题，禁止写进正文）：优先该词在 IT / 软件工程技术面试中的高频用法与搭配，如系统设计、架构、算法数据结构、微服务、缓存、并发、CI/CD、线上排障、代码评审；释义与例句也偏技术面试口语。";
   }

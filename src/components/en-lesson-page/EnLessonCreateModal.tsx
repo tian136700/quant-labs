@@ -13,14 +13,14 @@ import { useSaveProgressBar } from "@/hooks/useSaveProgressBar";
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
 import { pickClipboardLessonFile } from "@/lib/en-lesson-create-paste";
 import {
-  EN_VOCAB_CATEGORY_PRESETS,
   EN_VOCAB_DEFAULT_CATEGORY,
+  mergeEnVocabCategoryOptions,
 } from "@/lib/en-vocab-category";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import { jpVocabSaveProgressLabel } from "@/lib/jp-vocab-save-progress";
 import type { EnLessonKind, EnLessonRecord } from "@/lib/types";
 
-const CATEGORY_OPTIONS = [...EN_VOCAB_CATEGORY_PRESETS] as const;
+const CATEGORY_OPTIONS = mergeEnVocabCategoryOptions();
 
 type Props = {
   open: boolean;
@@ -320,17 +320,23 @@ export function EnLessonCreateModal({
 
           <fieldset className="en-lesson-create-fieldset" disabled={saving}>
             <legend>分类</legend>
-            <select
-              className="en-lesson-create-select"
+            <input
+              type="text"
+              className="en-lesson-create-input"
+              list="en-lesson-create-category-presets"
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-            >
+              placeholder={EN_VOCAB_DEFAULT_CATEGORY}
+              aria-describedby="en-lesson-create-category-hint"
+            />
+            <datalist id="en-lesson-create-category-presets">
               {CATEGORY_OPTIONS.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
+                <option key={opt} value={opt} />
               ))}
-            </select>
+            </datalist>
+            <p id="en-lesson-create-category-hint" className="en-lesson-create-hint">
+              可选手选或自填；STT 上传带新分类时会原样入库，不必先改代码预设。
+            </p>
           </fieldset>
 
           <fieldset className="en-lesson-create-fieldset" disabled={saving}>

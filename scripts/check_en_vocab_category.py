@@ -30,7 +30,7 @@ def main() -> None:
         "category    TEXT    NOT NULL DEFAULT '雅思托福'",
     )
     must_contain(ROOT / "src/lib/en-lesson-db.ts", "ensureEnLessonCategoryColumn")
-    must_contain(ROOT / "src/lib/en-lesson-db.ts", "category: lesson.category")
+    must_contain(ROOT / "src/lib/en-lesson-db.ts", "normalizeEnVocabCategory(item.category)")
     must_contain(
         ROOT / "src/lib/en-lesson-db.ts",
         "INSERT INTO en_lesson (kind, content, meanings, category, title, remarks, ref_key",
@@ -90,6 +90,18 @@ def main() -> None:
     must_contain(
         ROOT / "src/lib/en-vocab-category.ts",
         "IT面试类高频词汇",
+    )
+    must_contain(
+        ROOT / "src/lib/en-vocab-category.ts",
+        'EN_VOCAB_F1_VISA_CATEGORY = "F1学生签证面试"',
+    )
+    must_contain(
+        ROOT / "src/lib/en-vocab-category.ts",
+        "mergeEnVocabCategoryOptions",
+    )
+    must_contain(
+        ROOT / "src/lib/en-vocab-category.ts",
+        "其它新分类：原样入库",
     )
     # API「…错题分类」及类似名须归入标准托业 / 雅思托福（含关键字即归入）
     must_contain(

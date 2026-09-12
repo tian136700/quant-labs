@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { EnVocabImageNotesField } from "@/components/EnVocabImageNotesField";
 import {
-  EN_VOCAB_CATEGORY_PRESETS,
   EN_VOCAB_DEFAULT_CATEGORY,
   displayEnVocabCategory,
+  mergeEnVocabCategoryOptions,
 } from "@/lib/en-vocab-category";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import type { EnVocabKind, EnVocabWord } from "@/lib/types";
@@ -277,7 +277,7 @@ export function EnVocabEditModal({
                 onChange={(e) => setCategory(e.target.value)}
               />
               <datalist id="en-vocab-category-presets">
-                {EN_VOCAB_CATEGORY_PRESETS.map((preset) => (
+                {mergeEnVocabCategoryOptions().map((preset) => (
                   <option key={preset} value={preset} />
                 ))}
               </datalist>

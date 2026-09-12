@@ -30,7 +30,7 @@ import {
   normalizeEnVocabRefKey,
   resolveEnVocabRefMediaType,
 } from "@/lib/en-vocab-ref-shared";
-import { normalizeEnVocabCategory } from "@/lib/en-vocab-category";
+import { mergeEnVocabCategoryOptions, normalizeEnVocabCategory } from "@/lib/en-vocab-category";
 import {
   EN_VOCAB_DEFAULT_UPLOAD_SOURCE,
   EN_VOCAB_UPLOAD_SOURCE_LESSON,
@@ -465,6 +465,29 @@ export function stripEnVocabWordNotesForList(word: EnVocabWord): EnVocabWord {
     example_sentences_source: null,
     example_sentences_present: examplesPresent,
   };
+}
+
+/** 词库中已出现的分类（规范化去重），供 UI 与上传后自动出现。 */
+export async function listDistinctEnVocabCategories(
+  db: D1Database
+): Promise<string[]> {
+  await ensureEnVocabWordSchema(db);
+  if (enVocabDbState.devStoreEnabled) {
+    return mergeEnVocabCategoryOptions(
+      enVocabDbState.devWords.map((w) => w.category)
+    );
+  }
+  const result = await db
+    .prepare(
+      `SELECT DISTINCT category AS category
+       FROM en_vocab_word
+       WHERE category IS NOT NULL AND TRIM(category) != ''
+       ORDER BY category ASC`
+    )
+    .all<{ category: string }>();
+  return mergeEnVocabCategoryOptions(
+    (result.results || []).map((r) => r.category)
+  );
 }
 
 export async function listEnVocabRefsByKeys(
