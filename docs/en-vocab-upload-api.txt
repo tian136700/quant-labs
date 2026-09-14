@@ -1,0 +1,164 @@
+英语抽背 · 批量上传 API（含可选教案 refs）
+========================================
+
+用途
+----
+用 Bearer Token 批量推英语词条（可选附带教案元数据 refs）。
+与 local-upload 同属「通过API接口上传」；local-upload 是 STT 推荐入口（分类提示更全、
+有重复词明细 / 探针拒收明细）。本接口适合脚本一次推词 + refs。
+
+线上地址
+--------
+POST https://english.info-quests.com/api/en-vocab/upload
+
+本机开发（可选）
+----------------
+POST http://127.0.0.1:3002/api/en-vocab/upload
+
+
+鉴权
+----
+Header:
+  Authorization: Bearer <JP_REVIEW_UPLOAD_TOKEN>
+  Content-Type: application/json
+
+token 与教案 / 日语上传共用，取环境变量 JP_REVIEW_UPLOAD_TOKEN。
+
+
+请求体
+------
+{
+  "words": [
+    { "word": "condition", "category": "雅思托福", "kind": "word" },
+    { "word": "negotiate", "category": "托业" }
+  ],
+  "refs": [],
+  "replace": false
+}
+
+字段说明
+--------
+words[]     必填数组。每项至少含 word。
+  word      必填。英文单词或语法名。
+  category  选填。空则默认「雅思托福」；会经 normalizeEnVocabCategory 规范化。
+  kind      选填。word（默认）或 grammar。
+  reading   选填。音标（可传；释义 meaning 会被忽略，由 fill-meaning 补）。
+refs[]      选填。教案元数据（与词条 ref_key 对齐时用）；结构同日语 JpVocabRefUploadInput。
+replace     选填。true 时清空后整库替换（危险；默认 false，仅增量去重写入）。
+
+说明：
+- upload_source 由服务端写成 api。
+- **不接受释义**：sanitize 会剥掉 meaning。
+- **探针/测试词拒收**：含 stt_probe / never_exist，或形如
+  __…probe|canary|placeholder|dummy|test_only…__ 的占位词不会入库；
+  响应含 rejected_probe_words。排查请用真实词测重复，禁止 POST 假词。
+
+
+成功响应示例
+------------
+{
+  "ok": true,
+  "added": 2,
+  "skipped": 0,
+  "total": 340,
+  "rejected_probe_words": [],
+  "upload_source": "api",
+  "upload_source_label": "通过API接口上传"
+}
+
+全是探针词时（仍 HTTP 200）：
+{
+  "ok": true,
+  "added": 0,
+  "skipped": 0,
+  "total": 0,
+  "rejected_probe_words": ["__stt_probe_never_exist_xyz__"],
+  "upload_source": "api",
+  "upload_source_label": "通过API接口上传"
+}
+
+字段含义：
+  ok                   鉴权通过且请求可解析
+  added                本次新写入条数
+  skipped              因重复跳过条数
+  total                写完后词库总条数（全探针时可能为 0）
+  rejected_probe_words 探针/测试词列表（未写入）
+  upload_source        固定 "api"
+  upload_source_label  固定「通过API接口上传」
+
+
+失败响应
+--------
+401
+  { "ok": false, "error": "Unauthorized" }
+
+400
+  { "ok": false, "error": "words_empty" }
+  → 过滤探针后没有可写单词，且未走「仅探针」早退时可能出现
+    （当前实现：全探针会 ok=true + rejected_probe_words）
+
+500
+  { "ok": false, "error": "…" }
+
+
+curl 示例
+---------
+curl -sS -X POST 'https://english.info-quests.com/api/en-vocab/upload' \
+  -H 'Authorization: Bearer 你的TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "words": [
+      { "word": "condition", "category": "雅思托福" },
+      { "word": "negotiate", "category": "托业" }
+    ],
+    "replace": false
+  }'
+
+
+Python 最小示例
+---------------
+import json
+import urllib.request
+
+URL = "https://english.info-quests.com/api/en-vocab/upload"
+TOKEN = "你的TOKEN"
+
+payload = {
+    "words": [
+        {"word": "condition", "category": "雅思托福"},
+        {"word": "negotiate", "category": "托业"},
+    ],
+    "replace": False,
+}
+
+req = urllib.request.Request(
+    URL,
+    data=json.dumps(payload).encode("utf-8"),
+    headers={
+        "Authorization": f"Bearer {TOKEN}",
+        "Content-Type": "application/json",
+    },
+    method="POST",
+)
+
+with urllib.request.urlopen(req, timeout=60) as resp:
+    data = json.loads(resp.read().decode("utf-8"))
+
+print("added", data.get("added"), "skipped", data.get("skipped"))
+if data.get("rejected_probe_words"):
+    print("rejected probes:", data["rejected_probe_words"])
+
+
+与 local-upload 的区别
+--------------------
+local-upload（推荐给 STT）：分类提示、duplicate_words / duplicates / message /
+  rejected_probes 更完整；维护 mode=clear_api_meanings。
+upload：可带 refs、replace；响应字段更精简，仍含 rejected_probe_words。
+
+
+联系 / 改接口时
+--------------
+线上模块：英语抽背（english.info-quests.com/en-vocab）
+本说明对应接口：POST /api/en-vocab/upload
+相关：docs/en-vocab-local-upload-api.txt
+规则：.cursor/rules/en-vocab-probe-lemma-reject.mdc

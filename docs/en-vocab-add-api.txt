@@ -1,0 +1,128 @@
+英语抽背 · 手动添加词条 API（网页表单）
+======================================
+
+用途
+----
+管理员/有权限用户在「英语抽背」页手动添加一条词条（可附教案文件）。
+上传类型记为「手动添加」（manual）。
+外部 STT / 脚本批量推词请用 local-upload，不要调本接口。
+
+线上地址
+--------
+POST https://english.info-quests.com/api/en-vocab/add
+
+本机开发（可选）
+----------------
+POST http://127.0.0.1:3002/api/en-vocab/add
+
+
+鉴权
+----
+登录态 Cookie（requireEnVocabAccess：须有英语抽背读写权限）。
+不支持仅靠 JP_REVIEW_UPLOAD_TOKEN（那是 local-upload / upload 用的）。
+
+
+请求
+----
+Content-Type: multipart/form-data
+
+字段：
+  word         必填。英文单词或语法名。
+  reading      选填。音标。
+  meaning      选填。释义（手动添加可写；与 API 上传不同）。
+  kind         选填。word（默认）或 grammar。
+  category     选填。空则默认「雅思托福」。
+  class_notes  选填。课堂备注。
+  ref_key      选填。已有教案 key（须库中存在）。
+  ref_title    选填。新传教案时的标题。
+  media_type   选填。image（默认）或 pdf。
+  file         选填。教案文件（≤20MB）；与 ref_key 二选一或都不传。
+
+说明：
+- **探针/测试词拒收**：词面含 stt_probe / never_exist，或形如
+  __…probe|canary|placeholder|dummy|test_only…__ → 400，
+  error 为「探针/测试词不允许入库。」（代码 probe_lemma_rejected）。
+- 重复词 → 409，error「该词条已存在。」
+
+
+成功响应示例
+------------
+{
+  "ok": true,
+  "word": { "id": 701, "word": "condition", "...": "…" },
+  "ref_key": null,
+  "ref_deduped": false,
+  "ref_view_path": null
+}
+
+带教案时 ref_key / ref_view_path 非空；相同文件内容会去重（ref_deduped=true）。
+
+
+失败响应
+--------
+401
+  { "ok": false, "error": "请登录后再添加。" }
+  （英文 locale 下为英文文案）
+
+400
+  { "ok": false, "error": "请使用 multipart/form-data 提交。" }
+  { "ok": false, "error": "请填写单词或语法。" }
+  { "ok": false, "error": "探针/测试词不允许入库。" }
+  { "ok": false, "error": "教案链接无效" }
+  { "ok": false, "error": "文件为空。" }
+
+409
+  { "ok": false, "error": "该词条已存在。" }
+
+413
+  { "ok": false, "error": "文件过大（最大 20MB）。" }
+
+500
+  { "ok": false, "error": "…" }
+
+
+curl 示例（须已登录 Cookie；浏览器里用开发者工具复制 Cookie 更方便）
+---------
+curl -sS -X POST 'https://english.info-quests.com/api/en-vocab/add' \
+  -H 'Cookie: 你的登录Cookie' \
+  -F 'word=condition' \
+  -F 'category=雅思托福' \
+  -F 'kind=word'
+
+探针词会被拒：
+curl -sS -X POST 'https://english.info-quests.com/api/en-vocab/add' \
+  -H 'Cookie: 你的登录Cookie' \
+  -F 'word=__stt_probe_never_exist_xyz__'
+# → 400 {"ok":false,"error":"探针/测试词不允许入库。"}
+
+
+Python 最小示例（requests + Cookie）
+-----------------------------------
+import requests
+
+URL = "https://english.info-quests.com/api/en-vocab/add"
+# 从已登录浏览器复制 session cookie
+cookies = {"…": "…"}
+
+r = requests.post(
+    URL,
+    cookies=cookies,
+    data={"word": "condition", "category": "雅思托福", "kind": "word"},
+    timeout=60,
+)
+print(r.status_code, r.json())
+
+
+与 local-upload / upload 的区别
+------------------------------
+add：网页手动一条；会话 Cookie；可写释义/备注/教案文件；upload_source=manual。
+local-upload / upload：Bearer Token；批量；不接受释义；upload_source=api；
+  探针词进 rejected_probe_words（HTTP 200 部分成功），add 则直接 400。
+
+
+联系 / 改接口时
+--------------
+线上模块：英语抽背（english.info-quests.com/en-vocab）
+本说明对应接口：POST /api/en-vocab/add
+相关：docs/en-vocab-local-upload-api.txt 、docs/en-vocab-upload-api.txt
+规则：.cursor/rules/en-vocab-probe-lemma-reject.mdc

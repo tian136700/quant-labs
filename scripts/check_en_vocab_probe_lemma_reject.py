@@ -70,6 +70,14 @@ def main() -> None:
         "rejected_probe_words",
     )
     must_contain(
+        ROOT / "docs/en-vocab-upload-api.txt",
+        "rejected_probe_words",
+    )
+    must_contain(
+        ROOT / "docs/en-vocab-add-api.txt",
+        "探针/测试词不允许入库",
+    )
+    must_contain(
         ROOT / ".cursor/rules/en-vocab-probe-lemma-reject.mdc",
         "__stt_probe_never_exist_xyz__",
     )

@@ -14,6 +14,8 @@ REQUIRED: list[tuple[str, str]] = [
     ("src/app/api/jp-lesson/upload-mixed/route.ts", "docs/jp-lesson-upload-mixed-api.txt"),
     ("src/app/api/en-lesson/route.ts", "docs/en-lesson-api.txt"),
     ("src/app/api/en-vocab/local-upload/route.ts", "docs/en-vocab-local-upload-api.txt"),
+    ("src/app/api/en-vocab/upload/route.ts", "docs/en-vocab-upload-api.txt"),
+    ("src/app/api/en-vocab/add/route.ts", "docs/en-vocab-add-api.txt"),
     ("src/app/api/en-vocab/route.ts", "docs/en-vocab-api.txt"),
     ("src/app/api/jp-vocab/route.ts", "docs/jp-vocab-api.txt"),
     ("src/app/api/jp-vocab/exists/route.ts", "docs/jp-vocab-exists-api.txt"),
