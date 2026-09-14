@@ -8,6 +8,7 @@ import { sortEnVocabFillRowsByDailyOrder } from "@/lib/en-vocab-fill-daily-prior
 import { enVocabUsageMissingWhereSql } from "@/lib/en-vocab-fill-usage";
 import { enVocabExampleSentencesNeedFill } from "@/lib/en-vocab-example-sentences-ai";
 import { enVocabLemmaLooksLikeGrammar } from "@/lib/en-vocab-kind-detect";
+import { isEnVocabProbeOrTestLemma } from "@/lib/en-vocab-local-upload";
 import { enVocabUsageHasCompleteFrequency } from "@/lib/en-vocab-usage-ai";
 
 const EN_FILL_ROW_SELECT = `id, word, kind, reading, meaning, pos, category, usage, example_sentences`;
@@ -47,6 +48,7 @@ function trimOrNull(value: string | null | undefined): string | null {
 function enRowNeedsAnyFill(row: EnVocabFillRow): boolean {
   const kind = String(row.kind || "word");
   const word = String(row.word || "");
+  if (isEnVocabProbeOrTestLemma(word)) return false;
   if (kind === "word" && enVocabLemmaLooksLikeGrammar(word)) return true;
   if (kind !== "grammar") {
     if (!trimOrNull(row.reading)) return true;
@@ -136,11 +138,13 @@ export async function pickNextEnVocabFillCandidate(
         AND example_sentences IS NOT NULL AND TRIM(example_sentences) != ''
       ORDER BY id
       LIMIT ?1`;
-    rows = (await queryEnVocabFillRows(db, exSql, scanCap)).filter((row) =>
-      enVocabExampleSentencesNeedFill(
-        trimOrNull(row.usage),
-        row.example_sentences
-      )
+    rows = (await queryEnVocabFillRows(db, exSql, scanCap)).filter(
+      (row) =>
+        !isEnVocabProbeOrTestLemma(String(row.word || "")) &&
+        enVocabExampleSentencesNeedFill(
+          trimOrNull(row.usage),
+          row.example_sentences
+        )
     );
   }
 
@@ -150,8 +154,10 @@ export async function pickNextEnVocabFillCandidate(
       WHERE kind = 'word'
       ORDER BY id
       LIMIT ?1`;
-    rows = (await queryEnVocabFillRows(db, kindSql, scanCap)).filter((row) =>
-      enVocabLemmaLooksLikeGrammar(String(row.word || ""))
+    rows = (await queryEnVocabFillRows(db, kindSql, scanCap)).filter(
+      (row) =>
+        !isEnVocabProbeOrTestLemma(String(row.word || "")) &&
+        enVocabLemmaLooksLikeGrammar(String(row.word || ""))
     );
   }
 

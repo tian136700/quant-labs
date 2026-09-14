@@ -3,6 +3,7 @@ import { verifyUploadAuth } from "@/lib/jp-review";
 import { clearEnVocabApiUploadMeanings, scrubEnVocabApiUploadSttMeaningsForWords, uploadEnVocabWords } from "@/lib/en-vocab-db";
 import { listDistinctEnVocabCategories } from "@/lib/en-vocab-db/helpers";
 import {
+  partitionEnVocabUploadWordsAgainstProbes,
   sanitizeEnVocabLocalUploadInput,
   sanitizeEnVocabLocalUploadInputs,
 } from "@/lib/en-vocab-local-upload";
@@ -11,16 +12,23 @@ import type { EnVocabUploadInput } from "@/lib/types";
 import { normalizeEnVocabCategory } from "@/lib/en-vocab-category";
 
 const DUPLICATE_WORD_MESSAGE = "单词重复了，库中已存在，已跳过";
+const PROBE_WORD_MESSAGE = "探针/测试词已拒收，未写入词库";
 
 function buildUploadSummaryMessage(
   added: number,
-  duplicateWords: string[]
+  duplicateWords: string[],
+  rejectedProbeWords: string[] = []
 ): string {
   const parts: string[] = [];
   if (added > 0) parts.push(`成功新增 ${added} 个`);
   if (duplicateWords.length > 0) {
     parts.push(
       `有 ${duplicateWords.length} 个单词重复已跳过：${duplicateWords.join("、")}`
+    );
+  }
+  if (rejectedProbeWords.length > 0) {
+    parts.push(
+      `有 ${rejectedProbeWords.length} 个探针/测试词已拒收：${rejectedProbeWords.join("、")}`
     );
   }
   if (!parts.length) return "没有可写入的单词";
@@ -90,6 +98,35 @@ export async function POST(request: Request) {
       upload_source: EN_VOCAB_UPLOAD_SOURCE_API,
     }));
 
+    const { accepted, rejected_probe_words: rejectedProbeWords } =
+      partitionEnVocabUploadWordsAgainstProbes(words);
+    words = accepted;
+
+    if (!words.length) {
+      return jsonResponse({
+        ok: true,
+        added: 0,
+        skipped: 0,
+        total: 0,
+        added_words: [],
+        duplicate_words: [],
+        duplicates: [],
+        has_duplicates: false,
+        rejected_probe_words: rejectedProbeWords,
+        rejected_probes: rejectedProbeWords.map((word) => ({
+          word,
+          message: PROBE_WORD_MESSAGE,
+        })),
+        has_rejected_probes: rejectedProbeWords.length > 0,
+        message: buildUploadSummaryMessage(0, [], rejectedProbeWords),
+        meanings_scrubbed: 0,
+        categories_used: [],
+        categories: await listDistinctEnVocabCategories(env.DB),
+        upload_source: EN_VOCAB_UPLOAD_SOURCE_API,
+        upload_source_label: "通过API接口上传",
+      });
+    }
+
     const result = await uploadEnVocabWords(env.DB, words, false, []);
 
     if (!result.ok) {
@@ -103,7 +140,11 @@ export async function POST(request: Request) {
 
     const duplicateWords = result.duplicate_words;
     const hasDuplicates = duplicateWords.length > 0;
-    const message = buildUploadSummaryMessage(result.added, duplicateWords);
+    const message = buildUploadSummaryMessage(
+      result.added,
+      duplicateWords,
+      rejectedProbeWords
+    );
     const categoriesUsed = [
       ...new Set(
         words
@@ -126,6 +167,12 @@ export async function POST(request: Request) {
         message: DUPLICATE_WORD_MESSAGE,
       })),
       has_duplicates: hasDuplicates,
+      rejected_probe_words: rejectedProbeWords,
+      rejected_probes: rejectedProbeWords.map((word) => ({
+        word,
+        message: PROBE_WORD_MESSAGE,
+      })),
+      has_rejected_probes: rejectedProbeWords.length > 0,
       message,
       meanings_scrubbed: scrubbed.cleared,
       /** 本次请求用到的分类（已规范化，已写入词条） */

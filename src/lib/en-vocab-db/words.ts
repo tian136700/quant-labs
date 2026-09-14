@@ -83,9 +83,9 @@ import {
   type EnVocabTeacherVisibleLimit,
 } from "@/lib/en-vocab-teacher-visible";
 import type { EnLessonRecord } from "@/lib/types";
+import { isEnVocabProbeOrTestLemma } from "@/lib/en-vocab-local-upload";
 
 export type { EnVocabTeacherVisibleLimit } from "@/lib/en-vocab-teacher-visible";
-
 
 import {
   nowIso,
@@ -675,7 +675,7 @@ export async function uploadEnVocabWords(
         ref_key: w.ref_key ? normalizeEnVocabRefKey(w.ref_key) || null : null,
       };
     })
-    .filter((w) => w.word);
+    .filter((w) => w.word && !isEnVocabProbeOrTestLemma(w.word));
 
   if (!cleaned.length) {
     return { ok: false, error: "words_empty" };
@@ -811,6 +811,9 @@ export async function addEnVocabWord(
 ): Promise<AddEnVocabWordResult> {
   const word = normalizeWord(input.word);
   if (!word) return { ok: false, error: "word_required" };
+  if (isEnVocabProbeOrTestLemma(word)) {
+    return { ok: false, error: "probe_lemma_rejected" };
+  }
 
   const item = {
     word,

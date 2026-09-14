@@ -18,6 +18,10 @@ const AUTH_MSG = {
 const ERROR_MSG: Record<string, { en: string; zh: string }> = {
   word_required: { en: "Word is required.", zh: "请填写单词或语法。" },
   word_duplicate: { en: "This entry already exists.", zh: "该词条已存在。" },
+  probe_lemma_rejected: {
+    en: "Probe/test lemmas are not allowed.",
+    zh: "探针/测试词不允许入库。",
+  },
   file_too_large: {
     en: "File too large (max 20MB).",
     zh: "文件过大（最大 20MB）。",
