@@ -103,11 +103,20 @@ def main() -> int:
                 "tryGoNext: must abort share/advance via enVocabOpFailDetail(saved) "
                 "when usage level save fails (show raw error, not only boolean false)"
             )
-        if "wordHasLevel(w.id)" not in body or "usagesComplete" not in body:
-            errors.append(
-                "tryGoNext: when usagesComplete but !selected, must skip re-save "
-                "if wordHasLevel (avoid usage_levels_count_mismatch after refresh)"
+        if "wordHasLevel(w.id)" in body and "usagesComplete" in body:
+            # 旧 bug：草稿齐 → wordHasLevel 真 → 跳过写库直接 share
+            skip_draft = re.search(
+                r"if\s*\(\s*!selected\s*&&\s*usagesComplete[\s\S]*?"
+                r"if\s*\(\s*wordHasLevel\(w\.id\)\s*\)\s*\{[\s\S]*?"
+                r"runShareThenAdvance",
+                body,
             )
+            if skip_draft:
+                errors.append(
+                    "tryGoNext: must NOT skip save via wordHasLevel when "
+                    "!selected && usagesComplete (draft-complete ≠ today_check written; "
+                    "causes「请先勾选熟悉程度并等保存成功」)"
+                )
         # Ban the old soft-lock pattern: if (!selected) { pending...; return } without usagesComplete escape
         if re.search(
             r"if\s*\(\s*!selected\s*\)\s*\{[^}]*pendingNextAfterIdleRef\.current\s*=\s*true[^}]*return",
@@ -230,6 +239,15 @@ def main() -> int:
     if "selectedLevel == null && !draftComplete" not in modal:
         errors.append(
             "pendingNext effect: must continue when draftComplete even if selectedLevel null"
+        )
+    # 草稿齐 + selected 空时必须写库；禁止 !wordHasLevel 把门（草稿齐会使 wordHasLevel 恒真）
+    if re.search(
+        r"selectedLevel\s*==\s*null[\s\S]{0,200}draftComplete[\s\S]{0,200}!wordHasLevel\(",
+        modal,
+    ):
+        errors.append(
+            "pendingNext effect: must not gate usage save on !wordHasLevel "
+            "(draft-complete makes wordHasLevel true → skips save → share review_required)"
         )
 
     # --- peek 须视为已共享（idle / 超时后），禁止再 POST /share 钉死 ---

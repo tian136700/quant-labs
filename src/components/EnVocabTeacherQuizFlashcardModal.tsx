@@ -394,15 +394,15 @@ export function EnVocabTeacherQuizFlashcardModal({
       if (nextAdvanceBusyRef.current) return;
       nextAdvanceBusyRef.current = true;
       try {
-        // 用法草稿齐但 selected 仍空：先等写库成功，再 share（禁止无 today_check 就发学生）
-        // 若本词今日已勾过（wordHasLevel），勿再 POST usage_levels——刷新后 sessionLevel 空、
-        // 草稿却从 last_usage_levels 回填齐时，再写库曾因 LIST 无 usage 正文误拒。
+        // 用法草稿齐但 selected 仍空：必须先写库成功再 share。
+        // 禁止用 wordHasLevel（含「仅草稿勾齐」）跳过写库——否则 today_check 仍是旧日，
+        // share 会报「请先勾选熟悉程度并等保存成功」（老师明明已勾用法）。
+        // selectedLevel 已含今日 today_check / last_review 回显；为空即尚未写入今日。
         if (
           selectedLevel == null &&
           draftComplete &&
           onSelectUsageLevels &&
-          draftLevels &&
-          !wordHasLevel(wordId)
+          draftLevels
         ) {
           const saved = await onSelectUsageLevels(wordId, draftLevels);
           const saveFail = enVocabOpFailDetail(saved);
@@ -741,13 +741,11 @@ export function EnVocabTeacherQuizFlashcardModal({
       setNextBlockedHint(true);
       return;
     }
-    // 用法已齐但 selected 未回写：须写库成功再 share。
-    // 今日已勾过（wordHasLevel）则跳过再 POST——刷新后 session 空、草稿却齐时会误撞条数校验。
+    // 用法已齐但 selected 未回写：必须 await 写库成功再 share。
+    // 禁止用 wordHasLevel 跳过写库——它含「本会话草稿已齐」，会在未写入今日
+    // today_check 时直接 POST /share → 报「请先勾选熟悉程度并等保存成功」。
+    // 今日已写入时 selected（effectiveEnVocabDisplayLevel）本就会非空，不会进本分支。
     if (!selected && usagesComplete && onSelectUsageLevels) {
-      if (wordHasLevel(w.id)) {
-        void runShareThenAdvance();
-        return;
-      }
       if (nextAdvanceBusyRef.current) {
         pendingNextAfterIdleRef.current = true;
         setSyncWaitFailed(false);
