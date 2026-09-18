@@ -44,8 +44,10 @@ curl -sS -X POST "$BASE/api/en-vocab/fill-kind" \
 - `somebody` / `something` / `sb.` / `sth.` 等不定代词占位
 - `Present Perfect` 等时态/从句课名
 - 含 `…` / `...` / `~` 槽位
+- 完整疑问句（≥3 词、Are/Do/How/What… 开头、以 `?` 结尾），如
+  `Are you going for tourism?`（口语/签证课整句入库，勿当 word 强要 IPA）
 
-保持单词：普通单词、无占位短语动词（如 look forward to）。
+保持单词：普通单词、无占位短语动词（如 look forward to）、单词语气词（`Really?`）。
 
 ## 定时接线
 

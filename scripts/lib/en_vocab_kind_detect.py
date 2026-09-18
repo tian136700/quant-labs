@@ -40,6 +40,13 @@ PLUS_SLOT_RE = re.compile(
 ZH_GRAMMAR_LABEL_RE = re.compile(
     r"(?:从句|句型|句式|搭配|语法|时态|语态|结构|用法说明)"
 )
+# 完整疑问句作词条（签证/口语课常整句入库）→ 语法，勿强要 IPA
+INTERROGATIVE_SENTENCE_RE = re.compile(
+    r"^(?:Are|Is|Am|Was|Were|Do|Does|Did|Will|Would|Can|Could|Shall|Should|"
+    r"Have|Has|Had|May|Might|How|What|Why|When|Where|Who|Whom|Which|Whose)"
+    r"\b.+\?\s*$",
+    re.I,
+)
 
 
 def en_vocab_lemma_looks_like_grammar(raw: str) -> bool:
@@ -63,5 +70,8 @@ def en_vocab_lemma_looks_like_grammar(raw: str) -> bool:
     if SLOT_WORD_RE.search(word):
         return True
     if LETTER_SLOT_RE.search(word) and re.search(r"\s", word):
+        return True
+    # 空格数 ≥2 → 至少 3 词；Really? 等单词语气词不改 grammar
+    if word.count(" ") >= 2 and INTERROGATIVE_SENTENCE_RE.search(word):
         return True
     return False

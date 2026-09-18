@@ -37,6 +37,13 @@ const PLUS_SLOT_RE =
 const ZH_GRAMMAR_LABEL_RE =
   /(?:从句|句型|句式|搭配|语法|时态|语态|结构|用法说明)/;
 
+/**
+ * 完整疑问句作词条（签证/口语课常整句入库，如 Are you going for tourism?）。
+ * ≥3 词 + 疑问助词/wh 开头 + 以 ? 结尾 → 语法（勿当 word 强要 IPA）。
+ */
+const INTERROGATIVE_SENTENCE_RE =
+  /^(?:Are|Is|Am|Was|Were|Do|Does|Did|Will|Would|Can|Could|Shall|Should|Have|Has|Had|May|Might|How|What|Why|When|Where|Who|Whom|Which|Whose)\b.+\?\s*$/i;
+
 export type EnVocabKindSuggest = "word" | "grammar";
 
 /**
@@ -55,6 +62,10 @@ export function enVocabLemmaLooksLikeGrammar(raw: string): boolean {
   if (ZH_GRAMMAR_LABEL_RE.test(word)) return true;
   if (SLOT_WORD_RE.test(word)) return true;
   if (LETTER_SLOT_RE.test(word) && /\s/.test(word)) return true;
+  // 空格数 ≥2 → 至少 3 词；Really? 等单词语气词不改 grammar
+  if ((word.match(/ /g) || []).length >= 2 && INTERROGATIVE_SENTENCE_RE.test(word)) {
+    return true;
+  }
 
   return false;
 }

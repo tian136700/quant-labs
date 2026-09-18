@@ -39,6 +39,12 @@ TENSE_NAME_RE = re.compile(
 WILL_BE_PATTERN_RE = re.compile(r"\bwill\s+be\s+(?:to\b|doing\b)", re.I)
 ELLIPSIS_SLOT_RE = re.compile(r"(?:…|\.{3}|～|~)")
 DASH_BLANK_SLOT_RE = re.compile(r"(?:-{3,}|_{3,}|—{2,}|－{2,})")
+INTERROGATIVE_SENTENCE_RE = re.compile(
+    r"^(?:Are|Is|Am|Was|Were|Do|Does|Did|Will|Would|Can|Could|Shall|Should|"
+    r"Have|Has|Had|May|Might|How|What|Why|When|Where|Who|Whom|Which|Whose)"
+    r"\b.+\?\s*$",
+    re.I,
+)
 
 
 def looks_like_grammar(raw: str) -> bool:
@@ -58,6 +64,8 @@ def looks_like_grammar(raw: str) -> bool:
     if SLOT_WORD_RE.search(word):
         return True
     if LETTER_SLOT_RE.search(word) and re.search(r"\s", word):
+        return True
+    if word.count(" ") >= 2 and INTERROGATIVE_SENTENCE_RE.search(word):
         return True
     return False
 
@@ -83,6 +91,11 @@ CASES = [
     ("within a period of time", False),
     ("in time", False),
     ("as soon as possible", False),
+    # 完整疑问句作词条 → 语法（勿 incomplete_bundle:reading）
+    ("Are you going for tourism?", True),
+    ("How are you?", True),
+    ("Will you be staying long?", True),
+    ("Really?", False),
 ]
 
 
@@ -99,6 +112,7 @@ def main() -> int:
         "AB_PATTERN_RE",
         "TENSE_NAME_RE",
         "DASH_BLANK_SLOT_RE",
+        "INTERROGATIVE_SENTENCE_RE",
     ):
         if needle not in detect:
             errors.append(f"detect.ts missing {needle}")
