@@ -59,6 +59,16 @@ DECLARATIVE_SENTENCE_RE = re.compile(
 )
 
 
+def en_vocab_lemma_looks_like_full_sentence(raw: str) -> bool:
+    """≥3 词的完整疑问/陈述句（口语整句；存库仍用 kind=grammar，禁止 IPA）。"""
+    word = (raw or "").strip()
+    if not word or word.count(" ") < 2:
+        return False
+    return bool(
+        INTERROGATIVE_SENTENCE_RE.search(word) or DECLARATIVE_SENTENCE_RE.search(word)
+    )
+
+
 def en_vocab_lemma_looks_like_grammar(raw: str) -> bool:
     word = (raw or "").strip()
     if not word:
@@ -82,8 +92,6 @@ def en_vocab_lemma_looks_like_grammar(raw: str) -> bool:
     if LETTER_SLOT_RE.search(word) and re.search(r"\s", word):
         return True
     # 空格数 ≥2 → 至少 3 词；Really? 等单词语气词不改 grammar
-    if word.count(" ") >= 2 and INTERROGATIVE_SENTENCE_RE.search(word):
-        return True
-    if word.count(" ") >= 2 and DECLARATIVE_SENTENCE_RE.search(word):
+    if en_vocab_lemma_looks_like_full_sentence(word):
         return True
     return False

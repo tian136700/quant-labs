@@ -54,6 +54,14 @@ const DECLARATIVE_SENTENCE_RE =
 
 export type EnVocabKindSuggest = "word" | "grammar";
 
+/** ≥3 词的完整疑问/陈述句（口语整句；存库仍用 kind=grammar，禁止 IPA）。 */
+export function enVocabLemmaLooksLikeFullSentence(raw: string): boolean {
+  const word = String(raw || "").trim();
+  if (!word) return false;
+  if ((word.match(/ /g) || []).length < 2) return false;
+  return INTERROGATIVE_SENTENCE_RE.test(word) || DECLARATIVE_SENTENCE_RE.test(word);
+}
+
 /**
  * 词条原文是否更像语法/句型模板（而非普通单词或短语动词）。
  */
@@ -71,11 +79,7 @@ export function enVocabLemmaLooksLikeGrammar(raw: string): boolean {
   if (SLOT_WORD_RE.test(word)) return true;
   if (LETTER_SLOT_RE.test(word) && /\s/.test(word)) return true;
   // 空格数 ≥2 → 至少 3 词；Really? 等单词语气词不改 grammar
-  const spaceCount = (word.match(/ /g) || []).length;
-  if (spaceCount >= 2 && INTERROGATIVE_SENTENCE_RE.test(word)) {
-    return true;
-  }
-  if (spaceCount >= 2 && DECLARATIVE_SENTENCE_RE.test(word)) {
+  if (enVocabLemmaLooksLikeFullSentence(word)) {
     return true;
   }
 

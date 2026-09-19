@@ -44,7 +44,10 @@ from vocab_fill_circuit_breaker import (  # noqa: E402
     after_attempt,
     assert_not_killed,
 )
-from en_vocab_kind_detect import en_vocab_lemma_looks_like_grammar  # noqa: E402
+from en_vocab_kind_detect import (  # noqa: E402
+    en_vocab_lemma_looks_like_full_sentence,
+    en_vocab_lemma_looks_like_grammar,
+)
 
 BASE = "https://finance.info-quests.com"
 FILL_NEXT_URL = f"{BASE}/api/en-vocab/fill-next-candidate"
@@ -85,6 +88,9 @@ SYSTEM = (
     "No markdown fences, no commentary. "
     "All string values MUST use double quotes; escape any \" inside strings as \\\". "
     "IPA reading MUST be a JSON string like \"/ʌp ˈtuː/\", never a bare /…/ token. "
+    "If the lemma is a FULL spoken sentence (I'm going sightseeing. / What is the purpose of your trip?), "
+    "set kind to \"grammar\", OMIT reading and pos entirely, and treat it as an oral exam sentence card—"
+    "NOT a word that needs IPA. "
     "If the lemma is a grammar pattern / sentence frame (both A and B, cater to somebody, "
     "Present Perfect, slots like somebody/something/A/B), set kind to \"grammar\"; "
     "otherwise \"word\". Ordinary phrasal verbs without slots (look forward to) stay \"word\". "
@@ -120,6 +126,28 @@ SYSTEM = (
     "if usage is a phrase like get out / get through, include that exact phrase); "
     "tense/inflection OK; keep other words VERY basic; "
     "NO hard vocabulary, NO long subordinate clauses—focus on the target usage."
+)
+
+# 口语整句专用（I'm going sightseeing. / What is the purpose of your trip?）
+SYSTEM_FULL_SENTENCE = (
+    "You fill English learner flashcards for FULL spoken sentences "
+    "(visa interview / oral exam lines like \"I'm going sightseeing.\" "
+    "or \"What is the purpose of your trip?\"). "
+    "Return ONLY one JSON object. No markdown fences, no commentary. "
+    "Escape any \" inside strings as \\\". "
+    "CRITICAL: kind MUST be \"grammar\". "
+    "CRITICAL: OMIT reading and pos completely—never invent IPA for a whole sentence "
+    "(that causes incomplete_bundle:reading failures). "
+    "meaning: Chinese gloss of what this sentence means / when to say it; "
+    "join at most 3 points with ；. "
+    "usage: usually ONE line only, with dual scores, e.g. "
+    "'1. [口语9|考试9] 口语整句：面签/口语中用来说明……'. "
+    "Do NOT label it as 动词/名词/形容词. "
+    "example_sentences: plain string, exactly one English line + 译文：Chinese "
+    "per usage line (1:1). The English MAY be a slight scene variant of the lemma "
+    "(swap place/time) or a natural short reply that still practices the same line; "
+    "keep vocabulary VERY basic; NO hard words; NO long clauses. "
+    "NEVER write exam brand names in usage text."
 )
 
 
@@ -552,7 +580,13 @@ def build_prompt(row: dict[str, Any], needs: dict[str, bool]) -> str:
     word = str(row.get("word") or "").strip()
     kind = str(row.get("kind") or "word")
     category = str(row.get("category") or "").strip()
-    kind_label = "语法" if kind == "grammar" else "单词"
+    is_full_sentence = en_vocab_lemma_looks_like_full_sentence(word)
+    if is_full_sentence:
+        kind_label = "口语整句（存库 kind=grammar；禁止音标/词性）"
+    elif kind == "grammar":
+        kind_label = "语法"
+    else:
+        kind_label = "单词"
     need_keys = [k for k, v in needs.items() if v]
     if not category or category == "雅思托福":
         category_focus = (
@@ -583,6 +617,36 @@ def build_prompt(row: dict[str, Any], needs: dict[str, bool]) -> str:
         )
     else:
         category_focus = f"选题按「{category}」这一分类对应语境的高频用法。"
+
+    if is_full_sentence:
+        return f"""词条（完整口语句子）：{word}
+分类：{category or "雅思托福"}
+类型：{kind_label}
+
+说明：这是口语/面签整句卡片，不是单词。请整词重写下列字段（覆盖旧值）：
+{", ".join(need_keys) if need_keys else "meaning, usage, example_sentences"}
+{category_focus}
+
+硬规则：
+- kind 必须是 "grammar"
+- 禁止输出 reading / pos（整句不要 IPA，也不要词性）
+- meaning：整句中文意思或使用场合；分号「；」分隔，最多 3 点
+- usage：通常只要 1 条，必须带双分，形如「1. [口语9|考试9] 口语整句：……」；禁止标成动词/名词/形容词
+- example_sentences：与 usage 严格 1:1；英文完整短句 + 下一行「译文：中文」；可为同结构换场景，或自然短应答；用词极简单
+
+参考（可忽略，以你重写为准）：
+已有释义：{row.get("meaning") or "（无）"}
+已有用法：{row.get("usage") or "（无）"}
+已有例句：{row.get("example_sentences") or "（无）"}
+
+输出 JSON（不要 reading / pos 字段）：
+- kind: "grammar"
+- meaning: …
+- usage: …
+- example_sentences: …
+
+只输出 JSON。"""
+
     return f"""词条：{word}
 分类：{category or "雅思托福"}
 类型：{kind_label}
@@ -599,8 +663,8 @@ def build_prompt(row: dict[str, Any], needs: dict[str, bool]) -> str:
 已有例句：{row.get("example_sentences") or "（无）"}
 
 输出 JSON（需要的字段必须给出非空值）：
-- kind: "word" 或 "grammar"（句型模板 / A-B 占位 / somebody 槽 / 时态名 → grammar；普通单词与无占位短语动词 → word）
-- reading: 美式 IPA，形如 /həˈloʊ/（仅 word；grammar 可省略）
+- kind: "word" 或 "grammar"（完整口语句子 / 句型模板 / A-B 占位 / somebody 槽 / 时态名 → grammar；普通单词与无占位短语动词 → word）
+- reading: 美式 IPA，形如 /həˈloʊ/（仅 word；grammar / 整句可省略，禁止给整句编 IPA）
 - meaning: 中文释义，分号「；」分隔，最多 3 个中文义；若词条是缩写/首字母缩略（DMV、CEO、ASAP）或字母简写（A=account），须先写完整英文全称/展开拼写，再接中文，如「Department of Motor Vehicles；车辆管理局；驾照考试机构」或「account；账户」；普通单词只写中文，不要硬塞英文全称
 - pos: 英文词性缩写，多词性用 /，如 v 或 adj/n；含空格的固定搭配（unbearably tough、in time、straight ahead）必须用 phrase，禁止按中心词标 adj/adv；短语动词仍标 v；复合介词仍标 prep（仅 word；grammar 可省略）
 - usage: 编号中文用法；每条必须带口语/考试双分 [口语n|考试m]（各 1～10；口语=日常会话；考试=该分类考试语境；可打不同分），形如「1. [口语7|考试8] 介词：…」；含空格的 phrase 词条必须写「短语：作定语/状语用…」，禁止裸「副词：」「形容词：」（例：straight ahead →「1. [口语9|考试10] 短语：作状语用，表示一直向前；直行」）；组数=真实不同核心义项数（1 种就 1 条，禁止硬凑 2 条）；硬规则：同词性且意思差不多必须合并为 1 条；禁止按对象/场景硬拆同一义（如 attractive「对客户有吸引力」与「外表好看」须合并；fail「计划/设备失败」与「考试不及格」、freeze「冻结薪资」与「冻结账户」须合并为 1 条动词义，名词义另开）；禁止近义微调硬拆（如 carefully「仔细地完成工作」与「谨慎地避免出错」须合并为 1 条）；若两条候选用法造出的例句几乎可互换，必须合并成 1 条；只有词性/词典义/固定结构真不同才拆条；每条只标一种词性，禁止「动词/名词」等含糊写法（例句是名词就标名词；名词与动词义都常用则拆成两条）；名词作定语（quality service / business trip）须标「名词：作定语…」，禁止标成「形容词」；选题按上方分类语境高频，正文禁止考试品牌名。也可返回数组 [{{"text":"…","oral_frequency":7,"exam_frequency":8}},…]（双分必填 1～10）
@@ -935,10 +999,18 @@ def _log_raw_snippet(raw: str, *, label: str = "raw") -> None:
 
 
 def generate_bundle(row: dict[str, Any], needs: dict[str, bool]) -> dict[str, Any]:
+    word = str(row.get("word") or "").strip()
+    is_full_sentence = en_vocab_lemma_looks_like_full_sentence(word)
+    # 整句硬闸：无论库内 kind 如何，禁止再要 IPA（防 incomplete_bundle:reading）
+    if is_full_sentence:
+        needs = full_refresh_needs("grammar")
+        row["kind"] = "grammar"
+        row["needs"] = needs
+    system = SYSTEM_FULL_SENTENCE if is_full_sentence else SYSTEM
     prompt = build_prompt(row, needs)
     raw = call_anthropic(
         prompt,
-        system=SYSTEM,
+        system=system,
         max_tokens=4500,
         temperature=0.3,
         timeout=180,
@@ -949,14 +1021,22 @@ def generate_bundle(row: dict[str, Any], needs: dict[str, bool]) -> dict[str, An
         # 坏 JSON：再要一次严格输出，避免同一词空烧到熔断
         _log_raw_snippet(raw, label="bad_json")
         print(f"    retry generate after JSON error: {err}", flush=True)
-        raw = call_anthropic(
-            prompt
-            + "\n\nCRITICAL: Previous reply was invalid JSON ("
+        retry_hint = (
+            "\n\nCRITICAL: Previous reply was invalid JSON ("
             + str(err)[:120]
             + "). Output ONE valid JSON object only. "
             "Escape every double-quote inside string values. "
-            'reading must be a quoted string like "/ʌp ˈtuː/".',
-            system=SYSTEM,
+        )
+        if is_full_sentence:
+            retry_hint += (
+                'kind must be "grammar"; OMIT reading and pos; '
+                "do not invent IPA for a full sentence."
+            )
+        else:
+            retry_hint += 'reading must be a quoted string like "/ʌp ˈtuː/".'
+        raw = call_anthropic(
+            prompt + retry_hint,
+            system=system,
             max_tokens=4500,
             temperature=0.1,
             timeout=180,

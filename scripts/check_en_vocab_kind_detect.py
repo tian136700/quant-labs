@@ -56,6 +56,15 @@ DECLARATIVE_SENTENCE_RE = re.compile(
 )
 
 
+def looks_like_full_sentence(raw: str) -> bool:
+    word = (raw or "").strip()
+    if not word or word.count(" ") < 2:
+        return False
+    return bool(
+        INTERROGATIVE_SENTENCE_RE.search(word) or DECLARATIVE_SENTENCE_RE.search(word)
+    )
+
+
 def looks_like_grammar(raw: str) -> bool:
     word = (raw or "").strip()
     if not word:
@@ -74,9 +83,7 @@ def looks_like_grammar(raw: str) -> bool:
         return True
     if LETTER_SLOT_RE.search(word) and re.search(r"\s", word):
         return True
-    if word.count(" ") >= 2 and INTERROGATIVE_SENTENCE_RE.search(word):
-        return True
-    if word.count(" ") >= 2 and DECLARATIVE_SENTENCE_RE.search(word):
+    if looks_like_full_sentence(word):
         return True
     return False
 
@@ -107,10 +114,20 @@ CASES = [
     ("How are you?", True),
     ("Will you be staying long?", True),
     ("Really?", False),
-    # 完整陈述句作词条 → 语法（勿 incomplete_bundle:reading 三次熔断）
+    # 完整陈述句 / 口语整句 → 语法（勿 incomplete_bundle:reading 三次熔断）
     ("I'm going sightseeing.", True),
     ("We're going shopping tomorrow!", True),
     ("I am staying for two weeks.", True),
+    ("What is the purpose of your trip?", True),
+    ("I'm going to the United States for tourism.", True),
+]
+
+SENTENCE_CASES = [
+    ("I'm going sightseeing.", True),
+    ("What is the purpose of your trip?", True),
+    ("look forward to", False),
+    ("both A and B", False),
+    ("Really?", False),
 ]
 
 
@@ -123,6 +140,7 @@ def main() -> int:
     detect = DETECT_TS.read_text(encoding="utf-8") if DETECT_TS.is_file() else ""
     for needle in (
         "enVocabLemmaLooksLikeGrammar",
+        "enVocabLemmaLooksLikeFullSentence",
         "SLOT_WORD_RE",
         "AB_PATTERN_RE",
         "TENSE_NAME_RE",
@@ -157,24 +175,39 @@ def main() -> int:
         "ignore model kind=grammar",
         "not_grammar_like",
         "demote payload kind=grammar",
+        "SYSTEM_FULL_SENTENCE",
+        "en_vocab_lemma_looks_like_full_sentence",
+        "口语整句",
     ):
         if needle not in online:
-            errors.append(f"online-batch missing demote guard: {needle!r}")
+            errors.append(f"online-batch missing sentence/demote guard: {needle!r}")
 
     for word, expect in CASES:
         got = looks_like_grammar(word)
         if got != expect:
             errors.append(f"heuristic {word!r}: got {got}, want {expect}")
 
+    for word, expect in SENTENCE_CASES:
+        got = looks_like_full_sentence(word)
+        if got != expect:
+            errors.append(f"full_sentence {word!r}: got {got}, want {expect}")
+
     # Python helper 须与本文件一致
     if PY_DETECT.is_file():
         sys.path.insert(0, str(ROOT / "scripts" / "lib"))
-        from en_vocab_kind_detect import en_vocab_lemma_looks_like_grammar  # type: ignore
+        from en_vocab_kind_detect import (  # type: ignore
+            en_vocab_lemma_looks_like_full_sentence,
+            en_vocab_lemma_looks_like_grammar,
+        )
 
         for word, expect in CASES:
             got = bool(en_vocab_lemma_looks_like_grammar(word))
             if got != expect:
                 errors.append(f"py helper {word!r}: got {got}, want {expect}")
+        for word, expect in SENTENCE_CASES:
+            got = bool(en_vocab_lemma_looks_like_full_sentence(word))
+            if got != expect:
+                errors.append(f"py full_sentence {word!r}: got {got}, want {expect}")
 
     if errors:
         print("FAIL check_en_vocab_kind_detect:")
