@@ -46,6 +46,8 @@ curl -sS -X POST "$BASE/api/en-vocab/fill-kind" \
 - 含 `…` / `...` / `~` 槽位
 - 完整疑问句（≥3 词、Are/Do/How/What… 开头、以 `?` 结尾），如
   `Are you going for tourism?`（口语/签证课整句入库，勿当 word 强要 IPA）
+- 完整陈述句（≥3 词、I'm/We're/主语+助动词开头、以 `.`/`!` 结尾），如
+  `I'm going sightseeing.`（勿当 word 强要 IPA → `incomplete_bundle:reading` 熔断）
 
 保持单词：普通单词、无占位短语动词（如 look forward to）、单词语气词（`Really?`）。
 

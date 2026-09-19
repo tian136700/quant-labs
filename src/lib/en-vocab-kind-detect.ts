@@ -44,6 +44,14 @@ const ZH_GRAMMAR_LABEL_RE =
 const INTERROGATIVE_SENTENCE_RE =
   /^(?:Are|Is|Am|Was|Were|Do|Does|Did|Will|Would|Can|Could|Shall|Should|Have|Has|Had|May|Might|How|What|Why|When|Where|Who|Whom|Which|Whose)\b.+\?\s*$/i;
 
+/**
+ * 完整陈述句作词条（口语/签证课常整句入库，如 I'm going sightseeing.）。
+ * ≥3 词 + 人称缩写/主语+助动词开头 + 以 .! 结尾 → 语法（勿当 word 强要 IPA）。
+ * 不匹配无句末标点的短语动词（look forward to）或无主语助动词的固定短语。
+ */
+const DECLARATIVE_SENTENCE_RE =
+  /^(?:I'm|I've|I'll|I'd|We're|We've|We'll|We'd|They're|They've|They'll|They'd|You're|You've|You'll|You'd|He's|She's|It's|(?:I|We|They|You|He|She|It)\s+(?:am|is|are|was|were|have|has|had|will|would|can|could|shall|should|do|does|did|may|might))\b.+(?:\.|!)\s*$/i;
+
 export type EnVocabKindSuggest = "word" | "grammar";
 
 /**
@@ -63,7 +71,11 @@ export function enVocabLemmaLooksLikeGrammar(raw: string): boolean {
   if (SLOT_WORD_RE.test(word)) return true;
   if (LETTER_SLOT_RE.test(word) && /\s/.test(word)) return true;
   // 空格数 ≥2 → 至少 3 词；Really? 等单词语气词不改 grammar
-  if ((word.match(/ /g) || []).length >= 2 && INTERROGATIVE_SENTENCE_RE.test(word)) {
+  const spaceCount = (word.match(/ /g) || []).length;
+  if (spaceCount >= 2 && INTERROGATIVE_SENTENCE_RE.test(word)) {
+    return true;
+  }
+  if (spaceCount >= 2 && DECLARATIVE_SENTENCE_RE.test(word)) {
     return true;
   }
 

@@ -47,6 +47,16 @@ INTERROGATIVE_SENTENCE_RE = re.compile(
     r"\b.+\?\s*$",
     re.I,
 )
+# 完整陈述句（I'm going sightseeing.）→ 语法，勿 incomplete_bundle:reading
+DECLARATIVE_SENTENCE_RE = re.compile(
+    r"^(?:I'm|I've|I'll|I'd|We're|We've|We'll|We'd|They're|They've|They'll|They'd|"
+    r"You're|You've|You'll|You'd|He's|She's|It's|"
+    r"(?:I|We|They|You|He|She|It)\s+"
+    r"(?:am|is|are|was|were|have|has|had|will|would|can|could|shall|should|"
+    r"do|does|did|may|might))"
+    r"\b.+(?:\.|!)\s*$",
+    re.I,
+)
 
 
 def en_vocab_lemma_looks_like_grammar(raw: str) -> bool:
@@ -73,5 +83,7 @@ def en_vocab_lemma_looks_like_grammar(raw: str) -> bool:
         return True
     # 空格数 ≥2 → 至少 3 词；Really? 等单词语气词不改 grammar
     if word.count(" ") >= 2 and INTERROGATIVE_SENTENCE_RE.search(word):
+        return True
+    if word.count(" ") >= 2 and DECLARATIVE_SENTENCE_RE.search(word):
         return True
     return False

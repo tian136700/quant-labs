@@ -45,6 +45,15 @@ INTERROGATIVE_SENTENCE_RE = re.compile(
     r"\b.+\?\s*$",
     re.I,
 )
+DECLARATIVE_SENTENCE_RE = re.compile(
+    r"^(?:I'm|I've|I'll|I'd|We're|We've|We'll|We'd|They're|They've|They'll|They'd|"
+    r"You're|You've|You'll|You'd|He's|She's|It's|"
+    r"(?:I|We|They|You|He|She|It)\s+"
+    r"(?:am|is|are|was|were|have|has|had|will|would|can|could|shall|should|"
+    r"do|does|did|may|might))"
+    r"\b.+(?:\.|!)\s*$",
+    re.I,
+)
 
 
 def looks_like_grammar(raw: str) -> bool:
@@ -66,6 +75,8 @@ def looks_like_grammar(raw: str) -> bool:
     if LETTER_SLOT_RE.search(word) and re.search(r"\s", word):
         return True
     if word.count(" ") >= 2 and INTERROGATIVE_SENTENCE_RE.search(word):
+        return True
+    if word.count(" ") >= 2 and DECLARATIVE_SENTENCE_RE.search(word):
         return True
     return False
 
@@ -96,6 +107,10 @@ CASES = [
     ("How are you?", True),
     ("Will you be staying long?", True),
     ("Really?", False),
+    # 完整陈述句作词条 → 语法（勿 incomplete_bundle:reading 三次熔断）
+    ("I'm going sightseeing.", True),
+    ("We're going shopping tomorrow!", True),
+    ("I am staying for two weeks.", True),
 ]
 
 
@@ -113,6 +128,7 @@ def main() -> int:
         "TENSE_NAME_RE",
         "DASH_BLANK_SLOT_RE",
         "INTERROGATIVE_SENTENCE_RE",
+        "DECLARATIVE_SENTENCE_RE",
     ):
         if needle not in detect:
             errors.append(f"detect.ts missing {needle}")
