@@ -43,6 +43,28 @@ def main() -> int:
         text = en_stage.read_text(encoding="utf-8")
         if "vocab_fill_empty_backoff.py" not in text:
             errors.append("en-vocab-fill-stage.sh missing backoff")
+        # 线上非 reading 须在 quiz gate 之前 skip，避免每分钟白打门禁
+        gate_idx = text.find("vocab_fill_assert_quiz_gate_ok")
+        online_skip_idx = text.find('online backend → skip stage')
+        if online_skip_idx < 0:
+            errors.append("en-vocab-fill-stage.sh missing online non-reading skip")
+        elif gate_idx < 0 or online_skip_idx > gate_idx:
+            errors.append(
+                "en-vocab-fill-stage.sh must skip online non-reading BEFORE quiz gate"
+            )
+
+    nightly = ROOT / "scripts/en-vocab-fill-nightly.sh"
+    if not nightly.is_file():
+        errors.append("missing en-vocab-fill-nightly.sh")
+    else:
+        text = nightly.read_text(encoding="utf-8")
+        if "online backend → reading only" not in text:
+            errors.append("en-vocab-fill-nightly.sh must short-circuit online to reading only")
+        if 'exec bash "$ROOT/scripts/en-vocab-fill-stage.sh" reading' not in text and \
+           "en-vocab-fill-stage.sh\" reading" not in text:
+            # accept either quoting style
+            if "en-vocab-fill-stage.sh" not in text or "reading" not in text:
+                errors.append("en-vocab-fill-nightly.sh online path must run reading stage")
 
     if pitch_stage.is_file():
         text = pitch_stage.read_text(encoding="utf-8")

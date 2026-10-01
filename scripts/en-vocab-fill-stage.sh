@@ -88,6 +88,12 @@ if [[ "$BACKEND" == "1" && "$STAGE" == "reading" && "$FORCE_RUN" != "1" && "$FOR
   fi
 fi
 
+# 线上模式：非 reading 阶段在门禁前就跳过（避免每分钟白打 quiz gate）
+if [[ "$BACKEND" == "1" && "$STAGE" != "reading" ]]; then
+  echo "$(date '+%F %T') ${OWNER}: online backend → skip stage (batch runs via reading)"
+  exit 0
+fi
+
 vocab_fill_assert_quiz_gate_ok "$OWNER"
 
 HOUR_NOW="$(TZ=Asia/Shanghai date +%H)"
@@ -98,12 +104,6 @@ if [[ "$FORCE_RUN" != "1" && "$FORCE_RUN" != "true" ]]; then
     echo "$(date '+%F %T') ${OWNER}: Beijing ${BEIJING_STAMP} quiet hours, skip"
     exit 0
   fi
-fi
-
-# 线上模式：非 reading 阶段直接跳过（由 reading 统一跑 online-batch）
-if [[ "$BACKEND" == "1" && "$STAGE" != "reading" ]]; then
-  echo "$(date '+%F %T') ${OWNER}: online backend → skip stage (batch runs via reading)"
-  exit 0
 fi
 
 # shellcheck source=scripts/lib/dirlock.sh
