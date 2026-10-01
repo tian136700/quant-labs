@@ -29,6 +29,18 @@ REQUIRED: list[tuple[str, str]] = [
         "docs/en-vocab-fill-example-sentences-api.txt",
     ),
     (
+        "src/app/api/en-vocab/fill-next-candidate/route.ts",
+        "docs/en-vocab-fill-next-candidate-api.txt",
+    ),
+    (
+        "src/app/api/jp-vocab/fill-next-candidate/route.ts",
+        "docs/jp-vocab-fill-next-candidate-api.txt",
+    ),
+    (
+        "src/app/api/jp-vocab/fill-pitch-accent/route.ts",
+        "docs/jp-vocab-fill-pitch-accent-api.txt",
+    ),
+    (
         "src/app/api/jp-vocab/edit/route.ts",
         "docs/jp-vocab-edit-api.txt",
     ),

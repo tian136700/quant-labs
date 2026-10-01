@@ -1,0 +1,160 @@
+英语抽背 · 下一条补全候选 API（fill-next-candidate）
+=================================================
+
+用途
+----
+给 Mac「英语线上一次补齐」定时任务（en-vocab-fill-online-batch）取**下一条**
+仍缺字段的词，避免对 reading/meaning/usage/examples 各打一遍 list_missing。
+
+优先按当日老师可见池序号（daily_seq）靠前的缺项；无日序时回退按 id。
+探针/测试假词（stt_probe / never_exist 等）不会作为候选返回。
+
+
+线上地址
+--------
+POST https://english.info-quests.com/api/en-vocab/fill-next-candidate
+
+说明：
+- 也可用 `finance.info-quests.com` 同路径（同一 Worker / 同一 D1）。
+- Mac 客户端：`scripts/en-vocab-fill-online-batch-api.py`（FILL_NEXT_URL）
+- 单任务入口：`scripts/en-vocab-fill-nightly.sh`
+
+
+本机开发（可选）
+---------------
+POST http://127.0.0.1:3002/api/en-vocab/fill-next-candidate
+
+
+鉴权
+----
+Header:
+  Authorization: Bearer <JP_REVIEW_UPLOAD_TOKEN>
+  Content-Type: application/json
+
+Token 与教案 / 日语上传共用，常见：
+  ~/.config/info-quests/jp-review-sync.env → JP_REVIEW_UPLOAD_TOKEN
+
+
+限流
+----
+与其它 fill-* 共用：同一 IP×路径约 ≥5 秒 1 次。
+超限 → HTTP 429 + Retry-After；脚本须等待后重试（勿当 1027 整轮退出）。
+
+
+抽查门禁（每次请求都会查）
+--------------------------
+老师日语或英语抽查进行中 / 抽完冷却（默认 30 分钟）时：
+- 本接口仍返回 HTTP 200、ok=true
+- candidate=null
+- 附带 quiz_gate_quiet=true / quiz_gate_reason / quiz_gate_detail
+调用方应把「无候选」当本轮跳过，不要再打付费模型。
+
+Mac stage 开跑前另有 fill-schedule-gate；本接口再查一次，避免
+online-batch **中途**老师开抽仍继续扫候选抢 isolate（易 1102）。
+
+
+请求体（JSON，可空）
+--------------------
+{}
+或
+{ "mode": "next_candidate" }
+
+其它 mode → 400 unsupported_mode。
+空 body / 非法 JSON → 视为 next_candidate。
+
+
+成功响应示例
+------------
+1) 有候选
+{
+  "ok": true,
+  "mode": "next_candidate",
+  "candidate": {
+    "id": 609,
+    "word": "curriculum",
+    "kind": "word",
+    "reading": null,
+    "meaning": "课程；课业",
+    "pos": "n",
+    "category": "雅思托福",
+    "usage": "1. [口语8|考试9] 名词：…",
+    "example_sentences": null,
+    "daily_seq": 19,
+    "reclassify_to_grammar": false
+  }
+}
+
+字段说明（candidate）：
+  id / word / kind     必有
+  reading / meaning / pos / category / usage / example_sentences
+                       当前库值（可能为 null）
+  daily_seq            当日序号；无日序时为 null
+  reclassify_to_grammar 启发式应改标 grammar 时为 true（online-batch 会先 fill-kind）
+
+2) 无缺项 / 抽查静默（同等形态）
+{
+  "ok": true,
+  "mode": "next_candidate",
+  "candidate": null
+}
+
+抽查静默时额外字段：
+{
+  "ok": true,
+  "mode": "next_candidate",
+  "candidate": null,
+  "quiz_gate_quiet": true,
+  "quiz_gate_reason": "quiz_in_progress",
+  "quiz_gate_detail": "老师抽查进行中…"
+}
+
+
+失败
+----
+401 Unauthorized
+400 unsupported_mode
+429 限流
+5xx + error（见 vocabFillRouteErrorResponse）
+
+
+curl 例
+-------
+curl -sS -X POST "https://english.info-quests.com/api/en-vocab/fill-next-candidate" \
+  -H "Authorization: Bearer $JP_REVIEW_UPLOAD_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"next_candidate"}'
+
+
+Python 最小例
+-------------
+import json, os, urllib.request
+
+TOKEN = os.environ["JP_REVIEW_UPLOAD_TOKEN"]
+URL = "https://english.info-quests.com/api/en-vocab/fill-next-candidate"
+
+req = urllib.request.Request(
+    URL,
+    data=json.dumps({"mode": "next_candidate"}).encode("utf-8"),
+    headers={
+        "Authorization": f"Bearer {TOKEN}",
+        "Content-Type": "application/json",
+    },
+    method="POST",
+)
+with urllib.request.urlopen(req, timeout=60) as resp:
+    data = json.load(resp)
+
+cand = data.get("candidate")
+if not cand:
+    print("skip:", data.get("quiz_gate_reason") or "no candidate")
+else:
+    print("next word_id=", cand["id"], cand["word"])
+
+
+相关代码
+--------
+API：src/app/api/en-vocab/fill-next-candidate/route.ts
+选词：src/lib/en-vocab-fill-next-candidate.ts
+门禁：src/lib/vocab-fill-quiz-gate-api.ts
+脚本：scripts/en-vocab-fill-online-batch-api.py
+回归：python3 scripts/check_vocab_fill_next_candidate.py

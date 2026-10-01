@@ -1,0 +1,156 @@
+日语抽问 · 下一条补全候选 API（fill-next-candidate）
+=================================================
+
+用途
+----
+给 Mac「日语线上一次补齐」定时任务（jp-vocab-fill-online-batch）取**下一条**
+仍缺字段的词（读音 / 释义 / 用法 / 例句 / 接序 / 关联词 / 口语·考试频率等），
+避免对多个 fill-* 各打一遍 list_missing。
+
+
+线上地址
+--------
+POST https://japanese.info-quests.com/api/jp-vocab/fill-next-candidate
+
+说明：
+- 也可用 `finance.info-quests.com` 同路径（同一 Worker / 同一 D1）。
+- Mac 客户端：`scripts/jp-vocab-fill-online-batch-api.py`（FILL_NEXT_URL）
+
+
+本机开发（可选）
+---------------
+POST http://127.0.0.1:3002/api/jp-vocab/fill-next-candidate
+
+
+鉴权
+----
+Header:
+  Authorization: Bearer <JP_REVIEW_UPLOAD_TOKEN>
+  Content-Type: application/json
+
+Token 常见来源：
+  ~/.config/info-quests/jp-review-sync.env → JP_REVIEW_UPLOAD_TOKEN
+
+
+限流
+----
+与其它 fill-* 共用：同一 IP×路径约 ≥5 秒 1 次。
+超限 → HTTP 429 + Retry-After。
+
+
+抽查门禁（每次请求都会查）
+--------------------------
+老师日语或英语抽查进行中 / 抽完冷却（默认 30 分钟）时：
+- HTTP 200、ok=true、candidate=null
+- quiz_gate_quiet=true + reason/detail
+调用方本轮跳过，勿再打 Ollama / 付费模型。
+
+Mac stage 开头已有 fill-schedule-gate；本接口再查，挡住 batch 中途开抽。
+
+
+请求体（JSON，可空）
+--------------------
+{}
+或
+{ "mode": "next_candidate" }
+
+其它 mode → 400 unsupported_mode。
+
+
+成功响应示例
+------------
+1) 有候选
+{
+  "ok": true,
+  "mode": "next_candidate",
+  "candidate": {
+    "id": 521,
+    "word": "～かもしれない",
+    "kind": "grammar",
+    "reading": null,
+    "meaning": "也许……；可能……",
+    "pos": null,
+    "usage": "…",
+    "connection": "…",
+    "example_sentences": null,
+    "related_compounds": null,
+    "oral_frequency": 8,
+    "exam_frequency": 9,
+    "course_label": null,
+    "need_usage": false,
+    "need_examples": true,
+    "need_connection": false,
+    "need_oral_frequency": false,
+    "need_exam_frequency": false
+  }
+}
+
+字段说明（candidate）：
+  id / word / kind 必有
+  reading / meaning / pos / usage / connection / example_sentences /
+  related_compounds / oral_frequency / exam_frequency / course_label
+                       当前库值
+  need_*               布尔：本轮缺哪些能力（脚本可按需补）
+
+2) 无缺项或抽查静默
+{
+  "ok": true,
+  "mode": "next_candidate",
+  "candidate": null,
+  "quiz_gate_quiet": true,
+  "quiz_gate_reason": "quiz_cooldown",
+  "quiz_gate_detail": "今日最后抽查 …，需再等 30 分钟…"
+}
+
+（无缺项时也可能只有 candidate=null，无 quiz_gate_* 字段。）
+
+
+失败
+----
+401 Unauthorized
+400 unsupported_mode
+429 限流
+5xx + error
+
+
+curl 例
+-------
+curl -sS -X POST "https://japanese.info-quests.com/api/jp-vocab/fill-next-candidate" \
+  -H "Authorization: Bearer $JP_REVIEW_UPLOAD_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"next_candidate"}'
+
+
+Python 最小例
+-------------
+import json, os, urllib.request
+
+TOKEN = os.environ["JP_REVIEW_UPLOAD_TOKEN"]
+URL = "https://japanese.info-quests.com/api/jp-vocab/fill-next-candidate"
+
+req = urllib.request.Request(
+    URL,
+    data=json.dumps({"mode": "next_candidate"}).encode("utf-8"),
+    headers={
+        "Authorization": f"Bearer {TOKEN}",
+        "Content-Type": "application/json",
+    },
+    method="POST",
+)
+with urllib.request.urlopen(req, timeout=60) as resp:
+    data = json.load(resp)
+
+cand = data.get("candidate")
+if not cand:
+    print("skip:", data.get("quiz_gate_reason") or "no candidate")
+else:
+    print("next word_id=", cand["id"], cand["word"], cand.get("need_examples"))
+
+
+相关代码
+--------
+API：src/app/api/jp-vocab/fill-next-candidate/route.ts
+选词：src/lib/jp-vocab-fill-next-candidate.ts
+门禁：src/lib/vocab-fill-quiz-gate-api.ts
+脚本：scripts/jp-vocab-fill-online-batch-api.py
+回归：python3 scripts/check_vocab_fill_next_candidate.py

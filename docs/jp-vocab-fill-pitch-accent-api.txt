@@ -42,6 +42,17 @@ Token 与 jp-review-sync 共用，常见配置：
 Worker 1027 配额满时 Mac 脚本会 skip（不打付费/写库）。
 
 
+抽查门禁（每次请求都会查）
+--------------------------
+老师日语或英语抽查进行中 / 抽完冷却（默认 30 分钟）时：
+- list_missing → HTTP 200，missing=[]，quiz_gate_quiet=true
+- apply / mark_not_found → HTTP 503，error=quiz_gate_quiet，附 reason/detail
+调用方应跳过本轮，勿再打 OJAD。
+
+Mac stage 开头已有 vocab_fill_assert_quiz_gate_ok；本接口再查一次，
+避免定时任务中途老师开抽仍继续 list/apply 抢 isolate（易 1102）。
+
+
 mode 一览
 ---------
 | mode | 说明 |
@@ -100,6 +111,21 @@ body 例：
   "applied": [],
   "skipped": [],
   "dry_run": true
+}
+
+抽查静默时 list_missing 例：
+{
+  "ok": true,
+  "mode": "list_missing",
+  "missing": [],
+  "total_missing": 0,
+  "updated": 0,
+  "applied": [],
+  "skipped": [],
+  "dry_run": true,
+  "quiz_gate_quiet": true,
+  "quiz_gate_reason": "quiz_in_progress",
+  "quiz_gate_detail": "老师抽查进行中…"
 }
 
 
@@ -167,6 +193,7 @@ word_ids 空 → 400 No word_ids。
 401 Unauthorized
 400 No valid updates / No word_ids
 429 限流
+503 quiz_gate_quiet（抽查中/冷却；apply / mark_not_found）
 500 + error 字符串
 
 
@@ -243,7 +270,9 @@ missing = post({"mode": "list_missing", "limit": 3})["missing"]
 相关代码
 --------
 API：src/app/api/jp-vocab/fill-pitch-accent/route.ts
+门禁：src/lib/vocab-fill-quiz-gate-api.ts
 库：src/lib/jp-vocab-fill-pitch-accent.ts、src/lib/jp-vocab-pitch-accent.ts
 OJAD：scripts/lib/ojad_pitch_accent.py
 UI：JpVocabFlashcardPosWithReading、JpVocabReadingWithPitch
 回归：python3 scripts/check_jp_vocab_fill_pitch_accent.py
+      python3 scripts/check_vocab_fill_next_candidate.py（门禁接线）
