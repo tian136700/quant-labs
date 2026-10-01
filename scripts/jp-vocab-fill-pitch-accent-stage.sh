@@ -24,10 +24,21 @@ if [[ -f "$ENV_FILE" ]]; then
 fi
 
 export PATH="/usr/local/bin:/opt/homebrew/bin:${PATH:-/usr/bin:/bin}"
+PYTHON_BIN="${PYTHON_BIN:-python3}"
 
 # shellcheck source=scripts/lib/vocab_fill_circuit_breaker.sh
 source "$ROOT/scripts/lib/vocab_fill_circuit_breaker.sh"
 vocab_fill_circuit_assert_not_killed "$OWNER"
+
+# 空队列降频：无待补音调 → 10 分钟内不打 Worker（含 quiz gate）
+FORCE_RUN="${JP_VOCAB_FILL_PITCH_ACCENT_FORCE:-${FORCE:-0}}"
+if [[ "$FORCE_RUN" != "1" && "$FORCE_RUN" != "true" ]]; then
+  if "$PYTHON_BIN" "$ROOT/scripts/lib/vocab_fill_empty_backoff.py" check --owner "$OWNER"; then
+    echo "$(date '+%F %T') ${OWNER}: empty queue backoff → skip (no Worker)"
+    exit 0
+  fi
+fi
+
 vocab_fill_assert_quiz_gate_ok "$OWNER"
 
 # shellcheck source=scripts/lib/dirlock.sh
@@ -37,7 +48,7 @@ dirlock_acquire "$LOCK_DIR" "$OWNER" \
 
 cd "$ROOT"
 echo "$(date '+%F %T') ${OWNER}: start"
-python3 "$ROOT/scripts/jp-vocab-fill-pitch-accent-api.py"
+"$PYTHON_BIN" "$ROOT/scripts/jp-vocab-fill-pitch-accent-api.py"
 status=$?
 if [[ "$status" -eq 0 ]]; then
   date +%s > "$STATE_FILE"

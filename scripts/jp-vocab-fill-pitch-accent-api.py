@@ -24,6 +24,7 @@ sys.path.insert(0, str(ROOT / "scripts" / "lib"))
 
 from ojad_pitch_accent import fetch_pitch_accent_for_word  # noqa: E402
 from vocab_fill_circuit_breaker import assert_not_killed  # noqa: E402
+from vocab_fill_empty_backoff import record_empty, record_nonempty  # noqa: E402
 from worker_api_guard import skip_if_worker_unavailable  # noqa: E402
 from worker_fill_http import post_worker_fill_api  # noqa: E402
 
@@ -112,6 +113,8 @@ def run_batch(
 
     if not missing:
         print("  无缺音调单词", flush=True)
+        if not dry_run:
+            record_empty(FILL_TASK_ID)
         return {
             "ok": True,
             "updated": 0,
@@ -121,6 +124,8 @@ def run_batch(
             "dry_run": dry_run,
         }
 
+    if not dry_run:
+        record_nonempty(FILL_TASK_ID)
     print(f"  待补音调 {total} 条；本轮最多 {batch} 条", flush=True)
 
     import requests

@@ -14,11 +14,21 @@ def main() -> int:
 
     jp_stage = ROOT / "scripts/jp-vocab-fill-unified-stage.sh"
     en_stage = ROOT / "scripts/en-vocab-fill-stage.sh"
+    pitch_stage = ROOT / "scripts/jp-vocab-fill-pitch-accent-stage.sh"
+    pitch_api = ROOT / "scripts/jp-vocab-fill-pitch-accent-api.py"
     backoff_py = ROOT / "scripts/lib/vocab_fill_empty_backoff.py"
     jp_batch = ROOT / "scripts/jp-vocab-fill-online-batch-api.py"
     en_batch = ROOT / "scripts/en-vocab-fill-online-batch-api.py"
 
-    for path in (backoff_py, jp_stage, en_stage, jp_batch, en_batch):
+    for path in (
+        backoff_py,
+        jp_stage,
+        en_stage,
+        pitch_stage,
+        pitch_api,
+        jp_batch,
+        en_batch,
+    ):
         if not path.is_file():
             errors.append(f"missing {path.relative_to(ROOT)}")
 
@@ -33,6 +43,18 @@ def main() -> int:
         text = en_stage.read_text(encoding="utf-8")
         if "vocab_fill_empty_backoff.py" not in text:
             errors.append("en-vocab-fill-stage.sh missing backoff")
+
+    if pitch_stage.is_file():
+        text = pitch_stage.read_text(encoding="utf-8")
+        if "vocab_fill_empty_backoff.py" not in text:
+            errors.append("jp-vocab-fill-pitch-accent-stage.sh missing backoff")
+        if "empty queue backoff" not in text:
+            errors.append("pitch stage missing backoff skip message")
+
+    if pitch_api.is_file():
+        text = pitch_api.read_text(encoding="utf-8")
+        if "record_empty" not in text or "record_nonempty" not in text:
+            errors.append("pitch accent api missing record_empty/nonempty")
 
     if jp_batch.is_file():
         text = jp_batch.read_text(encoding="utf-8")
