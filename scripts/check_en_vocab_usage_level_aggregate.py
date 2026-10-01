@@ -349,6 +349,11 @@ def main() -> int:
         'setStatus("请登录后再勾选熟悉程度。")',
         record_start if record_start >= 0 else 0,
     )
+    if auth_idx < 0:
+        auth_idx = page_ui.find(
+            'fail("请登录后再勾选熟悉程度。")',
+            record_start if record_start >= 0 else 0,
+        )
     if draft_idx < 0 or auth_idx < 0 or draft_idx > auth_idx:
         errors.append(
             "useEnVocabReviewActions: recordUsageLevels must setSessionUsageLevels before canOperate early-return"

@@ -34,6 +34,12 @@ import type { JpVocabTeacherVisibleLimit } from "@/lib/jp-vocab-teacher-visible"
 import { notifyJpVocabQuizTargetUpdated } from "@/lib/jp-vocab-quiz-target-notify";
 import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
 import { mergeJpVocabWordAfterReviewResponse } from "@/lib/jp-vocab-class-notes";
+import {
+  readVocabApiJsonResponse,
+  sleepMs,
+  vocabApiOverloadRetryDelayMs,
+  VOCAB_API_OVERLOAD_RETRY_ATTEMPTS,
+} from "@/lib/vocab-api-json";
 
 export function useJpVocabReviewActions(options: {
   locale: Locale;
@@ -314,24 +320,47 @@ export function useJpVocabReviewActions(options: {
             pendingLevelByWordRef.current[wordId] ?? level;
           delete pendingLevelByWordRef.current[wordId];
 
-          const res = await fetch("/api/jp-vocab", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              [LOCALE_HEADER]: locale,
-            },
-            credentials: "include",
-            body: JSON.stringify({ word_id: wordId, level: levelToSave }),
-          });
-          const data = (await res.json()) as {
+          type ReviewSaveData = {
             ok: boolean;
             word?: JpVocabWord;
             error?: string;
             teacher_visible_limit?: JpVocabTeacherVisibleLimit;
           };
-          if (res.status === 401) {
-            await refresh();
-            throw new Error(JP_VOCAB_SAVE_ERR[locale]);
+          let data: ReviewSaveData | null = null;
+          for (
+            let attempt = 1;
+            attempt <= VOCAB_API_OVERLOAD_RETRY_ATTEMPTS;
+            attempt++
+          ) {
+            const res = await fetch("/api/jp-vocab", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                [LOCALE_HEADER]: locale,
+              },
+              credentials: "include",
+              body: JSON.stringify({ word_id: wordId, level: levelToSave }),
+            });
+            if (res.status === 401) {
+              await refresh();
+              throw new Error(JP_VOCAB_SAVE_ERR[locale]);
+            }
+            const parsed = await readVocabApiJsonResponse<ReviewSaveData>(res);
+            if (!parsed.ok) {
+              if (
+                parsed.isWorkerOverload &&
+                attempt < VOCAB_API_OVERLOAD_RETRY_ATTEMPTS
+              ) {
+                await sleepMs(vocabApiOverloadRetryDelayMs(attempt));
+                continue;
+              }
+              throw new Error(parsed.error);
+            }
+            data = parsed.data;
+            break;
+          }
+          if (!data) {
+            throw new Error(locale === "zh" ? "保存失败" : "Save failed");
           }
           if (!data.ok || !data.word) {
             const msg =

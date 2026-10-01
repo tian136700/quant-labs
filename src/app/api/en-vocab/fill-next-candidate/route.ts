@@ -2,6 +2,10 @@ import { vocabFillRouteErrorResponse } from "@/lib/vocab-fill-route-error";
 import { getCloudflareEnv, jsonResponse } from "@/lib/cloudflare-env";
 import { pickNextEnVocabFillCandidate } from "@/lib/en-vocab-fill-next-candidate";
 import { verifyUploadAuth } from "@/lib/jp-review";
+import {
+  vocabFillNextCandidateQuietResponse,
+  vocabFillQuietGateOrNull,
+} from "@/lib/vocab-fill-quiz-gate-api";
 import { enforceVocabFillRouteRateLimit } from "@/lib/worker-api-rate-limit";
 
 type FillNextCandidateBody = {
@@ -22,6 +26,9 @@ export async function POST(request: Request) {
       "/api/en-vocab/fill-next-candidate"
     );
     if (limited) return limited;
+
+    const quiet = await vocabFillQuietGateOrNull(env.DB);
+    if (quiet) return vocabFillNextCandidateQuietResponse(quiet);
 
     let body: FillNextCandidateBody = {};
     try {

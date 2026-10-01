@@ -34,6 +34,8 @@ def main() -> int:
         [
             "VOCAB_TEACHER_QUIZ_LIVE_SYNC_TIMEOUT_MS",
             "VOCAB_TEACHER_QUIZ_LIVE_SYNC_RETRY_MS",
+            "vocabTeacherQuizLivePollBackoffMs",
+            "vocabTeacherQuizLiveSyncRetryBackoffMs",
             "VOCAB_STUDENT_PEEK_TIMEOUT_MS",
             "putVocabTeacherQuizLiveWord",
             "abortSignalAfter",
@@ -55,7 +57,7 @@ def main() -> int:
             hook,
             [
                 "putVocabTeacherQuizLiveWord",
-                "VOCAB_TEACHER_QUIZ_LIVE_SYNC_RETRY_MS",
+                "vocabTeacherQuizLiveSyncRetryBackoffMs",
                 "teacherQuizLiveSyncedIdRef",
                 "if (!ok) throw",
                 api,

@@ -79,6 +79,20 @@ def main() -> None:
             )
         if "抽完留末词回看：清 live" not in text:
             raise SystemExit(f"FAIL: {rel} must clear live on session complete")
+        if "vocabTeacherQuizLivePollBackoffMs" not in text:
+            raise SystemExit(
+                f"FAIL: {rel} must backoff peek poll on 503/1102 "
+                "(death spiral → Worker 1102)"
+            )
+        if "vocabTeacherQuizLiveSyncRetryBackoffMs" not in text:
+            raise SystemExit(
+                f"FAIL: {rel} must backoff live PUT retry on failure"
+            )
+
+    review = ROOT / "src/hooks/useEnVocabReviewActions.ts"
+    must_contain(review, "readVocabApiJsonResponse")
+    must_contain(review, "VOCAB_API_OVERLOAD_RETRY_ATTEMPTS")
+    must_contain(ROOT / "src/lib/vocab-api-json.ts", "Worker过载")
 
     must_contain(
         ROOT / "src/components/JpClassNotesEditModal.tsx", "共享备注给学生"
@@ -88,7 +102,7 @@ def main() -> None:
     )
     print(
         "ok: vocab teacher quiz no sync poll + peek stop + "
-        "post-complete stop + notes share"
+        "post-complete stop + 1102 backoff + notes share"
     )
 
 

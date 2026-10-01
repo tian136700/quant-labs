@@ -9,7 +9,8 @@ import {
 import { resolveVocabPollIntervalMs, isVocabTeacherAccountActiveForRefresh } from "@/lib/vocab-poll-throttle";
 import {
   putVocabTeacherQuizLiveWord,
-  VOCAB_TEACHER_QUIZ_LIVE_SYNC_RETRY_MS,
+  vocabTeacherQuizLivePollBackoffMs,
+  vocabTeacherQuizLiveSyncRetryBackoffMs,
 } from "@/lib/vocab-teacher-quiz-live-sync";
 import {
   VOCAB_TEACHER_QUIZ_SYNC_IDLE_HIDDEN_MS,
@@ -126,6 +127,7 @@ export function useEnVocabTeacherQuiz(options: {
   /** 已成功写入 D1 的 live word_id；失败时保持 undefined 以便重试 */
   const teacherQuizLiveSyncedIdRef = useRef<number | null | undefined>(undefined);
   const liveSyncGenRef = useRef(0);
+  const liveSyncFailStreakRef = useRef(0);
   const liveSyncRetryTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined
   );
@@ -528,13 +530,18 @@ export function useEnVocabTeacherQuiz(options: {
         });
         if (gen !== liveSyncGenRef.current) return;
         if (!ok) throw new Error("teacher quiz live sync failed");
+        liveSyncFailStreakRef.current = 0;
         teacherQuizLiveSyncedIdRef.current = wordId;
       } catch {
         if (gen !== liveSyncGenRef.current) return;
         teacherQuizLiveSyncedIdRef.current = undefined;
+        liveSyncFailStreakRef.current += 1;
+        const retryMs = vocabTeacherQuizLiveSyncRetryBackoffMs(
+          liveSyncFailStreakRef.current
+        );
         liveSyncRetryTimerRef.current = setTimeout(() => {
           void syncTeacherQuizLiveWord(wordId);
-        }, VOCAB_TEACHER_QUIZ_LIVE_SYNC_RETRY_MS);
+        }, retryMs);
       }
     },
     [canOperate, locale]
@@ -593,6 +600,7 @@ export function useEnVocabTeacherQuiz(options: {
     setStudentPeekedCurrentWord(false);
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let failStreak = 0;
 
     const pollDelay = () =>
       resolveVocabPollIntervalMs({
@@ -612,6 +620,7 @@ export function useEnVocabTeacherQuiz(options: {
 
     const poll = async () => {
       if (cancelled) return;
+      let okResponse = false;
       try {
         const res = await fetch(
           `/api/en-vocab/teacher-quiz-live?word_id=${encodeURIComponent(
@@ -619,10 +628,13 @@ export function useEnVocabTeacherQuiz(options: {
           )}`,
           { credentials: "include", cache: "no-store" }
         );
+        if (!res.ok) throw new Error(`live poll HTTP ${res.status}`);
         const data = (await res.json()) as {
           ok: boolean;
           student_peeked?: boolean;
         };
+        okResponse = true;
+        failStreak = 0;
         if (!cancelled && data.ok) {
           const peeked = Boolean(data.student_peeked);
           if (peeked) {
@@ -636,9 +648,12 @@ export function useEnVocabTeacherQuiz(options: {
           }
         }
       } catch {
-        /* ignore */
+        /* ignore — 含 503/1102 HTML：拉长间隔，勿死亡螺旋 */
       }
-      if (!cancelled) schedule(pollDelay());
+      if (!cancelled) {
+        if (!okResponse) failStreak += 1;
+        schedule(vocabTeacherQuizLivePollBackoffMs(pollDelay(), failStreak));
+      }
     };
 
     void poll();

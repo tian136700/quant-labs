@@ -41,6 +41,12 @@ import { JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT } from "@/lib/jp-vocab-save-progr
 import type { JpVocabSaveProgressKind } from "@/lib/jp-vocab-save-progress";
 import { notifyEnVocabSharedUpdated } from "@/lib/en-vocab-shared-notify";
 import { mergeEnVocabWordAfterReviewResponse } from "@/lib/en-vocab-teacher-quiz";
+import {
+  readVocabApiJsonResponse,
+  sleepMs,
+  vocabApiOverloadRetryDelayMs,
+  VOCAB_API_OVERLOAD_RETRY_ATTEMPTS,
+} from "@/lib/vocab-api-json";
 import type { EnVocabRef, EnVocabLevel, EnVocabWord } from "@/lib/types";
 import type { Locale } from "@/i18n/messages";
 
@@ -301,30 +307,54 @@ export function useEnVocabReviewActions(options: {
         );
 
         try {
-          const res = await fetch("/api/en-vocab", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              [LOCALE_HEADER]: locale,
-            },
-            credentials: "include",
-            body: JSON.stringify(body),
-          });
-          let data: {
+          type ReviewSaveData = {
             ok: boolean;
             word?: EnVocabWord;
             shared?: boolean;
             shared_new?: boolean;
             error?: string;
           };
-          try {
-            data = (await res.json()) as typeof data;
-          } catch {
-            throw new Error(locale === "zh" ? "保存失败" : "Save failed");
+          let data: ReviewSaveData | null = null;
+          let lastHttpStatus = 0;
+          for (
+            let attempt = 1;
+            attempt <= VOCAB_API_OVERLOAD_RETRY_ATTEMPTS;
+            attempt++
+          ) {
+            const res = await fetch("/api/en-vocab", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                [LOCALE_HEADER]: locale,
+              },
+              credentials: "include",
+              body: JSON.stringify(body),
+            });
+            lastHttpStatus = res.status;
+            if (res.status === 401) {
+              await refresh();
+              throw new Error(EN_VOCAB_SAVE_ERR[locale]);
+            }
+            const parsed = await readVocabApiJsonResponse<ReviewSaveData>(res);
+            if (!parsed.ok) {
+              if (
+                parsed.isWorkerOverload &&
+                attempt < VOCAB_API_OVERLOAD_RETRY_ATTEMPTS
+              ) {
+                await sleepMs(vocabApiOverloadRetryDelayMs(attempt));
+                continue;
+              }
+              throw new Error(parsed.error);
+            }
+            data = parsed.data;
+            break;
           }
-          if (res.status === 401) {
-            await refresh();
-            throw new Error(EN_VOCAB_SAVE_ERR[locale]);
+          if (!data) {
+            throw new Error(
+              locale === "zh"
+                ? `保存失败（HTTP ${lastHttpStatus || "?"}）`
+                : `Save failed (HTTP ${lastHttpStatus || "?"})`
+            );
           }
           if (!data.ok || !data.word) {
             const errKey = data.error || "";
@@ -342,7 +372,10 @@ export function useEnVocabReviewActions(options: {
                     ? "用法熟悉程度无效，请重新勾选。"
                     : errKey === "not_found"
                       ? "词条不存在或已删除。"
-                      : errKey || (locale === "zh" ? "保存失败" : "Save failed");
+                      : errKey ||
+                        (locale === "zh"
+                          ? `保存失败（HTTP ${lastHttpStatus || "?"}）`
+                          : `Save failed (HTTP ${lastHttpStatus || "?"})`);
             throw new Error(msg);
           }
 
@@ -593,7 +626,7 @@ export function useEnVocabReviewActions(options: {
       const detail = [
         "POST /api/en-vocab（usage_levels 写库失败）",
         `word_id=${wordId}`,
-        err instanceof Error ? `${err.name}: ${err.message}` : String(err),
+        err instanceof Error ? err.message : String(err),
       ].join("\n");
       return { ok: false, detail };
     } finally {

@@ -53,6 +53,24 @@ def main() -> int:
         if "pickNextJpVocabFillCandidate" not in text:
             errors.append("jp fill-next-candidate missing pick function")
 
+    for route in (en_route, jp_route):
+        if not route.is_file():
+            continue
+        text = route.read_text(encoding="utf-8")
+        if "vocabFillQuietGateOrNull" not in text:
+            errors.append(
+                f"{route.relative_to(ROOT)} must re-check quiz gate "
+                "(batch mid-quiz still hits fill-next)"
+            )
+
+    pitch = ROOT / "src/app/api/jp-vocab/fill-pitch-accent/route.ts"
+    if pitch.is_file():
+        text = pitch.read_text(encoding="utf-8")
+        if "vocabFillQuietGateOrNull" not in text:
+            errors.append(
+                "fill-pitch-accent must re-check quiz gate mid-request"
+            )
+
     if errors:
         print("check_vocab_fill_next_candidate.py FAILED:", file=sys.stderr)
         for e in errors:

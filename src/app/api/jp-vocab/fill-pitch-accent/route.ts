@@ -7,6 +7,10 @@ import {
   validateJpVocabPitchAccentForApply,
 } from "@/lib/jp-vocab-fill-pitch-accent";
 import { verifyUploadAuth } from "@/lib/jp-review";
+import {
+  vocabFillApplyQuietResponse,
+  vocabFillQuietGateOrNull,
+} from "@/lib/vocab-fill-quiz-gate-api";
 import { enforceVocabFillRouteRateLimit } from "@/lib/worker-api-rate-limit";
 
 type FillPitchAccentBody = {
@@ -38,6 +42,8 @@ export async function POST(request: Request) {
     );
     if (limited) return limited;
 
+    const quiet = await vocabFillQuietGateOrNull(env.DB);
+
     let body: FillPitchAccentBody = {};
     try {
       body = (await request.json()) as FillPitchAccentBody;
@@ -46,6 +52,7 @@ export async function POST(request: Request) {
     }
 
     if (body.mode === "mark_not_found") {
+      if (quiet) return vocabFillApplyQuietResponse(quiet);
       const ids = (Array.isArray(body.word_ids) ? body.word_ids : [])
         .map((id) => Number(id))
         .filter((id) => Number.isInteger(id) && id > 0);
@@ -82,6 +89,21 @@ export async function POST(request: Request) {
       updates.length > 0 ? "apply" : body.mode === "apply" ? "apply" : "list_missing";
 
     if (mode === "list_missing") {
+      if (quiet) {
+        return jsonResponse({
+          ok: true,
+          mode: "list_missing",
+          missing: [],
+          total_missing: 0,
+          updated: 0,
+          applied: [],
+          skipped: [],
+          dry_run: true,
+          quiz_gate_quiet: true,
+          quiz_gate_reason: quiet.reason,
+          quiz_gate_detail: quiet.detail,
+        });
+      }
       const missing = await listJpVocabWordsMissingPitchAccent(
         env.DB,
         typeof body.limit === "number" ? body.limit : undefined
@@ -97,6 +119,8 @@ export async function POST(request: Request) {
         dry_run: true,
       });
     }
+
+    if (quiet) return vocabFillApplyQuietResponse(quiet);
 
     if (updates.length === 0) {
       return jsonResponse({ ok: false, error: "No valid updates" }, 400);
