@@ -5,8 +5,9 @@
 日语或英语任一抽查进行中，全部 fill 任务跳过。
 
 本机共享缓存（~/.config/info-quests/vocab-fill-quiz-gate.cache.json）：
-- quiet（抽查中 / 冷却）→ 默认缓存 120s，避免 5 个 StartInterval=60 的任务每分钟各打一次门禁把 isolate 打满 → 1102
-- ok_to_run → 仅短缓存 20s（多任务同秒争用合并；仍尽快感知「开始抽查」）
+- quiet（抽查中 / 冷却）→ 默认缓存 120s，避免多 launchd 每分钟各打一次门禁把 isolate 打满 → 1102
+- ok_to_run → 默认缓存 60s（合并同分钟多任务；fill-next/pitch 热路径每次再查 Worker 门禁，
+  中途开抽仍立刻空候选，不必靠本机 20s 感知）
 """
 
 from __future__ import annotations
@@ -28,8 +29,8 @@ DEFAULT_COOLDOWN_MINUTES = 30
 
 # quiet 长缓存：抽查中每分钟空打门禁是 1102 争用主因之一
 DEFAULT_QUIET_CACHE_SEC = 120
-# ok 短缓存：只合并同分钟多 launchd 唤醒，勿长时间遮住「刚开抽查」
-DEFAULT_OK_CACHE_SEC = 20
+# ok 缓存：合并多 launchd；热路径 Worker 侧再查门禁，可长于旧的 20s
+DEFAULT_OK_CACHE_SEC = 60
 
 CACHE_PATH = (
     Path.home() / ".config" / "info-quests" / "vocab-fill-quiz-gate.cache.json"

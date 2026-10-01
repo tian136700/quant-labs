@@ -31,11 +31,14 @@ def main() -> int:
         "quiz_in_progress",
         "live_open",
         "GATE_QUIET_CACHE_MS",
+        "GATE_OK_CACHE_MS = 45_000",
         "gateIsolateCache",
         "liveActivityRecent",
     ):
         if needle not in gate_ts:
             errors.append(f"gate ts missing {needle}")
+    if "GATE_OK_CACHE_MS = 15_000" in gate_ts:
+        errors.append("Worker ok isolate cache must not stay at 15s (use ≥45s)")
     if "nowMs - lastMs < cooldownMs" not in gate_ts:
         errors.append(
             "gate must release midQuiz when last activity older than cooldown "
@@ -57,7 +60,7 @@ def main() -> int:
         "fill-schedule-gate",
         "return 75",
         "DEFAULT_QUIET_CACHE_SEC = 120",
-        "DEFAULT_OK_CACHE_SEC = 20",
+        "DEFAULT_OK_CACHE_SEC = 60",
         "vocab-fill-quiz-gate.cache.json",
         "_read_cache",
         "_write_cache",

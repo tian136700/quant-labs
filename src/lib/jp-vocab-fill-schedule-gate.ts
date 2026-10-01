@@ -70,9 +70,10 @@ async function readQuizDayAgg(
   };
 }
 
-/** isolate 内短缓存：抽查中多 launchd 每分钟打门禁时少打 D1（Mac 侧另有文件缓存） */
+/** isolate 内短缓存：多 launchd 打门禁时少打 D1（Mac 侧另有文件缓存） */
 const GATE_QUIET_CACHE_MS = 60_000;
-const GATE_OK_CACHE_MS = 15_000;
+/** ok 时可稍长：fill-next/pitch 热路径仍每次走本函数；门禁 API 自身少扫 D1 */
+const GATE_OK_CACHE_MS = 45_000;
 
 type GateCacheEntry = {
   atMs: number;
