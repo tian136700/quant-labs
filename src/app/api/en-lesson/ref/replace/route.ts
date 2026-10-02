@@ -67,15 +67,15 @@ export async function POST(request: Request) {
         ? titleRaw.trim()
         : lesson.title;
 
-    const bytes = await file.arrayBuffer();
-    if (!bytes.byteLength) {
+    if (!file.size) {
       return jsonResponse({ ok: false, error: "empty_file" }, 400);
     }
 
     const targetRefKey = enLessonRefKey(lessonId);
     const oldRefKey = lesson.ref_key;
 
-    const stored = await putEnVocabRefFile(env, targetRefKey, mediaType, bytes);
+    // 直接把 File 交给 R2，禁止 arrayBuffer 双份拷贝（大 PDF → Error 1102）
+    const stored = await putEnVocabRefFile(env, targetRefKey, mediaType, file);
     const ref = await saveEnVocabRefFileMeta(
       env.DB,
       targetRefKey,

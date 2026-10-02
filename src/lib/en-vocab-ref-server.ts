@@ -52,11 +52,18 @@ export async function enVocabRefFileExists(
   return Boolean(obj);
 }
 
+/** R2 可直接收 Blob/File/stream，避免 multipart 再 arrayBuffer 双份拷进 Worker 内存 */
+export type EnVocabRefFileBody =
+  | ArrayBuffer
+  | Uint8Array
+  | Blob
+  | ReadableStream;
+
 export async function putEnVocabRefFile(
   env: CloudflareEnv,
   refKey: string,
   mediaType: EnVocabMediaType,
-  bytes: ArrayBuffer
+  bytes: EnVocabRefFileBody
 ): Promise<{ r2_key: string; storage: "r2" | "local" }> {
   const r2Key = enVocabRefR2Key(refKey, mediaType);
 
@@ -71,6 +78,17 @@ export async function putEnVocabRefFile(
 
   const filePath = enVocabRefPublicPath(refKey, mediaType);
   await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, Buffer.from(bytes));
+  let buf: Buffer;
+  if (bytes instanceof ArrayBuffer) {
+    buf = Buffer.from(bytes);
+  } else if (bytes instanceof Uint8Array) {
+    buf = Buffer.from(bytes);
+  } else if (typeof Blob !== "undefined" && bytes instanceof Blob) {
+    buf = Buffer.from(await bytes.arrayBuffer());
+  } else {
+    const ab = await new Response(bytes as ReadableStream).arrayBuffer();
+    buf = Buffer.from(ab);
+  }
+  await writeFile(filePath, buf);
   return { r2_key: enVocabRefLocalMarker(refKey), storage: "local" };
 }

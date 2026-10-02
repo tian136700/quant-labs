@@ -120,20 +120,10 @@ export async function ensureEnLessonSchemaColumns(db: D1Database): Promise<void>
     enLessonLinkCopyCountColumnReady = true;
   }
   if (!names.has("category")) {
+    // 刚加列：ensureEnLessonCategoryColumn 内做一次空值回填
     await ensureEnLessonCategoryColumn(db);
   } else {
-    // 列已在：仍做一次空值回填（幂等），但跳过 ALTER
-    try {
-      await db
-        .prepare(
-          `UPDATE en_lesson
-           SET category = '雅思托福'
-           WHERE category IS NULL OR TRIM(category) = ''`
-        )
-        .run();
-    } catch {
-      /* ignore */
-    }
+    // 列已在：禁止再跑全表 TRIM UPDATE（与教案上传同请求会抢 CPU → 1102）
     enLessonCategoryColumnReady = true;
   }
   if (!names.has("remarks")) {
@@ -331,7 +321,13 @@ function lessonContentMatchesNormalized(
   return normalizeLessonContentForStorage(storedContent) === normalizedContent;
 }
 
-/** 同 kind+规范化 content 是否已有其它课（更新时可 excludeLessonId） */
+/**
+ * 同 kind+规范化 content 是否已有其它课（更新时可 excludeLessonId）。
+ *
+ * 只做精确匹配：写入路径一律 `normalizeLessonContentForStorage`，存库即规范化。
+ * **禁止** `SELECT id, content FROM en_lesson` 全表拉进 Worker 再 JS 比对——
+ * 与教案 multipart 同请求时极易 Error 1102（内存/CPU）。
+ */
 export async function enLessonContentExists(
   db: D1Database,
   kind: EnLessonKind,
@@ -361,29 +357,16 @@ export async function enLessonContentExists(
       )
       .bind(kind, normalizedContent)
       .first<{ ok: number }>();
-    if (exact?.ok) return true;
-  } else {
-    const exact = await db
-      .prepare(
-        "SELECT 1 AS ok FROM en_lesson WHERE kind = ?1 AND content = ?2 AND id != ?3 LIMIT 1"
-      )
-      .bind(kind, normalizedContent, skipId)
-      .first<{ ok: number }>();
-    if (exact?.ok) return true;
+    return Boolean(exact?.ok);
   }
 
-  const result = await db
+  const exact = await db
     .prepare(
-      skipId == null
-        ? "SELECT id, content FROM en_lesson WHERE kind = ?1"
-        : "SELECT id, content FROM en_lesson WHERE kind = ?1 AND id != ?2"
+      "SELECT 1 AS ok FROM en_lesson WHERE kind = ?1 AND content = ?2 AND id != ?3 LIMIT 1"
     )
-    .bind(...(skipId == null ? [kind] : [kind, skipId]))
-    .all<{ id: number; content: string }>();
-
-  return (result.results ?? []).some((row) =>
-    lessonContentMatchesNormalized(String(row.content), normalizedContent)
-  );
+    .bind(kind, normalizedContent, skipId)
+    .first<{ ok: number }>();
+  return Boolean(exact?.ok);
 }
 
 export async function listEnLessons(db: D1Database): Promise<EnLessonRecord[]> {

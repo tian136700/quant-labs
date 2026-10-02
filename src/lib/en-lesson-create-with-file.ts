@@ -1,10 +1,16 @@
 /**
  * 英语新课建课 + 可选教案文件（upload 令牌接口与网页 create 共用）。
+ *
+ * 带教案 multipart 时：先轻量 D1 建课，再把 File/Blob 交给 R2（禁止先 arrayBuffer
+ * 再扫全表 content 去重——同请求易 Error 1102）。
  */
 import { createEnLesson, updateEnLessonRefKey } from "@/lib/en-lesson-db";
 import { normalizeEnVocabCategory } from "@/lib/en-vocab-category";
 import { saveEnVocabRefFileMeta } from "@/lib/en-vocab-db";
-import { putEnVocabRefFile } from "@/lib/en-vocab-ref-server";
+import {
+  putEnVocabRefFile,
+  type EnVocabRefFileBody,
+} from "@/lib/en-vocab-ref-server";
 import { enLessonRefKey, normalizeEnVocabRefKey } from "@/lib/en-vocab-ref-shared";
 import type { CloudflareEnv, EnLessonKind, EnLessonRecord, EnVocabMediaType } from "@/lib/types";
 
@@ -21,8 +27,16 @@ export type EnLessonCreateWithFileInput = {
   remarks?: string | null;
   /** 无 file 时可绑定已有教案 key */
   ref_key?: string | null;
+  /**
+   * 教案正文：优先传 File/Blob（R2 可直接 put，少一份内存拷贝）。
+   * ArrayBuffer 仍兼容 JSON/脚本路径。
+   */
+  fileBody?: EnVocabRefFileBody | null;
+  /** @deprecated 用 fileBody；保留兼容旧调用 */
   fileBytes?: ArrayBuffer | null;
   mediaType?: EnVocabMediaType;
+  /** 有 file 时的字节数（File.size / byteLength），用于限流 */
+  fileSize?: number | null;
 };
 
 export type EnLessonCreateWithFileResult =
@@ -33,6 +47,36 @@ export type EnLessonCreateWithFileResult =
       ref_view_path: string | null;
     }
   | { ok: false; error: string; status: number };
+
+function resolveFileBody(
+  input: EnLessonCreateWithFileInput
+): { body: EnVocabRefFileBody | null; size: number } {
+  if (input.fileBody != null) {
+    const body = input.fileBody;
+    if (typeof Blob !== "undefined" && body instanceof Blob) {
+      return { body, size: body.size };
+    }
+    if (body instanceof ArrayBuffer) {
+      return { body, size: body.byteLength };
+    }
+    if (body instanceof Uint8Array) {
+      return { body, size: body.byteLength };
+    }
+    const hinted = input.fileSize;
+    return {
+      body,
+      size:
+        typeof hinted === "number" && Number.isFinite(hinted) && hinted > 0
+          ? hinted
+          : 1,
+    };
+  }
+  const bytes = input.fileBytes ?? null;
+  if (bytes && bytes.byteLength > 0) {
+    return { body: bytes, size: bytes.byteLength };
+  }
+  return { body: null, size: 0 };
+}
 
 export async function createEnLessonWithOptionalFile(
   env: CloudflareEnv,
@@ -49,15 +93,16 @@ export async function createEnLessonWithOptionalFile(
   const remarks = (input.remarks || "").trim() || null;
   const category = normalizeEnVocabCategory(input.category);
   const refKey = normalizeEnVocabRefKey(String(input.ref_key || ""));
-  const fileBytes = input.fileBytes ?? null;
-  const hasFile = Boolean(fileBytes?.byteLength);
+  const { body: fileBody, size: fileSize } = resolveFileBody(input);
+  const hasFile = Boolean(fileBody && fileSize > 0);
   const mediaType: EnVocabMediaType =
     input.mediaType === "pdf" ? "pdf" : "image";
 
-  if (hasFile && fileBytes && fileBytes.byteLength > EN_LESSON_UPLOAD_MAX_BYTES) {
+  if (hasFile && fileSize > EN_LESSON_UPLOAD_MAX_BYTES) {
     return { ok: false, error: "File too large (max 20MB)", status: 413 };
   }
 
+  // 先 D1 建课（轻量），再 put R2——避免大文件驻留时还扫库
   const result = await createEnLesson(env.DB, {
     kind,
     content,
@@ -76,13 +121,13 @@ export async function createEnLessonWithOptionalFile(
   let lesson = result.lesson;
   let assignedRefKey: string | null = lesson.ref_key;
 
-  if (hasFile && fileBytes) {
+  if (hasFile && fileBody) {
     assignedRefKey = enLessonRefKey(lesson.id);
     const stored = await putEnVocabRefFile(
       env,
       assignedRefKey,
       mediaType,
-      fileBytes
+      fileBody
     );
     await saveEnVocabRefFileMeta(
       env.DB,
@@ -133,7 +178,8 @@ export async function parseEnLessonCreateFormData(
     typeof catRaw === "string" && catRaw.trim() ? catRaw.trim() : null;
   const refKey = normalizeEnVocabRefKey(String(form.get("ref_key") || ""));
 
-  let fileBytes: ArrayBuffer | null = null;
+  let fileBody: EnVocabRefFileBody | null = null;
+  let fileSize: number | null = null;
   let mediaType: EnVocabMediaType = "image";
 
   const file = form.get("file");
@@ -145,7 +191,9 @@ export async function parseEnLessonCreateFormData(
         status: 413,
       };
     }
-    fileBytes = await file.arrayBuffer();
+    // 保留 File，交 R2.put；禁止此处 arrayBuffer（与建课同请求双份内存 → 1102）
+    fileBody = file;
+    fileSize = file.size;
     const rawType = String(form.get("media_type") || "").trim().toLowerCase();
     mediaType =
       rawType === "pdf" || file.type === "application/pdf" ? "pdf" : "image";
@@ -161,7 +209,8 @@ export async function parseEnLessonCreateFormData(
       remarks,
       category,
       ref_key: refKey || null,
-      fileBytes,
+      fileBody,
+      fileSize,
       mediaType,
     },
   };

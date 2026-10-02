@@ -67,8 +67,8 @@ Header（可选）：
 {
   "ok": true,
   "lesson": { "id": 42, "kind": "grammar", "content": "定语从句", ... },
-  "ref_key": "lesson-42",
-  "ref_view_path": "/api/en-vocab/ref/lesson-42"
+  "ref_key": "en-lesson-42",
+  "ref_view_path": "/api/en-vocab/ref/en-lesson-42"
 }
 
 无教案文件时 ref_key / ref_view_path 可能为 null。
@@ -82,6 +82,9 @@ Header（可选）：
 | 400 | content_required / content_empty |
 | 409 | content_duplicate（同 kind + 同规范化 content 已存在） |
 | 413 | File too large (max 20MB) |
+| 1102 | Cloudflare Worker 资源超限（HTML 页）。实现侧禁止上传时全表扫 content / 禁止 multipart 先 arrayBuffer；见 check_en_lesson_upload_1102.py |
+
+成功时若带教案，ref_key 形如 `en-lesson-{id}`（勿再写成 `lesson-{id}`，避免与日语撞 R2）。
 
 
 curl 示例
@@ -116,3 +119,4 @@ print(r.status_code, r.json())
       src/components/en-lesson-page/EnLessonCreateModal.tsx
 功能索引：docs/feature-index.md → 英语新课 · 网页新增整条课
 令牌上传对照：POST /api/en-lesson/upload
+防 1102：scripts/check_en_lesson_upload_1102.py；.cursor/rules/en-lesson-upload-1102.mdc
